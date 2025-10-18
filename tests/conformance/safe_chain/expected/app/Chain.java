@@ -14,15 +14,16 @@ import org.jspecify.annotations.*;
     public static void main(String[] args) {
         System.out.println(shout(null));
         System.out.println(shout(" hi "));
-        final @Nullable String name = null;
-        final var $n1 = name;
+        final @Nullable StringBuilder missing = null;
+        final var $n1 = missing;
         if ($n1 != null) {
-            $n1.length();
+            $n1.setLength(0);
         }
-        final @Nullable String other = "x";
-        final var $n2 = other;
+        final @Nullable StringBuilder builder = new StringBuilder("ab");
+        final var $n2 = builder;
         if ($n2 != null) {
-            $n2.length();
+            $n2.setLength(1);
         }
+        System.out.println(builder);
     }
 }

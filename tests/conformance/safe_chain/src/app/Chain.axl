@@ -10,8 +10,9 @@ fn shout(s: String?) -> String? = s?.trim()?.concat(suffix())
 fn main() {
     println(shout(null))
     println(shout(" hi "))
-    val name: String? = null
-    name?.length()
-    val other: String? = "x"
-    other?.length()
+    val missing: StringBuilder? = null
+    missing?.setLength(0)
+    val builder: StringBuilder? = StringBuilder("ab")
+    builder?.setLength(1)
+    println(builder)
 }

@@ -1,0 +1,6 @@
+package app
+import java.lang.Math.max
+
+fn main() {
+    println(max(1, 2))
+}

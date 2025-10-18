@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:3:1: error: value `s` may be null: use `?.`, `?:` or check `if (s != null)`
+AXL102 app/Main.axl:7:5: error: value `trimmed` may be null: use `?.`, `?:` or check `if (trimmed != null)`

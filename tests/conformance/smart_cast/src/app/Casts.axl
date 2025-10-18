@@ -1,0 +1,36 @@
+package app
+
+fn inIf(s: String?) -> Int {
+    if (s != null) {
+        return s.length()
+    }
+    return -1
+}
+
+fn earlyReturn(s: String?) -> Int {
+    if (s == null) {
+        return 0
+    }
+    return s.length()
+}
+
+fn conjunction(s: String?) -> Boolean = s != null && s.length() > 2
+
+fn disjunction(s: String?) -> Boolean = s == null || s.isEmpty()
+
+fn local(input: String?) -> Int {
+    val copy = input
+    if (copy == null) {
+        return 0
+    }
+    return copy.length()
+}
+
+fn main() {
+    println(inIf("ab"))
+    println(inIf(null))
+    println(earlyReturn("abc"))
+    println(conjunction("abc"))
+    println(disjunction(null))
+    println(local("abcd"))
+}

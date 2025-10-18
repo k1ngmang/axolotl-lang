@@ -1,0 +1,12 @@
+package app
+
+fn length(s: String?) -> Int = s.length()
+
+fn field(s: String?) -> Int {
+    val trimmed = s?.trim()
+    return trimmed.length()
+}
+
+fn main() {
+    println(length("abc"))
+}
