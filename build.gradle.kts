@@ -3,6 +3,16 @@ allprojects {
     version = "0.1.0-SNAPSHOT"
 }
 
+// Error Prone runs inside javac in the same JVM and needs access to the compiler internals.
+val errorProneJvmArgs by extra(
+    listOf("api", "code", "comp", "file", "main", "model", "parser", "processing", "tree", "util").flatMap {
+        listOf(
+            "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED",
+            "--add-opens=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED",
+        )
+    }
+)
+
 subprojects {
     plugins.withType<JavaPlugin> {
         extensions.configure<JavaPluginExtension> {

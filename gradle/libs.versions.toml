@@ -3,8 +3,15 @@ jspecify = "1.0.0"
 junit = "5.13.4"
 antlr = "4.13.2"
 picocli = "4.7.7"
+errorprone = "2.50.0"
+nullaway = "0.14.2"
+jmh = "1.37"
 
 [libraries]
+errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
+nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
+jmh-core = { module = "org.openjdk.jmh:jmh-core", version.ref = "jmh" }
+jmh-generator = { module = "org.openjdk.jmh:jmh-generator-annprocess", version.ref = "jmh" }
 antlr = { module = "org.antlr:antlr4", version.ref = "antlr" }
 antlr-runtime = { module = "org.antlr:antlr4-runtime", version.ref = "antlr" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }

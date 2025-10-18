@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import com.sun.source.util.JavacTask;
+import java.util.stream.Stream;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
@@ -16,14 +18,28 @@ import javax.tools.JavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 
-/** Runs javac in process with `--release 21`. */
+/**
+ * Runs javac in process with `--release 21`, optionally with Error Prone and NullAway in JSpecify mode.
+ * Error Prone needs the JVM flags listed in {@link #ERROR_PRONE_JVM_ARGS}.
+ */
 public final class JavaCompilation {
+
+    public static final List<String> ERROR_PRONE_JVM_ARGS = List.of("api", "code", "comp", "file", "main", "model",
+                    "parser", "processing", "tree", "util").stream()
+            .flatMap(p -> Stream.of("--add-exports=jdk.compiler/com.sun.tools.javac." + p + "=ALL-UNNAMED",
+                    "--add-opens=jdk.compiler/com.sun.tools.javac." + p + "=ALL-UNNAMED"))
+            .toList();
+
+    /** The plugin argument; NullAway only checks classes annotated with {@code @NullMarked}. */
+    public static final String ERROR_PRONE_PLUGIN = "-Xplugin:ErrorProne -Xep:NullAway:ERROR "
+            + "-XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
 
     public record Outcome(boolean success, List<Diagnostic<? extends JavaFileObject>> diagnostics) {}
 
     private JavaCompilation() {}
 
-    public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions) {
+    public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions,
+                                  boolean nullChecks) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IllegalStateException("no Java compiler available: run with a JDK, not a JRE");
@@ -37,12 +53,31 @@ public final class JavaCompilation {
                     "-proc:none",
                     "-d", classesDir.toString(),
                     "-classpath", classpath.stream().map(Path::toString).collect(Collectors.joining(java.io.File.pathSeparator))));
+            if (nullChecks) {
+                requireCompilerAccess();
+                options.addAll(List.of(
+                        "-XDcompilePolicy=simple",
+                        "-XDaddTypeAnnotationsToSymbol=true",
+                        "--should-stop=ifError=FLOW",
+                        "-processorpath", System.getProperty("java.class.path"),
+                        ERROR_PRONE_PLUGIN));
+            }
             options.addAll(extraOptions);
             var units = files.getJavaFileObjectsFromPaths(sources);
-            boolean success = compiler.getTask(null, files, collector, options, null, units).call();
+            JavacTask task = (JavacTask) compiler.getTask(null, files, collector, options, null, units);
+            boolean success = task.call();
             return new Outcome(success, collector.getDiagnostics());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void requireCompilerAccess() {
+        boolean exported = ModuleLayer.boot().findModule("jdk.compiler")
+                .map(m -> m.isOpen("com.sun.tools.javac.comp", JavaCompilation.class.getModule()))
+                .orElse(false);
+        if (!exported) {
+            throw new IllegalStateException("Error Prone needs these JVM options: " + String.join(" ", ERROR_PRONE_JVM_ARGS));
         }
     }
 }
