@@ -1,0 +1,11 @@
+package app
+
+fn parseOrZero(s: String) -> Int = Integer.parseInt(s)
+
+fn read(a: String, b: String) -> Result<Int, String> =
+    attempt Integer.parseInt(a) + (attempt parseOrZero(b) else 0).hashCode() else e -> "outer: " + e.getMessage()
+
+fn main() {
+    println(read("1", "x"))
+    println(read("y", "2"))
+}

@@ -1,0 +1,9 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else "bad"
+
+fn again(s: String) -> Result<Int, String> {
+    return try parse(s)
+}
+
+fn shortened(s: String) -> Result<Int, String> = try parse(s)

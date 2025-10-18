@@ -1,0 +1,12 @@
+package app
+import lib.Lookup
+
+fn shout(key: String) -> Result<String, String> {
+    val value = try Lookup.find(key)
+    return Ok(value + "!")
+}
+
+fn main() {
+    println(shout("hey"))
+    println(shout(""))
+}

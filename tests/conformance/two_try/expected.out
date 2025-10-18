@@ -1,0 +1,3 @@
+Ok[value=3]
+Err[error=bad: q]
+Err[error=negative: -4]

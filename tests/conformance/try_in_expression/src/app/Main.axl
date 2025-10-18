@@ -1,0 +1,14 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else "bad"
+
+fn check(b: Result<Boolean, String>) -> Result<Boolean, String> {
+    println(try parse("1"))
+    val ok = true && try b
+    val f: java.util.function.Supplier<Int> = { try parse("2") }
+    val n: Int? = null
+    val m = n ?: try parse("3")
+    while (try b) {
+    }
+    return Ok(ok)
+}

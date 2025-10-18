@@ -1,0 +1,9 @@
+package app
+
+val limit = 10
+
+fn main() {
+    val a = null
+    var f = { println("x") }
+    val ok: String? = null
+}

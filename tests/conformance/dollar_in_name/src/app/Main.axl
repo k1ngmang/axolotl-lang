@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val $t1 = 1
+    println(a$b)
+}

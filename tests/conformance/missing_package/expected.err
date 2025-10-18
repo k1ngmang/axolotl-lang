@@ -1,0 +1,1 @@
+AXL002 app/Main.axl:1:1: error: missing `package` declaration: every .axl file starts with `package name`

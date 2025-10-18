@@ -1,0 +1,2 @@
+AXL005 app/Main.axl:6:12: error: `return try e` makes no sense: `try` unwraps the value, but the function returns `Result`; write `return e`
+AXL005 app/Main.axl:9:50: error: `return try e` makes no sense: `try` unwraps the value, but the function returns `Result`; write `return e`

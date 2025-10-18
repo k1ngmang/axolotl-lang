@@ -1,0 +1,9 @@
+package app
+import java.util.List
+import fn java.util.Collections.emptyList
+
+fn pick(other: List<String>) -> List<String> = emptyList() ?: other
+
+fn main() {
+    println(pick(List.of("a")))
+}

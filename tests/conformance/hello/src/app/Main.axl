@@ -1,0 +1,10 @@
+package app
+import fn util.Parse.doubled
+
+fn greet(name: String?) -> String =
+    "Hello, " + (name?.trim() ?: "stranger")
+
+fn main() {
+    println(greet(null))
+    println(doubled("21"))
+}

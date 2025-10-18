@@ -1,0 +1,11 @@
+package util
+
+fn parse(s: String) -> Result<Int, String> =
+    attempt Integer.parseInt(s) else e -> "not a number: " + s + " (" + e.getMessage() + ")"
+
+private fn twice(n: Int) -> Int = n * 2
+
+fn doubled(s: String) -> Result<Int, String> {
+    val n = try parse(s)
+    return Ok(twice(n))
+}

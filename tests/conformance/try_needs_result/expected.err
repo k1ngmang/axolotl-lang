@@ -1,0 +1,2 @@
+AXL007 app/Main.axl:5:18: error: `try` can only be used in a function that returns `Result`
+AXL007 app/Main.axl:8:13: error: `try` can only be used in a function that returns `Result`

@@ -1,0 +1,26 @@
+package app
+
+fn label(n: Int) -> String? = if0(n)
+
+private fn if0(n: Int) -> String? {
+    if (n == 0) {
+        return null
+    }
+    return "n" + n
+}
+
+fn main() {
+    var count = 0
+    var fallback = "none"
+    while (count < 3) {
+        println(label(count) ?: fallback + count)
+        count += 1
+    }
+    fallback = "zero"
+    val text: String? = null
+    val shown = text?.concat(fallback) ?: fallback
+    println(shown)
+    if ((label(0) ?: fallback).equals("zero")) {
+        println("matched")
+    }
+}

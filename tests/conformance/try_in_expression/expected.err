@@ -1,0 +1,5 @@
+AXL006 app/Main.axl:6:13: error: `try` is only allowed as `val x = try e` or as a statement; move `try` into a separate `val`
+AXL006 app/Main.axl:7:22: error: `try` is only allowed as `val x = try e` or as a statement; move `try` into a separate `val`
+AXL006 app/Main.axl:8:49: error: `try` is only allowed as `val x = try e` or as a statement; move `try` into a separate `val`
+AXL006 app/Main.axl:10:18: error: `try` is only allowed as `val x = try e` or as a statement; move `try` into a separate `val`
+AXL006 app/Main.axl:11:12: error: `try` is only allowed as `val x = try e` or as a statement; move `try` into a separate `val`

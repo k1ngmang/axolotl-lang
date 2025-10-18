@@ -1,0 +1,2 @@
+AXL003 app/Main.axl:4:9: error: `$` is not allowed in names: `$t1`
+AXL003 app/Main.axl:5:13: error: `$` is not allowed in names: `a$b`

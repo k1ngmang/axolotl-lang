@@ -1,0 +1,8 @@
+package app
+import fn util.Strings.shout
+import val util.Strings.limit
+
+fn main() {
+    println(shout("hi"))
+    println(limit)
+}

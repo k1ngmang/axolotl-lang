@@ -1,0 +1,17 @@
+package app
+
+fn suffix() -> String {
+    println("suffix evaluated")
+    return "!"
+}
+
+fn shout(s: String?) -> String? = s?.trim()?.concat(suffix())
+
+fn main() {
+    println(shout(null))
+    println(shout(" hi "))
+    val name: String? = null
+    name?.length()
+    val other: String? = "x"
+    other?.length()
+}

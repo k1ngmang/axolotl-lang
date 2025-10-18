@@ -1,0 +1,3 @@
+AXL009 app/Main.axl:3:1: error: top-level `val limit` needs a type: `val limit: Type = ...`
+AXL009 app/Main.axl:6:5: error: `val a` needs a type when it is initialized with `null`: `val a: Type = ...`
+AXL009 app/Main.axl:7:5: error: `var f` needs a type when it is initialized with a lambda: `var f: Type = ...`

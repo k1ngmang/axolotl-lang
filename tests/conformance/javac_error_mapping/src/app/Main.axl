@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val greeting = "hi"
+
+    println(greeting.lenght())
+}

@@ -1,0 +1,23 @@
+package app
+import java.util.List
+import java.util.ArrayList
+
+fn main() {
+    val words: List<String> = List.of("b", "a", "c")
+    words.forEach({ println(it) })
+    val upper: java.util.function.Function<String, String> = { s -> s.toUpperCase() }
+    println(upper.apply("x"))
+    val sorted: List<String> = ArrayList(words)
+    sorted.sort({ a, b -> a.compareTo(b) })
+    println(sorted)
+    val counted: java.util.function.Function<String, Int> = { s ->
+        val n = s.length()
+        return n * 10
+    }
+    println(counted.apply("abc"))
+    val names: List<String> = ArrayList<String>()
+    names.add("z")
+    println(names)
+    val run: Runnable = { -> println("ran") }
+    run.run()
+}

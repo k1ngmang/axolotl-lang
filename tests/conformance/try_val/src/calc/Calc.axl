@@ -1,0 +1,14 @@
+package calc
+
+fn parse(s: String) -> Result<Int, String> =
+    attempt Integer.parseInt(s) else "bad input: " + s
+
+fn inc(s: String) -> Result<Int, String> {
+    val n = try parse(s)
+    return Ok(n + 1)
+}
+
+fn main() {
+    println(inc("41"))
+    println(inc("x"))
+}

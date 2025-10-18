@@ -1,0 +1,13 @@
+package app
+
+fn f(x: Int) -> Int {
+    val y = 1
+    if (x > 0) {
+        val y = 2
+        return y
+    }
+    val g: java.util.function.Function<Int, Int> = { x -> x + 1 }
+    val r: Result<Int, String> = attempt 1 else y -> "no"
+    val y = 3
+    return y
+}

@@ -1,0 +1,5 @@
+package util
+
+val limit: Int = 3
+
+fn shout(s: String) -> String = s.toUpperCase() + "!"

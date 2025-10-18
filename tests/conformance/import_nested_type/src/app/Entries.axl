@@ -1,0 +1,9 @@
+package app
+import java.util.Map
+import java.util.Map.Entry
+
+fn key(e: Entry<String, Int>) -> String = e.getKey()
+
+fn main() {
+    println(key(Map.entry("k", 1)))
+}

@@ -1,0 +1,18 @@
+package app
+
+fn fallback() -> String {
+    println("fallback evaluated")
+    return "x"
+}
+
+fn main() {
+    val a = null ?: "x"
+    println(a)
+    val b: String? = "set"
+    println(b ?: fallback())
+    val c: String? = null
+    println(c ?: fallback())
+    val d: Int? = null
+    val e: Int = d ?: 7
+    println(e + 1)
+}
