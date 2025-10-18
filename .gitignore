@@ -1,0 +1,9 @@
+.gradle/
+build/
+target/
+out/
+.idea/
+*.iml
+.kotlin/
+node_modules/
+*.vsix
