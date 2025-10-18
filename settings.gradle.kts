@@ -16,4 +16,5 @@ include(
     "axl-maven-plugin",
     "axl-lsp",
     "axl-intellij",
+    "benchmarks",
 )
