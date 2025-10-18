@@ -16,6 +16,7 @@ import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.AxlBuild;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
 
 @Command(name = "run", description = "Compile the source tree of an .axl file and run its main function.")
@@ -27,6 +28,9 @@ final class RunCommand implements Callable<Integer> {
     @Parameters(index = "1..*", description = "Arguments for the program.")
     List<String> args = new ArrayList<>();
 
+    @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
+    boolean noNullChecks;
+
     @Override
     public Integer call() throws Exception {
         String text = Files.readString(file, StandardCharsets.UTF_8);
@@ -36,6 +40,7 @@ final class RunCommand implements Callable<Integer> {
         Path work = Files.createTempDirectory("axl-run");
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
                 .display(Paths::display)
+                .nullChecks(!noNullChecks)
                 .run();
         BuildCommand.report(result.diagnostics());
         if (!result.success()) {

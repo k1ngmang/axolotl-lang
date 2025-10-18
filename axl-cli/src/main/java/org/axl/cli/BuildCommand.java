@@ -25,10 +25,14 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = {"-cp", "--classpath"}, split = "${sys:path.separator}", description = "Extra classpath entries.")
     List<Path> classpath = new ArrayList<>();
 
+    @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
+    boolean noNullChecks;
+
     @Override
     public Integer call() throws Exception {
         AxlBuild.Result result = new AxlBuild(sourceDir, generatedDir != null ? generatedDir : classesDir, classesDir)
                 .classpath(classpath)
+                .nullChecks(!noNullChecks)
                 .display(Paths::display)
                 .run();
         report(result.diagnostics());
