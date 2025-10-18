@@ -12,6 +12,9 @@ final class Messages {
 
     record Translated(ErrorCode code, String message) {}
 
+    private static final Pattern DEREFERENCE = Pattern.compile("^\\[NullAway] dereferenced expression '(.+?)' is @Nullable");
+    private static final Pattern NULLAWAY_LINK = Pattern.compile(";? ?\\(see http://t\\.uber\\.com/nullaway ?\\)");
+    private static final Pattern IMPORTED_CLASS = Pattern.compile("^import ([\\w.]+);$");
     private static final Pattern CONSTRAINTS = Pattern.compile("equality constraints (.+)$");
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
 
@@ -28,6 +31,22 @@ final class Messages {
             if (tryMismatch != null) {
                 return tryMismatch;
             }
+        }
+        Matcher dereference = DEREFERENCE.matcher(message);
+        if (dereference.find()) {
+            String value = dereference.group(1);
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "value `" + value
+                    + "` may be null: use `?.`, `?:` or check `if (" + value + " != null)`");
+        }
+        if (message.startsWith("[NullAway] ")) {
+            return new Translated(ErrorCode.JAVAC,
+                    NULLAWAY_LINK.matcher(message.substring("[NullAway] ".length())).replaceAll(""));
+        }
+        Matcher imported = IMPORTED_CLASS.matcher(text.strip());
+        if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
+            String name = imported.group(1);
+            return new Translated(ErrorCode.IMPORT_MEMBER, "`" + name + "` is not a type: for a function write `import fn "
+                    + name + "`, for a value `import val " + name + "`");
         }
         return new Translated(ErrorCode.JAVAC, message);
     }
