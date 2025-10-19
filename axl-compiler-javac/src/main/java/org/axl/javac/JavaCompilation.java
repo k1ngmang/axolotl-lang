@@ -1,6 +1,10 @@
 package org.axl.javac;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.util.Arrays;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -59,7 +63,7 @@ public final class JavaCompilation {
                         "-XDcompilePolicy=simple",
                         "-XDaddTypeAnnotationsToSymbol=true",
                         "--should-stop=ifError=FLOW",
-                        "-processorpath", System.getProperty("java.class.path"),
+                        "-processorpath", processorPath(),
                         ERROR_PRONE_PLUGIN));
             }
             options.addAll(extraOptions);
@@ -69,6 +73,26 @@ public final class JavaCompilation {
             return new Outcome(success, collector.getDiagnostics());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Error Prone and NullAway are loaded from the classpath this class came from: the application
+     * classpath, or the plugin class loader when running inside a build tool such as Maven.
+     */
+    private static String processorPath() {
+        if (JavaCompilation.class.getClassLoader() instanceof URLClassLoader loader) {
+            return Arrays.stream(loader.getURLs()).map(JavaCompilation::toPath)
+                    .collect(Collectors.joining(java.io.File.pathSeparator));
+        }
+        return System.getProperty("java.class.path");
+    }
+
+    private static String toPath(URL url) {
+        try {
+            return Path.of(url.toURI()).toString();
+        } catch (URISyntaxException e) {
+            throw new IllegalStateException(e);
         }
     }
 

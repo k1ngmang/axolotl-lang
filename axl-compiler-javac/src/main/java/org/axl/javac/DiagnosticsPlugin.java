@@ -10,8 +10,8 @@ import java.util.List;
 
 /**
  * javac plugin that reports errors in generated .java files at their .axl lines.
- * Build tools enable it with {@code -Xplugin:AxlDiagnostics <generated-dir-uri>=<axl-dir-uri> ...};
- * the arguments are URIs so that paths with spaces survive javac's argument splitting.
+ * Build tools enable it with {@code -Xplugin:AxlDiagnostics <generated-dir>=<axl-dir> ...}. Directories are
+ * file URIs, so that paths with spaces survive javac's argument splitting, or plain paths.
  */
 public final class DiagnosticsPlugin implements Plugin {
 
@@ -26,7 +26,11 @@ public final class DiagnosticsPlugin implements Plugin {
 
         static Root parse(String argument) {
             int eq = argument.indexOf('=');
-            return new Root(Path.of(URI.create(argument.substring(0, eq))), Path.of(URI.create(argument.substring(eq + 1))));
+            return new Root(path(argument.substring(0, eq)), path(argument.substring(eq + 1)));
+        }
+
+        private static Path path(String text) {
+            return text.startsWith("file:") ? Path.of(URI.create(text)) : Path.of(text);
         }
     }
 
