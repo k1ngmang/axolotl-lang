@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    `maven-publish`
     antlr
 }
 
@@ -18,4 +19,12 @@ configurations.api {
 
 tasks.generateGrammarSource {
     arguments = arguments + listOf("-visitor", "-no-listener", "-package", "org.axl.compiler.parse")
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }

@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    `maven-publish`
 }
 
 dependencies {
@@ -26,4 +27,12 @@ tasks.test {
     inputs.dir(conformanceDir).withPropertyName("conformance").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty("axl.conformance", conformanceDir.asFile.absolutePath)
     systemProperty("axl.updateGolden", providers.gradleProperty("updateGolden").getOrElse("false"))
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            from(components["java"])
+        }
+    }
 }

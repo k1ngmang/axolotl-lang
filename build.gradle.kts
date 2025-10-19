@@ -14,6 +14,17 @@ val errorProneJvmArgs by extra(
 )
 
 subprojects {
+    // Functional tests of the build plugins resolve the artifacts from this repository.
+    plugins.withId("maven-publish") {
+        extensions.configure<PublishingExtension> {
+            repositories {
+                maven {
+                    name = "testRepo"
+                    url = uri(rootProject.layout.buildDirectory.dir("test-repo"))
+                }
+            }
+        }
+    }
     plugins.withType<JavaPlugin> {
         extensions.configure<JavaPluginExtension> {
             toolchain.languageVersion = JavaLanguageVersion.of(21)

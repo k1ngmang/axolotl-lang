@@ -3,6 +3,7 @@ rootProject.name = "axolotl"
 dependencyResolutionManagement {
     repositories {
         mavenCentral()
+        gradlePluginPortal()
     }
 }
 
