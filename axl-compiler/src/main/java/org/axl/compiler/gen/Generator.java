@@ -318,6 +318,8 @@ public final class Generator {
             case Expr.Unary u -> u.op() + expr(u.operand(), inLambda);
             case Expr.Binary b -> expr(b.left(), inLambda) + " " + b.op() + " " + expr(b.right(), inLambda);
             case Expr.Elvis e -> "Nulls.or(" + expr(e.left(), inLambda) + ", () -> " + expr(e.right(), true) + ")";
+            // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
+            case Expr.Paren p when becomesCall(p.inner()) -> expr(p.inner(), inLambda);
             case Expr.Paren p -> "(" + expr(p.inner(), inLambda) + ")";
             case Expr.Attempt a -> {
                 String error = a.errorName() != null ? a.errorName() : "$ex" + ++exceptionCount;
@@ -326,6 +328,10 @@ public final class Generator {
             case Expr.Lambda l -> lambda(l, inLambda);
             case Expr.Try t -> throw new IllegalStateException("try at " + t.pos() + " should have been rejected");
         };
+    }
+
+    private static boolean becomesCall(Expr expr) {
+        return expr instanceof Expr.Elvis || expr instanceof Expr.Attempt || Chains.hasSafeStep(expr);
     }
 
     private String call(Expr.Call c, boolean inLambda) {

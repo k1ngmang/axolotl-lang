@@ -28,7 +28,7 @@ import org.jspecify.annotations.*;
         final var shown = Nulls.or(Nulls.map(text, $n1 -> $n1.concat($c3)), () -> $c3);
         System.out.println(shown);
         final var $c4 = fallback;
-        if ((Nulls.or(label(0), () -> $c4)).equals("zero")) {
+        if (Nulls.or(label(0), () -> $c4).equals("zero")) {
             System.out.println("matched");
         }
     }
