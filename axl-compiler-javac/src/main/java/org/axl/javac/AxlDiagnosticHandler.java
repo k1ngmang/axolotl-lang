@@ -116,7 +116,11 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
             }
             try {
                 LineMap lineMap = LineMap.fromJson(Files.readString(mapFile, StandardCharsets.UTF_8));
+                // Several source directories can share one generated directory.
                 Path axlPath = root.sources().resolve(lineMap.source());
+                if (!Files.exists(axlPath)) {
+                    continue;
+                }
                 String axlText = Files.readString(axlPath, StandardCharsets.UTF_8);
                 String[] javaLines = Files.readString(javaFile, StandardCharsets.UTF_8).split("\n", -1);
                 return new Mapping(lineMap, javaLines, new AxlFile(axlPath, axlText));
