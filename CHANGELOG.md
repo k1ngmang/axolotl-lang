@@ -26,3 +26,12 @@ Known limitations: `try` only in the two statement forms; no `for` loops, arrays
 - `--inline-elvis` expands a statement-level `?:` without a lambda.
 
 Known limitations: running Error Prone in process needs JVM options for `jdk.compiler`; other NullAway messages keep their own wording.
+
+## Stage 3: Gradle plugin
+
+- Plugin `org.axl.lang`: `src/<sourceSet>/axl` source sets, cacheable incremental `generateAxl` task, generated sources wired into `compileJava`, `axl-runtime` added automatically.
+- Error Prone and NullAway on every `JavaCompile` through `net.ltgt.errorprone`.
+- javac plugin `AxlDiagnostics` reports errors in generated files at the `.axl` file and line.
+- Sample `samples/multi-module-gradle` with `.axl` and `.java` calling each other and JUnit tests, built by TestKit tests (also on Gradle 8.5 and with the configuration cache).
+
+Known limitation: `compileJava` always runs in a forked JVM because the javac plugin and Error Prone need compiler internals.
