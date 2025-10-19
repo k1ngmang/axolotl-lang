@@ -1,0 +1,6 @@
+package app
+
+fn length(s: String?) -> Int {
+    val trimmed = s?.trim()
+    return trimmed.length()
+}

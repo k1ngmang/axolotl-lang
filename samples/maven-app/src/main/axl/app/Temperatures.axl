@@ -1,0 +1,14 @@
+package app
+
+fn parse(text: String) -> Result<Double, String> =
+    attempt Double.parseDouble(text) else "not a temperature: " + text
+
+fn celsius(text: String?) -> Result<Double, String> {
+    val value = try parse(text ?: "")
+    return Ok(Units.toCelsius(value))
+}
+
+fn main() {
+    println(celsius("212"))
+    println(Labels.describe(celsius("hot")))
+}

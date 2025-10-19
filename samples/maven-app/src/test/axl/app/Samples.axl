@@ -1,0 +1,5 @@
+package app
+
+val boiling: String = "212"
+
+fn freezing() -> String = "32"

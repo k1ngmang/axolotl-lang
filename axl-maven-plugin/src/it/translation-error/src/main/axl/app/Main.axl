@@ -1,0 +1,7 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else "bad"
+
+fn twice(s: String) -> Result<Int, String> {
+    return try parse(s)
+}
