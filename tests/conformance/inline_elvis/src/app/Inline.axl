@@ -1,0 +1,18 @@
+package app
+
+fn fallback() -> String {
+    println("fallback evaluated")
+    return "none"
+}
+
+fn name(s: String?) -> String = s?.trim() ?: fallback()
+
+fn main() {
+    println(name(" axl "))
+    println(name(null))
+    var count = 1
+    val boxed: Int? = null
+    val n: Int = boxed ?: count
+    count = n + 1
+    println(count)
+}

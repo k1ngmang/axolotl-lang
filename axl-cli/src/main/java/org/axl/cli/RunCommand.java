@@ -14,6 +14,7 @@ import java.util.concurrent.Callable;
 import org.axl.compiler.Translator;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.SourceParser;
+import org.axl.compiler.Options;
 import org.axl.javac.AxlBuild;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -31,6 +32,9 @@ final class RunCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
+    boolean inlineElvis;
+
     @Override
     public Integer call() throws Exception {
         String text = Files.readString(file, StandardCharsets.UTF_8);
@@ -41,6 +45,7 @@ final class RunCommand implements Callable<Integer> {
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
                 .display(Paths::display)
                 .nullChecks(!noNullChecks)
+                .options(new Options(inlineElvis))
                 .run();
         BuildCommand.report(result.diagnostics());
         if (!result.success()) {

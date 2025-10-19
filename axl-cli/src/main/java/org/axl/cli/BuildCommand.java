@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.Options;
 import org.axl.javac.AxlBuild;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -28,11 +29,15 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
+    boolean inlineElvis;
+
     @Override
     public Integer call() throws Exception {
         AxlBuild.Result result = new AxlBuild(sourceDir, generatedDir != null ? generatedDir : classesDir, classesDir)
                 .classpath(classpath)
                 .nullChecks(!noNullChecks)
+                .options(new Options(inlineElvis))
                 .display(Paths::display)
                 .run();
         report(result.diagnostics());

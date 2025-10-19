@@ -22,8 +22,18 @@ final class Captures {
     }
 
     static List<String> in(Expr expr, Analysis analysis) {
+        return in(expr, analysis, false);
+    }
+
+    /** rootElvisInlined: a `?:` at the root expands without a lambda. */
+    static List<String> in(Expr expr, Analysis analysis, boolean rootElvisInlined) {
         Captures captures = new Captures(analysis);
-        captures.visit(expr, false);
+        if (rootElvisInlined && expr instanceof Expr.Elvis elvis) {
+            captures.visit(elvis.left(), false);
+            captures.visit(elvis.right(), false);
+        } else {
+            captures.visit(expr, false);
+        }
         return new ArrayList<>(captures.names);
     }
 

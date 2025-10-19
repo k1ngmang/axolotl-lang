@@ -26,6 +26,10 @@ public final class Translator {
      * @param displayPath path used in diagnostics
      */
     public static Result translate(String sourcePath, String displayPath, String text) {
+        return translate(sourcePath, displayPath, text, Options.DEFAULT);
+    }
+
+    public static Result translate(String sourcePath, String displayPath, String text, Options options) {
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         SourceParser.Result parsed = SourceParser.parse(displayPath, className(sourcePath), text);
         diagnostics.addAll(parsed.diagnostics());
@@ -37,7 +41,7 @@ public final class Translator {
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             return new Result(null, diagnostics);
         }
-        return new Result(Generator.generate(sourcePath, file, analysis), diagnostics);
+        return new Result(Generator.generate(sourcePath, file, analysis, options), diagnostics);
     }
 
     public static String className(String sourcePath) {

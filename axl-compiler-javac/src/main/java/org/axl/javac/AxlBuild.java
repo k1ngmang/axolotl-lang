@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 
 /** Translates every .axl file of a source tree and compiles the result together with its .java files. */
@@ -23,6 +24,7 @@ public final class AxlBuild {
     private final List<String> javacOptions = new ArrayList<>();
     private Function<Path, String> display = Path::toString;
     private boolean nullChecks = true;
+    private Options options = Options.DEFAULT;
 
     public AxlBuild(Path sourceDir, Path generatedDir, Path classesDir) {
         this.sourceDir = sourceDir;
@@ -46,6 +48,11 @@ public final class AxlBuild {
         return this;
     }
 
+    public AxlBuild options(Options options) {
+        this.options = options;
+        return this;
+    }
+
     /** How file paths are shown in diagnostics. */
     public AxlBuild display(Function<Path, String> display) {
         this.display = display;
@@ -58,7 +65,7 @@ public final class AxlBuild {
         for (Path axl : files(".axl")) {
             String sourcePath = sourceDir.relativize(axl).toString().replace('\\', '/');
             String text = Files.readString(axl, StandardCharsets.UTF_8);
-            Translator.Result result = Translator.translate(sourcePath, display.apply(axl), text);
+            Translator.Result result = Translator.translate(sourcePath, display.apply(axl), text, options);
             diagnostics.addAll(result.diagnostics());
             if (result.unit() != null) {
                 Path javaFile = result.unit().writeTo(generatedDir);

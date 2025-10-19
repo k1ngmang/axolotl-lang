@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.LineMap;
+import org.axl.compiler.Options;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Import;
@@ -27,6 +28,7 @@ public final class Generator {
 
     private final SourceFile file;
     private final Analysis analysis;
+    private final Options options;
     private final Set<String> declaredFunctions = new LinkedHashSet<>();
     private Emitter em = new Emitter();
 
@@ -37,9 +39,10 @@ public final class Generator {
     private int copyCount;
     private Map<String, String> copies = Map.of();
 
-    private Generator(SourceFile file, Analysis analysis) {
+    private Generator(SourceFile file, Analysis analysis, Options options) {
         this.file = file;
         this.analysis = analysis;
+        this.options = options;
         for (Decl decl : file.decls()) {
             if (decl instanceof Decl.Function fn) {
                 declaredFunctions.add(fn.name());
@@ -52,8 +55,8 @@ public final class Generator {
         }
     }
 
-    public static GeneratedUnit generate(String sourcePath, SourceFile file, Analysis analysis) {
-        Generator generator = new Generator(file, analysis);
+    public static GeneratedUnit generate(String sourcePath, SourceFile file, Analysis analysis, Options options) {
+        Generator generator = new Generator(file, analysis, options);
         generator.emitFile();
         return new GeneratedUnit(sourcePath, file.packageName(), file.className(), generator.em.text(),
                 new LineMap(sourcePath, generator.em.lineMap()));
@@ -130,20 +133,22 @@ public final class Generator {
                 int line = local.pos().line();
                 Expr init = local.init();
                 withCopies(line, init, () -> {
-                    String value = init instanceof Expr.Try t ? unwrapTry(line, t) : expr(init);
+                    String value = init instanceof Expr.Try t ? unwrapTry(line, t) : value(line, init);
                     String modifiers = local.mutable() ? "" : "final ";
                     String type = local.type() == null ? "var" : type(local.type());
                     em.line(line, modifiers + type + " " + local.name() + " = " + value + ";");
                 });
             }
-            case Stmt.Assign assign -> withCopies(assign.pos().line(), assign.value(), () ->
-                    em.line(assign.pos().line(), expr(assign.target()) + " " + assign.op() + " " + expr(assign.value()) + ";"));
+            case Stmt.Assign assign -> withCopies(assign.pos().line(), assign.value(), () -> {
+                String value = value(assign.pos().line(), assign.value());
+                em.line(assign.pos().line(), expr(assign.target()) + " " + assign.op() + " " + value + ";");
+            });
             case Stmt.Return ret -> {
                 if (ret.value() == null) {
                     em.line(ret.pos().line(), "return;");
                 } else {
                     withCopies(ret.pos().line(), ret.value(), () ->
-                            em.line(ret.pos().line(), "return " + expr(ret.value()) + ";"));
+                            em.line(ret.pos().line(), "return " + value(ret.pos().line(), ret.value()) + ";"));
                 }
             }
             case Stmt.If ifStmt -> {
@@ -231,9 +236,19 @@ public final class Generator {
         em.dedent();
     }
 
+    /** The value of a statement; with inlineElvis a root `?:` becomes a temporary and a conditional. */
+    private String value(int line, Expr expr) {
+        if (!options.inlineElvis() || !(expr instanceof Expr.Elvis elvis)) {
+            return expr(expr);
+        }
+        String temp = "$t" + ++tempCount;
+        em.line(line, "final var " + temp + " = " + expr(elvis.left()) + ";");
+        return temp + " != null ? " + temp + " : " + expr(elvis.right());
+    }
+
     /** Copies `var`s that lambdas of this statement capture into fresh finals, then emits it. */
     private void withCopies(int line, Expr expr, Runnable emit) {
-        withCopies(line, Captures.in(expr, analysis), emit);
+        withCopies(line, Captures.in(expr, analysis, options.inlineElvis()), emit);
     }
 
     private void withCopies(int line, List<String> captured, Runnable emit) {
