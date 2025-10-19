@@ -6,6 +6,8 @@ dependencies {
     implementation(project(":axl-compiler-javac"))
     implementation(project(":axl-runtime"))
     implementation(libs.picocli)
+    runtimeOnly(libs.errorprone.core)
+    runtimeOnly(libs.nullaway)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)

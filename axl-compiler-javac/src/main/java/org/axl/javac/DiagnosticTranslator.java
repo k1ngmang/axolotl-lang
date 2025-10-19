@@ -54,7 +54,7 @@ public final class DiagnosticTranslator {
     }
 
     /** javac puts symbol and location details on extra lines. */
-    private static String oneLine(String message) {
+    static String oneLine(String message) {
         return message.lines().map(l -> l.strip().replaceAll("\\s+", " ")).filter(l -> !l.isEmpty())
                 .collect(Collectors.joining("; "));
     }
