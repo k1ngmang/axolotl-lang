@@ -19,3 +19,7 @@ One line per decision where the specification is silent or had to be adjusted.
 - javac diagnostics are reported at the first non-blank column of the mapped .axl line; multi-line javac messages are joined with `; `.
 - Generated classes have no blank lines between members, as in the specification example.
 - `axl build` writes generated sources to the `-d` directory unless `-s` is given, like javac. `axl run` compiles the whole source root, which it derives from the file path and its package.
+- NullAway runs with `JSpecifyMode=true` and `OnlyNullMarked=true`, which replaces `AnnotatedPackages`; every generated class is `@NullMarked`.
+- Error Prone runs inside the compiler's JVM, so the CLI and the tests start with `--add-exports`/`--add-opens` for `jdk.compiler`; `--no-null-checks` turns the checks off.
+- NullAway messages other than dereferences are shown without the `[NullAway]` prefix and link; dereferences get their own message (AXL102).
+- `--inline-elvis` is implemented although the benchmark shows no measurable cost (see `docs/perf.md`), because the build plugins expose it. It expands only a `?:` at the root of an initializer, assignment or `return`, and the temporary shares the `$t` counter.
