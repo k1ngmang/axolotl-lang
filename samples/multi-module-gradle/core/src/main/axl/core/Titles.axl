@@ -1,0 +1,16 @@
+package core
+
+fn title(raw: String?) -> Result<String, String> {
+    if (raw == null) {
+        return Err("missing title")
+    }
+    if (raw.isBlank()) {
+        return Err("blank title")
+    }
+    return Ok(Slugs.slug(raw))
+}
+
+fn shortTitle(raw: String?) -> Result<String, String> {
+    val slug = try title(raw)
+    return Ok(Slugs.firstWord(slug))
+}

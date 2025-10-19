@@ -1,0 +1,5 @@
+package core
+
+val sample: String = "  Hello Axolotl World "
+
+fn blank() -> String = "   "
