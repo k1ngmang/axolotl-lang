@@ -1,0 +1,67 @@
+<idea-plugin>
+  <id>org.axl.lang</id>
+  <name>Axolotl</name>
+  <vendor url="https://github.com/succubus-uwu/axolotl">Axolotl</vendor>
+
+  <description><![CDATA[
+    Support for <b>Axolotl</b>, a language that translates to readable Java and adds null safety
+    (<code>T?</code>, <code>?.</code>, <code>?:</code>) and errors as values (<code>Result</code>, <code>try</code>,
+    <code>attempt ... else</code>).
+    <ul>
+      <li>Highlighting, brace matching, commenting, folding and structure view for <code>.axl</code> files</li>
+      <li>Errors while typing; javac, Error Prone and NullAway errors on save</li>
+      <li>Completion, go to declaration, find usages and rename across <code>.axl</code> and Java</li>
+      <li>Java code sees <code>.axl</code> functions without a build</li>
+      <li>Run <code>fn main()</code> from the gutter, breakpoints and stepping in <code>.axl</code> files</li>
+      <li>Show Generated Java, Convert Java File to Axolotl, quick fixes</li>
+    </ul>
+  ]]></description>
+
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.java</depends>
+  <depends optional="true" config-file="axl-lsp.xml">com.intellij.modules.ultimate</depends>
+  <depends optional="true" config-file="axl-maven.xml">org.jetbrains.idea.maven</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <fileType name="Axolotl" implementationClass="org.axl.intellij.AxlFileType" fieldName="INSTANCE"
+              language="Axolotl" extensions="axl"/>
+    <lang.parserDefinition language="Axolotl" implementationClass="org.axl.intellij.parser.AxlParserDefinition"/>
+    <lang.syntaxHighlighterFactory language="Axolotl"
+                                   implementationClass="org.axl.intellij.highlight.AxlSyntaxHighlighterFactory"/>
+    <colorSettingsPage implementation="org.axl.intellij.highlight.AxlColorSettingsPage"/>
+    <lang.braceMatcher language="Axolotl" implementationClass="org.axl.intellij.highlight.AxlBraceMatcher"/>
+    <lang.commenter language="Axolotl" implementationClass="org.axl.intellij.highlight.AxlCommenter"/>
+    <lang.foldingBuilder language="Axolotl" implementationClass="org.axl.intellij.highlight.AxlFoldingBuilder"/>
+    <lang.psiStructureViewFactory language="Axolotl"
+                                  implementationClass="org.axl.intellij.highlight.AxlStructureViewFactory"/>
+    <annotator language="Axolotl" implementationClass="org.axl.intellij.annotate.AxlAnnotator"/>
+    <externalAnnotator language="Axolotl" implementationClass="org.axl.intellij.annotate.AxlExternalAnnotator"/>
+    <completion.contributor language="Axolotl"
+                            implementationClass="org.axl.intellij.refactor.AxlCompletionContributor"/>
+    <lang.findUsagesProvider language="Axolotl" implementationClass="org.axl.intellij.refactor.AxlFindUsagesProvider"/>
+    <lang.refactoringSupport language="Axolotl" implementationClass="org.axl.intellij.refactor.AxlRefactoringSupport"/>
+    <lang.namesValidator language="Axolotl" implementationClass="org.axl.intellij.refactor.AxlNamesValidator"/>
+    <referencesSearch implementation="org.axl.intellij.java.AxlReferencesSearcher"/>
+    <java.elementFinder implementation="org.axl.intellij.java.AxlClassFinder"/>
+    <java.shortNamesCache implementation="org.axl.intellij.java.AxlShortNamesCache"/>
+    <directoryIndexExcludePolicy implementation="org.axl.intellij.java.AxlGeneratedSourcesExcluder"/>
+    <runLineMarkerContributor language="Axolotl" implementationClass="org.axl.intellij.run.AxlRunLineMarkerContributor"/>
+    <runConfigurationProducer implementation="org.axl.intellij.run.AxlRunConfigurationProducer"/>
+    <debugger.positionManagerFactory implementation="org.axl.intellij.debug.AxlPositionManagerFactory"/>
+    <debugger.javaDebugAware implementation="org.axl.intellij.debug.AxlJavaDebugAware"/>
+    <debugger.nodeNameAdjuster implementation="org.axl.intellij.debug.AxlGeneratedNameAdjuster"/>
+    <intentionAction>
+      <language>JAVA</language>
+      <className>org.axl.intellij.actions.ConvertJavaToAxolotlIntention</className>
+      <category>Axolotl</category>
+    </intentionAction>
+  </extensions>
+
+  <actions>
+    <action id="Axl.ShowGeneratedJava" class="org.axl.intellij.actions.ShowGeneratedJavaAction"
+            text="Show Generated Java" description="Open the Java translation of this Axolotl file">
+      <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+    </action>
+  </actions>
+</idea-plugin>

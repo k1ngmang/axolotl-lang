@@ -1,0 +1,5 @@
+<idea-plugin>
+  <extensions defaultExtensionNs="org.jetbrains.idea.maven">
+    <importing.workspaceConfigurator implementation="org.axl.intellij.maven.AxlMavenFolders"/>
+  </extensions>
+</idea-plugin>
