@@ -45,3 +45,11 @@ Known limitation: `compileJava` always runs in a forked JVM because the javac pl
 - Invoker integration tests on `samples/maven-app` and on projects with translation and null errors.
 
 Known limitations: Error Prone needs `.mvn/jvm.config`; the plugin version in the POMs is updated by hand.
+
+## Stage 5: debugging and stack traces
+
+- `axl-smap`: adds a JSR-45 `SourceDebugExtension` (stratum `Axolotl`) to compiled classes from the line maps; `LineNumberTable` and `SourceFile` are untouched.
+- The Gradle plugin adds the SMAP after `compileJava`; the Maven plugin has goals `axl:smap` and `axl:smap-test`; `axl build` adds it too.
+- `axl retrace` rewrites stack traces using `.axlmap` files or SMAPs; `axl run` prints exceptions with `.axl` lines.
+- Failing JUnit tests are reported with `.axl` lines in Gradle and Maven.
+- A JDI test sets a breakpoint on an `.axl` line through the `Axolotl` stratum.

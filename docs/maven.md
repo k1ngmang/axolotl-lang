@@ -14,6 +14,8 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 |---------------------|-------------------------|--------------|
 | `axl:generate`      | `generate-sources`      | `src/main/axl` to `target/generated-sources/axl`, added as a compile source root. |
 | `axl:generate-test` | `generate-test-sources` | `src/test/axl` to `target/generated-test-sources/axl`, added as a test source root. |
+| `axl:smap`          | `process-classes`       | Adds a JSR-45 SMAP to `target/classes` (see `docs/debugging.md`). |
+| `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
 
 Generation is incremental: `target/axl-state.json` (`axl-test-state.json` for tests) stores a
@@ -26,7 +28,7 @@ translated again. Outputs of removed files are deleted.
 |---------------|-------------------|---------|---------|
 | `javaRelease` | `axl.javaRelease` | `21`    | Sets `maven.compiler.release` unless the project already does. |
 | `inlineElvis` | `axl.inlineElvis` | `false` | Expand statement-level `?:` without a lambda. |
-| `smap`        | `axl.smap`        | `true`  | Used by `axl:smap` (JSR-45 line information for debuggers). |
+| `smap`        | `axl.smap`        | `true`  | `axl:smap` and `axl:smap-test`: add the SMAP. |
 | `skip`        | `axl.skip`        | `false` | Skip the goal. |
 | `nullAway`    | `axl.nullAway`    | `true`  | `axl:check` only: run Error Prone and NullAway. |
 
@@ -53,3 +55,16 @@ translated again. Outputs of removed files are deleted.
 
 Without the javac plugin, errors point to the generated `.java` files; `mvn generate-sources axl:check`
 then prints them at the `.axl` lines.
+
+## Stack traces of failing tests
+
+Add `org.axl:axl-smap` as a test dependency and enable JUnit extension autodetection in
+Surefire; failures are then reported with `.axl` lines:
+
+```xml
+<configuration>
+  <properties>
+    <configurationParameters>junit.jupiter.extensions.autodetection.enabled = true</configurationParameters>
+  </properties>
+</configuration>
+```

@@ -31,3 +31,7 @@ One line per decision where the specification is silent or had to be adjusted.
 - Maven shows `.axl` positions during `compile` through the same javac plugin as Gradle; `axl:generate` passes its arguments in the property `axl.javacPlugin`. `axl:check` is a standalone goal that compiles again and prints `.axl` positions, since a goal cannot run after a failed `compile` in the same build.
 - Error Prone is loaded from the class loader of `axl-compiler-javac` when it is a `URLClassLoader` (a Maven plugin realm), otherwise from `java.class.path`.
 - Parentheses around `?:`, `?.` and `attempt` are dropped in the generated Java, where they expand to method calls; Error Prone would flag them as unnecessary.
+- The SMAP's default stratum is `Java`, not `Axolotl`, so debuggers without Axolotl support keep showing the generated `.java` lines.
+- In Gradle the SMAP is added by a last action of `compileJava` rather than by a separate task, so the classes stay outputs of one task and are cached with their SMAP.
+- Failing tests are retraced by a JUnit Jupiter extension (`TestExecutionExceptionHandler`) loaded through extension autodetection, not by a `TestExecutionListener`: JUnit notifies listeners of finished tests in reverse order, so Gradle's and Surefire's own listeners would record the failure first. The same extension works for Maven, instead of a Surefire reporter.
+- Retraced stack frames drop the class loader name, which a new `StackTraceElement` would otherwise print even for the built-in `app` loader.

@@ -31,6 +31,8 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
   depends on the same artifact.
 - Applies `net.ltgt.errorprone` and turns on NullAway in JSpecify mode for every `JavaCompile`.
 - Reports errors of `compileJava` in generated files at their `.axl` file and line.
+- Adds a JSR-45 SMAP to compiled classes and rewrites stack traces of failing tests to
+  `.axl` lines (see `docs/debugging.md`).
 
 ## Configuration
 
