@@ -6,7 +6,8 @@ plugins {
 dependencies {
     api(project(":axl-compiler"))
     implementation(libs.asm)
-    compileOnly(libs.junit.platform.launcher)
+    compileOnly(platform(libs.junit.bom))
+    compileOnly(libs.junit.jupiter.api)
     testImplementation(project(":axl-compiler-javac"))
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)

@@ -84,7 +84,8 @@ public final class Retracer {
         if (axlLine == 0) {
             return element;
         }
-        return new StackTraceElement(element.getClassLoaderName(), element.getModuleName(), element.getModuleVersion(),
+        // The class loader name is dropped: a new element would print even the built-in `app` loader.
+        return new StackTraceElement(null, element.getModuleName(), element.getModuleVersion(),
                 element.getClassName(), element.getMethodName(), smap.axlFileName(), axlLine);
     }
 
