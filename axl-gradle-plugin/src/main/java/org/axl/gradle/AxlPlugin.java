@@ -13,6 +13,7 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.testing.Test;
 
 /** Plugin `org.axl.lang`: .axl sources next to Java in every source set. */
 public class AxlPlugin implements Plugin<Project> {
@@ -48,6 +49,17 @@ public class AxlPlugin implements Plugin<Project> {
                     deps.add(project.getDependencies().create("com.uber.nullaway:nullaway:" + Versions.NULLAWAY));
                 }));
 
+        // Rewrites stack traces of failed tests to .axl lines, using the SMAPs.
+        project.getConfigurations().named(JavaPlugin.TEST_RUNTIME_ONLY_CONFIGURATION_NAME).configure(c ->
+                c.withDependencies(deps -> {
+                    if (axl.getSmap().get()) {
+                        deps.add(project.getDependencies().create("org.axl:axl-smap:" + Versions.AXL));
+                    }
+                }));
+
+        project.getTasks().withType(Test.class).configureEach(test ->
+                test.getJvmArgumentProviders().add(new RetraceTestsArgument(axl.getSmap())));
+
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         sourceSets.all(sourceSet -> configure(project, axl, sourceSet));
     }
@@ -82,6 +94,8 @@ public class AxlPlugin implements Plugin<Project> {
             diagnostics.getGeneratedDir().set(generate.flatMap(GenerateAxlTask::getOutputDir));
             diagnostics.getSourceDirs().from(sources.getSourceDirectories());
             compile.getOptions().getCompilerArgumentProviders().add(diagnostics);
+
+            compile.doLast(new InjectSmap(generate.flatMap(GenerateAxlTask::getOutputDir), axl.getSmap()));
 
             ErrorProneOptions errorprone = ((ExtensionAware) compile.getOptions()).getExtensions()
                     .getByType(ErrorProneOptions.class);

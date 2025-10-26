@@ -117,6 +117,30 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void addsSmapAndShowsAxlLinesInFailedTests() throws IOException {
+        Files.writeString(project.resolve("core/src/main/axl/core/Numbers.axl"),
+                "package core\n\nfn number(text: String) -> Int {\n    return Integer.parseInt(text)\n}\n");
+        Files.writeString(project.resolve("core/src/test/java/core/NumbersTest.java"), """
+                package core;
+
+                import org.junit.jupiter.api.Test;
+
+                class NumbersTest {
+                    @Test
+                    void fails() {
+                        Numbers.number("not a number");
+                    }
+                }
+                """);
+        BuildResult result = gradle(":core:test").buildAndFail();
+        assertTrue(result.getOutput().contains("NumbersTest > fails() FAILED"), result.getOutput());
+        String report = Files.readString(project.resolve("core/build/test-results/test/TEST-core.NumbersTest.xml"));
+        assertTrue(report.contains("at core.Numbers.number(Numbers.axl:4)"), report);
+        byte[] classFile = Files.readAllBytes(project.resolve("core/build/classes/java/main/core/Numbers.class"));
+        assertTrue(new String(classFile, java.nio.charset.StandardCharsets.ISO_8859_1).contains("*S Axolotl"));
+    }
+
+    @Test
     void reusesConfigurationCache() {
         gradle("build", "--configuration-cache").build();
         BuildResult again = gradle("build", "--configuration-cache").build();

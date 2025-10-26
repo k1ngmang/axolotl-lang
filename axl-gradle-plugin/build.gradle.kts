@@ -5,6 +5,7 @@ plugins {
 
 dependencies {
     implementation(project(":axl-compiler"))
+    implementation(project(":axl-smap"))
     implementation(libs.errorprone.gradle)
 }
 
@@ -49,6 +50,7 @@ val functionalTestTask = tasks.register<Test>("functionalTest") {
         ":axl-runtime:publishAllPublicationsToTestRepoRepository",
         ":axl-compiler:publishAllPublicationsToTestRepoRepository",
         ":axl-compiler-javac:publishAllPublicationsToTestRepoRepository",
+        ":axl-smap:publishAllPublicationsToTestRepoRepository",
         "publishAllPublicationsToTestRepoRepository",
     )
     val samples = rootProject.layout.projectDirectory.dir("samples")
