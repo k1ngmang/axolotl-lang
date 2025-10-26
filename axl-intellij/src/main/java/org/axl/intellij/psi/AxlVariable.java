@@ -1,0 +1,57 @@
+package org.axl.intellij.psi;
+
+import com.intellij.lang.ASTNode;
+import com.intellij.navigation.ItemPresentation;
+import com.intellij.psi.search.LocalSearchScope;
+import com.intellij.psi.search.SearchScope;
+import com.intellij.psi.util.PsiTreeUtil;
+import javax.swing.Icon;
+import org.axl.compiler.parse.AxolotlLexer;
+import org.axl.intellij.lexer.AxlTokenTypes;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+/** A `val`, a `var`, a parameter or a lambda parameter. */
+public final class AxlVariable extends AxlNamedElement {
+
+    public AxlVariable(ASTNode node) {
+        super(node);
+    }
+
+    public @Nullable AxlType type() {
+        return findChildByClass(AxlType.class);
+    }
+
+    public boolean isTopLevel() {
+        return getParent() instanceof AxlFile;
+    }
+
+    public boolean isMutable() {
+        return getNode().findChildByType(AxlTokenTypes.of(AxolotlLexer.VAR)) != null;
+    }
+
+    /** Locals and parameters are only visible inside their function. */
+    @Override
+    public @NotNull SearchScope getUseScope() {
+        if (isTopLevel()) {
+            return super.getUseScope();
+        }
+        AxlFunction function = PsiTreeUtil.getParentOfType(this, AxlFunction.class);
+        return function != null ? new LocalSearchScope(function) : super.getUseScope();
+    }
+
+    @Override
+    public ItemPresentation getPresentation() {
+        return new ItemPresentation() {
+            @Override
+            public String getPresentableText() {
+                return getName() + (type() == null ? "" : ": " + type().getText());
+            }
+
+            @Override
+            public Icon getIcon(boolean unused) {
+                return isTopLevel() ? com.intellij.icons.AllIcons.Nodes.Constant : com.intellij.icons.AllIcons.Nodes.Variable;
+            }
+        };
+    }
+}
