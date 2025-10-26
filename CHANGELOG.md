@@ -35,3 +35,13 @@ Known limitations: running Error Prone in process needs JVM options for `jdk.com
 - Sample `samples/multi-module-gradle` with `.axl` and `.java` calling each other and JUnit tests, built by TestKit tests (also on Gradle 8.5 and with the configuration cache).
 
 Known limitation: `compileJava` always runs in a forked JVM because the javac plugin and Error Prone need compiler internals.
+
+## Stage 4: Maven plugin
+
+- `axl-maven-plugin` with goals `generate`, `generate-test` (incremental by SHA-256 in `target/axl-state.json`) and `check`.
+- Parameters `javaRelease`, `inlineElvis`, `smap`, `skip`.
+- `samples/maven-app` with the full Error Prone and NullAway configuration; errors in `.axl` code are shown at their `.axl` lines.
+- Archetype `axl-archetype-quickstart`; its integration test builds a generated project.
+- Invoker integration tests on `samples/maven-app` and on projects with translation and null errors.
+
+Known limitations: Error Prone needs `.mvn/jvm.config`; the plugin version in the POMs is updated by hand.

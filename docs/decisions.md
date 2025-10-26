@@ -27,3 +27,7 @@ One line per decision where the specification is silent or had to be adjusted.
 - Errors of `compileJava` are moved to `.axl` files by a javac plugin (`-Xplugin:AxlDiagnostics` from `axl-compiler-javac`) rather than by intercepting task output; see `docs/gradle.md`.
 - Error Prone and NullAway are runtime dependencies of the CLI only, so that `axl-compiler-javac` on an annotation processor path does not bring a second copy of them.
 - Functional tests of build plugins resolve Axolotl artifacts from `build/test-repo`, which every published module also publishes to.
+- `axl-maven-plugin` and `axl-archetype-quickstart` are Maven projects (annotations, invoker and archetype tooling are Maven-native); the Gradle build runs them with the Maven wrapper in `axl-maven-plugin/` as part of `check`.
+- Maven shows `.axl` positions during `compile` through the same javac plugin as Gradle; `axl:generate` passes its arguments in the property `axl.javacPlugin`. `axl:check` is a standalone goal that compiles again and prints `.axl` positions, since a goal cannot run after a failed `compile` in the same build.
+- Error Prone is loaded from the class loader of `axl-compiler-javac` when it is a `URLClassLoader` (a Maven plugin realm), otherwise from `java.class.path`.
+- Parentheses around `?:`, `?.` and `attempt` are dropped in the generated Java, where they expand to method calls; Error Prone would flag them as unnecessary.
