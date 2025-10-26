@@ -62,6 +62,19 @@ public class AxlPlugin implements Plugin<Project> {
 
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         sourceSets.all(sourceSet -> configure(project, axl, sourceSet));
+
+        project.getTasks().register("axlLspConfig", LspConfigTask.class, task -> {
+            task.setDescription("Writes build/axl/axl.json for the Axolotl language server.");
+            for (SourceSet sourceSet : sourceSets) {
+                SourceDirectorySet axlSources = (SourceDirectorySet) sourceSet.getExtensions().getByName("axl");
+                task.getSourceRoots().from(axlSources.getSourceDirectories());
+                task.getJavaSourceRoots().from(sourceSet.getJava().getSrcDirs().stream()
+                        .filter(dir -> !dir.toPath().startsWith(project.getLayout().getBuildDirectory().get().getAsFile().toPath()))
+                        .toList());
+                task.getClasspath().from(sourceSet.getCompileClasspath());
+            }
+            task.getOutputFile().set(project.getLayout().getBuildDirectory().file("axl/axl.json"));
+        });
     }
 
     private static void configure(Project project, AxlExtension axl, SourceSet sourceSet) {

@@ -141,6 +141,16 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void writesLanguageServerConfig() throws IOException {
+        gradle(":core:axlLspConfig").build();
+        String json = Files.readString(project.resolve("core/build/axl/axl.json"));
+        assertTrue(json.contains(project.resolve("core/src/main/axl").toString()), json);
+        assertTrue(json.contains(project.resolve("core/src/main/java").toString()), json);
+        assertTrue(json.contains("axl-runtime"), json);
+        assertTrue(!json.contains("generated"), json);
+    }
+
+    @Test
     void reusesConfigurationCache() {
         gradle("build", "--configuration-cache").build();
         BuildResult again = gradle("build", "--configuration-cache").build();
