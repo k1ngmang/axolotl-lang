@@ -79,6 +79,17 @@ class CliTest {
     }
 
     @Test
+    void checkReportsErrorsOfSeveralSourceDirectories(@TempDir Path tmp) throws Exception {
+        Path axl = Files.createDirectories(tmp.resolve("axl/app"));
+        Path java = Files.createDirectories(tmp.resolve("java/app"));
+        Files.writeString(java.resolve("Names.java"), "package app;\npublic class Names { public static String name() { return \"x\"; } }\n");
+        Files.writeString(axl.resolve("Main.axl"), "package app\n\nfn main() {\n    val n: String? = null\n    println(n.length() + Names.name())\n}\n");
+        assertEquals(1, axl("check", tmp.resolve("axl").toString(), tmp.resolve("java").toString()));
+        assertEquals(axl.resolve("Main.axl").toAbsolutePath() + ":5:5: error: value `n` may be null: use `?.`, `?:` or check `if (n != null)`",
+                out.toString(StandardCharsets.UTF_8).strip());
+    }
+
+    @Test
     void sourceRootStripsPackageDirectories() {
         Path file = Path.of("/work/src/app/util/Main.axl");
         assertEquals(Path.of("/work/src"), RunCommand.sourceRoot(file, "app.util"));
