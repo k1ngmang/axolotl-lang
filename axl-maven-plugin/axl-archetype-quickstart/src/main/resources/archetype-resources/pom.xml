@@ -28,6 +28,13 @@
       <version>5.13.4</version>
       <scope>test</scope>
     </dependency>
+    <!-- Rewrites stack traces of failing tests to .axl lines. -->
+    <dependency>
+      <groupId>org.axl</groupId>
+      <artifactId>axl-smap</artifactId>
+      <version>${symbol_dollar}{axl.version}</version>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 
   <build>
@@ -41,6 +48,8 @@
             <goals>
               <goal>generate</goal>
               <goal>generate-test</goal>
+              <goal>smap</goal>
+              <goal>smap-test</goal>
             </goals>
           </execution>
         </executions>
@@ -82,6 +91,11 @@
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.5.4</version>
+        <configuration>
+          <properties>
+            <configurationParameters>junit.jupiter.extensions.autodetection.enabled = true</configurationParameters>
+          </properties>
+        </configuration>
       </plugin>
     </plugins>
   </build>

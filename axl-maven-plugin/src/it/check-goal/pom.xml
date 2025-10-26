@@ -34,6 +34,8 @@
             <goals>
               <goal>generate</goal>
               <goal>generate-test</goal>
+              <goal>smap</goal>
+              <goal>smap-test</goal>
             </goals>
           </execution>
         </executions>
