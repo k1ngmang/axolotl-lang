@@ -12,12 +12,12 @@ import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 
-/** Translates every .axl file of a source tree and compiles the result together with its .java files. */
+/** Translates every .axl file of some source trees and compiles the result together with their .java files. */
 public final class AxlBuild {
 
     public record Result(boolean success, List<AxlDiagnostic> diagnostics, List<GeneratedSource> generated) {}
 
-    private final Path sourceDir;
+    private final List<Path> sourceDirs;
     private final Path generatedDir;
     private final Path classesDir;
     private final List<Path> classpath = new ArrayList<>(RuntimeClasspath.entries());
@@ -27,7 +27,11 @@ public final class AxlBuild {
     private Options options = Options.DEFAULT;
 
     public AxlBuild(Path sourceDir, Path generatedDir, Path classesDir) {
-        this.sourceDir = sourceDir;
+        this(List.of(sourceDir), generatedDir, classesDir);
+    }
+
+    public AxlBuild(List<Path> sourceDirs, Path generatedDir, Path classesDir) {
+        this.sourceDirs = List.copyOf(sourceDirs);
         this.generatedDir = generatedDir;
         this.classesDir = classesDir;
     }
@@ -63,7 +67,8 @@ public final class AxlBuild {
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         List<GeneratedSource> generated = new ArrayList<>();
         for (Path axl : files(".axl")) {
-            String sourcePath = sourceDir.relativize(axl).toString().replace('\\', '/');
+            Path root = sourceDirs.stream().filter(axl::startsWith).findFirst().orElseThrow();
+            String sourcePath = root.relativize(axl).toString().replace('\\', '/');
             String text = Files.readString(axl, StandardCharsets.UTF_8);
             Translator.Result result = Translator.translate(sourcePath, display.apply(axl), text, options);
             diagnostics.addAll(result.diagnostics());
@@ -92,11 +97,14 @@ public final class AxlBuild {
     }
 
     private List<Path> files(String extension) throws IOException {
-        if (!Files.isDirectory(sourceDir)) {
-            return List.of();
+        List<Path> result = new ArrayList<>();
+        for (Path dir : sourceDirs) {
+            if (Files.isDirectory(dir)) {
+                try (Stream<Path> walk = Files.walk(dir)) {
+                    walk.filter(p -> p.toString().endsWith(extension) && Files.isRegularFile(p)).sorted().forEach(result::add);
+                }
+            }
         }
-        try (Stream<Path> walk = Files.walk(sourceDir)) {
-            return walk.filter(p -> p.toString().endsWith(extension) && Files.isRegularFile(p)).sorted().toList();
-        }
+        return result;
     }
 }
