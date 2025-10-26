@@ -1,0 +1,41 @@
+# Language server
+
+`axl-lsp` is a Language Server Protocol server over standard input and output, used by the
+VS Code extension in `editors/vscode` and by the IntelliJ plugin (Ultimate) through the
+platform's LSP support. Start it with the Error Prone JVM options (`axl-lsp` from
+`./gradlew :axl-lsp:installDist` already has them).
+
+| Feature | Details |
+|---------|---------|
+| Diagnostics while typing | Syntax and the translator's rules (`try` placement, shadowing, `$` in names, missing `package`, ...). |
+| Diagnostics on save | The whole module is translated and compiled with javac, Error Prone and NullAway; errors appear on the `.axl` lines. |
+| Highlighting | TextMate grammar `editors/vscode/syntaxes/axl.tmLanguage.json` plus semantic tokens. |
+| Completion | Keywords, names visible at the cursor, `println`/`Ok`/`Err`, and after a dot the members of Java types: static members of a class, instance members of a declared or javac-inferred type. |
+| Go to definition | Locals, parameters and functions in the file; functions of other `.axl` files through `import fn` or `Class.fn`; Java classes and members in Java source roots. |
+| Hover | Declared or inferred type of a name and the Java generated from the line. |
+| Command `axl.showGeneratedJava` | Returns the Java translation of a document. |
+
+## Modules and classpath
+
+The server looks for module descriptions in the workspace:
+
+- `axl.json` in a module directory, written by hand;
+- `build/axl/axl.json`, written by the Gradle task `axlLspConfig`;
+- `target/axl/axl.json`, written by the Maven goal `axl:lsp-config`.
+
+```json
+{
+  "sourceRoots": ["src/main/axl", "src/test/axl"],
+  "javaSourceRoots": ["src/main/java"],
+  "classpath": ["/home/me/.m2/repository/com/example/lib/1.0/lib-1.0.jar"]
+}
+```
+
+Relative paths are relative to the module directory. Without a description, every `src/NAME/axl`
+directory is a module with `src/NAME/java` as its Java sources and only the Axolotl runtime on the
+classpath.
+
+## VS Code
+
+`./gradlew :axl-lsp:vsix` (needs Node.js) copies the server into the extension and packages
+`editors/vscode/axolotl-0.1.0.vsix`. Install it with `code --install-extension axolotl-0.1.0.vsix`.

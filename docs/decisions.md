@@ -35,3 +35,6 @@ One line per decision where the specification is silent or had to be adjusted.
 - In Gradle the SMAP is added by a last action of `compileJava` rather than by a separate task, so the classes stay outputs of one task and are cached with their SMAP.
 - Failing tests are retraced by a JUnit Jupiter extension (`TestExecutionExceptionHandler`) loaded through extension autodetection, not by a `TestExecutionListener`: JUnit notifies listeners of finished tests in reverse order, so Gradle's and Surefire's own listeners would record the failure first. The same extension works for Maven, instead of a Surefire reporter.
 - Retraced stack frames drop the class loader name, which a new `StackTraceElement` would otherwise print even for the built-in `app` loader.
+- The language server uses full document synchronization and serves every request on one thread; while a line is incomplete, completion and navigation use the last version of the file that parsed.
+- Member completion knows the receiver's type when it is a class name, a name with a written type, or a local whose type javac infers in the generated code; longer call chains are not completed.
+- The VS Code extension bundles the server's jars (`server/lib`) and starts it with the JDK from `axl.java.home`, `JAVA_HOME` or the PATH.

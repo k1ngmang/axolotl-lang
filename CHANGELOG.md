@@ -53,3 +53,12 @@ Known limitations: Error Prone needs `.mvn/jvm.config`; the plugin version in th
 - `axl retrace` rewrites stack traces using `.axlmap` files or SMAPs; `axl run` prints exceptions with `.axl` lines.
 - Failing JUnit tests are reported with `.axl` lines in Gradle and Maven.
 - A JDI test sets a breakpoint on an `.axl` line through the `Axolotl` stratum.
+
+## Stage 6: language server
+
+- `axl-lsp` (LSP4J, stdio): diagnostics while typing and, on save, javac/Error Prone/NullAway diagnostics of the module; completion including Java members via `javax.lang.model`; go to definition in `.axl` and Java; hover with types and generated Java; semantic tokens; command `axl.showGeneratedJava`.
+- TextMate grammar `axl.tmLanguage.json`.
+- VS Code extension in `editors/vscode`, packaged with `./gradlew :axl-lsp:vsix`.
+- Gradle task `axlLspConfig` and Maven goal `axl:lsp-config` write the module description the server reads.
+
+Known limitations: no incremental document sync; completion does not follow call chains.
