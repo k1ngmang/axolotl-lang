@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+  <profiles>
+    <profile>
+      <id>axl-test-repo</id>
+      <activation>
+        <property>
+          <name>env.AXL_TEST_REPO</name>
+        </property>
+      </activation>
+      <repositories>
+        <repository>
+          <id>axl-test-repo</id>
+          <url>${env.AXL_TEST_REPO}</url>
+          <snapshots><enabled>true</enabled></snapshots>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <id>axl-test-repo</id>
+          <url>${env.AXL_TEST_REPO}</url>
+          <snapshots><enabled>true</enabled></snapshots>
+        </pluginRepository>
+      </pluginRepositories>
+    </profile>
+  </profiles>
+</settings>

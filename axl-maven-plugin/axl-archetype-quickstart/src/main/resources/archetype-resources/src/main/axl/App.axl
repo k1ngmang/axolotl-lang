@@ -1,0 +1,7 @@
+package ${package}
+
+fn greeting(name: String?) -> String = "Hello, " + (name ?: "world") + "!"
+
+fn main() {
+    println(greeting(null))
+}

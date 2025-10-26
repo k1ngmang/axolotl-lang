@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<archetype-descriptor xmlns="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0"
+                      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                      xsi:schemaLocation="https://maven.apache.org/plugins/maven-archetype-plugin/archetype-descriptor/1.1.0 https://maven.apache.org/xsd/archetype-descriptor-1.1.0.xsd"
+                      name="axl-archetype-quickstart">
+  <requiredProperties>
+    <requiredProperty key="axlVersion">
+      <defaultValue>0.1.0-SNAPSHOT</defaultValue>
+    </requiredProperty>
+  </requiredProperties>
+  <fileSets>
+    <fileSet filtered="true" packaged="true">
+      <directory>src/main/axl</directory>
+      <includes>
+        <include>**/*.axl</include>
+      </includes>
+    </fileSet>
+    <fileSet filtered="true" packaged="true">
+      <directory>src/test/java</directory>
+      <includes>
+        <include>**/*.java</include>
+      </includes>
+    </fileSet>
+    <fileSet>
+      <directory>.mvn</directory>
+      <includes>
+        <include>jvm.config</include>
+      </includes>
+    </fileSet>
+  </fileSets>
+</archetype-descriptor>
