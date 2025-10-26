@@ -1,0 +1,91 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Axolotl",
+  "scopeName": "source.axl",
+  "fileTypes": ["axl"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#declarations" },
+    { "include": "#keywords" },
+    { "include": "#operators" },
+    { "include": "#types" },
+    { "include": "#calls" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.axl", "match": "//.*$" },
+        { "name": "comment.block.axl", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.axl",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [{ "name": "constant.character.escape.axl", "match": "\\\\." }]
+        },
+        { "name": "string.quoted.single.axl", "match": "'(\\\\.|[^'\\\\])+'" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.hex.axl", "match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*[lL]?\\b" },
+        { "name": "constant.numeric.decimal.axl", "match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9]+)?[lLfFdD]?\\b" }
+      ]
+    },
+    "declarations": {
+      "patterns": [
+        {
+          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.function.axl" },
+            "2": { "name": "entity.name.function.axl" }
+          }
+        },
+        {
+          "match": "\\b(val|var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.variable.axl" },
+            "2": { "name": "variable.other.declaration.axl" }
+          }
+        },
+        {
+          "match": "\\b(package|import)\\s+(fn\\s+|val\\s+)?([A-Za-z_][A-Za-z0-9_.]*)",
+          "captures": {
+            "1": { "name": "keyword.other.import.axl" },
+            "2": { "name": "keyword.other.import.axl" },
+            "3": { "name": "entity.name.namespace.axl" }
+          }
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.axl", "match": "\\b(if|else|while|return|try|attempt)\\b" },
+        { "name": "storage.modifier.axl", "match": "\\b(private)\\b" },
+        { "name": "constant.language.axl", "match": "\\b(true|false|null)\\b" }
+      ]
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.null-safe.axl", "match": "\\?\\.|\\?:" },
+        { "name": "keyword.operator.arrow.axl", "match": "->" },
+        { "name": "keyword.operator.axl", "match": "==|!=|<=|>=|&&|\\|\\||[-+*/%!<>=]=?" }
+      ]
+    },
+    "types": {
+      "patterns": [
+        { "name": "entity.name.type.axl", "match": "\\b[A-Z][A-Za-z0-9_]*\\b\\??" }
+      ]
+    },
+    "calls": {
+      "patterns": [
+        { "name": "entity.name.function.call.axl", "match": "\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()" }
+      ]
+    }
+  }
+}

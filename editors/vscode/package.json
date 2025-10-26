@@ -1,0 +1,69 @@
+{
+  "name": "axolotl",
+  "displayName": "Axolotl",
+  "description": "Axolotl language support: highlighting, diagnostics with NullAway, completion, navigation and generated Java.",
+  "version": "0.1.0",
+  "publisher": "axl",
+  "license": "SEE LICENSE IN README.md",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/succubus-uwu/axolotl"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages"],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "axl",
+        "aliases": ["Axolotl", "axl"],
+        "extensions": [".axl"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "axl",
+        "scopeName": "source.axl",
+        "path": "./syntaxes/axl.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "axl.showGeneratedJava",
+        "title": "Show Generated Java",
+        "category": "Axolotl"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "axl.showGeneratedJava",
+          "when": "editorLangId == axl"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Axolotl",
+      "properties": {
+        "axl.java.home": {
+          "type": "string",
+          "default": "",
+          "description": "JDK 21+ used to run the language server. Defaults to JAVA_HOME, then `java` on the PATH."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "package": "vsce package --skip-license --out axolotl-0.1.0.vsix"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.1"
+  }
+}
