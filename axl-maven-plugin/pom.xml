@@ -32,6 +32,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>org.axl</groupId>
+      <artifactId>axl-smap</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
       <groupId>com.google.errorprone</groupId>
       <artifactId>error_prone_core</artifactId>
       <version>${errorprone.version}</version>
@@ -133,6 +138,7 @@
           <localRepositoryPath>${project.build.directory}/local-repo</localRepositoryPath>
           <extraArtifacts>
             <extraArtifact>org.axl:axl-runtime:${project.version}</extraArtifact>
+            <extraArtifact>org.axl:axl-smap:${project.version}</extraArtifact>
           </extraArtifacts>
           <mergeUserSettings>true</mergeUserSettings>
           <postBuildHookScript>verify</postBuildHookScript>

@@ -19,6 +19,7 @@ val mavenPlugin = tasks.register<Exec>("mavenPlugin") {
         ":axl-runtime:publishAllPublicationsToTestRepoRepository",
         ":axl-compiler:publishAllPublicationsToTestRepoRepository",
         ":axl-compiler-javac:publishAllPublicationsToTestRepoRepository",
+        ":axl-smap:publishAllPublicationsToTestRepoRepository",
     )
     inputs.file("pom.xml")
     inputs.dir("src")
