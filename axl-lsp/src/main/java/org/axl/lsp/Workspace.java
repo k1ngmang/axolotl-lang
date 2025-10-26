@@ -1,0 +1,204 @@
+package org.axl.lsp;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Stream;
+import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.GeneratedUnit;
+import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.DiagnosticSeverity;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.PublishDiagnosticsParams;
+import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.eclipse.lsp4j.services.LanguageClient;
+
+/**
+ * All state of the server. Every request runs on one thread, so the state needs no locking.
+ */
+final class Workspace {
+
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "axl-lsp");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private LanguageClient client;
+    private ProjectModel project = ProjectModel.discover(List.of());
+    private final Map<String, Document> open = new HashMap<>();
+    // The last version that parsed, used while the user is typing an incomplete line.
+    private final Map<String, Document> lastParsed = new HashMap<>();
+    private final Map<String, List<AxlDiagnostic>> compileErrors = new HashMap<>();
+    private final Map<Module, JavaModel> javaModels = new HashMap<>();
+    private ModuleCompiler compiler;
+
+    <T> CompletableFuture<T> submit(Callable<T> work) {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                return work.call();
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+        }, executor);
+    }
+
+    void connect(LanguageClient client) {
+        this.client = client;
+    }
+
+    void open(List<Path> roots) throws IOException {
+        project = ProjectModel.discover(roots);
+        compiler = new ModuleCompiler();
+    }
+
+    void close() {
+        executor.shutdownNow();
+    }
+
+    void update(String uri, String text) {
+        Document document = new Document(uri, text, project);
+        open.put(uri, document);
+        if (document.ast != null) {
+            lastParsed.put(uri, document);
+        }
+        javaModels.remove(document.module);
+        publish(document);
+    }
+
+    void closeDocument(String uri) {
+        open.remove(uri);
+        lastParsed.remove(uri);
+    }
+
+    void saved(String uri) throws IOException {
+        Document document = open.get(uri);
+        if (document == null || document.translation.hasErrors()) {
+            return;
+        }
+        List<Document> moduleDocuments = documentsOf(document.module);
+        Map<String, List<AxlDiagnostic>> errors = compiler.compile(document.module, moduleDocuments);
+        compileErrors.putAll(errors);
+        for (Document d : moduleDocuments) {
+            if (open.containsKey(d.uri)) {
+                publish(open.get(d.uri));
+            }
+        }
+    }
+
+    Document document(String uri) {
+        return open.get(uri);
+    }
+
+    /** The current document if it parses, otherwise its last version that did. */
+    Document parsed(String uri) {
+        Document current = open.get(uri);
+        return current != null && current.ast != null ? current : lastParsed.get(uri);
+    }
+
+    JavaModel javaModel(Module module) {
+        return javaModels.computeIfAbsent(module, m -> JavaModel.build(m, documentsOf(m).stream()
+                .map(d -> parsed(d.uri) != null ? parsed(d.uri) : d)
+                .map(d -> d.translation.unit()).filter(u -> u != null).toList()));
+    }
+
+    /** Every .axl file of a module, open ones with their unsaved text. */
+    List<Document> documentsOf(Module module) {
+        List<Document> result = new ArrayList<>();
+        for (Path root : module.axlRoots()) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (Stream<Path> walk = Files.walk(root)) {
+                for (Path file : walk.filter(p -> p.toString().endsWith(".axl")).sorted().toList()) {
+                    String uri = file.toUri().toString();
+                    Document doc = findOpen(file);
+                    result.add(doc != null ? doc : new Document(uri, Files.readString(file, StandardCharsets.UTF_8), project));
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        open.values().stream().filter(d -> d.module.equals(module) && result.stream().noneMatch(r -> r.path.equals(d.path)))
+                .forEach(result::add);
+        return result;
+    }
+
+    private Document findOpen(Path file) {
+        return open.values().stream().filter(d -> d.path.equals(file)).findFirst().orElse(null);
+    }
+
+    /** The source of a class: an .axl file in any module, or a .java file in a Java source root. */
+    Path sourceOf(String qualifiedName) {
+        String relative = qualifiedName.replace('.', '/');
+        for (Module module : project.modules()) {
+            for (Path root : module.axlRoots()) {
+                Path axl = root.resolve(relative + ".axl");
+                if (Files.exists(axl)) {
+                    return axl;
+                }
+            }
+            for (Path root : module.javaRoots()) {
+                Path java = root.resolve(relative + ".java");
+                if (Files.exists(java)) {
+                    return java;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** An .axl document for a path: the open one, or read from disk. */
+    Document load(Path file) {
+        Document doc = findOpen(file);
+        if (doc != null) {
+            return doc;
+        }
+        try {
+            return new Document(file.toUri().toString(), Files.readString(file, StandardCharsets.UTF_8), project);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    GeneratedUnit generated(String uri) {
+        Document doc = parsed(uri);
+        return doc == null ? null : doc.translation.unit();
+    }
+
+    private void publish(Document document) {
+        if (client == null) {
+            return;
+        }
+        List<AxlDiagnostic> all = new ArrayList<>(document.diagnostics());
+        if (!document.translation.hasErrors()) {
+            all.addAll(compileErrors.getOrDefault(document.uri, List.of()));
+        }
+        List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).toList();
+        client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
+    }
+
+    /** The range covers the token at the reported column, or the rest of the line. */
+    static Diagnostic toLsp(Document document, AxlDiagnostic d) {
+        int line = Math.max(0, d.line() - 1);
+        int start = Math.max(0, d.column() - 1);
+        var token = document.tokenAt(line, start);
+        int end = token != null && token.getCharPositionInLine() == start
+                ? start + token.getText().length()
+                : line < document.lines.size() ? Math.max(start + 1, document.lines.get(line).length()) : start + 1;
+        Diagnostic diagnostic = new Diagnostic(new Range(new Position(line, start), new Position(line, end)), d.message(),
+                d.isError() ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "axl");
+        diagnostic.setCode(Either.forLeft(d.code().id()));
+        return diagnostic;
+    }
+}

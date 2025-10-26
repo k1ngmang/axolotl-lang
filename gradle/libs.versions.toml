@@ -7,9 +7,13 @@ errorprone = "2.50.0"
 nullaway = "0.14.2"
 jmh = "1.37"
 asm = "9.8"
+lsp4j = "0.24.0"
+gson = "2.13.1"
 errorprone-plugin = "5.1.1"
 
 [libraries]
+lsp4j = { module = "org.eclipse.lsp4j:org.eclipse.lsp4j", version.ref = "lsp4j" }
+gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
 junit-jupiter-api = { module = "org.junit.jupiter:junit-jupiter-api" }
 errorprone-gradle = { module = "net.ltgt.gradle:gradle-errorprone-plugin", version.ref = "errorprone-plugin" }

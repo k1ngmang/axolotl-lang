@@ -6,7 +6,7 @@ plugins {
 
 dependencies {
     antlr(libs.antlr)
-    implementation(libs.antlr.runtime)
+    api(libs.antlr.runtime)
     testImplementation(platform(libs.junit.bom))
     testImplementation(libs.junit.jupiter)
     testRuntimeOnly(libs.junit.launcher)
