@@ -6,9 +6,13 @@ picocli = "4.7.7"
 errorprone = "2.50.0"
 nullaway = "0.14.2"
 jmh = "1.37"
+asm = "9.8"
+junit-platform = "1.13.4"
 errorprone-plugin = "5.1.1"
 
 [libraries]
+asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform" }
 errorprone-gradle = { module = "net.ltgt.gradle:gradle-errorprone-plugin", version.ref = "errorprone-plugin" }
 errorprone-core = { module = "com.google.errorprone:error_prone_core", version.ref = "errorprone" }
 nullaway = { module = "com.uber.nullaway:nullaway", version.ref = "nullaway" }
