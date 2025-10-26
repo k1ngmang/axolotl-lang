@@ -59,6 +59,26 @@ class CliTest {
     }
 
     @Test
+    void runShowsAxlLinesInStackTraces(@TempDir Path tmp) throws Exception {
+        Path main = Files.createDirectories(tmp.resolve("app")).resolve("Main.axl");
+        Files.writeString(main, "package app\n\nfn main() {\n    println(Integer.parseInt(\"x\"))\n}\n");
+        assertEquals(1, axl("run", main.toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("at app.Main.main(Main.axl:4)"), err.toString());
+    }
+
+    @Test
+    void retraceRewritesFramesFromClassesWithSmap(@TempDir Path tmp) throws Exception {
+        assertEquals(0, axl("build", CASES.resolve("hello/src").toString(), "-d", tmp.resolve("classes").toString(),
+                "-s", tmp.resolve("gen").toString()));
+        Path trace = tmp.resolve("trace.txt");
+        Files.writeString(trace, "java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.java:15)\n");
+        out.reset();
+        assertEquals(0, axl("retrace", "--classpath", tmp.resolve("classes").toString(), trace.toString()));
+        assertEquals("java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.axl:9)\n",
+                out.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
     void sourceRootStripsPackageDirectories() {
         Path file = Path.of("/work/src/app/util/Main.axl");
         assertEquals(Path.of("/work/src"), RunCommand.sourceRoot(file, "app.util"));

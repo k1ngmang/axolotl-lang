@@ -16,6 +16,7 @@ import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.SourceParser;
 import org.axl.compiler.Options;
 import org.axl.javac.AxlBuild;
+import org.axl.smap.Retracer;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -52,7 +53,7 @@ final class RunCommand implements Callable<Integer> {
             return 1;
         }
         String mainClass = packageName.isEmpty() ? className : packageName + "." + className;
-        return runMain(work.resolve("classes"), mainClass);
+        return runMain(work.resolve("classes"), work.resolve("generated"), mainClass);
     }
 
     private String packageOf(String className, String text) {
@@ -70,14 +71,16 @@ final class RunCommand implements Callable<Integer> {
         return dir.endsWith(expected) ? dir.getRoot().resolve(dir.subpath(0, dir.getNameCount() - expected.getNameCount())) : dir;
     }
 
-    private int runMain(Path classes, String mainClass) throws IOException, ReflectiveOperationException {
+    private int runMain(Path classes, Path generated, String mainClass) throws IOException, ReflectiveOperationException {
         try (var loader = new URLClassLoader(new URL[] {classes.toUri().toURL()}, getClass().getClassLoader())) {
             Method main = loader.loadClass(mainClass).getMethod("main", String[].class);
             Thread.currentThread().setContextClassLoader(loader);
             main.invoke(null, (Object) args.toArray(String[]::new));
             return 0;
         } catch (InvocationTargetException e) {
-            e.getCause().printStackTrace();
+            Throwable failure = e.getCause();
+            Retracer.of(List.of(generated), List.of()).retrace(failure);
+            failure.printStackTrace();
             return 1;
         }
     }

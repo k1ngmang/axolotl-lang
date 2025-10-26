@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     implementation(project(":axl-compiler-javac"))
+    implementation(project(":axl-smap"))
     implementation(project(":axl-runtime"))
     implementation(libs.picocli)
     runtimeOnly(libs.errorprone.core)

@@ -7,6 +7,7 @@ import java.util.concurrent.Callable;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.Options;
 import org.axl.javac.AxlBuild;
+import org.axl.smap.SmapInjector;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
@@ -32,15 +33,22 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
     boolean inlineElvis;
 
+    @Option(names = "--no-smap", description = "Do not add SMAP line information for debuggers to the classes.")
+    boolean noSmap;
+
     @Override
     public Integer call() throws Exception {
-        AxlBuild.Result result = new AxlBuild(sourceDir, generatedDir != null ? generatedDir : classesDir, classesDir)
+        Path generated = generatedDir != null ? generatedDir : classesDir;
+        AxlBuild.Result result = new AxlBuild(sourceDir, generated, classesDir)
                 .classpath(classpath)
                 .nullChecks(!noNullChecks)
                 .options(new Options(inlineElvis))
                 .display(Paths::display)
                 .run();
         report(result.diagnostics());
+        if (result.success() && !noSmap) {
+            SmapInjector.inject(classesDir, generated);
+        }
         return result.success() ? 0 : 1;
     }
 
