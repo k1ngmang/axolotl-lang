@@ -30,6 +30,16 @@ class JdiTest {
 
     @Test
     void breakpointOnAxlLine(@TempDir Path tmp) throws Exception {
+        stopAt(tmp, 13);
+    }
+
+    /** `try` inside an expression expands to several Java lines; all of them belong to the .axl line. */
+    @Test
+    void breakpointOnLineWithLiftedTry(@TempDir Path tmp) throws Exception {
+        stopAt(tmp, 8);
+    }
+
+    private void stopAt(Path tmp, int axlLine) throws Exception {
         Fixture fixture = new Fixture(tmp);
         fixture.inject();
         String classpath = fixture.classes + File.pathSeparator + RuntimeClasspath.entries().getFirst();
@@ -55,7 +65,7 @@ class JdiTest {
                         ReferenceType type = prepared.referenceType();
                         assertTrue(type.availableStrata().contains("Axolotl"), type.availableStrata().toString());
                         assertEquals(List.of("Main.axl"), type.sourceNames("Axolotl"));
-                        List<Location> locations = type.locationsOfLine("Axolotl", "Main.axl", 7);
+                        List<Location> locations = type.locationsOfLine("Axolotl", "Main.axl", axlLine);
                         assertFalse(locations.isEmpty());
                         vm.eventRequestManager().createBreakpointRequest(locations.getFirst()).enable();
                     } else if (event instanceof BreakpointEvent breakpoint) {
@@ -69,7 +79,7 @@ class JdiTest {
                     events.resume();
                 }
             }
-            assertEquals(7, stoppedAt.lineNumber("Axolotl"));
+            assertEquals(axlLine, stoppedAt.lineNumber("Axolotl"));
             assertEquals("Main.axl", stoppedAt.sourceName("Axolotl"));
             assertEquals("Main.java", stoppedAt.sourceName("Java"));
         } finally {

@@ -28,7 +28,7 @@ class RetracerTest {
 
         assertTrue(retraced.contains("at java.base/java.lang.Integer.parseInt(Integer.java:661)"), retraced);
         assertTrue(retraced.contains("at app.Main.parse(Main.axl:3)"), retraced);
-        assertTrue(retraced.contains("at app//app.Main.main(Main.axl:8)"), retraced);
+        assertTrue(retraced.contains("at app//app.Main.main(Main.axl:15)"), retraced);
     }
 
     @Test

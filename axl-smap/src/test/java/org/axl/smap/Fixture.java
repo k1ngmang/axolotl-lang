@@ -13,9 +13,16 @@ final class Fixture {
 
             fn parse(s: String) -> Int = Integer.parseInt(s)
 
+            fn checked(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else "bad"
+
+            fn sum(a: String, b: String) -> Result<Int, String> {
+                return Ok(try checked(a) + try checked(b))
+            }
+
             fn main() {
                 val text = "4" + "2"
                 println(parse(text))
+                println(sum("1", "2"))
                 println(parse("x"))
             }
             """;
