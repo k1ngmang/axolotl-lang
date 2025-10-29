@@ -1,0 +1,6 @@
+AXL007 app/Main.axl:7:22: error: `mapResult` can only be used in a function that returns `Result`
+AXL013 app/Main.axl:8:22: error: unknown pipe stage `reverse`; use filter, map, mapResult, peek, sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first
+AXL013 app/Main.axl:9:22: error: `count` ends a pipe and must be its last stage
+AXL013 app/Main.axl:10:22: error: `limit` takes one argument: `|> limit(n)`
+AXL007 app/Main.axl:11:22: error: `mapResult` can only be used in a function that returns `Result`
+AXL009 app/Main.axl:11:22: error: `mapResult` needs the element type: call a function of this file that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`

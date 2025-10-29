@@ -1,0 +1,13 @@
+Ok[value=false]
+try and
+Ok[value=true]
+try and
+Err[error=failed and]
+Ok[value=true]
+try or
+Ok[value=true]
+Ok[value=2]
+try elvis
+Ok[value=8]
+try elvis
+Err[error=failed elvis]

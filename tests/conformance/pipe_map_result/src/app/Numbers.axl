@@ -1,0 +1,23 @@
+package app
+import java.util.List
+
+fn parse(text: String) -> Result<Int, String> {
+    println("parse " + text)
+    return attempt Integer.parseInt(text) else "not a number: " + text
+}
+
+fn doubled(texts: List<String>) -> Result<List<Int>, String> {
+    val numbers = texts |> filter { !it.isEmpty() } |> mapResult { parse(it) } |> map { it * 2 }
+    return Ok(numbers)
+}
+
+fn lengths(texts: List<String>) -> Result<List<Int>, String> {
+    val sizes: List<Int> = texts |> mapResult { t -> attempt t.length() else "never" }
+    return Ok(sizes)
+}
+
+fn main() {
+    println(doubled(List.of("1", "", "2")))
+    println(doubled(List.of("3", "x", "4")))
+    println(lengths(List.of("ab", "c")))
+}

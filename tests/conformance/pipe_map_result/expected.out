@@ -1,0 +1,7 @@
+parse 1
+parse 2
+Ok[value=[2, 4]]
+parse 3
+parse x
+Err[error=not a number: x]
+Ok[value=[2, 1]]

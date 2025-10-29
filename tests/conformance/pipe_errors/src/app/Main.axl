@@ -1,0 +1,13 @@
+package app
+import java.util.List
+
+fn parse(text: String) -> Result<Int, String> = attempt Integer.parseInt(text) else "bad"
+
+fn plain(texts: List<String>) -> Int {
+    val a = texts |> mapResult { parse(it) }
+    val b = texts |> reverse
+    val c = texts |> count |> map { it }
+    val d = texts |> limit
+    val e = texts |> mapResult { Integer.valueOf(it) }
+    return 0
+}

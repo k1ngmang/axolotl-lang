@@ -1,0 +1,13 @@
+eval a
+try b
+eval c
+total 6
+try e
+try f
+eval d
+4
+try g
+Ok[value=12]
+eval a
+try b
+Err[error=failed b]

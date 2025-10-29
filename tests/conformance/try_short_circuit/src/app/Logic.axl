@@ -1,0 +1,40 @@
+package app
+
+fn flag(label: String, ok: Boolean) -> Result<Boolean, String> {
+    println("try " + label)
+    if (ok) {
+        return Ok(true)
+    }
+    return Err("failed " + label)
+}
+
+fn number(label: String, ok: Boolean) -> Result<Int, String> {
+    println("try " + label)
+    if (ok) {
+        return Ok(7)
+    }
+    return Err("failed " + label)
+}
+
+fn both(first: Boolean, ok: Boolean) -> Result<Boolean, String> {
+    val result = first && try flag("and", ok)
+    return Ok(result)
+}
+
+fn either(first: Boolean, ok: Boolean) -> Result<Boolean, String> = Ok(first || try flag("or", ok))
+
+fn fallback(value: Int?, ok: Boolean) -> Result<Int, String> {
+    val result = value ?: try number("elvis", ok)
+    return Ok(result + 1)
+}
+
+fn main() {
+    println(both(false, false))
+    println(both(true, true))
+    println(both(true, false))
+    println(either(true, false))
+    println(either(false, true))
+    println(fallback(1, false))
+    println(fallback(null, true))
+    println(fallback(null, false))
+}

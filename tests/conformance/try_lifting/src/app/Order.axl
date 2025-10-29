@@ -1,0 +1,28 @@
+package app
+
+fn log(label: String, value: Int) -> Int {
+    println("eval " + label)
+    return value
+}
+
+fn check(label: String, ok: Boolean) -> Result<Int, String> {
+    println("try " + label)
+    if (ok) {
+        return Ok(2)
+    }
+    return Err("failed " + label)
+}
+
+fn sum3(a: Int, b: Int, c: Int) -> Int = a + b + c
+
+fn run(ok: Boolean) -> Result<Int, String> {
+    val total = sum3(log("a", 1), try check("b", ok), log("c", 3))
+    println("total " + total)
+    println(log("d", try check("e", true) + try check("f", ok)))
+    return Ok(try check("g", true) * total)
+}
+
+fn main() {
+    println(run(true))
+    println(run(false))
+}

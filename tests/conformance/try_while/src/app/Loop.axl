@@ -1,0 +1,27 @@
+package app
+
+fn below(value: Int, limit: Int) -> Result<Boolean, String> {
+    if (value > 5) {
+        return Err("too far: " + value)
+    }
+    return Ok(value < limit)
+}
+
+fn count(limit: Int) -> Result<Int, String> {
+    var i = 0
+    while (try below(i, limit)) {
+        i += 1
+    }
+    if (try below(i, limit)) {
+        return Err("unreachable")
+    } else if (i > 2 && try below(i, 9)) {
+        return Ok(i * 10)
+    }
+    return Ok(i)
+}
+
+fn main() {
+    println(count(2))
+    println(count(4))
+    println(count(9))
+}
