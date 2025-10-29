@@ -78,7 +78,12 @@ assignOp
     ;
 
 expression
-    : disjunction
+    : disjunction (PIPE pipeStage)*
+    ;
+
+// `xs |> filter { it > 0 } |> limit(10)`
+pipeStage
+    : identifier ({sameLine()}? LPAREN arguments? RPAREN)? ({sameLine()}? lambda)?
     ;
 
 disjunction
@@ -111,7 +116,7 @@ multiplicative
 
 prefixExpression
     : (BANG | MINUS | PLUS) prefixExpression                                # unaryExpression
-    | TRY expression                                                        # tryExpression
+    | TRY prefixExpression                                                  # tryExpression
     | ATTEMPT expression ELSE (identifier ARROW)? expression                # attemptExpression
     | postfixExpression                                                     # postfixAlt
     ;
@@ -189,6 +194,7 @@ FALSE   : 'false';
 NULL    : 'null';
 
 ARROW          : '->';
+PIPE           : '|>';
 SAFE_DOT       : '?.';
 ELVIS          : '?:';
 COLONCOLON     : '::';

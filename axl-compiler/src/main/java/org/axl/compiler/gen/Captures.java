@@ -79,6 +79,15 @@ final class Captures {
             }
             // A user lambda that captures a `var` is an error javac reports; it is not copied.
             case Expr.Lambda l -> l.body().forEach(s -> statement(s, inLambda));
+            case Expr.Pipe p -> {
+                visit(p.source(), inLambda);
+                for (Expr.Stage stage : p.stages()) {
+                    stage.args().forEach(a -> visit(a, inLambda));
+                    if (stage.lambda() != null) {
+                        visit(stage.lambda(), inLambda);
+                    }
+                }
+            }
         }
     }
 

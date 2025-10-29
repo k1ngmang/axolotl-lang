@@ -1,5 +1,6 @@
 package org.axl.compiler.gen;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -16,6 +17,7 @@ import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.Stmt;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.check.Analysis;
+import org.axl.compiler.check.Checker;
 
 /** Generates Java following the expansion rules of the specification. Expects a file without errors. */
 public final class Generator {
@@ -37,6 +39,7 @@ public final class Generator {
     private int nullCount;
     private int exceptionCount;
     private int copyCount;
+    private int listCount;
     private Map<String, String> copies = Map.of();
 
     private Generator(SourceFile file, Analysis analysis, Options options) {
@@ -90,6 +93,7 @@ public final class Generator {
         nullCount = 0;
         exceptionCount = 0;
         copyCount = 0;
+        listCount = 0;
         copies = Map.of();
     }
 
@@ -161,6 +165,8 @@ public final class Generator {
                 Expr e = exprStmt.expr();
                 if (e instanceof Expr.Try t) {
                     withCopies(line, t.inner(), () -> unwrapTry(line, t));
+                } else if (Lifts.needed(e)) {
+                    withCopies(line, e, () -> em.line(line, lifted(line, e).code() + ";"));
                 } else if (Chains.hasSafeStep(e)) {
                     Chains.Chain chain = Chains.flatten(e);
                     withCopies(line, Captures.inStatementChain(chain, analysis), () -> safeChainStatement(line, chain));
@@ -185,14 +191,16 @@ public final class Generator {
     private void emitIf(Stmt.If ifStmt, String prefix) {
         int line = ifStmt.pos().line();
         List<String> captured = Captures.in(ifStmt.condition(), analysis);
-        if (!prefix.isEmpty() && !captured.isEmpty()) {
+        boolean prelude = !captured.isEmpty() || Lifts.needed(ifStmt.condition());
+        if (!prefix.isEmpty() && prelude) {
             em.line(line, prefix + "{");
             em.indent();
             statement(ifStmt);
             em.dedent();
             return;
         }
-        withCopies(line, ifStmt.condition(), () -> em.line(line, prefix + "if (" + expr(ifStmt.condition()) + ") {"));
+        withCopies(line, ifStmt.condition(), () ->
+                em.line(line, prefix + "if (" + lifted(line, ifStmt.condition()).code() + ") {"));
         block(ifStmt.then());
         switch (ifStmt.elseBranch()) {
             case null -> { }
@@ -216,14 +224,15 @@ public final class Generator {
 
     private void emitWhile(Stmt.While loop) {
         int line = loop.pos().line();
-        if (Captures.in(loop.condition(), analysis).isEmpty()) {
+        if (Captures.in(loop.condition(), analysis).isEmpty() && !Lifts.needed(loop.condition())) {
             em.line(line, "while (" + expr(loop.condition()) + ") {");
             block(loop.body());
         } else {
-            // The copies must be taken on every iteration, before the condition.
+            // Copies and lifted `try`s must run on every iteration, before the condition.
             em.line(line, "while (true) {");
             em.indent();
-            withCopies(line, loop.condition(), () -> em.line(line, "if (!(" + expr(loop.condition()) + ")) break;"));
+            withCopies(line, loop.condition(), () ->
+                    em.line(line, "if (!(" + lifted(line, loop.condition()).code() + ")) break;"));
             loop.body().statements().forEach(this::statement);
             em.dedent();
         }
@@ -238,6 +247,9 @@ public final class Generator {
 
     /** The value of a statement; with inlineElvis a root `?:` becomes a temporary and a conditional. */
     private String value(int line, Expr expr) {
+        if (Lifts.needed(expr)) {
+            return lifted(line, expr).code();
+        }
         if (!options.inlineElvis() || !(expr instanceof Expr.Elvis elvis)) {
             return expr(expr);
         }
@@ -269,8 +281,9 @@ public final class Generator {
 
     /** Emits the check and early return of `try` and returns the expression that unwraps the value. */
     private String unwrapTry(int line, Expr.Try t) {
+        String inner = lifted(line, t.inner()).code();
         String temp = "$t" + ++tempCount;
-        em.line(line, "final var " + temp + " = " + expr(t.inner()) + ";");
+        em.line(line, "final var " + temp + " = " + inner + ";");
         em.line(line, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");");
         return "Result.unwrap(" + temp + ")";
     }
@@ -311,9 +324,8 @@ public final class Generator {
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
             case Expr.Call c when c.target() != null -> chain(Chains.flatten(c), inLambda);
-            case Expr.Call c -> call(c, inLambda);
-            case Expr.GenericNew g -> "new " + g.type() + "<" + g.typeArgs().stream().map(t -> type(t, true))
-                    .collect(Collectors.joining(", ")) + ">(" + args(g.args(), inLambda) + ")";
+            case Expr.Call c -> call(c, args(c.args(), inLambda));
+            case Expr.GenericNew g -> genericNew(g, args(g.args(), inLambda));
             case Expr.MethodRef r -> expr(r.target(), inLambda) + "::" + r.name();
             case Expr.Unary u -> u.op() + expr(u.operand(), inLambda);
             case Expr.Binary b -> expr(b.left(), inLambda) + " " + b.op() + " " + expr(b.right(), inLambda);
@@ -326,7 +338,8 @@ public final class Generator {
                 yield "Result.attempt(() -> " + expr(a.body(), true) + ", " + error + " -> " + expr(a.handler(), true) + ")";
             }
             case Expr.Lambda l -> lambda(l, inLambda);
-            case Expr.Try t -> throw new IllegalStateException("try at " + t.pos() + " should have been rejected");
+            case Expr.Pipe p -> pipe(expr(p.source(), inLambda), p.source(), p.stages(), a -> expr(a, inLambda), inLambda);
+            case Expr.Try t -> throw new IllegalStateException("try at " + t.pos() + " should have been lifted");
         };
     }
 
@@ -334,8 +347,12 @@ public final class Generator {
         return expr instanceof Expr.Elvis || expr instanceof Expr.Attempt || Chains.hasSafeStep(expr);
     }
 
-    private String call(Expr.Call c, boolean inLambda) {
-        String args = args(c.args(), inLambda);
+    private String genericNew(Expr.GenericNew g, String args) {
+        return "new " + g.type() + "<" + g.typeArgs().stream().map(t -> type(t, true)).collect(Collectors.joining(", "))
+                + ">(" + args + ")";
+    }
+
+    private String call(Expr.Call c, String args) {
         if (c.name().equals("println") && !declaredFunctions.contains("println")) {
             return "System.out.println(" + args + ")";
         }
@@ -398,6 +415,201 @@ public final class Generator {
         em = outer;
         copies = outerCopies;
         return params + " -> {" + block + Emitter.continuation(lambda.end().line(), "}");
+    }
+
+    /** Code of an expression whose `try`s and `mapResult`s were moved into statements before it. */
+    private record Lifted(String code, boolean pure) {}
+
+    /**
+     * Emits the statements a `try` or `mapResult` needs and returns what is left of the expression.
+     * Operands to the left of a lifted part are evaluated into temporaries first, so the order of
+     * evaluation stays left to right.
+     */
+    private Lifted lifted(int line, Expr e) {
+        if (!Lifts.needed(e)) {
+            return new Lifted(expr(e), isPure(e));
+        }
+        return switch (e) {
+            case Expr.Try t -> new Lifted(unwrapTry(line, t), true);
+            case Expr.Binary b when (b.op().equals("&&") || b.op().equals("||")) && Lifts.needed(b.right()) ->
+                    shortCircuit(line, b);
+            case Expr.Binary b -> {
+                List<Lifted> ops = operands(line, List.of(b.left(), b.right()));
+                yield new Lifted(ops.get(0).code() + " " + b.op() + " " + ops.get(1).code(), false);
+            }
+            case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el);
+            case Expr.Elvis el -> new Lifted("Nulls.or(" + lifted(line, el.left()).code() + ", () -> " + expr(el.right(), true) + ")", false);
+            case Expr.Unary u -> new Lifted(u.op() + lifted(line, u.operand()).code(), false);
+            case Expr.Paren p -> {
+                Lifted inner = lifted(line, p.inner());
+                yield new Lifted(becomesCall(p.inner()) ? inner.code() : "(" + inner.code() + ")", inner.pure());
+            }
+            case Expr.Call c when c.target() == null -> new Lifted(call(c, codes(operands(line, c.args()))), false);
+            case Expr.Member m -> chainLifted(line, Chains.flatten(m));
+            case Expr.Call c -> chainLifted(line, Chains.flatten(c));
+            case Expr.GenericNew g -> new Lifted(genericNew(g, codes(operands(line, g.args()))), false);
+            case Expr.MethodRef r -> new Lifted(lifted(line, r.target()).code() + "::" + r.name(), false);
+            case Expr.Pipe p -> pipeLifted(line, p);
+            default -> throw new IllegalStateException("nothing to lift in " + e);
+        };
+    }
+
+    /** Operands in evaluation order; those left of the last lifted one are kept in temporaries. */
+    private List<Lifted> operands(int line, List<Expr> exprs) {
+        int last = -1;
+        for (int i = 0; i < exprs.size(); i++) {
+            if (Lifts.needed(exprs.get(i))) {
+                last = i;
+            }
+        }
+        List<Lifted> result = new ArrayList<>();
+        for (int i = 0; i < exprs.size(); i++) {
+            Lifted operand = lifted(line, exprs.get(i));
+            if (i < last && !operand.pure()) {
+                String temp = "$t" + ++tempCount;
+                em.line(line, "final var " + temp + " = " + operand.code() + ";");
+                operand = new Lifted(temp, true);
+            }
+            result.add(operand);
+        }
+        return result;
+    }
+
+    private static String codes(List<Lifted> lifted) {
+        return lifted.stream().map(Lifted::code).collect(Collectors.joining(", "));
+    }
+
+    /** Values that no call can change: literals, lambdas and the file's own names. */
+    private boolean isPure(Expr e) {
+        return switch (e) {
+            case Expr.Literal l -> true;
+            case Expr.Name n -> analysis.stableNames().contains(n);
+            case Expr.Lambda l -> true;
+            case Expr.MethodRef r -> true;
+            case Expr.Paren p -> isPure(p.inner());
+            default -> false;
+        };
+    }
+
+    /** `a && try b` evaluates `b` and its `try` only when `a` holds. */
+    private Lifted shortCircuit(int line, Expr.Binary b) {
+        String left = lifted(line, b.left()).code();
+        String temp = "$t" + ++tempCount;
+        em.line(line, "boolean " + temp + " = " + left + ";");
+        em.line(line, "if (" + (b.op().equals("&&") ? temp : "!" + temp) + ") {");
+        em.indent();
+        em.line(line, temp + " = " + lifted(line, b.right()).code() + ";");
+        em.dedent();
+        em.line(line, "}");
+        return new Lifted(temp, true);
+    }
+
+    /** `a ?: try b` evaluates `b` and its `try` only when `a` is null. */
+    private Lifted elvisChain(int line, Expr.Elvis elvis) {
+        String left = lifted(line, elvis.left()).code();
+        String temp = "$t" + ++tempCount;
+        em.line(line, "var " + temp + " = " + left + ";");
+        em.line(line, "if (" + temp + " == null) {");
+        em.indent();
+        em.line(line, temp + " = " + lifted(line, elvis.right()).code() + ";");
+        em.dedent();
+        em.line(line, "}");
+        return new Lifted(temp, true);
+    }
+
+    /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */
+    private Lifted chainLifted(int line, Chains.Chain chain) {
+        List<Chains.Step> steps = chain.steps();
+        int firstSafe = 0;
+        while (firstSafe < steps.size() && !steps.get(firstSafe).safe()) {
+            firstSafe++;
+        }
+        List<Expr> eager = new ArrayList<>(List.of(chain.base()));
+        for (int i = 0; i < firstSafe; i++) {
+            if (steps.get(i).args() != null) {
+                eager.addAll(steps.get(i).args());
+            }
+        }
+        List<Lifted> ops = operands(line, eager);
+        StringBuilder prefix = new StringBuilder(ops.getFirst().code());
+        int next = 1;
+        for (int i = 0; i < firstSafe; i++) {
+            Chains.Step step = steps.get(i);
+            prefix.append('.').append(step.name());
+            if (step.args() != null) {
+                prefix.append('(').append(codes(ops.subList(next, next + step.args().size()))).append(')');
+                next += step.args().size();
+            }
+        }
+        return new Lifted(chainFrom(prefix.toString(), steps, firstSafe, false), false);
+    }
+
+    /** `xs |> ... |> mapResult { f(it) } |> ...`: a loop that returns the first `Err` from the function. */
+    private Lifted pipeLifted(int line, Expr.Pipe pipe) {
+        List<Expr.Stage> stages = pipe.stages();
+        int mapResult = 0;
+        while (mapResult < stages.size() && !stages.get(mapResult).name().equals("mapResult")) {
+            mapResult++;
+        }
+        List<Expr> eager = new ArrayList<>(List.of(pipe.source()));
+        for (int i = 0; i < Math.min(mapResult, stages.size()); i++) {
+            eager.addAll(stages.get(i).args());
+        }
+        List<Lifted> ops = operands(line, eager);
+        Map<Expr, String> argCodes = new java.util.IdentityHashMap<>();
+        for (int i = 1; i < eager.size(); i++) {
+            argCodes.put(eager.get(i), ops.get(i).code());
+        }
+        if (mapResult == stages.size()) {
+            return new Lifted(pipe(ops.getFirst().code(), pipe.source(), stages, argCodes::get, false), false);
+        }
+        String items = mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source())
+                : pipe(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argCodes::get, false);
+        Expr.Stage stage = stages.get(mapResult);
+        Expr.Lambda lambda = stage.lambda();
+        String param = lambda.params().isEmpty() ? "it" : lambda.params().getFirst().name();
+        Expr body = ((Stmt.ExprStmt) lambda.body().getFirst()).expr();
+        String list = "$p" + ++listCount;
+        String element = type(analysis.mapResultTypes().get(stage), true);
+        em.line(line, "final java.util.List<" + element + "> " + list + " = new java.util.ArrayList<>();");
+        em.line(line, "for (final var " + param + " : " + items + ") {");
+        em.indent();
+        String temp = "$t" + ++tempCount;
+        em.line(lambda.pos().line(), "final var " + temp + " = " + expr(body) + ";");
+        em.line(lambda.pos().line(), "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");");
+        em.line(lambda.pos().line(), list + ".add(Result.unwrap(" + temp + "));");
+        em.dedent();
+        em.line(line, "}");
+        List<Expr.Stage> rest = stages.subList(mapResult + 1, stages.size());
+        if (rest.isEmpty()) {
+            return new Lifted(list, true);
+        }
+        return pipeLifted(line, new Expr.Pipe(pipe.pos(), new Expr.Name(pipe.pos(), list), rest));
+    }
+
+    /** Pipe stages as a Java stream; without a terminal stage the result is a List. */
+    private String pipe(String source, Expr sourceExpr, List<Expr.Stage> stages,
+                        java.util.function.Function<Expr, String> arg, boolean inLambda) {
+        StringBuilder sb = new StringBuilder(parenthesized(source, sourceExpr)).append(".stream()");
+        boolean terminal = false;
+        for (Expr.Stage stage : stages) {
+            String lambda = stage.lambda() == null ? "" : lambda(stage.lambda(), inLambda);
+            switch (stage.name()) {
+                case "limit", "skip" -> sb.append('.').append(stage.name()).append('(').append(arg.apply(stage.args().getFirst())).append(')');
+                case "distinct" -> sb.append(".distinct()");
+                case "count" -> sb.append(".count()");
+                case "first" -> sb.append(".findFirst().orElse(null)");
+                default -> sb.append('.').append(stage.name()).append('(').append(lambda).append(')');
+            }
+            terminal |= Checker.TERMINAL_STAGES.contains(stage.name());
+        }
+        return terminal ? sb.toString() : sb.append(".toList()").toString();
+    }
+
+    private static String parenthesized(String code, Expr source) {
+        boolean simple = source instanceof Expr.Name || source instanceof Expr.Call || source instanceof Expr.Member
+                || source instanceof Expr.Paren || source instanceof Expr.GenericNew || source instanceof Expr.Literal;
+        return simple ? code : "(" + code + ")";
     }
 
     private String type(TypeRef type) {

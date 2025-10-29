@@ -38,4 +38,10 @@ public sealed interface Expr {
     record Lambda(Pos pos, List<Param> params, boolean arrow, List<Stmt> body, Pos end) implements Expr {}
 
     record Param(Pos pos, String name, TypeRef type) {}
+
+    /** `source |> stage |> stage`. */
+    record Pipe(Pos pos, Expr source, List<Stage> stages) implements Expr {}
+
+    /** A pipe stage: a name with optional arguments and an optional trailing lambda. */
+    record Stage(Pos pos, String name, List<Expr> args, Lambda lambda) {}
 }

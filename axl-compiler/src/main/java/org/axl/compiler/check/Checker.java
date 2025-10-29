@@ -15,6 +15,7 @@ import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.Stmt;
+import org.axl.compiler.ast.TypeRef;
 
 /**
  * Name and placement rules that need no types: scopes, shadowing, where `try` may appear,
@@ -22,11 +23,19 @@ import org.axl.compiler.ast.Stmt;
  */
 public final class Checker {
 
-    public static final String TRY_IN_EXPRESSION =
-            "`try` is only allowed as `val x = try e` or as a statement; move `try` into a separate `val`";
+    public static final String TRY_IN_LAMBDA =
+            "`try` cannot be used in a lambda: it would return from the lambda, not the function; use `|> mapResult` or `attempt`";
+    public static final String TRY_AFTER_SAFE_CALL =
+            "`try` after `?.` runs only for a non-null value; move `try` into a separate `val`";
     public static final String RETURN_TRY =
             "`return try e` makes no sense: `try` unwraps the value, but the function returns `Result`; write `return e`";
     public static final String TRY_NEEDS_RESULT = "`try` can only be used in a function that returns `Result`";
+
+    private static final Set<String> STAGES_WITH_LAMBDA = Set.of("filter", "map", "peek", "mapResult", "forEach",
+            "anyMatch", "allMatch", "noneMatch");
+    private static final Set<String> STAGES_WITH_ARGUMENT = Set.of("limit", "skip");
+    private static final Set<String> STAGES_WITHOUT_ARGUMENTS = Set.of("distinct", "count", "first");
+    public static final Set<String> TERMINAL_STAGES = Set.of("forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
 
     private static final Set<String> RESERVED = Set.of(
             "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
@@ -35,7 +44,7 @@ public final class Checker {
             "public", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw",
             "throws", "transient", "void", "volatile", "_");
 
-    private enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL }
+    private enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED }
 
     private record Symbol(Kind kind, Pos pos) {}
 
@@ -64,9 +73,14 @@ public final class Checker {
     private final List<AxlDiagnostic> diagnostics = new ArrayList<>();
     private final Set<Expr.Lambda> implicitIt = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> mutableRefs = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<Expr.Name> stableNames = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Map<Expr.Stage, TypeRef> mapResultTypes = new IdentityHashMap<>();
     private Scope scope;
     private Decl.Function function;
     private int lambdaDepth;
+    private int safeTailDepth;
+    // The written type of the `val` whose initializer is being checked, for `mapResult`.
+    private TypeRef declaredType;
 
     private Checker(SourceFile file) {
         this.file = file;
@@ -76,7 +90,7 @@ public final class Checker {
         Checker checker = new Checker(file);
         checker.run();
         diagnostics.addAll(checker.diagnostics);
-        return new Analysis(checker.implicitIt, checker.mutableRefs);
+        return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.mapResultTypes);
     }
 
     private void run() {
@@ -90,7 +104,7 @@ public final class Checker {
         scope = new Scope(null, true);
         for (Import imp : file.imports()) {
             if (imp.kind() != Import.Kind.TYPE) {
-                scope.names.putIfAbsent(imp.simpleName(), new Symbol(Kind.TOP_LEVEL, imp.pos()));
+                scope.names.putIfAbsent(imp.simpleName(), new Symbol(Kind.IMPORTED, imp.pos()));
             }
         }
         for (Decl decl : file.decls()) {
@@ -170,11 +184,13 @@ public final class Checker {
                             + "` needs a type when it is initialized with " + (local.init() instanceof Expr.Lambda
                             ? "a lambda" : "`null`") + ": `" + keyword + " " + local.name() + ": Type = ...`");
                 }
+                declaredType = local.type();
                 if (local.init() instanceof Expr.Try t) {
                     statementTry(t);
                 } else {
                     expr(local.init());
                 }
+                declaredType = null;
                 declare(local.pos(), local.name(), local.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL);
             }
             case Stmt.Assign assign -> {
@@ -221,12 +237,21 @@ public final class Checker {
 
     /** A `try` in one of the two allowed statement positions. */
     private void statementTry(Expr.Try t) {
-        if (lambdaDepth > 0) {
-            error(t.pos(), ErrorCode.TRY_IN_EXPRESSION, TRY_IN_EXPRESSION);
-        } else if (!returnsResult(function)) {
-            error(t.pos(), ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, TRY_NEEDS_RESULT);
-        }
+        checkTryPlace(t.pos(), "`try`");
         expr(t.inner());
+    }
+
+    /** `try` and `mapResult` return from the function, so they need one that returns `Result`. */
+    private void checkTryPlace(Pos pos, String what) {
+        if (lambdaDepth > 0) {
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, what.equals("`try`") ? TRY_IN_LAMBDA
+                    : what + " cannot be used in a lambda: it would return from the lambda, not the function");
+        } else if (safeTailDepth > 0) {
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, what.equals("`try`") ? TRY_AFTER_SAFE_CALL
+                    : what + " after `?.` runs only for a non-null value; move it into a separate `val`");
+        } else if (!returnsResult(function)) {
+            error(pos, ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, what + " can only be used in a function that returns `Result`");
+        }
     }
 
     private static boolean returnsResult(Decl.Function fn) {
@@ -242,13 +267,26 @@ public final class Checker {
                 if (symbol != null && symbol.kind == Kind.MUTABLE_LOCAL) {
                     mutableRefs.add(name);
                 }
+                if (symbol != null && symbol.kind != Kind.IMPORTED) {
+                    stableNames.add(name);
+                }
             }
-            case Expr.Member m -> expr(m.target());
+            case Expr.Member m -> {
+                expr(m.target());
+            }
             case Expr.Call call -> {
                 if (call.target() != null) {
                     expr(call.target());
                 }
+                // Arguments after a `?.` are evaluated only when the receiver is not null.
+                boolean safeTail = call.safe() || call.target() != null && hasSafeStep(call.target());
+                if (safeTail) {
+                    safeTailDepth++;
+                }
                 call.args().forEach(this::expr);
+                if (safeTail) {
+                    safeTailDepth--;
+                }
             }
             case Expr.GenericNew g -> g.args().forEach(this::expr);
             case Expr.MethodRef r -> expr(r.target());
@@ -263,10 +301,12 @@ public final class Checker {
             }
             case Expr.Paren p -> expr(p.inner());
             case Expr.Try t -> {
-                error(t.pos(), ErrorCode.TRY_IN_EXPRESSION, TRY_IN_EXPRESSION);
+                checkTryPlace(t.pos(), "`try`");
                 expr(t.inner());
             }
+            // The body and the handler of `attempt` run inside lambdas.
             case Expr.Attempt a -> {
+                lambdaDepth++;
                 expr(a.body());
                 scope = new Scope(scope, false);
                 if (a.errorName() != null) {
@@ -274,18 +314,78 @@ public final class Checker {
                 }
                 expr(a.handler());
                 scope = scope.parent;
+                lambdaDepth--;
             }
-            case Expr.Lambda lambda -> lambda(lambda);
+            case Expr.Pipe pipe -> pipe(pipe);
+            case Expr.Lambda lambda -> lambda(lambda, false);
         }
     }
 
-    private void lambda(Expr.Lambda lambda) {
+    private void pipe(Expr.Pipe pipe) {
+        TypeRef declared = declaredType;
+        declaredType = null;
+        expr(pipe.source());
+        List<Expr.Stage> stages = pipe.stages();
+        for (int i = 0; i < stages.size(); i++) {
+            Expr.Stage stage = stages.get(i);
+            String name = stage.name();
+            boolean hasLambda = stage.lambda() != null;
+            if (!STAGES_WITH_LAMBDA.contains(name) && !STAGES_WITH_ARGUMENT.contains(name)
+                    && !STAGES_WITHOUT_ARGUMENTS.contains(name) && !name.equals("sorted")) {
+                error(stage.pos(), ErrorCode.PIPE_STAGE, "unknown pipe stage `" + name + "`; use filter, map, mapResult, peek, "
+                        + "sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first");
+            } else if (STAGES_WITH_LAMBDA.contains(name) && (!hasLambda || !stage.args().isEmpty())) {
+                error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes a lambda: `|> " + name + " { ... }`");
+            } else if (STAGES_WITH_ARGUMENT.contains(name) && (hasLambda || stage.args().size() != 1)) {
+                error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes one argument: `|> " + name + "(n)`");
+            } else if ((STAGES_WITHOUT_ARGUMENTS.contains(name) || name.equals("sorted")) && !stage.args().isEmpty()
+                    || STAGES_WITHOUT_ARGUMENTS.contains(name) && hasLambda) {
+                error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes no arguments");
+            } else if (TERMINAL_STAGES.contains(name) && i < stages.size() - 1) {
+                error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` ends a pipe and must be its last stage");
+            }
+            if (name.equals("mapResult") && hasLambda) {
+                mapResult(stage, i == stages.size() - 1 ? declared : null);
+            }
+            stage.args().forEach(this::expr);
+            if (hasLambda) {
+                // Every stage but `sorted` passes one element, so a lambda without parameters takes `it`.
+                lambda(stage.lambda(), !name.equals("sorted"));
+            }
+        }
+    }
+
+    /** The loop of `mapResult` needs the element type of the list it builds. */
+    private void mapResult(Expr.Stage stage, TypeRef declared) {
+        checkTryPlace(stage.pos(), "`mapResult`");
+        if (stage.lambda().body().size() != 1 || !(stage.lambda().body().getFirst() instanceof Stmt.ExprStmt)) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "the lambda of `mapResult` must be a single expression");
+            return;
+        }
+        TypeRef element = MapResultTypes.elementType(stage, file, declared);
+        if (element == null) {
+            error(stage.pos(), ErrorCode.TYPE_REQUIRED, "`mapResult` needs the element type: call a function of this file "
+                    + "that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`");
+        } else {
+            mapResultTypes.put(stage, element);
+        }
+    }
+
+    private static boolean hasSafeStep(Expr expr) {
+        return switch (expr) {
+            case Expr.Member m -> m.safe() || hasSafeStep(m.target());
+            case Expr.Call c -> c.safe() || c.target() != null && hasSafeStep(c.target());
+            default -> false;
+        };
+    }
+
+    private void lambda(Expr.Lambda lambda, boolean takesElement) {
         scope = new Scope(scope, false);
         lambdaDepth++;
         for (Expr.Param p : lambda.params()) {
             declare(p.pos(), p.name(), Kind.PARAM);
         }
-        if (!lambda.arrow() && scope.lookup("it") == null && mentionsIt(lambda.body())) {
+        if (!lambda.arrow() && scope.lookup("it") == null && (takesElement || mentionsIt(lambda.body()))) {
             implicitIt.add(lambda);
             scope.names.put("it", new Symbol(Kind.PARAM, lambda.pos()));
         }

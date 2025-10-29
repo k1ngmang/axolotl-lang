@@ -126,7 +126,16 @@ final class AstBuilder {
     }
 
     private Expr expr(ExpressionContext ctx) {
-        return disjunction(ctx.disjunction());
+        Expr source = disjunction(ctx.disjunction());
+        if (ctx.pipeStage().isEmpty()) {
+            return source;
+        }
+        List<Expr.Stage> stages = new ArrayList<>();
+        for (PipeStageContext stage : ctx.pipeStage()) {
+            Expr.Lambda lambda = stage.lambda() == null ? null : (Expr.Lambda) lambda(stage.lambda());
+            stages.add(new Expr.Stage(pos(stage.start), name(stage.identifier()), arguments(stage.arguments()), lambda));
+        }
+        return new Expr.Pipe(source.pos(), source, stages);
     }
 
     private Expr disjunction(DisjunctionContext ctx) {
@@ -181,7 +190,7 @@ final class AstBuilder {
     private Expr prefix(PrefixExpressionContext ctx) {
         return switch (ctx) {
             case UnaryExpressionContext u -> new Expr.Unary(pos(u.start), u.start.getText(), prefix(u.prefixExpression()));
-            case TryExpressionContext t -> new Expr.Try(pos(t.start), expr(t.expression()));
+            case TryExpressionContext t -> new Expr.Try(pos(t.start), prefix(t.prefixExpression()));
             case AttemptExpressionContext a -> new Expr.Attempt(pos(a.start), expr(a.expression(0)),
                     a.identifier() == null ? null : name(a.identifier()), expr(a.expression(1)));
             case PostfixAltContext p -> postfix(p.postfixExpression());

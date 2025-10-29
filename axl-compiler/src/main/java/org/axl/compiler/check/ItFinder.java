@@ -34,6 +34,8 @@ final class ItFinder {
             case Expr.Attempt a -> in(a.body()) || !"it".equals(a.errorName()) && in(a.handler());
             case Expr.Lambda l -> l.params().stream().noneMatch(p -> p.name().equals("it"))
                     && l.body().stream().anyMatch(this::in);
+            case Expr.Pipe p -> in(p.source()) || p.stages().stream().anyMatch(s -> s.args().stream().anyMatch(this::in)
+                    || s.lambda() != null && in(s.lambda()));
         };
     }
 }
