@@ -38,3 +38,10 @@ One line per decision where the specification is silent or had to be adjusted.
 - The language server uses full document synchronization and serves every request on one thread; while a line is incomplete, completion and navigation use the last version of the file that parsed.
 - Member completion knows the receiver's type when it is a class name, a name with a written type, or a local whose type javac infers in the generated code; longer call chains are not completed.
 - The VS Code extension bundles the server's jars (`server/lib`) and starts it with the JDK from `axl.java.home`, `JAVA_HOME` or the PATH.
+- The IntelliJ plugin uses a hand-written `PsiBuilder` parser over the ANTLR lexer instead of an ANTLR-to-PSI adaptor, for error recovery while typing.
+- Java sees `.axl` files through light classes whose member types come from the in-memory translation parsed as Java; members navigate to the `.axl` declarations.
+- javac and NullAway errors in IntelliJ come from `axl check` run in a separate JVM (the IDE's JVM lacks the options Error Prone needs) and appear after a save; in Ultimate the language server reports them instead.
+- In Ultimate the language server provides diagnostics and hover only; completion, navigation and highlighting stay with the plugin's PSI so that the two do not duplicate each other.
+- The platform has no extension point to hide local variables in the debugger, so the translator's `$` locals are labeled "Axolotl internal" instead of hidden.
+- `fn main()` runs through IntelliJ's Java application run configuration for the generated class; building is left to Gradle or Maven delegation.
+- The IntelliJ Platform Gradle Plugin is 2.11.0, the newest release that supports Gradle 8.

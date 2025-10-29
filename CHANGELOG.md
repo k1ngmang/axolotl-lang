@@ -62,3 +62,14 @@ Known limitations: Error Prone needs `.mvn/jvm.config`; the plugin version in th
 - Gradle task `axlLspConfig` and Maven goal `axl:lsp-config` write the module description the server reads.
 
 Known limitations: no incremental document sync; completion does not follow call chains.
+
+## Stage 7: IntelliJ IDEA plugin
+
+- File type, ANTLR-based lexer, `PsiBuilder` parser, highlighting with color settings, brace matching, commenter, folding, structure view.
+- Completion, go to declaration, find usages and rename across `.axl` and Java; translator rules as an annotator with quick fixes; javac/NullAway errors on save.
+- Java sees `.axl` functions and values without a build (`PsiElementFinder`, `PsiShortNamesCache`).
+- Run icon for `fn main()`; breakpoints and stepping in `.axl` files through the `Axolotl` stratum.
+- Show Generated Java, Convert Java File to Axolotl, LSP integration in Ultimate, Maven source roots.
+- Platform tests for parsing, highlighting, completion, rename, find usages, quick fixes and Java interop; `verifyPlugin` for IntelliJ IDEA 2024.2 and 2025.2.
+
+Known limitations: generated locals are labeled, not hidden, in the debugger; the debugger is checked by the manual scenario in `docs/intellij-debug-check.md`.
