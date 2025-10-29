@@ -20,6 +20,9 @@ final class Completions {
     static final List<String> KEYWORDS = List.of("package", "import", "fn", "val", "var", "private", "return", "if",
             "else", "while", "try", "attempt", "true", "false", "null");
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
+    static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
+            "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
+    private static final Pattern PIPE_STAGE = Pattern.compile("\\|>\\s*\\w*$");
     private static final Pattern MEMBER = Pattern.compile("([\\w.]+)\\??\\.(\\w*)$");
 
     private final Workspace workspace;
@@ -36,6 +39,13 @@ final class Completions {
         }
         String prefix = current.lines.get(line).substring(0, Math.min(character, current.lines.get(line).length()));
         Pos pos = new Pos(line + 1, character + 1);
+        if (PIPE_STAGE.matcher(prefix).find()) {
+            return PIPE_STAGES.stream().map(name -> {
+                CompletionItem item = new CompletionItem(name);
+                item.setKind(CompletionItemKind.Method);
+                return item;
+            }).toList();
+        }
         Matcher member = MEMBER.matcher(prefix);
         if (member.find()) {
             return parsed == null || parsed.ast == null ? List.of() : members(parsed, pos, member.group(1));

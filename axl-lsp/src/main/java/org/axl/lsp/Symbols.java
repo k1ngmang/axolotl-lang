@@ -161,6 +161,15 @@ final class Symbols {
                 expr(a.body(), pos, fn, out);
                 expr(a.handler(), pos, fn, out);
             }
+            case Expr.Pipe p -> {
+                expr(p.source(), pos, fn, out);
+                for (Expr.Stage stage : p.stages()) {
+                    stage.args().forEach(a -> expr(a, pos, fn, out));
+                    if (stage.lambda() != null) {
+                        expr(stage.lambda(), pos, fn, out);
+                    }
+                }
+            }
             case Expr.Literal l -> { }
             case Expr.Name n -> { }
         }

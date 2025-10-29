@@ -172,6 +172,15 @@ class LanguageServerTest {
     }
 
     @Test
+    void completesPipeStages() throws Exception {
+        open(MAIN);
+        diagnosticsWhere(List::isEmpty);
+        change(MAIN.replace("    return Ok(n * 2)", "    val xs = java.util.List.of(1) |> fi\n    return Ok(n * 2)"));
+        List<String> stages = complete(8, 38).stream().map(CompletionItem::getLabel).toList();
+        assertTrue(stages.containsAll(List.of("filter", "mapResult", "count")), stages.toString());
+    }
+
+    @Test
     void goesToDefinitionsInAxlAndJava() throws Exception {
         open(MAIN);
         diagnosticsWhere(List::isEmpty);
