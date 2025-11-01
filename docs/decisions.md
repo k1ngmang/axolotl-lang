@@ -45,3 +45,8 @@ One line per decision where the specification is silent or had to be adjusted.
 - The platform has no extension point to hide local variables in the debugger, so the translator's `$` locals are labeled "Axolotl internal" instead of hidden.
 - `fn main()` runs through IntelliJ's Java application run configuration for the generated class; building is left to Gradle or Maven delegation.
 - The IntelliJ Platform Gradle Plugin is 2.11.0, the newest release that supports Gradle 8.
+- `try` binds like a unary operator (`try a + try b` is `(try a) + (try b)`); in stage 1 it took the whole expression to its right, which made no difference in the two statement forms allowed then.
+- Lifted `try`: operands to its left that are not literals, lambdas or the file's own names are kept in `$t` temporaries; `&&`/`||` with `try` on the right become `boolean $t = left; if ($t) { ... }`, `?:` becomes `var $t = left; if ($t == null) { ... }`; a `while` condition is evaluated inside `while (true)`.
+- `try` after `?.` stays an error: the expansion would need the rest of the chain inside a conditional, and moving the `try` into a `val` is clearer.
+- Pipes support `filter`, `map`, `peek`, `sorted`, `distinct`, `limit`, `skip`, `forEach`, `anyMatch`, `allMatch`, `noneMatch`, `count`, `first` and `mapResult`; without an ending stage the result is `toList()`. A lambda of a stage without parameters takes `it` even if the body does not use it.
+- `mapResult` expands to a loop over a `$p` list. The runtime has no helper and the translator no types, so the element type comes from the `val`'s written `List<T>` or from a same-file function returning `Result<T, E>` (AXL009 otherwise).

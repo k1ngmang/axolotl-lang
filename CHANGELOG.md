@@ -73,3 +73,10 @@ Known limitations: no incremental document sync; completion does not follow call
 - Platform tests for parsing, highlighting, completion, rename, find usages, quick fixes and Java interop; `verifyPlugin` for IntelliJ IDEA 2024.2 and 2025.2.
 
 Known limitations: generated locals are labeled, not hidden, in the debugger; the debugger is checked by the manual scenario in `docs/intellij-debug-check.md`.
+
+## Stage 8: `try` in expressions and pipes
+
+- `try` works anywhere in an expression of a function returning `Result`, with left-to-right evaluation order kept by temporaries; `&&`, `||` and `?:` become `if` chains, `while` conditions are evaluated inside the loop.
+- Pipes `xs |> filter { } |> map { }` expand to Java streams; `|> mapResult { }` expands to a loop that returns the first `Err`.
+- Conformance cases with side effects check the evaluation order; a JDI test stops on a line with a lifted `try`.
+- The language server, the IntelliJ plugin and the TextMate grammar know `|>`; the language is described in `docs/language.md`.
