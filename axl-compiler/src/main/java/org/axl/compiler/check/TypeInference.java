@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
+import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.TypeRef;
@@ -62,7 +63,7 @@ public final class TypeInference {
             case Expr.Paren p -> of(p.inner());
             case Expr.Unary u -> u.op().equals("!") ? simple("Boolean", u.pos()) : of(u.operand());
             case Expr.Binary b -> binary(b);
-            case Expr.Elvis e -> nonNull(of(e.right()));
+            case Expr.Elvis e -> elvis(e);
             case Expr.Name n -> topLevelValue(n.name());
             case Expr.Call c when c.target() == null -> call(c);
             case Expr.GenericNew g -> new TypeRef(g.pos(), g.type(), g.typeArgs(), false);
@@ -111,16 +112,43 @@ public final class TypeInference {
         return NUMBERS.indexOf(left.name()) >= NUMBERS.indexOf(right.name()) ? nonNull(left) : nonNull(right);
     }
 
-    private TypeRef call(Expr.Call c) {
-        for (Decl decl : file.decls()) {
-            if (decl instanceof Decl.Function fn && fn.name().equals(c.name()) && fn.params().size() == c.args().size()) {
-                return fn.returnType();
+    /** `a ?: b` has the type of `b` when both sides agree; otherwise javac decides. */
+    private TypeRef elvis(Expr.Elvis e) {
+        TypeRef right = of(e.right());
+        TypeRef left = of(e.left());
+        return right != null && left != null && sameType(left, right) ? right : null;
+    }
+
+    private static boolean sameType(TypeRef a, TypeRef b) {
+        if (!a.name().equals(b.name()) || a.args().size() != b.args().size()) {
+            return false;
+        }
+        for (int i = 0; i < a.args().size(); i++) {
+            if (!sameType(a.args().get(i), b.args().get(i)) || a.args().get(i).nullable() != b.args().get(i).nullable()) {
+                return false;
             }
+        }
+        return true;
+    }
+
+    private TypeRef call(Expr.Call c) {
+        List<Decl.Function> candidates = file.decls().stream()
+                .filter(d -> d instanceof Decl.Function fn && fn.name().equals(c.name()) && fn.params().size() == c.args().size())
+                .map(Decl.Function.class::cast).toList();
+        if (candidates.size() == 1) {
+            return candidates.getFirst().returnType();
+        }
+        if (candidates.size() > 1 || isImportedFunction(c.name())) {
+            return null;
         }
         if (Character.isUpperCase(c.name().charAt(0)) && !c.name().equals("Ok") && !c.name().equals("Err")) {
             return simple(c.name(), c.pos());
         }
         return null;
+    }
+
+    private boolean isImportedFunction(String name) {
+        return file.imports().stream().anyMatch(i -> i.kind() != Import.Kind.TYPE && i.simpleName().equals(name));
     }
 
     private TypeRef topLevelValue(String name) {

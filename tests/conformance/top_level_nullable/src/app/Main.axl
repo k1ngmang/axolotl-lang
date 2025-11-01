@@ -1,0 +1,26 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.Map
+
+fn cached() -> List<String>? = null
+fn f(x: Int) -> Int = x + 1
+fn f(x: String) -> String = x + "!"
+
+val cfg = Map.of("a", "1")
+val len = cfg.get("zz")?.length()
+val firstOrNull = cfg.keySet() |> first
+val fromOther = util.Other.maybe()
+val either = util.Other.maybe() ?: util.Other.maybe()
+val names = cached() ?: ArrayList<String>()
+val overloaded = f("a")
+
+fn main() {
+    println(len)
+    println(firstOrNull)
+    println(fromOther)
+    println(either)
+    println(names)
+    println(overloaded)
+}

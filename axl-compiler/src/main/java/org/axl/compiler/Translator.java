@@ -96,11 +96,22 @@ public final class Translator {
         Map<String, String> found = options.javaTypes().localTypes(qualified, probe);
         for (String name : List.copyOf(unknown)) {
             if (found.containsKey(name)) {
-                valueTypes.put(name, withImports(found.get(name), file));
+                valueTypes.put(name, javaType(found.get(name), file));
                 unknown.remove(name);
             }
         }
         return unknown;
+    }
+
+    private static String javaType(String probed, SourceFile file) {
+        if (!probed.startsWith(JavaTypes.NULLABLE)) {
+            return withImports(probed, file);
+        }
+        String type = withImports(probed.substring(JavaTypes.NULLABLE.length()), file);
+        // A type-use annotation on a qualified name goes before the simple name: java.util.@Nullable List.
+        int rawEnd = type.indexOf('<') < 0 ? type.length() : type.indexOf('<');
+        int dot = type.lastIndexOf('.', rawEnd);
+        return type.substring(0, dot + 1) + JavaTypes.NULLABLE + type.substring(dot + 1);
     }
 
     /** Types the file imports are written with their simple names, as a person would. */
