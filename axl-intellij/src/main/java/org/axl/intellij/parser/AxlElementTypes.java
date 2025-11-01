@@ -38,6 +38,8 @@ public final class AxlElementTypes {
     public static final IElementType LITERAL = type("LITERAL");
     public static final IElementType TRY = type("TRY");
     public static final IElementType ATTEMPT = type("ATTEMPT");
+    public static final IElementType PIPE = type("PIPE");
+    public static final IElementType PIPE_STAGE = type("PIPE_STAGE");
 
     private AxlElementTypes() {}
 

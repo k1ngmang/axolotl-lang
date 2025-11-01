@@ -251,7 +251,24 @@ public final class AxlParser implements PsiParser {
     }
 
     private void expression() {
+        PsiBuilder.Marker m = b.mark();
         binary(0);
+        if (!at(PIPE)) {
+            m.drop();
+            return;
+        }
+        while (consume(PIPE)) {
+            PsiBuilder.Marker stage = b.mark();
+            expect(IDENTIFIER, "pipe stage expected");
+            if (at(LPAREN) && !newlineBefore()) {
+                arguments();
+            }
+            if (at(LBRACE) && !newlineBefore()) {
+                lambda();
+            }
+            stage.done(AxlElementTypes.PIPE_STAGE);
+        }
+        m.done(AxlElementTypes.PIPE);
     }
 
     private static final int[][] LEVELS = {
@@ -295,7 +312,7 @@ public final class AxlParser implements PsiParser {
         } else if (at(TRY)) {
             PsiBuilder.Marker m = b.mark();
             b.advanceLexer();
-            expression();
+            prefix();
             m.done(AxlElementTypes.TRY);
         } else if (at(ATTEMPT)) {
             PsiBuilder.Marker m = b.mark();

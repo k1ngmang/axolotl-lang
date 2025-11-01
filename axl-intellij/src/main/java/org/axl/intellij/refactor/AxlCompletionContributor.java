@@ -11,6 +11,7 @@ import com.intellij.psi.PsiElement;
 import com.intellij.util.ProcessingContext;
 import java.util.List;
 import org.axl.intellij.AxlLanguage;
+import org.axl.intellij.parser.AxlElementTypes;
 import org.axl.intellij.psi.AxlReferenceExpression;
 import org.jetbrains.annotations.NotNull;
 
@@ -20,6 +21,8 @@ public final class AxlCompletionContributor extends CompletionContributor {
     private static final List<String> KEYWORDS = List.of("val", "var", "fn", "private", "return", "if", "else",
             "while", "try", "attempt", "true", "false", "null", "import", "package");
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
+    private static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct",
+            "limit", "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
 
     public AxlCompletionContributor() {
         extend(CompletionType.BASIC, PlatformPatterns.psiElement().withLanguage(AxlLanguage.INSTANCE), new CompletionProvider<>() {
@@ -27,6 +30,10 @@ public final class AxlCompletionContributor extends CompletionContributor {
             protected void addCompletions(@NotNull CompletionParameters parameters, @NotNull ProcessingContext context,
                                           @NotNull CompletionResultSet result) {
                 PsiElement position = parameters.getPosition();
+                if (position.getParent().getNode().getElementType() == AxlElementTypes.PIPE_STAGE) {
+                    PIPE_STAGES.forEach(stage -> result.addElement(LookupElementBuilder.create(stage)));
+                    return;
+                }
                 if (position.getParent() instanceof AxlReferenceExpression ref && ref.qualifier() != null) {
                     return;
                 }

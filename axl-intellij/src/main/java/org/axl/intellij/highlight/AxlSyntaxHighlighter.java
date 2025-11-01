@@ -59,7 +59,8 @@ public final class AxlSyntaxHighlighter extends SyntaxHighlighterBase {
         if (type == AxlTokenTypes.LPAREN || type == AxlTokenTypes.RPAREN) {
             return pack(PARENTHESES);
         }
-        if (type == AxlTokenTypes.of(AxolotlLexer.ARROW) || AxlTokenTypes.ASSIGN_OPERATORS.contains(type)) {
+        if (type == AxlTokenTypes.of(AxolotlLexer.ARROW) || type == AxlTokenTypes.of(AxolotlLexer.PIPE)
+                || AxlTokenTypes.ASSIGN_OPERATORS.contains(type)) {
             return pack(OPERATOR);
         }
         if (type == TokenType.BAD_CHARACTER) {

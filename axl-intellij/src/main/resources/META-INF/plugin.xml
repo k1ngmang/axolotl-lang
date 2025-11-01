@@ -6,7 +6,7 @@
   <description><![CDATA[
     Support for <b>Axolotl</b>, a language that translates to readable Java and adds null safety
     (<code>T?</code>, <code>?.</code>, <code>?:</code>) and errors as values (<code>Result</code>, <code>try</code>,
-    <code>attempt ... else</code>).
+    <code>attempt ... else</code>), with pipes to Java streams (<code>xs |> filter { it > 0 }</code>).
     <ul>
       <li>Highlighting, brace matching, commenting, folding and structure view for <code>.axl</code> files</li>
       <li>Errors while typing; javac, Error Prone and NullAway errors on save</li>

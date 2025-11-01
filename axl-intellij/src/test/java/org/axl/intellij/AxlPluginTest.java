@@ -67,6 +67,29 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of("parse", "doubled"), axl.functions().stream().map(AxlFunction::getName).toList());
     }
 
+    public void testParsesTryInExpressionsAndPipes() {
+        PsiFile file = myFixture.configureByText("Pipes.axl", """
+                package app
+                import java.util.List
+
+                fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else "bad"
+
+                fn total(texts: List<String>) -> Result<Int, String> {
+                    val numbers = texts |> filter { !it.isEmpty() }
+                        |> mapResult { parse(it) }
+                    return Ok(try parse("1") + try parse("2") + numbers.size())
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        myFixture.checkHighlighting(false, false, false);
+    }
+
+    public void testCompletesPipeStages() {
+        myFixture.configureByText("Main.axl", "package app\n\nfn f(xs: java.util.List<Int>) = xs |> fil<caret>\n");
+        myFixture.completeBasic();
+        assertTrue(myFixture.getEditor().getDocument().getText().contains("xs |> filter"));
+    }
+
     public void testReportsSyntaxErrors() {
         PsiFile file = myFixture.configureByText("Broken.axl", "package app\n\nfn main( {\n}\n");
         assertNotNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
