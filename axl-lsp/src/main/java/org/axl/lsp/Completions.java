@@ -38,7 +38,7 @@ final class Completions {
             return List.of();
         }
         String prefix = current.lines.get(line).substring(0, Math.min(character, current.lines.get(line).length()));
-        Pos pos = current.pos(line, character);
+        Pos pos = parsed == null ? null : positionIn(current, parsed, line, character);
         if (PIPE_STAGE.matcher(prefix).find()) {
             return PIPE_STAGES.stream().map(name -> {
                 CompletionItem item = new CompletionItem(name);
@@ -48,10 +48,10 @@ final class Completions {
         }
         Matcher member = MEMBER.matcher(prefix);
         if (member.find()) {
-            return parsed == null || parsed.ast == null ? List.of() : members(parsed, pos, member.group(1));
+            return parsed == null ? List.of() : members(parsed, pos, member.group(1));
         }
         List<CompletionItem> items = new ArrayList<>();
-        if (parsed != null && parsed.ast != null) {
+        if (parsed != null) {
             Map<String, Symbols.Symbol> names = new LinkedHashMap<>();
             Symbols.visibleAt(parsed.ast, pos).forEach(s -> names.put(s.name(), s));
             for (Symbols.Symbol symbol : names.values()) {
@@ -74,6 +74,15 @@ final class Completions {
             items.add(item);
         }
         return items;
+    }
+
+    /**
+     * The position in the version that parsed. The line being typed is usually the edited one; the
+     * start of the edit sees the same names.
+     */
+    private static Pos positionIn(Document current, Document parsed, int line, int character) {
+        int same = current.sameLineIn(parsed, line);
+        return same >= 0 ? parsed.pos(same, character) : new Pos(current.sharedLeadingLines(parsed) + 1, 1);
     }
 
     private List<CompletionItem> members(Document document, Pos pos, String receiver) {

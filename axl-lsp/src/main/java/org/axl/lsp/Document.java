@@ -115,6 +115,37 @@ final class Document {
         return new Position(pos.line() - 1, utf16Column(pos.line() - 1, pos.column() - 1));
     }
 
+    /**
+     * The line of another version of this text that a line is: it is in the unchanged lines before
+     * or after the edited ones. -1 for an edited line.
+     */
+    int sameLineIn(Document other, int line) {
+        int leading = sharedLeadingLines(other);
+        if (line < leading) {
+            return line;
+        }
+        int fromEnd = lines.size() - line;
+        return fromEnd <= sharedTrailingLines(other, leading) ? other.lines.size() - fromEnd : -1;
+    }
+
+    /** The number of lines at the start that are the same in both versions. */
+    int sharedLeadingLines(Document other) {
+        int count = 0;
+        while (count < lines.size() && count < other.lines.size() && lines.get(count).equals(other.lines.get(count))) {
+            count++;
+        }
+        return count;
+    }
+
+    private int sharedTrailingLines(Document other, int leading) {
+        int max = Math.min(lines.size(), other.lines.size()) - leading;
+        int count = 0;
+        while (count < max && lines.get(lines.size() - 1 - count).equals(other.lines.get(other.lines.size() - 1 - count))) {
+            count++;
+        }
+        return count;
+    }
+
     /** The default-channel token before the given one, or null. */
     Token previous(Token token) {
         Token previous = null;

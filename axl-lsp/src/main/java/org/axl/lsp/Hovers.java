@@ -22,9 +22,15 @@ final class Hovers {
         this.workspace = workspace;
     }
 
+    /** While the text does not parse, an earlier version answers for the lines that are unchanged. */
     Hover hover(String uri, int line, int character) {
+        Document current = workspace.document(uri);
         Document document = workspace.parsed(uri);
-        if (document == null) {
+        if (current == null || document == null) {
+            return null;
+        }
+        line = current.sameLineIn(document, line);
+        if (line < 0) {
             return null;
         }
         List<String> parts = new ArrayList<>();

@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Import;
+import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.Location;
@@ -26,9 +27,15 @@ final class Definitions {
         this.workspace = workspace;
     }
 
+    /** While the text does not parse, an earlier version answers for the lines that are unchanged. */
     List<Location> definition(String uri, int line, int character) {
+        Document current = workspace.document(uri);
         Document document = workspace.parsed(uri);
-        if (document == null) {
+        if (current == null || document == null) {
+            return List.of();
+        }
+        line = current.sameLineIn(document, line);
+        if (line < 0) {
             return List.of();
         }
         Token token = document.tokenAt(line, character);
@@ -56,8 +63,15 @@ final class Definitions {
                 yield member(imported.substring(0, imported.lastIndexOf('.')), symbol.name());
             }
             case TYPE -> classLocation(symbol.imported().name());
-            default -> List.of(location(document.path, document.position(symbol.pos())));
+            default -> local(current, document, symbol.pos());
         };
+    }
+
+    /** A declaration in the document, moved to the current text; none when its line was edited. */
+    private static List<Location> local(Document current, Document parsed, Pos pos) {
+        Position position = parsed.position(pos);
+        int line = parsed.sameLineIn(current, position.getLine());
+        return line < 0 ? List.of() : List.of(location(current.path, new Position(line, position.getCharacter())));
     }
 
     /** The qualified class a name refers to: an imported type or a class of the same package. */

@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -63,6 +64,20 @@ class WorkspaceTest {
         String hover = new Hovers(workspace).hover(uri, 3, y).getContents().getRight().getValue();
         assertTrue(hover.contains("val y"), hover);
         assertTrue(semanticTokens(document).contains("3:" + y + ":1:variable"), semanticTokens(document).toString());
+    }
+
+    @Test
+    void answersFromTheLastParsedVersionOnlyOnUnchangedLines() throws Exception {
+        String text = "package app\n\nfn main() {\n    val count = 1\n    println(count)\n}\n";
+        String uri = open("Main.axl", text);
+        workspace.update(uri, text.replace("fn main() {\n", "fn main() {\n    val z = (\n"));
+
+        String hover = new Hovers(workspace).hover(uri, 5, 13).getContents().getRight().getValue();
+        assertTrue(hover.contains("val count"), hover);
+        List<Location> found = new Definitions(workspace).definition(uri, 5, 13);
+        assertEquals(List.of(new Position(4, 4)), found.stream().map(l -> l.getRange().getStart()).toList());
+        assertNull(new Hovers(workspace).hover(uri, 3, 8));
+        assertEquals(List.of(), new Definitions(workspace).definition(uri, 3, 8));
     }
 
     /** Semantic tokens as line:start:length:type. */
