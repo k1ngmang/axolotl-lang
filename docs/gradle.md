@@ -33,7 +33,7 @@ of the task only for the types of top-level values that call into them.
 - Applies `net.ltgt.errorprone` and turns on NullAway in JSpecify mode for every `JavaCompile`.
 - Reports errors of `compileJava` in generated files at their `.axl` file and line.
 - Adds a JSR-45 SMAP to compiled classes and rewrites stack traces of failing tests to
-  `.axl` lines (see `docs/debugging.md`).
+  `.axl` lines (see [debugging](debugging.md)).
 
 ## Configuration
 

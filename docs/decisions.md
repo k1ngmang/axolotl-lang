@@ -22,9 +22,9 @@ One line per decision where the specification is silent or had to be adjusted.
 - NullAway runs with `JSpecifyMode=true` and `OnlyNullMarked=true`, which replaces `AnnotatedPackages`; every generated class is `@NullMarked`.
 - Error Prone runs inside the compiler's JVM, so the CLI and the tests start with `--add-exports`/`--add-opens` for `jdk.compiler`; `--no-null-checks` turns the checks off.
 - NullAway messages other than dereferences are shown without the `[NullAway]` prefix and link; dereferences get their own message (AXL102).
-- `--inline-elvis` is implemented although the benchmark shows no measurable cost (see `docs/perf.md`), because the build plugins expose it. It expands only a `?:` at the root of an initializer, assignment or `return`, and the temporary shares the `$t` counter.
+- `--inline-elvis` is implemented although the benchmark shows no measurable cost (see [performance](perf.md)), because the build plugins expose it. It expands only a `?:` at the root of an initializer, assignment or `return`, and the temporary shares the `$t` counter.
 - The Gradle task is named `generateAxl` (`generateTestAxl` for tests) instead of `generateBrod`.
-- Errors of `compileJava` are moved to `.axl` files by a javac plugin (`-Xplugin:AxlDiagnostics` from `axl-compiler-javac`) rather than by intercepting task output; see `docs/gradle.md`.
+- Errors of `compileJava` are moved to `.axl` files by a javac plugin (`-Xplugin:AxlDiagnostics` from `axl-compiler-javac`) rather than by intercepting task output; see [the Gradle plugin](gradle.md).
 - Error Prone and NullAway are runtime dependencies of the CLI only, so that `axl-compiler-javac` on an annotation processor path does not bring a second copy of them.
 - Functional tests of build plugins resolve Axolotl artifacts from `build/test-repo`, which every published module also publishes to.
 - `axl-maven-plugin` and `axl-archetype-quickstart` are Maven projects (annotations, invoker and archetype tooling are Maven-native); the Gradle build runs them with the Maven wrapper in `axl-maven-plugin/` as part of `check`.

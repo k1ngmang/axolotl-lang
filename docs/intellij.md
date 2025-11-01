@@ -28,4 +28,4 @@ Build it with `./gradlew :axl-intellij:buildPlugin` and install
 - The command-line compiler and the language server are bundled in `server/lib` and run in their own
   JVM with the options Error Prone needs.
 
-Debugging is checked by hand, see `docs/intellij-debug-check.md`.
+Debugging is checked by hand, see [the debugger check](intellij-debug-check.md).

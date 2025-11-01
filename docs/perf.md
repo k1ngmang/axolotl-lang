@@ -12,14 +12,14 @@ OpenJDK 21.0.12, Linux x86_64, 4 cores; 2 forks, 5 warmup and 5 measurement iter
 
 | Benchmark        | Input   | ns/op         |
 |------------------|---------|---------------|
-| `?:` via `Nulls` | present | 0.675 ± 0.059 |
-| `?:` manual      | present | 0.664 ± 0.030 |
-| `?:` via `Nulls` | absent  | 0.648 ± 0.032 |
-| `?:` manual      | absent  | 0.680 ± 0.084 |
-| `?.` via `Nulls` | present | 1.010 ± 0.141 |
-| `?.` manual      | present | 1.039 ± 0.108 |
-| `?.` via `Nulls` | absent  | 0.460 ± 0.045 |
-| `?.` manual      | absent  | 0.458 ± 0.050 |
+| `?:` via `Nulls` | present | 0.675 +/- 0.059 |
+| `?:` manual      | present | 0.664 +/- 0.030 |
+| `?:` via `Nulls` | absent  | 0.648 +/- 0.032 |
+| `?:` manual      | absent  | 0.680 +/- 0.084 |
+| `?.` via `Nulls` | present | 1.010 +/- 0.141 |
+| `?.` manual      | present | 1.039 +/- 0.108 |
+| `?.` via `Nulls` | absent  | 0.460 +/- 0.045 |
+| `?.` manual      | absent  | 0.458 +/- 0.050 |
 
 The differences are below 2% and inside the error margin: once C2 has compiled the call site
 the helper and the lambda are inlined completely.

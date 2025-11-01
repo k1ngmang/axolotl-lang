@@ -1,7 +1,7 @@
 # Maven plugin `axl-maven-plugin`
 
 Requires Maven 3.9 and Java 21. A complete, working configuration is in
-[`samples/maven-app`](../samples/maven-app/pom.xml); a new project can be created with the archetype:
+[`samples/maven-app`](https://github.com/succubus-uwu/axolotl/blob/main/samples/maven-app/pom.xml); a new project can be created with the archetype:
 
 ```
 mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-archetype-quickstart \
@@ -14,7 +14,7 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 |---------------------|-------------------------|--------------|
 | `axl:generate`      | `generate-sources`      | `src/main/axl` to `target/generated-sources/axl`, added as a compile source root. |
 | `axl:generate-test` | `generate-test-sources` | `src/test/axl` to `target/generated-test-sources/axl`, added as a test source root. |
-| `axl:smap`          | `process-classes`       | Adds a JSR-45 SMAP to `target/classes` (see `docs/debugging.md`). |
+| `axl:smap`          | `process-classes`       | Adds a JSR-45 SMAP to `target/classes` (see [debugging](debugging.md)). |
 | `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
 
