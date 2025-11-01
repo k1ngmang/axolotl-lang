@@ -29,6 +29,7 @@ translated again. Outputs of removed files are deleted.
 | `javaRelease` | `axl.javaRelease` | `21`    | Sets `maven.compiler.release` unless the project already does. |
 | `inlineElvis` | `axl.inlineElvis` | `false` | Expand statement-level `?:` without a lambda. |
 | `smap`        | `axl.smap`        | `true`  | `axl:smap` and `axl:smap-test`: add the SMAP. |
+| `strictNull`  | `axl.strictNull`  | `false` | Treat values from Java code without nullness annotations as nullable (AXL104). |
 | `skip`        | `axl.skip`        | `false` | Skip the goal. |
 | `nullAway`    | `axl.nullAway`    | `true`  | `axl:check` only: run Error Prone and NullAway. |
 

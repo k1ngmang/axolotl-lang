@@ -26,7 +26,8 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
   `build/generated/axl/<sourceSet>` (`.java` plus `.axlmap`). The task is cacheable and
   incremental: only changed files are translated again, removed files lose their outputs.
 - Adds the generated directory to the Java sources, so `compileJava` compiles `.axl` and
-  `.java` code together and both see each other. The translator needs no classpath.
+  `.java` code together and both see each other. The classpath and the Java sources are inputs
+of the task only for the types of top-level values that call into them.
 - Adds `org.axl:axl-runtime` to `implementation`. In a multi-project build every project
   depends on the same artifact.
 - Applies `net.ltgt.errorprone` and turns on NullAway in JSpecify mode for every `JavaCompile`.
@@ -43,6 +44,7 @@ axl {
     javaRelease = 21     // --release, unless the task sets its own
     inlineElvis = false  // expand statement-level ?: without a lambda
     smap = true          // add a JSR-45 SMAP to classes (debuggers show .axl lines)
+    strictNull = false   // treat values from unannotated Java code as nullable
 }
 ```
 

@@ -27,7 +27,8 @@ The server looks for module descriptions in the workspace:
 {
   "sourceRoots": ["src/main/axl", "src/test/axl"],
   "javaSourceRoots": ["src/main/java"],
-  "classpath": ["/home/me/.m2/repository/com/example/lib/1.0/lib-1.0.jar"]
+  "classpath": ["/home/me/.m2/repository/com/example/lib/1.0/lib-1.0.jar"],
+  "strictNull": false
 }
 ```
 

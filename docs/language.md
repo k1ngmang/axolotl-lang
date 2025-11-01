@@ -17,8 +17,13 @@ private fn log(text: String) {    // no result type: void
     println(text)
 }
 
-val greeting: String = "hi"       // top-level value: type required
+val greeting = "hi"               // top-level value
+val limit: Int = 10               // with a written type
 ```
+
+The type of a top-level `val` may be left out. Literals, constructor calls and functions of the same
+file are typed directly; anything else (a Java method, a function of another `.axl` file) is typed by
+javac from a draft translation of the module. When no type can be found, AXL009 asks for one.
 
 `Parse.axl` becomes `@NullMarked public final class Parse`. Top-level declarations are public
 unless marked `private`. `fn main()` becomes `public static void main(String[] args)`.
@@ -58,8 +63,25 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
 - `a?.m()` calls `m` only when `a` is not null; otherwise the whole rest of the chain is skipped and
   the value is `null`. As a statement, `listener?.onEvent(e)` works with void methods.
 - `a ?: b` is `a` unless it is null, then `b`; `b` is evaluated only when needed.
+- `a!!` is `a` when it is not null and throws `NullPointerException` otherwise, at the `!!`.
 - After `if (x != null)`, an early `return` or inside `&&`/`||`, a local or parameter is known to be
   non-null. A nullable field is copied to a local `val` first.
+
+### Java code without nullness annotations
+
+By default a value returned by Java code without JSpecify (or `@NonNull`/`@Nullable`) annotations is
+trusted to be non-null, as NullAway does. Strict null mode (`axl { strictNull = true }`,
+`-Daxl.strictNull=true`, `axl build --strict-null`) treats such values as `T?` instead:
+
+```axl
+val home = System.getenv("HOME")
+println(home.length())              // AXL104: `home` may be null
+println(home?.length() ?: 0)        // fine
+println(System.getenv("HOME")!!.length())   // fine: the check is explicit
+```
+
+Static final fields such as `System.out`, the Axolotl runtime, `Objects.requireNonNull` and code in a
+`@NullMarked` scope are trusted in strict mode too.
 
 ## Errors as values
 

@@ -8,6 +8,7 @@ always gives byte-for-byte the same output.
 | Any file | `package p;`, then `import axl.lang.*;` and `import org.jspecify.annotations.*;`, then the file's imports. |
 | `Parse.axl` | `@NullMarked public final class Parse { private Parse() {} ... }` |
 | `fn` / `val` at top level | `public static` (`private static` with `private`); `val limit: Int = 10` is `public static final int limit = 10;` |
+| `val names = List.of("a")` at top level | the inferred type is written out: `public static final List<String> names = List.of("a");` |
 | `import a.b.C` | `import a.b.C;` |
 | `import fn a.B.f`, `import val a.B.v` | `import static a.B.f;`, `import static a.B.v;` |
 | `fn main()` | `public static void main(String[] args)` |
@@ -17,6 +18,7 @@ always gives byte-for-byte the same output.
 | `val x = e` / `var x = e` | `final var x = e;` / `var x = e;` |
 | `val x: String? = null` | `final @Nullable String x = null;` |
 | `a ?: b` | `Nulls.or(a, () -> b)` |
+| `a!!` | `java.util.Objects.requireNonNull(a)` |
 | `a?.m(x)` | `Nulls.map(a, $n1 -> $n1.m(x))`; the lambda covers the rest of the chain |
 | `a?.m()` as a statement | `final var $n1 = a; if ($n1 != null) { $n1.m(); }` |
 | `attempt X else e -> Y` | `Result.attempt(() -> X, e -> Y)`; without a name the parameter is `$ex1` |
