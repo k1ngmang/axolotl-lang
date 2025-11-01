@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
@@ -31,7 +32,7 @@ final class Document {
         this.uri = uri;
         this.path = Path.of(URI.create(uri));
         this.text = text;
-        this.lines = text.lines().toList();
+        this.lines = lines(text);
         this.tokens = new AxolotlLexer(CharStreams.fromString(text)).getAllTokens();
         String className = Translator.className(path.getFileName().toString());
         this.ast = SourceParser.parse(uri, className, text).file();
@@ -42,6 +43,11 @@ final class Document {
         // Types of top-level values that depend on Java code come from javac, only when needed.
         Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), module.javaRoots()));
         this.translation = Translator.translate(sourcePath, uri, text, options);
+    }
+
+    /** Lines as the lexer counts them, including the empty line after a final newline. */
+    private static List<String> lines(String text) {
+        return Arrays.stream(text.split("\n", -1)).map(l -> l.endsWith("\r") ? l.substring(0, l.length() - 1) : l).toList();
     }
 
     List<AxlDiagnostic> diagnostics() {
