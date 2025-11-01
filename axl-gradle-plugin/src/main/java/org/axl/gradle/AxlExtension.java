@@ -19,4 +19,7 @@ public abstract class AxlExtension {
 
     /** Adds a JSR-45 SMAP to compiled classes so that debuggers show .axl lines. */
     public abstract Property<Boolean> getSmap();
+
+    /** Treats values from Java code without nullness annotations as nullable. */
+    public abstract Property<Boolean> getStrictNull();
 }

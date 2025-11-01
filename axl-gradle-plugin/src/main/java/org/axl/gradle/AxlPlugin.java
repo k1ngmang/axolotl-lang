@@ -38,6 +38,7 @@ public class AxlPlugin implements Plugin<Project> {
         axl.getJavaRelease().convention(21);
         axl.getInlineElvis().convention(false);
         axl.getSmap().convention(true);
+        axl.getStrictNull().convention(false);
 
         project.getConfigurations().named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME).configure(c ->
                 c.withDependencies(deps -> {
@@ -113,6 +114,7 @@ public class AxlPlugin implements Plugin<Project> {
             DiagnosticsArguments diagnostics = project.getObjects().newInstance(DiagnosticsArguments.class);
             diagnostics.getGeneratedDir().set(generate.flatMap(GenerateAxlTask::getOutputDir));
             diagnostics.getSourceDirs().from(sources.getSourceDirectories());
+            diagnostics.getStrictNull().set(axl.getStrictNull());
             compile.getOptions().getCompilerArgumentProviders().add(diagnostics);
 
             compile.doLast(new InjectSmap(generate.flatMap(GenerateAxlTask::getOutputDir), axl.getSmap()));

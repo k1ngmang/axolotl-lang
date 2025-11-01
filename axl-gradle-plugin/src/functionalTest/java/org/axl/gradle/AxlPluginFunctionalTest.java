@@ -117,6 +117,17 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void strictNullFlagsUncheckedJavaValues() throws IOException {
+        Path build = project.resolve("app/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + "\naxl {\n    strictNull = true\n}\n");
+        Path main = project.resolve("app/src/main/axl/app/Main.axl");
+        Files.writeString(main, Files.readString(main).replace("println(title(\" Hello Axolotl \"))",
+                "val home = System.getenv(\"HOME\")\n    println(home.length())"));
+        BuildResult result = gradle(":app:compileJava").buildAndFail();
+        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":7: error: `home` may be null"), result.getOutput());
+    }
+
+    @Test
     void addsSmapAndShowsAxlLinesInFailedTests() throws IOException {
         Files.writeString(project.resolve("core/src/main/axl/core/Numbers.axl"),
                 "package core\n\nfn number(text: String) -> Int {\n    return Integer.parseInt(text)\n}\n");
