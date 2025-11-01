@@ -25,6 +25,9 @@ val mavenPlugin = tasks.register<Exec>("mavenPlugin") {
     inputs.dir("src")
     inputs.dir(rootProject.layout.projectDirectory.dir("samples/maven-app"))
     outputs.file("target/axl-maven-plugin-${project.version}.jar")
+    // Maven keeps a resolved SNAPSHOT for a day; drop it so the freshly published modules are used.
+    val axlArtifacts = File(mavenRepo, "org/axl")
+    doFirst { axlArtifacts.deleteRecursively() }
     maven(projectDir, "install")
 }
 
