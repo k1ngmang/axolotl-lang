@@ -42,7 +42,6 @@ class DiagnosticsPluginTest {
         assertEquals(sources.resolve("Main.axl").toUri(), ((javax.tools.FileObject) error.getSource()).toUri());
         assertEquals(5, error.getLineNumber());
         assertEquals(5, error.getColumnNumber());
-        assertEquals("cannot find symbol; symbol: method lenght(); location: variable greeting of type java.lang.String",
-                error.getMessage(Locale.ROOT));
+        assertEquals("`greeting` of type `String` has no method `lenght()`", error.getMessage(Locale.ROOT));
     }
 }

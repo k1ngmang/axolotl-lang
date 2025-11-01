@@ -1,2 +1,2 @@
 AXL103 app/Main.axl:2:1: error: `java.lang.Math.max` is not a type: for a function write `import fn java.lang.Math.max`, for a value `import val java.lang.Math.max`
-AXL100 app/Main.axl:5:5: error: cannot find symbol; symbol: method max(int,int); location: class app.Main
+AXL100 app/Main.axl:5:5: error: unknown function `max(Int, Int)`; check the spelling or add `import fn`

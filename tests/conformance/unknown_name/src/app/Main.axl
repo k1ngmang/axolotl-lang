@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val list = java.util.List.of(1)
+    println(lenght)
+    println(Strings.trim(" a "))
+    println(list.sizee())
+}

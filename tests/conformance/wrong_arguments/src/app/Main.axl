@@ -1,0 +1,9 @@
+package app
+
+fn shout(s: String) -> String = s.toUpperCase()
+
+fn main() {
+    println(shout(42))
+    println(shout("a", "b"))
+    println("abc".substring("1"))
+}

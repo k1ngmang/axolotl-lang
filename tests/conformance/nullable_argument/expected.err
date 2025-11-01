@@ -1,1 +1,1 @@
-AXL100 app/Main.axl:7:5: error: passing @Nullable parameter 'name' where @NonNull is required
+AXL102 app/Main.axl:7:5: error: `name` may be null, but the parameter does not accept null: use `?:` or check `if (name != null)`

@@ -1,0 +1,11 @@
+package app
+
+fn half(n: Int) -> Int {
+    val text: String = n / 2
+    return text.length()
+}
+
+fn main() {
+    val count: Int = "three"
+    println(half(count))
+}

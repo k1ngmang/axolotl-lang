@@ -1,1 +1,1 @@
-AXL100 app/Main.axl:6:5: error: cannot find symbol; symbol: method lenght(); location: variable greeting of type java.lang.String
+AXL100 app/Main.axl:6:5: error: `greeting` of type `String` has no method `lenght()`

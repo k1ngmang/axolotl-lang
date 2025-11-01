@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:5:5: error: unknown name `lenght`; check the spelling or add an import
+AXL100 app/Main.axl:6:5: error: unknown name `Strings`; check the spelling or add an import
+AXL100 app/Main.axl:7:5: error: `list` of type `java.util.List<Int>` has no method `sizee()`

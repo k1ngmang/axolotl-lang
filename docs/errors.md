@@ -12,12 +12,13 @@ Every diagnostic is printed as `file.axl:line:column: error: message`.
 | AXL006 | `try` or `mapResult` inside a lambda or `attempt`, or after `?.`. |
 | AXL007 | `try` or `mapResult` outside a function that returns `Result`. |
 | AXL008 | Assignment to a `val` or a parameter. |
-| AXL009 | A missing type: top-level `val`, a local initialized with `null` or a lambda, or the element type of `mapResult`. |
+| AXL009 | A missing type: a top-level `val` whose type cannot be inferred, a local initialized with `null` or a lambda, or the element type of `mapResult`. |
 | AXL010 | A name declared twice in the same scope. |
 | AXL011 | A Java keyword used as a name. |
 | AXL012 | The file name is not a valid class name. |
 | AXL013 | An unknown pipe stage, wrong arguments of a stage, or an ending stage that is not last. |
-| AXL100 | Any other javac error, moved to the `.axl` line. |
+| AXL100 | Any other javac error, moved to the `.axl` line. Unknown names, type mismatches, wrong arguments and missing returns are reworded in Axolotl terms (`Int`, not `int` or `java.lang.Integer`). |
 | AXL101 | `try` on a `Result` whose error type differs from the function's. |
-| AXL102 | Dereference of a value that may be null (NullAway). |
+| AXL102 | A value that may be null is dereferenced or passed where null is not accepted (NullAway). |
 | AXL103 | A member imported without `fn`/`val`. |
+| AXL104 | Strict null mode: a value from Java code without nullness annotations is used without a check. |

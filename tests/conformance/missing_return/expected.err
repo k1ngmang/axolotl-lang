@@ -1,0 +1,1 @@
+AXL100 app/Main.axl:7:1: error: the function does not return a value on every path; add a `return` at the end

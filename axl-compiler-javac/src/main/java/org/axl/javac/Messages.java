@@ -17,6 +17,15 @@ final class Messages {
     private static final Pattern IMPORTED_CLASS = Pattern.compile("^import ([\\w.]+);$");
     private static final Pattern CONSTRAINTS = Pattern.compile("equality constraints (.+)$");
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
+    private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
+    private static final Pattern INCOMPATIBLE = Pattern.compile("^incompatible types: (.+) cannot be converted to (.+)$");
+    private static final Pattern UNKNOWN = Pattern.compile("^cannot find symbol; symbol: (variable|method|class) (.+?); location: (.+)$");
+    private static final Pattern NOT_APPLICABLE = Pattern.compile(
+            "^method (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
+    private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
+    private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
+    private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
+    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|Integer)\\b");
 
     private Messages() {}
 
@@ -41,6 +50,14 @@ final class Messages {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "value `" + value
                     + "` may be null: use `?.`, `?:` or check `if (" + value + " != null)`");
         }
+        Matcher nullableArgument = NULLABLE_ARGUMENT.matcher(message);
+        if (nullableArgument.find()) {
+            String value = nullableArgument.group(1);
+            String subject = IDENTIFIER.matcher(value).matches() ? "`" + value + "`" : "the argument";
+            String check = IDENTIFIER.matcher(value).matches() ? "check `if (" + value + " != null)`" : "a null check";
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, subject
+                    + " may be null, but the parameter does not accept null: use `?:` or " + check);
+        }
         if (message.startsWith("[NullAway] ")) {
             return new Translated(ErrorCode.JAVAC,
                     NULLAWAY_LINK.matcher(message.substring("[NullAway] ".length())).replaceAll(""));
@@ -51,7 +68,78 @@ final class Messages {
             return new Translated(ErrorCode.IMPORT_MEMBER, "`" + name + "` is not a type: for a function write `import fn "
                     + name + "`, for a value `import val " + name + "`");
         }
-        return new Translated(ErrorCode.JAVAC, message);
+        return new Translated(ErrorCode.JAVAC, javacMessage(message, javaLines));
+    }
+
+    /** Plain javac errors, in Axolotl's words and type names. */
+    private static String javacMessage(String message, String[] javaLines) {
+        Matcher incompatible = INCOMPATIBLE.matcher(message);
+        if (incompatible.find()) {
+            return "type mismatch: expected `" + axlType(incompatible.group(2)) + "`, found `" + axlType(incompatible.group(1)) + "`";
+        }
+        if (message.equals("missing return statement")) {
+            return "the function does not return a value on every path; add a `return` at the end";
+        }
+        Matcher notApplicable = NOT_APPLICABLE.matcher(message);
+        if (notApplicable.find()) {
+            return "wrong arguments for `" + notApplicable.group(1) + "`: expected (" + argumentList(notApplicable.group(2))
+                    + "), got (" + argumentList(notApplicable.group(3)) + ")";
+        }
+        Matcher unknown = UNKNOWN.matcher(message);
+        if (unknown.find()) {
+            String symbol = axlType(unknown.group(2)).replace(",", ", ");
+            String location = unknown.group(3);
+            boolean inThisFile = location.equals("class " + generatedClass(javaLines));
+            return switch (unknown.group(1)) {
+                case "variable" -> inThisFile ? "unknown name `" + symbol + "`; check the spelling or add an import"
+                        : memberOwner(location) + " has no field `" + symbol + "`";
+                case "method" -> inThisFile ? "unknown function `" + symbol + "`; check the spelling or add `import fn`"
+                        : memberOwner(location) + " has no method `" + symbol + "`";
+                default -> "unknown type `" + symbol + "`; check the spelling or add an import";
+            };
+        }
+        return message;
+    }
+
+    /** `variable list of type java.util.List<java.lang.Integer>` or `class app.Util`. */
+    private static String memberOwner(String location) {
+        int ofType = location.indexOf(" of type ");
+        if (location.startsWith("variable ") && ofType > 0) {
+            return "`" + location.substring("variable ".length(), ofType) + "` of type `"
+                    + axlType(location.substring(ofType + " of type ".length())) + "`";
+        }
+        return "`" + axlType(location.substring(location.indexOf(' ') + 1)) + "`";
+    }
+
+    private static String argumentList(String javac) {
+        if (javac.equals("no arguments")) {
+            return "";
+        }
+        return String.join(", ", Arrays.stream(javac.split(",")).map(Messages::axlType).toList());
+    }
+
+    private static String axlType(String javaType) {
+        String type = QUALIFIED_TYPE.matcher(javaType.strip()).replaceAll("$1");
+        return PRIMITIVE.matcher(type).replaceAll(m -> switch (m.group(1)) {
+            case "int", "Integer" -> "Int";
+            default -> Character.toUpperCase(m.group(1).charAt(0)) + m.group(1).substring(1);
+        });
+    }
+
+    /** The qualified name of the class generated for the .axl file. */
+    private static String generatedClass(String[] javaLines) {
+        String pkg = "";
+        for (String line : javaLines) {
+            String l = line.strip();
+            if (l.startsWith("package ")) {
+                pkg = l.substring("package ".length(), l.length() - 1) + ".";
+            }
+            Matcher cls = CLASS_DECLARATION.matcher(l);
+            if (cls.find()) {
+                return pkg + cls.group(1);
+            }
+        }
+        return "";
     }
 
     /** `E` of `Result.propagate` is invariant, so a different error type fails inference there. */

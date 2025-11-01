@@ -54,8 +54,7 @@ class CliTest {
         int exit = axl("build", CASES.resolve("javac_error_mapping/src").toString(), "-d", tmp.toString());
         assertEquals(1, exit);
         String message = err.toString(StandardCharsets.UTF_8).strip();
-        assertTrue(message.endsWith("Main.axl:6:5: error: cannot find symbol; symbol: method lenght(); "
-                + "location: variable greeting of type java.lang.String"), message);
+        assertTrue(message.endsWith("Main.axl:6:5: error: `greeting` of type `String` has no method `lenght()`"), message);
     }
 
     @Test

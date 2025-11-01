@@ -1,0 +1,11 @@
+package app
+
+fn sign(n: Int) -> String {
+    if (n > 0) {
+        return "+"
+    }
+}
+
+fn main() {
+    println(sign(1))
+}
