@@ -1,0 +1,34 @@
+site_name: Axolotl
+site_description: A JVM language that translates to readable Java 21, with null safety and Result.
+repo_url: https://github.com/succubus-uwu/axolotl
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: build/site
+theme:
+  name: mkdocs
+  highlightjs: true
+markdown_extensions:
+  - toc:
+      permalink: true
+  - tables
+  - fenced_code
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Installation: install.md
+  - The language: language.md
+  - Expansion rules: expansion.md
+  - Migrating from Java: migration.md
+  - Leaving Axolotl: leaving.md
+  - FAQ: faq.md
+  - Reference:
+      - Gradle plugin: gradle.md
+      - Maven plugin: maven.md
+      - Language server: lsp.md
+      - IntelliJ IDEA plugin: intellij.md
+      - Debugging and stack traces: debugging.md
+      - Error codes: errors.md
+      - Line map format: axlmap.md
+      - Performance: perf.md
+      - Decisions: decisions.md
+      - IntelliJ debugger check: intellij-debug-check.md
