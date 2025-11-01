@@ -88,6 +88,10 @@ final class JavaModel {
         List<JavaFileObject> sources = new ArrayList<>();
         generatedUnits.forEach(u -> sources.add(new Source(u.javaPath(), u.javaSource())));
         files.getJavaFileObjectsFromPaths(javaFiles(module)).forEach(sources::add);
+        if (sources.isEmpty()) {
+            // javac refuses to run without sources, and the classpath is still needed.
+            sources.add(new Source("package-info.java", ""));
+        }
         List<Path> classpath = new ArrayList<>(RuntimeClasspath.entries());
         classpath.addAll(module.classpath());
         List<String> options = List.of("-proc:none", "-classpath",
