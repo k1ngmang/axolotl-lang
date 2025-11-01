@@ -1,6 +1,8 @@
 package org.axl.gradle;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import net.ltgt.gradle.errorprone.CheckSeverity;
 import net.ltgt.gradle.errorprone.ErrorProneOptions;
 import net.ltgt.gradle.errorprone.ErrorPronePlugin;
@@ -94,7 +96,8 @@ public class AxlPlugin implements Plugin<Project> {
                     task.getClasspath().from(sourceSet.getCompileClasspath());
                     java.io.File generatedRoot = project.getLayout().getBuildDirectory().dir("generated/axl").get().getAsFile();
                     task.getJavaSourceDirs().from(project.provider(() -> sourceSet.getJava().getSrcDirs().stream()
-                            .filter(dir -> !dir.toPath().startsWith(generatedRoot.toPath())).toList()));
+                            .filter(dir -> !dir.toPath().startsWith(generatedRoot.toPath()))
+                            .collect(Collectors.toCollection(ArrayList::new))));
                 });
         sourceSet.getJava().srcDir(generate.flatMap(GenerateAxlTask::getOutputDir));
 
