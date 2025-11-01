@@ -90,6 +90,14 @@ class CliTest {
     }
 
     @Test
+    void strictNullIsOffUnlessAsked(@TempDir Path tmp) {
+        String src = CASES.resolve("strict_null_errors/src").toString();
+        assertEquals(0, axl("build", src, "-d", tmp.resolve("lenient").toString()), err.toString());
+        assertEquals(1, axl("build", src, "-d", tmp.resolve("strict").toString(), "--strict-null"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Main.axl:7:5: error: `home` may be null"), err.toString());
+    }
+
+    @Test
     void sourceRootStripsPackageDirectories() {
         Path file = Path.of("/work/src/app/util/Main.axl");
         assertEquals(Path.of("/work/src"), RunCommand.sourceRoot(file, "app.util"));

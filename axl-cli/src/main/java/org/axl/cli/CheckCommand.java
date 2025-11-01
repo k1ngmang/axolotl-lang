@@ -24,12 +24,16 @@ final class CheckCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--strict-null", description = "Treat values from Java code without nullness annotations as nullable.")
+    boolean strictNull;
+
     @Override
     public Integer call() throws Exception {
         Path work = Files.createTempDirectory("axl-check");
         AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
                 .classpath(classpath)
                 .nullChecks(!noNullChecks)
+                .strictNull(strictNull)
                 .display(p -> p.toAbsolutePath().toString())
                 .run();
         result.diagnostics().forEach(d -> System.out.println(d.format()));

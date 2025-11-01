@@ -30,6 +30,9 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--strict-null", description = "Treat values from Java code without nullness annotations as nullable.")
+    boolean strictNull;
+
     @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
     boolean inlineElvis;
 
@@ -42,6 +45,7 @@ final class BuildCommand implements Callable<Integer> {
         AxlBuild.Result result = new AxlBuild(sourceDir, generated, classesDir)
                 .classpath(classpath)
                 .nullChecks(!noNullChecks)
+                .strictNull(strictNull)
                 .options(new Options(inlineElvis))
                 .display(Paths::display)
                 .run();
