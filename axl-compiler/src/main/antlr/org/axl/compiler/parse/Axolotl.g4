@@ -115,7 +115,7 @@ multiplicative
     ;
 
 prefixExpression
-    : (BANG | MINUS | PLUS) prefixExpression                                # unaryExpression
+    : (BANG | BANGBANG | MINUS | PLUS) prefixExpression                     # unaryExpression
     | TRY prefixExpression                                                  # tryExpression
     | ATTEMPT expression ELSE (identifier ARROW)? expression                # attemptExpression
     | postfixExpression                                                     # postfixAlt

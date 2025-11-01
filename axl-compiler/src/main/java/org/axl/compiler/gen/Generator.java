@@ -370,7 +370,7 @@ public final class Generator {
             case Expr.GenericNew g -> genericNew(g, args(g.args(), inLambda));
             case Expr.MethodRef r -> expr(r.target(), inLambda) + "::" + r.name();
             case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + expr(n.target(), inLambda) + ")";
-            case Expr.Unary u -> u.op() + expr(u.operand(), inLambda);
+            case Expr.Unary u -> unary(u.op(), expr(u.operand(), inLambda));
             case Expr.Binary b -> expr(b.left(), inLambda) + " " + b.op() + " " + expr(b.right(), inLambda);
             case Expr.Elvis e -> "Nulls.or(" + expr(e.left(), inLambda) + ", () -> " + expr(e.right(), true) + ")";
             // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
@@ -482,7 +482,7 @@ public final class Generator {
             }
             case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el);
             case Expr.Elvis el -> new Lifted("Nulls.or(" + lifted(line, el.left()).code() + ", () -> " + expr(el.right(), true) + ")", false);
-            case Expr.Unary u -> new Lifted(u.op() + lifted(line, u.operand()).code(), false);
+            case Expr.Unary u -> new Lifted(unary(u.op(), lifted(line, u.operand()).code()), false);
             case Expr.Paren p -> {
                 Lifted inner = lifted(line, p.inner());
                 yield new Lifted(becomesCall(p.inner()) ? inner.code() : "(" + inner.code() + ")", inner.pure());
@@ -654,6 +654,12 @@ public final class Generator {
         boolean simple = source instanceof Expr.Name || source instanceof Expr.Call || source instanceof Expr.Member
                 || source instanceof Expr.Paren || source instanceof Expr.GenericNew || source instanceof Expr.Literal;
         return simple ? code : "(" + code + ")";
+    }
+
+    /** `- -x` must not become Java's `--x`. */
+    private static String unary(String op, String operand) {
+        boolean merges = !operand.isEmpty() && "+-".indexOf(operand.charAt(0)) >= 0 && !op.equals("!");
+        return merges ? op + " " + operand : op + operand;
     }
 
     private static String type(TypeRef type) {

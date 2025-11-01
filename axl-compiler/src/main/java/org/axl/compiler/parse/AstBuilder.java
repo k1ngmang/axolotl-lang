@@ -189,6 +189,8 @@ final class AstBuilder {
 
     private Expr prefix(PrefixExpressionContext ctx) {
         return switch (ctx) {
+            case UnaryExpressionContext u when u.BANGBANG() != null -> new Expr.Unary(pos(u.start), "!",
+                    new Expr.Unary(pos(u.start), "!", prefix(u.prefixExpression())));
             case UnaryExpressionContext u -> new Expr.Unary(pos(u.start), u.start.getText(), prefix(u.prefixExpression()));
             case TryExpressionContext t -> new Expr.Try(pos(t.start), prefix(t.prefixExpression()));
             case AttemptExpressionContext a -> new Expr.Attempt(pos(a.start), expr(a.expression(0)),
