@@ -53,6 +53,10 @@ final class Messages {
         Matcher nullableArgument = NULLABLE_ARGUMENT.matcher(message);
         if (nullableArgument.find()) {
             String value = nullableArgument.group(1);
+            if (value.equals("null")) {
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE,
+                        "`null` is passed where null is not accepted; make the type nullable with `?`");
+            }
             String subject = IDENTIFIER.matcher(value).matches() ? "`" + value + "`" : "the argument";
             String check = IDENTIFIER.matcher(value).matches() ? "check `if (" + value + " != null)`" : "a null check";
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, subject

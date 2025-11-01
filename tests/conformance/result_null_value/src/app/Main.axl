@@ -1,0 +1,23 @@
+package app
+
+import java.util.List
+
+fn maybe() -> String? = null
+
+fn okNull() -> Result<String, String> = Ok(null)
+
+fn okMaybe() -> Result<String, String> = Ok(maybe())
+
+fn attemptNull() -> Result<String, String> = attempt maybe() else "boom"
+
+fn nullableValue() -> Result<String?, String> = Ok(null)
+
+fn use() -> Result<Int, String> {
+    val s = try nullableValue()
+    return Ok(s.length())
+}
+
+fn fine() -> Result<Int, String> {
+    val s = try nullableValue()
+    return Ok(s?.length() ?: 0)
+}
