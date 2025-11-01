@@ -77,7 +77,8 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
                 fn total(texts: List<String>) -> Result<Int, String> {
                     val numbers = texts |> filter { !it.isEmpty() }
                         |> mapResult { parse(it) }
-                    return Ok(try parse("1") + try parse("2") + numbers.size())
+                    val home = System.getenv("HOME")!!.trim()
+                    return Ok(try parse("1") + try parse("2") + numbers.size() + home.length())
                 }
                 """);
         assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));

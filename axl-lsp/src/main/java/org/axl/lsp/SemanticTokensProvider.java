@@ -19,7 +19,8 @@ final class SemanticTokensProvider {
             AxolotlLexer.VAL, AxolotlLexer.VAR, AxolotlLexer.PRIVATE, AxolotlLexer.RETURN, AxolotlLexer.IF,
             AxolotlLexer.ELSE, AxolotlLexer.WHILE, AxolotlLexer.TRY, AxolotlLexer.ATTEMPT, AxolotlLexer.TRUE,
             AxolotlLexer.FALSE, AxolotlLexer.NULL);
-    private static final Set<Integer> OPERATORS = Set.of(AxolotlLexer.SAFE_DOT, AxolotlLexer.ELVIS, AxolotlLexer.ARROW, AxolotlLexer.PIPE);
+    private static final Set<Integer> OPERATORS = Set.of(AxolotlLexer.SAFE_DOT, AxolotlLexer.ELVIS, AxolotlLexer.ARROW, AxolotlLexer.PIPE,
+            AxolotlLexer.BANGBANG);
 
     private SemanticTokensProvider() {}
 

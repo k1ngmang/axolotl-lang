@@ -31,6 +31,7 @@ public final class AxlElementTypes {
     public static final IElementType CALL = type("CALL");
     public static final IElementType GENERIC_NEW = type("GENERIC_NEW");
     public static final IElementType METHOD_REFERENCE = type("METHOD_REFERENCE");
+    public static final IElementType NOT_NULL = type("NOT_NULL");
     public static final IElementType BINARY = type("BINARY");
     public static final IElementType ELVIS = type("ELVIS");
     public static final IElementType UNARY = type("UNARY");

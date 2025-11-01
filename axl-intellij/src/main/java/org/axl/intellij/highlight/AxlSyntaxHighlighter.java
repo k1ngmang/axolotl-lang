@@ -60,6 +60,7 @@ public final class AxlSyntaxHighlighter extends SyntaxHighlighterBase {
             return pack(PARENTHESES);
         }
         if (type == AxlTokenTypes.of(AxolotlLexer.ARROW) || type == AxlTokenTypes.of(AxolotlLexer.PIPE)
+                || type == AxlTokenTypes.of(AxolotlLexer.BANGBANG)
                 || AxlTokenTypes.ASSIGN_OPERATORS.contains(type)) {
             return pack(OPERATOR);
         }

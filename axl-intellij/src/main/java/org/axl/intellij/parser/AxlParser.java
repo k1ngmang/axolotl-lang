@@ -350,6 +350,10 @@ public final class AxlParser implements PsiParser {
                 b.advanceLexer();
                 expect(IDENTIFIER, "name expected");
                 expr.done(AxlElementTypes.METHOD_REFERENCE);
+            } else if (at(BANGBANG)) {
+                expr = expr.precede();
+                b.advanceLexer();
+                expr.done(AxlElementTypes.NOT_NULL);
             } else {
                 break;
             }

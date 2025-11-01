@@ -100,6 +100,9 @@ public final class AxlResolver {
             PsiElement inner = expression.getFirstChild().getNextSibling();
             return inner == null ? null : typeOf(inner);
         }
+        if (expression.getNode().getElementType() == AxlElementTypes.NOT_NULL) {
+            return typeOf(expression.getFirstChild());
+        }
         if (expression.getNode().getElementType() == AxlElementTypes.LITERAL && expression.getText().startsWith("\"")) {
             return findClass(expression, "java.lang.String");
         }
