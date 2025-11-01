@@ -68,6 +68,7 @@ final class JavaModel {
     private final Elements elements;
     private final Trees trees;
     private final Map<String, CompilationUnitTree> generated = new LinkedHashMap<>();
+    private final Map<String, GeneratedUnit> translations = new LinkedHashMap<>();
 
     private JavaModel(JavacTask task, Iterable<? extends CompilationUnitTree> units, List<GeneratedUnit> generatedUnits) {
         this.elements = task.getElements();
@@ -76,6 +77,7 @@ final class JavaModel {
             for (GeneratedUnit g : generatedUnits) {
                 if (unit.getSourceFile().toUri().getPath().endsWith("/" + g.javaPath())) {
                     generated.put(g.qualifiedName(), unit);
+                    translations.put(g.qualifiedName(), g);
                 }
             }
         }
@@ -146,18 +148,23 @@ final class JavaModel {
         return resolveType(file, boxed != null ? boxed : type.name());
     }
 
-    /** The type javac gives a local or lambda parameter in the generated method of a function. */
-    TypeMirror localType(SourceFile file, String function, int paramCount, String local) {
+    /**
+     * The type javac gives a local or lambda parameter in the generated method of a function. Of
+     * several with the name, the one generated from the declaration's line wins.
+     */
+    TypeMirror localType(SourceFile file, String function, int paramCount, String local, int axlLine) {
         String qualified = file.packageName() == null || file.packageName().isEmpty()
                 ? file.className() : file.packageName() + "." + file.className();
         CompilationUnitTree unit = generated.get(qualified);
         if (unit == null) {
             return null;
         }
-        TypeMirror[] found = new TypeMirror[1];
+        GeneratedUnit translation = translations.get(qualified);
         boolean main = function.equals("main") && paramCount == 0;
-        new TreePathScanner<Void, Void>() {
+        var scanner = new TreePathScanner<Void, Void>() {
             private boolean inFunction;
+            private TypeMirror first;
+            private TypeMirror onLine;
 
             @Override
             public Void visitMethod(MethodTree method, Void unused) {
@@ -171,13 +178,21 @@ final class JavaModel {
 
             @Override
             public Void visitVariable(VariableTree variable, Void unused) {
-                if (inFunction && found[0] == null && variable.getName().contentEquals(local)) {
-                    found[0] = trees.getTypeMirror(new TreePath(getCurrentPath(), variable));
+                if (inFunction && variable.getName().contentEquals(local)) {
+                    TypeMirror type = trees.getTypeMirror(new TreePath(getCurrentPath(), variable));
+                    long start = trees.getSourcePositions().getStartPosition(unit, variable);
+                    if (onLine == null && translation.lineMap().axlLine((int) unit.getLineMap().getLineNumber(start)) == axlLine) {
+                        onLine = type;
+                    }
+                    if (first == null) {
+                        first = type;
+                    }
                 }
                 return super.visitVariable(variable, unused);
             }
-        }.scan(unit, null);
-        return found[0];
+        };
+        scanner.scan(unit, null);
+        return scanner.onLine != null ? scanner.onLine : scanner.first;
     }
 
     /** The class of a type, or null for primitives and type variables. */

@@ -80,6 +80,32 @@ class WorkspaceTest {
         assertEquals(List.of(), new Definitions(workspace).definition(uri, 3, 8));
     }
 
+    @Test
+    void hoverTellsLocalsOfTheSameNameApart() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn main() {
+                    if (true) {
+                        val t = "s"
+                        println(t)
+                    } else {
+                        val t = 42
+                        println(t)
+                    }
+                    java.util.List.of("a") |> forEach { println(it) }
+                    java.util.List.of(1) |> forEach { println(it) }
+                }
+                """);
+        assertTrue(hover(uri, 8, 16).contains("val t: int"), hover(uri, 8, 16));
+        assertTrue(hover(uri, 4, 12).contains("val t: String"), hover(uri, 4, 12));
+        assertTrue(hover(uri, 11, 46).contains("it: Integer"), hover(uri, 11, 46));
+    }
+
+    private String hover(String uri, int line, int character) {
+        return new Hovers(workspace).hover(uri, line, character).getContents().getRight().getValue();
+    }
+
     /** Semantic tokens as line:start:length:type. */
     private static List<String> semanticTokens(Document document) {
         List<Integer> data = SemanticTokensProvider.tokens(document).getData();

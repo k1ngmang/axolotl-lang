@@ -72,7 +72,8 @@ final class Hovers {
             return typeText(symbol.type());
         }
         Decl.Function fn = symbol.function();
-        TypeMirror type = workspace.javaModel(document.module).localType(document.ast, fn.name(), fn.params().size(), symbol.name());
+        TypeMirror type = workspace.javaModel(document.module).localType(document.ast, fn.name(), fn.params().size(), symbol.name(),
+                symbol.pos().line());
         return type == null ? "?" : JavaModel.simple(type.toString());
     }
 

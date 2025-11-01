@@ -96,7 +96,7 @@ final class Completions {
                 type = java.resolveType(ast, symbol.type());
             } else if (symbol.function() != null) {
                 type = JavaModel.elementOf(java.localType(ast, symbol.function().name(),
-                        symbol.function().params().size(), symbol.name()));
+                        symbol.function().params().size(), symbol.name(), symbol.pos().line()));
             }
         } else {
             type = java.resolveType(ast, receiver);
