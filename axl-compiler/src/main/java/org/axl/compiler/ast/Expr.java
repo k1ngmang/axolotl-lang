@@ -21,6 +21,9 @@ public sealed interface Expr {
 
     record MethodRef(Pos pos, Expr target, String name) implements Expr {}
 
+    /** `target!!`: fails with NullPointerException when the value is null. */
+    record NotNull(Pos pos, Expr target) implements Expr {}
+
     record Unary(Pos pos, String op, Expr operand) implements Expr {}
 
     record Binary(Pos pos, String op, Expr left, Expr right) implements Expr {}

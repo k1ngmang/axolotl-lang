@@ -290,6 +290,7 @@ public final class Checker {
             }
             case Expr.GenericNew g -> g.args().forEach(this::expr);
             case Expr.MethodRef r -> expr(r.target());
+            case Expr.NotNull n -> expr(n.target());
             case Expr.Unary u -> expr(u.operand());
             case Expr.Binary b -> {
                 expr(b.left());

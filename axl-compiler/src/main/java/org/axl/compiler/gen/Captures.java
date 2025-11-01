@@ -62,6 +62,7 @@ final class Captures {
             case Expr.Call c -> c.args().forEach(a -> visit(a, inLambda));
             case Expr.GenericNew g -> g.args().forEach(a -> visit(a, inLambda));
             case Expr.MethodRef r -> visit(r.target(), inLambda);
+            case Expr.NotNull n -> visit(n.target(), inLambda);
             case Expr.Unary u -> visit(u.operand(), inLambda);
             case Expr.Binary b -> {
                 visit(b.left(), inLambda);

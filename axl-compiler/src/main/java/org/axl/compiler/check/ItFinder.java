@@ -26,6 +26,7 @@ final class ItFinder {
             case Expr.Call c -> c.target() != null && in(c.target()) || c.args().stream().anyMatch(this::in);
             case Expr.GenericNew g -> g.args().stream().anyMatch(this::in);
             case Expr.MethodRef r -> in(r.target());
+            case Expr.NotNull n -> in(n.target());
             case Expr.Unary u -> in(u.operand());
             case Expr.Binary b -> in(b.left()) || in(b.right());
             case Expr.Elvis e -> in(e.left()) || in(e.right());

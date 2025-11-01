@@ -129,6 +129,7 @@ postfixSuffix
     : {sameLine()}? LPAREN arguments? RPAREN                # callSuffix
     | (DOT | SAFE_DOT) identifier                           # memberSuffix
     | COLONCOLON identifier                                 # methodRefSuffix
+    | BANGBANG                                              # notNullSuffix
     ;
 
 arguments
@@ -221,6 +222,7 @@ STAR_ASSIGN    : '*=';
 SLASH_ASSIGN   : '/=';
 PERCENT_ASSIGN : '%=';
 ASSIGN         : '=';
+BANGBANG       : '!!';
 BANG           : '!';
 PLUS           : '+';
 MINUS          : '-';

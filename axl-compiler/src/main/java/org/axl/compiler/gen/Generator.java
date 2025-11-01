@@ -327,6 +327,7 @@ public final class Generator {
             case Expr.Call c -> call(c, args(c.args(), inLambda));
             case Expr.GenericNew g -> genericNew(g, args(g.args(), inLambda));
             case Expr.MethodRef r -> expr(r.target(), inLambda) + "::" + r.name();
+            case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + expr(n.target(), inLambda) + ")";
             case Expr.Unary u -> u.op() + expr(u.operand(), inLambda);
             case Expr.Binary b -> expr(b.left(), inLambda) + " " + b.op() + " " + expr(b.right(), inLambda);
             case Expr.Elvis e -> "Nulls.or(" + expr(e.left(), inLambda) + ", () -> " + expr(e.right(), true) + ")";
@@ -449,6 +450,7 @@ public final class Generator {
             case Expr.Call c -> chainLifted(line, Chains.flatten(c));
             case Expr.GenericNew g -> new Lifted(genericNew(g, codes(operands(line, g.args()))), false);
             case Expr.MethodRef r -> new Lifted(lifted(line, r.target()).code() + "::" + r.name(), false);
+            case Expr.NotNull n -> new Lifted("java.util.Objects.requireNonNull(" + lifted(line, n.target()).code() + ")", false);
             case Expr.Pipe p -> pipeLifted(line, p);
             default -> throw new IllegalStateException("nothing to lift in " + e);
         };

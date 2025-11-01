@@ -19,6 +19,7 @@ final class Lifts {
             case Expr.Call c -> c.target() != null && needed(c.target()) || c.args().stream().anyMatch(Lifts::needed);
             case Expr.GenericNew g -> g.args().stream().anyMatch(Lifts::needed);
             case Expr.MethodRef r -> needed(r.target());
+            case Expr.NotNull n -> needed(n.target());
             case Expr.Unary u -> needed(u.operand());
             case Expr.Binary b -> needed(b.left()) || needed(b.right());
             case Expr.Elvis e -> needed(e.left()) || needed(e.right());

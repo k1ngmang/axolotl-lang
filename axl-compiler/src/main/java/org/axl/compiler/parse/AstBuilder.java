@@ -222,6 +222,7 @@ final class AstBuilder {
                     current = new Expr.Call(n.pos(), null, n.name(), arguments(call.arguments()), false);
                 }
                 case MethodRefSuffixContext r -> current = new Expr.MethodRef(pos(r.start), current, name(r.identifier()));
+                case NotNullSuffixContext n -> current = new Expr.NotNull(pos(n.start), current);
                 default -> throw new IllegalStateException("unknown suffix " + suffix.getClass());
             }
         }
