@@ -17,7 +17,8 @@ public enum ErrorCode {
     JAVAC("AXL100"),
     TRY_ERROR_TYPE("AXL101"),
     NULLABLE_DEREFERENCE("AXL102"),
-    IMPORT_MEMBER("AXL103");
+    IMPORT_MEMBER("AXL103"),
+    STRICT_NULL("AXL104");
 
     private final String id;
 

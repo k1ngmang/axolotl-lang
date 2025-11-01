@@ -11,11 +11,13 @@ import java.util.List;
 /**
  * javac plugin that reports errors in generated .java files at their .axl lines.
  * Build tools enable it with {@code -Xplugin:AxlDiagnostics <generated-dir>=<axl-dir> ...}. Directories are
- * file URIs, so that paths with spaces survive javac's argument splitting, or plain paths.
+ * file URIs, so that paths with spaces survive javac's argument splitting, or plain paths. The argument
+ * {@code strict} turns on strict null mode (see StrictNullChecker).
  */
 public final class DiagnosticsPlugin implements Plugin {
 
     public static final String NAME = "AxlDiagnostics";
+    public static final String STRICT = "strict";
 
     /** A directory of generated Java and the .axl source directory it was generated from. */
     public record Root(Path generated, Path sources) {
@@ -43,9 +45,15 @@ public final class DiagnosticsPlugin implements Plugin {
     public void init(JavacTask task, String... args) {
         List<Root> roots = new ArrayList<>();
         for (String arg : args) {
-            roots.add(Root.parse(arg));
+            if (arg.equals(STRICT)) {
+                task.addTaskListener(new StrictNullChecker(task));
+            } else {
+                roots.add(Root.parse(arg));
+            }
         }
-        new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
+        if (!roots.isEmpty()) {
+            new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
+        }
     }
 
     public static String option(List<Root> roots) {

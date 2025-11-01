@@ -44,6 +44,12 @@ public final class JavaCompilation {
 
     public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions,
                                   boolean nullChecks) {
+        return compile(sources, classpath, classesDir, extraOptions, nullChecks, false);
+    }
+
+    /** strictNull: values from Java code without nullness annotations may be null (see StrictNullChecker). */
+    public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions,
+                                  boolean nullChecks, boolean strictNull) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IllegalStateException("no Java compiler available: run with a JDK, not a JRE");
@@ -65,6 +71,12 @@ public final class JavaCompilation {
                         "--should-stop=ifError=FLOW",
                         "-processorpath", processorPath(),
                         ERROR_PRONE_PLUGIN));
+            }
+            if (strictNull) {
+                if (!nullChecks) {
+                    options.addAll(List.of("-processorpath", processorPath()));
+                }
+                options.add("-Xplugin:" + DiagnosticsPlugin.NAME + " " + DiagnosticsPlugin.STRICT);
             }
             options.addAll(extraOptions);
             var units = files.getJavaFileObjectsFromPaths(sources);

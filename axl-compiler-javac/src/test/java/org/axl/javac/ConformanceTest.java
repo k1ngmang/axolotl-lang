@@ -27,7 +27,7 @@ import org.junit.jupiter.api.TestFactory;
  * Runs every case in tests/conformance. A case has a `src` tree and any of:
  * `expected/` with the exact generated .java files, `expected.err` with the expected errors
  * (`CODE file:line:column: error: message`, one per line), `expected.out` with the output of the
- * `main` class named in `case.properties`, which may also set `inlineElvis=true`.
+ * `main` class named in `case.properties`, which may also set `inlineElvis=true` and `strictNull=true`.
  */
 class ConformanceTest {
 
@@ -52,6 +52,7 @@ class ConformanceTest {
         AxlBuild.Result result = new AxlBuild(src, generated, classes)
                 .display(p -> src.relativize(p).toString().replace('\\', '/'))
                 .options(new Options(Boolean.parseBoolean(props.getProperty("inlineElvis"))))
+                .strictNull(Boolean.parseBoolean(props.getProperty("strictNull")))
                 .run();
 
         List<String> errors = result.diagnostics().stream().filter(AxlDiagnostic::isError)

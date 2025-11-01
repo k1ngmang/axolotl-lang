@@ -1,0 +1,15 @@
+package app
+
+fn main() {
+    val text = " a "
+    val trimmed = text.trim()
+    if (trimmed != null) {
+        println(trimmed.length())
+    }
+    println(text.trim()!!.length())
+    val missing = System.getenv("AXL_SURELY_NOT_SET")
+    println(missing ?: "unset")
+    println("" + missing?.length())
+    val n = Integer.parseInt("5")
+    println(n + 1)
+}

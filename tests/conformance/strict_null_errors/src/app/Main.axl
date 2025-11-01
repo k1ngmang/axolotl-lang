@@ -1,0 +1,16 @@
+package app
+
+fn main() {
+    val text = " a "
+    println(text.trim().length())
+    val home = System.getenv("HOME")
+    println(home.length())
+    if (home != null) {
+        println(home.isEmpty())
+    }
+    val shout = text.toUpperCase()
+    if (shout == null) {
+        return
+    }
+    println(shout.length())
+}

@@ -26,6 +26,9 @@ final class Messages {
      */
     static Translated translate(String message, String[] javaLines, int javaLine) {
         String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
+        if (message.startsWith(StrictNullChecker.PREFIX)) {
+            return new Translated(ErrorCode.STRICT_NULL, message.substring(StrictNullChecker.PREFIX.length()));
+        }
         if (text.contains("return Result.propagate(")) {
             Translated tryMismatch = tryErrorType(message, javaLines, javaLine);
             if (tryMismatch != null) {

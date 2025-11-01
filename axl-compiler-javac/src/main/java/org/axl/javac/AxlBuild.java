@@ -24,6 +24,7 @@ public final class AxlBuild {
     private final List<String> javacOptions = new ArrayList<>();
     private Function<Path, String> display = Path::toString;
     private boolean nullChecks = true;
+    private boolean strictNull;
     private Options options = Options.DEFAULT;
 
     public AxlBuild(Path sourceDir, Path generatedDir, Path classesDir) {
@@ -49,6 +50,12 @@ public final class AxlBuild {
     /** Turns Error Prone and NullAway on or off; on by default. */
     public AxlBuild nullChecks(boolean enabled) {
         this.nullChecks = enabled;
+        return this;
+    }
+
+    /** Treats values from Java code without nullness annotations as nullable. */
+    public AxlBuild strictNull(boolean enabled) {
+        this.strictNull = enabled;
         return this;
     }
 
@@ -91,7 +98,7 @@ public final class AxlBuild {
         if (sources.isEmpty()) {
             return new Result(true, diagnostics, generated);
         }
-        JavaCompilation.Outcome outcome = JavaCompilation.compile(sources, classpath, classesDir, javacOptions, nullChecks);
+        JavaCompilation.Outcome outcome = JavaCompilation.compile(sources, classpath, classesDir, javacOptions, nullChecks, strictNull);
         var translator = new DiagnosticTranslator(generated, display);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
