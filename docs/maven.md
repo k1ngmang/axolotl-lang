@@ -5,7 +5,7 @@ Requires Maven 3.9 and Java 21. A complete, working configuration is in
 
 ```
 mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-archetype-quickstart \
-    -DarchetypeVersion=0.1.0-SNAPSHOT -DgroupId=org.example -DartifactId=demo -Dpackage=org.example.demo
+    -DarchetypeVersion=0.1.0 -DgroupId=org.example -DartifactId=demo -Dpackage=org.example.demo
 ```
 
 ## Goals

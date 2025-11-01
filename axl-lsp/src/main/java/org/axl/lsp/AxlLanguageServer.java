@@ -45,7 +45,7 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
         }
         return workspace.submit(() -> {
             workspace.open(roots);
-            return new InitializeResult(capabilities(), new ServerInfo("axl-lsp", "0.1.0-SNAPSHOT"));
+            return new InitializeResult(capabilities(), new ServerInfo("axl-lsp", "0.1.0"));
         });
     }
 

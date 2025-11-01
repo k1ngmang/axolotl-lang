@@ -12,7 +12,7 @@ pluginManagement {
 // build.gradle.kts
 plugins {
     java
-    id("org.axl.lang") version "0.1.0-SNAPSHOT"
+    id("org.axl.lang") version "0.1.0"
 }
 ```
 
