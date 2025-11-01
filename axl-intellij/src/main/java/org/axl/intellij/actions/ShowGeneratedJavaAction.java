@@ -12,7 +12,9 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.PsiFile;
 import com.intellij.testFramework.LightVirtualFile;
 import javax.swing.SwingConstants;
+import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.intellij.java.PsiJavaTypes;
 import org.axl.intellij.psi.AxlFile;
 import org.jetbrains.annotations.NotNull;
 
@@ -35,7 +37,8 @@ public final class ShowGeneratedJavaAction extends AnAction {
         if (!(psi instanceof AxlFile file) || e.getProject() == null) {
             return;
         }
-        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText());
+        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText(),
+                new Options(false).withJavaTypes(new PsiJavaTypes(file)));
         if (result.unit() == null) {
             Messages.showWarningDialog(e.getProject(), "The file has errors; no Java was generated.", "Show Generated Java");
             return;

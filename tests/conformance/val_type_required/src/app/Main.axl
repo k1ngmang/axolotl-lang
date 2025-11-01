@@ -1,6 +1,6 @@
 package app
 
-val limit = 10
+val limit: Int = 10
 
 fn main() {
     val a = null

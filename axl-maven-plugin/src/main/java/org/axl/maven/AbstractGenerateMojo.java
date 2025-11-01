@@ -21,6 +21,8 @@ import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.javac.Translation;
+import org.apache.maven.artifact.DependencyResolutionRequiredException;
 
 /** Translates changed .axl files of one source directory and registers the output as a source root. */
 abstract class AbstractGenerateMojo extends AbstractMojo {
@@ -49,6 +51,11 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     abstract Path stateFile();
 
     abstract void addSourceRoot(String path);
+
+    /** Classpath and Java source roots, for the types of top-level values that depend on them. */
+    abstract List<String> classpath() throws DependencyResolutionRequiredException;
+
+    abstract List<String> javaRoots();
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
@@ -79,12 +86,13 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         GenerationState next = new GenerationState();
         Map<String, Path> current = axlFiles(sources);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
-        int translated = 0;
         for (Map.Entry<String, GenerationState.Entry> old : previous.files.entrySet()) {
             if (!current.containsKey(old.getKey())) {
                 deleteOutputs(output, old.getValue());
             }
         }
+        List<Translation.Input> inputs = new ArrayList<>();
+        Map<String, String> hashes = new TreeMap<>();
         for (Map.Entry<String, Path> file : current.entrySet()) {
             String text = Files.readString(file.getValue(), StandardCharsets.UTF_8);
             String hash = sha256(text);
@@ -96,16 +104,29 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             if (old != null) {
                 deleteOutputs(output, old);
             }
-            Translator.Result result = Translator.translate(file.getKey(), file.getValue().toString(), text,
-                    new Options(inlineElvis));
+            inputs.add(new Translation.Input(file.getKey(), file.getValue().toString(), text));
+            hashes.put(file.getKey(), hash);
+        }
+        List<Path> generatedRoots = List.of(output.toAbsolutePath().normalize());
+        List<Path> javaRoots = javaRoots().stream().map(Path::of)
+                .filter(p -> !generatedRoots.contains(p.toAbsolutePath().normalize())).toList();
+        List<Translator.Result> results;
+        try {
+            results = Translation.run(inputs, new Options(inlineElvis), classpath().stream().map(Path::of).toList(),
+                    javaRoots, output);
+        } catch (DependencyResolutionRequiredException e) {
+            throw new IOException(e);
+        }
+        for (int i = 0; i < results.size(); i++) {
+            Translator.Result result = results.get(i);
             diagnostics.addAll(result.diagnostics());
-            translated++;
             GeneratedUnit unit = result.unit();
             if (unit != null) {
-                unit.writeTo(output);
-                next.files.put(file.getKey(), new GenerationState.Entry(hash, List.of(unit.javaPath(), unit.mapPath())));
+                String source = inputs.get(i).sourcePath();
+                next.files.put(source, new GenerationState.Entry(hashes.get(source), List.of(unit.javaPath(), unit.mapPath())));
             }
         }
+        int translated = inputs.size();
         next.write(stateFile());
         getLog().info("Translated " + translated + " of " + current.size() + " .axl file(s)");
         for (AxlDiagnostic d : diagnostics) {

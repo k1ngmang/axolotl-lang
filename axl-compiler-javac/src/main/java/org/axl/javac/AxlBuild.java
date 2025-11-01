@@ -66,15 +66,21 @@ public final class AxlBuild {
     public Result run() throws IOException {
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         List<GeneratedSource> generated = new ArrayList<>();
-        for (Path axl : files(".axl")) {
+        List<Path> axlFiles = files(".axl");
+        List<Translation.Input> inputs = new ArrayList<>();
+        for (Path axl : axlFiles) {
             Path root = sourceDirs.stream().filter(axl::startsWith).findFirst().orElseThrow();
             String sourcePath = root.relativize(axl).toString().replace('\\', '/');
-            String text = Files.readString(axl, StandardCharsets.UTF_8);
-            Translator.Result result = Translator.translate(sourcePath, display.apply(axl), text, options);
+            inputs.add(new Translation.Input(sourcePath, display.apply(axl), Files.readString(axl, StandardCharsets.UTF_8)));
+        }
+        List<Translator.Result> results = Translation.run(inputs, options, classpath, sourceDirs, generatedDir);
+        for (int i = 0; i < results.size(); i++) {
+            Translator.Result result = results.get(i);
             diagnostics.addAll(result.diagnostics());
             if (result.unit() != null) {
-                Path javaFile = result.unit().writeTo(generatedDir);
-                generated.add(new GeneratedSource(result.unit(), javaFile, display.apply(axl), text.lines().toList()));
+                Path javaFile = generatedDir.resolve(result.unit().javaPath());
+                generated.add(new GeneratedSource(result.unit(), javaFile, inputs.get(i).displayPath(),
+                        inputs.get(i).text().lines().toList()));
             }
         }
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {

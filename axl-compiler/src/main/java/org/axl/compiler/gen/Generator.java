@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.axl.compiler.GeneratedUnit;
+import org.axl.compiler.JavaTypes;
 import org.axl.compiler.LineMap;
 import org.axl.compiler.Options;
 import org.axl.compiler.ast.Decl;
@@ -31,6 +32,10 @@ public final class Generator {
     private final SourceFile file;
     private final Analysis analysis;
     private final Options options;
+    // Java types of top-level values without a written type, by name.
+    private final Map<String, String> valueTypes;
+    // Values declared as locals of a probe method instead of fields, for JavaTypes.
+    private final Set<String> probed;
     private final Set<String> declaredFunctions = new LinkedHashSet<>();
     private Emitter em = new Emitter();
 
@@ -42,10 +47,12 @@ public final class Generator {
     private int listCount;
     private Map<String, String> copies = Map.of();
 
-    private Generator(SourceFile file, Analysis analysis, Options options) {
+    private Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
         this.file = file;
         this.analysis = analysis;
         this.options = options;
+        this.valueTypes = valueTypes;
+        this.probed = probed;
         for (Decl decl : file.decls()) {
             if (decl instanceof Decl.Function fn) {
                 declaredFunctions.add(fn.name());
@@ -58,11 +65,28 @@ public final class Generator {
         }
     }
 
-    public static GeneratedUnit generate(String sourcePath, SourceFile file, Analysis analysis, Options options) {
-        Generator generator = new Generator(file, analysis, options);
+    public static GeneratedUnit generate(String sourcePath, SourceFile file, Analysis analysis, Options options,
+                                         Map<String, String> valueTypes) {
+        Generator generator = new Generator(file, analysis, options, valueTypes, Set.of());
         generator.emitFile();
         return new GeneratedUnit(sourcePath, file.packageName(), file.className(), generator.em.text(),
                 new LineMap(sourcePath, generator.em.lineMap()));
+    }
+
+    /**
+     * Java source in which the values in {@code probed} are `var` locals of the method
+     * {@link JavaTypes#PROBE_METHOD}, so that a compiler can tell their types.
+     */
+    public static String probe(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes,
+                               Set<String> probed) {
+        Generator generator = new Generator(file, analysis, options, valueTypes, probed);
+        generator.emitFile();
+        return generator.em.text();
+    }
+
+    /** The Java form of a written type. */
+    public static String javaType(TypeRef type) {
+        return type(type, false);
     }
 
     private void emitFile() {
@@ -80,9 +104,13 @@ public final class Generator {
         for (Decl decl : file.decls()) {
             resetCounters();
             switch (decl) {
+                case Decl.Value value when probed.contains(value.name()) -> { }
                 case Decl.Value value -> emitValue(value);
                 case Decl.Function fn -> emitFunction(fn);
             }
+        }
+        if (!probed.isEmpty()) {
+            emitProbe();
         }
         em.dedent();
         em.line(0, "}");
@@ -98,8 +126,22 @@ public final class Generator {
     }
 
     private void emitValue(Decl.Value value) {
-        em.line(value.pos().line(), visibility(value) + " static final " + type(value.type()) + " " + value.name()
+        String type = value.type() != null ? type(value.type()) : valueTypes.get(value.name());
+        em.line(value.pos().line(), visibility(value) + " static final " + type + " " + value.name()
                 + " = " + expr(value.init()) + ";");
+    }
+
+    private void emitProbe() {
+        resetCounters();
+        em.line(0, "private static void " + JavaTypes.PROBE_METHOD + "() {");
+        em.indent();
+        for (Decl decl : file.decls()) {
+            if (decl instanceof Decl.Value value && probed.contains(value.name())) {
+                em.line(value.pos().line(), "var " + value.name() + " = " + expr(value.init()) + ";");
+            }
+        }
+        em.dedent();
+        em.line(0, "}");
     }
 
     private void emitFunction(Decl.Function fn) {
@@ -614,12 +656,12 @@ public final class Generator {
         return simple ? code : "(" + code + ")";
     }
 
-    private String type(TypeRef type) {
+    private static String type(TypeRef type) {
         return type(type, false);
     }
 
     /** Primitive names become wrappers inside generics and when nullable. */
-    private String type(TypeRef type, boolean generic) {
+    private static String type(TypeRef type, boolean generic) {
         String[] primitive = PRIMITIVES.get(type.name());
         String name;
         if (primitive != null) {

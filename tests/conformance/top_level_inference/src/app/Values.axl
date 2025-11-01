@@ -1,0 +1,37 @@
+package app
+import java.util.List
+import java.util.ArrayList
+import fn util.Strings.shout
+
+val limit = 10
+val big = 10000000000L
+val ratio = limit * 1.5
+val label = "limit: " + limit
+val enabled = limit > 5 && !false
+val builder = StringBuilder("x")
+val names = ArrayList<String>()
+val doubled = twice(limit)
+val maxValue = Integer.MAX_VALUE
+val letters = List.of("a", "b")
+val loud = shout("hi")
+val exclaimed = util.Strings.suffix + "?"
+val missing: String? = null
+val fallback = missing ?: "none"
+
+fn twice(n: Int) -> Int = n * 2
+
+fn main() {
+    println(limit + 1)
+    println(big)
+    println(ratio)
+    println(label)
+    println(enabled)
+    println(builder.append("y"))
+    println(names.size())
+    println(doubled)
+    println(maxValue)
+    println(letters.get(1).toUpperCase())
+    println(loud)
+    println(exclaimed)
+    println(fallback.length())
+}

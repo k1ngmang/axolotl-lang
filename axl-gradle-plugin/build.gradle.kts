@@ -4,7 +4,7 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":axl-compiler"))
+    implementation(project(":axl-compiler-javac"))
     implementation(project(":axl-smap"))
     implementation(libs.errorprone.gradle)
 }

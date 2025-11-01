@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.maven.plugin.logging.SystemStreamLog;
+import org.apache.maven.model.Build;
 import org.apache.maven.project.MavenProject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -19,6 +20,8 @@ class GenerateMojoTest {
     private GenerateMojo mojo(Path base) {
         GenerateMojo mojo = new GenerateMojo();
         mojo.project = new MavenProject();
+        mojo.project.getModel().setBuild(new Build());
+        mojo.project.getBuild().setOutputDirectory(base.resolve("target/classes").toString());
         mojo.sourceDirectory = base.resolve("src/main/axl").toFile();
         mojo.outputDirectory = base.resolve("target/generated-sources/axl").toFile();
         mojo.stateFile = base.resolve("target/axl-state.json").toFile();

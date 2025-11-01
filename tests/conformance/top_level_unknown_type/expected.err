@@ -1,0 +1,1 @@
+AXL009 app/Main.axl:3:1: error: cannot infer the type of `nothing`; write it: `val nothing: Type = ...`

@@ -1,7 +1,16 @@
 package org.axl.compiler;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Pattern;
+import org.axl.compiler.ast.Decl;
+import org.axl.compiler.ast.Import;
+import org.axl.compiler.ast.TypeRef;
+import org.axl.compiler.check.TypeInference;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.check.Analysis;
 import org.axl.compiler.check.Checker;
@@ -11,8 +20,15 @@ import org.axl.compiler.parse.SourceParser;
 /** Translates one .axl file to Java. Needs no classpath: everything is decided by syntax and names. */
 public final class Translator {
 
-    /** unit is null when there are errors. */
-    public record Result(GeneratedUnit unit, List<AxlDiagnostic> diagnostics) {
+    /**
+     * @param unit  null when there are errors
+     * @param draft the unit types some top-level values as `Object` because their types are unknown yet
+     */
+    public record Result(GeneratedUnit unit, List<AxlDiagnostic> diagnostics, boolean draft) {
+
+        Result(GeneratedUnit unit, List<AxlDiagnostic> diagnostics) {
+            this(unit, diagnostics, false);
+        }
 
         public boolean hasErrors() {
             return diagnostics.stream().anyMatch(AxlDiagnostic::isError);
@@ -41,7 +57,61 @@ public final class Translator {
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             return new Result(null, diagnostics);
         }
-        return new Result(Generator.generate(sourcePath, file, analysis, options), diagnostics);
+        Map<String, String> valueTypes = new HashMap<>();
+        Set<String> unknown = inferValueTypes(file, analysis, options, valueTypes);
+        if (!unknown.isEmpty() && !options.draft()) {
+            for (Decl decl : file.decls()) {
+                if (decl instanceof Decl.Value value && unknown.contains(value.name())) {
+                    diagnostics.add(AxlDiagnostic.error(displayPath, value.pos().line(), value.pos().column(),
+                            ErrorCode.TYPE_REQUIRED, "cannot infer the type of `" + value.name() + "`; write it: `val "
+                                    + value.name() + ": Type = ...`"));
+                }
+            }
+            return new Result(null, diagnostics);
+        }
+        unknown.forEach(name -> valueTypes.put(name, "Object"));
+        return new Result(Generator.generate(sourcePath, file, analysis, options, valueTypes), diagnostics, !unknown.isEmpty());
+    }
+
+    /**
+     * Fills in the Java types of top-level values without a written type: from the file itself first,
+     * then from the compiler if the options give access to one. Returns the names still unknown.
+     */
+    private static Set<String> inferValueTypes(SourceFile file, Analysis analysis, Options options,
+                                               Map<String, String> valueTypes) {
+        Map<String, TypeRef> inferred = new HashMap<>();
+        TypeInference.inferAll(file, inferred);
+        inferred.forEach((name, type) -> valueTypes.put(name, Generator.javaType(type)));
+        Set<String> unknown = new LinkedHashSet<>();
+        for (Decl decl : file.decls()) {
+            if (decl instanceof Decl.Value value && value.type() == null && !valueTypes.containsKey(value.name())) {
+                unknown.add(value.name());
+            }
+        }
+        if (unknown.isEmpty() || options.javaTypes() == null) {
+            return unknown;
+        }
+        String qualified = file.packageName().isEmpty() ? file.className() : file.packageName() + "." + file.className();
+        String probe = Generator.probe(file, analysis, options, valueTypes, unknown);
+        Map<String, String> found = options.javaTypes().localTypes(qualified, probe);
+        for (String name : List.copyOf(unknown)) {
+            if (found.containsKey(name)) {
+                valueTypes.put(name, withImports(found.get(name), file));
+                unknown.remove(name);
+            }
+        }
+        return unknown;
+    }
+
+    /** Types the file imports are written with their simple names, as a person would. */
+    private static String withImports(String javaType, SourceFile file) {
+        String result = javaType;
+        for (Import imp : file.imports()) {
+            if (imp.kind() == Import.Kind.TYPE) {
+                result = result.replaceAll("\\b" + Pattern.quote(imp.name()) + "\\b", imp.simpleName());
+            }
+        }
+        return result;
     }
 
     public static String className(String sourcePath) {

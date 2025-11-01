@@ -6,10 +6,12 @@ import java.util.List;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.compiler.parse.SourceParser;
+import org.axl.javac.JavacTypes;
 
 /** An .axl file as the editor has it, with everything derived from its text. */
 final class Document {
@@ -37,7 +39,9 @@ final class Document {
         this.module = project.moduleOf(path, packageName);
         Path root = module.axlRootOf(path);
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
-        this.translation = Translator.translate(sourcePath, uri, text);
+        // Types of top-level values that depend on Java code come from javac, only when needed.
+        Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), module.javaRoots()));
+        this.translation = Translator.translate(sourcePath, uri, text, options);
     }
 
     List<AxlDiagnostic> diagnostics() {

@@ -129,10 +129,6 @@ public final class Checker {
     }
 
     private void topLevelValue(Decl.Value value) {
-        if (value.type() == null) {
-            error(value.pos(), ErrorCode.TYPE_REQUIRED, "top-level `val " + value.name() + "` needs a type: `val "
-                    + value.name() + ": Type = ...`");
-        }
         if (value.init() instanceof Expr.Try t) {
             error(t.pos(), ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, TRY_NEEDS_RESULT);
             expr(t.inner());

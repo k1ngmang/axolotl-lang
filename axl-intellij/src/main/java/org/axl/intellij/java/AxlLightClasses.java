@@ -19,6 +19,7 @@ import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
 import org.axl.compiler.GeneratedUnit;
+import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
@@ -40,7 +41,8 @@ public final class AxlLightClasses {
     }
 
     private static @Nullable PsiClass build(AxlFile file) {
-        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText());
+        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText(),
+                new Options(false).withJavaTypes(new PsiJavaTypes(file)));
         GeneratedUnit unit = result.unit();
         if (unit == null) {
             return null;

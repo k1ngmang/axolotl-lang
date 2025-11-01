@@ -16,6 +16,7 @@ import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.LineMap;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.javac.Translation;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
@@ -24,6 +25,7 @@ import org.gradle.api.file.FileSystemOperations;
 import org.gradle.api.file.FileType;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.CacheableTask;
+import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
@@ -50,6 +52,15 @@ public abstract class GenerateAxlTask extends DefaultTask {
     @Input
     public abstract Property<Boolean> getInlineElvis();
 
+    /** Classpath and Java sources, for the types of top-level values that depend on them. */
+    @Classpath
+    public abstract ConfigurableFileCollection getClasspath();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    @IgnoreEmptyDirectories
+    public abstract ConfigurableFileCollection getJavaSourceDirs();
+
     @OutputDirectory
     public abstract DirectoryProperty getOutputDir();
 
@@ -65,8 +76,7 @@ public abstract class GenerateAxlTask extends DefaultTask {
         }
         Map<String, List<Path>> outputsBySource = outputsBySource(out);
         Options options = new Options(getInlineElvis().get());
-        List<AxlDiagnostic> diagnostics = new ArrayList<>();
-        int translated = 0;
+        List<Translation.Input> inputs = new ArrayList<>();
         for (FileChange change : changes.getFileChanges(getSources())) {
             if (change.getFileType() == FileType.DIRECTORY) {
                 continue;
@@ -75,18 +85,19 @@ public abstract class GenerateAxlTask extends DefaultTask {
             for (Path stale : outputsBySource.getOrDefault(sourcePath, List.of())) {
                 Files.deleteIfExists(stale);
             }
-            if (change.getChangeType() == ChangeType.REMOVED) {
-                continue;
+            if (change.getChangeType() != ChangeType.REMOVED) {
+                File file = change.getFile();
+                inputs.add(new Translation.Input(sourcePath, file.getAbsolutePath(),
+                        Files.readString(file.toPath(), StandardCharsets.UTF_8)));
             }
-            File file = change.getFile();
-            String text = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-            Translator.Result result = Translator.translate(sourcePath, file.getAbsolutePath(), text, options);
-            diagnostics.addAll(result.diagnostics());
-            if (result.unit() != null) {
-                result.unit().writeTo(out);
-            }
-            translated++;
         }
+        List<Path> classpath = getClasspath().getFiles().stream().map(File::toPath).toList();
+        List<Path> javaRoots = getJavaSourceDirs().getFiles().stream().map(File::toPath).toList();
+        List<AxlDiagnostic> diagnostics = new ArrayList<>();
+        for (Translator.Result result : Translation.run(inputs, options, classpath, javaRoots, out)) {
+            diagnostics.addAll(result.diagnostics());
+        }
+        int translated = inputs.size();
         getLogger().info("Translated {} .axl file(s)", translated);
         for (AxlDiagnostic d : diagnostics) {
             if (d.isError()) {

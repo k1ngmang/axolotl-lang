@@ -91,6 +91,10 @@ public class AxlPlugin implements Plugin<Project> {
                     task.getSources().from(sources);
                     task.getInlineElvis().set(axl.getInlineElvis());
                     task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("generated/axl/" + name));
+                    task.getClasspath().from(sourceSet.getCompileClasspath());
+                    java.io.File generatedRoot = project.getLayout().getBuildDirectory().dir("generated/axl").get().getAsFile();
+                    task.getJavaSourceDirs().from(project.provider(() -> sourceSet.getJava().getSrcDirs().stream()
+                            .filter(dir -> !dir.toPath().startsWith(generatedRoot.toPath())).toList()));
                 });
         sourceSet.getJava().srcDir(generate.flatMap(GenerateAxlTask::getOutputDir));
 
