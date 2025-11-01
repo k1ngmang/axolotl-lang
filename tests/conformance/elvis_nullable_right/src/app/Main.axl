@@ -1,0 +1,15 @@
+package app
+
+fn maybe() -> String? = null
+
+fn pick(a: String?, b: String?) -> String = a ?: b
+
+fn orNull(a: String?) -> String = a ?: null
+
+fn count(a: Int?, b: Int?) -> Int = a ?: b
+
+fn main() {
+    val local: String = maybe() ?: maybe()
+    println(local.length())
+    println((maybe() ?: maybe()).length())
+}
