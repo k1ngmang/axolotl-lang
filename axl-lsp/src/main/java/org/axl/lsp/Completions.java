@@ -38,7 +38,7 @@ final class Completions {
             return List.of();
         }
         String prefix = current.lines.get(line).substring(0, Math.min(character, current.lines.get(line).length()));
-        Pos pos = new Pos(line + 1, character + 1);
+        Pos pos = current.pos(line, character);
         if (PIPE_STAGE.matcher(prefix).find()) {
             return PIPE_STAGES.stream().map(name -> {
                 CompletionItem item = new CompletionItem(name);

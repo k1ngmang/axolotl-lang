@@ -191,10 +191,11 @@ final class Workspace {
     /** The range covers the token at the reported column, or the rest of the line. */
     static Diagnostic toLsp(Document document, AxlDiagnostic d) {
         int line = Math.max(0, d.line() - 1);
-        int start = Math.max(0, d.column() - 1);
+        int column = Math.max(0, d.column() - 1);
+        int start = document.utf16Column(line, column);
         var token = document.tokenAt(line, start);
-        int end = token != null && token.getCharPositionInLine() == start
-                ? start + token.getText().length()
+        int end = token != null && token.getCharPositionInLine() == column
+                ? document.utf16Column(line, column + token.getStopIndex() - token.getStartIndex() + 1)
                 : line < document.lines.size() ? Math.max(start + 1, document.lines.get(line).length()) : start + 1;
         Diagnostic diagnostic = new Diagnostic(new Range(new Position(line, start), new Position(line, end)), d.message(),
                 d.isError() ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "axl");

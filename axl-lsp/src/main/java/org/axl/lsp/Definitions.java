@@ -11,7 +11,6 @@ import java.util.regex.Pattern;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Import;
-import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.Location;
@@ -46,7 +45,7 @@ final class Definitions {
             String type = typeName(document, receiver);
             return type == null ? List.of() : member(type, name);
         }
-        Symbols.Symbol symbol = Symbols.lookup(document.ast, new Pos(line + 1, character + 1), name);
+        Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), name);
         if (symbol == null) {
             String type = typeName(document, token);
             return type == null ? List.of() : classLocation(type);
@@ -57,7 +56,7 @@ final class Definitions {
                 yield member(imported.substring(0, imported.lastIndexOf('.')), symbol.name());
             }
             case TYPE -> classLocation(symbol.imported().name());
-            default -> List.of(location(document.path, symbol.pos()));
+            default -> List.of(location(document.path, document.position(symbol.pos())));
         };
     }
 
@@ -76,7 +75,7 @@ final class Definitions {
 
     private List<Location> classLocation(String qualifiedName) {
         Path source = workspace.sourceOf(qualifiedName);
-        return source == null ? List.of() : List.of(location(source, new Pos(1, 1)));
+        return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
     private List<Location> member(String className, String name) {
@@ -89,33 +88,32 @@ final class Definitions {
             if (other.ast != null) {
                 Decl decl = Symbols.topLevel(other.ast).get(name);
                 if (decl != null) {
-                    return List.of(location(source, decl.pos()));
+                    return List.of(location(source, other.position(decl.pos())));
                 }
             }
-            return List.of(location(source, new Pos(1, 1)));
+            return List.of(location(source, new Position(0, 0)));
         }
         return List.of(location(source, javaMember(source, name)));
     }
 
     /** The first declaration of a method or field with that name in a Java file. */
-    private static Pos javaMember(Path file, String name) {
+    private static Position javaMember(Path file, String name) {
         Pattern declaration = Pattern.compile("\\b[\\w<>\\[\\],.? ]+\\s+(" + Pattern.quote(name) + ")\\s*[(=;]");
         try {
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
             for (int i = 0; i < lines.size(); i++) {
                 Matcher m = declaration.matcher(lines.get(i));
                 if (m.find() && !lines.get(i).strip().startsWith("return")) {
-                    return new Pos(i + 1, m.start(1) + 1);
+                    return new Position(i, m.start(1));
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new Pos(1, 1);
+        return new Position(0, 0);
     }
 
-    private static Location location(Path file, Pos pos) {
-        Position position = new Position(pos.line() - 1, pos.column() - 1);
+    private static Location location(Path file, Position position) {
         return new Location(file.toUri().toString(), new Range(position, position));
     }
 }

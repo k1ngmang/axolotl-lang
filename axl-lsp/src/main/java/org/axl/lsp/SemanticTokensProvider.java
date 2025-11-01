@@ -39,7 +39,7 @@ final class SemanticTokensProvider {
             String[] parts = token.getText().split("\n", -1);
             for (int p = 0; p < parts.length; p++) {
                 int line = token.getLine() - 1 + p;
-                int start = p == 0 ? token.getCharPositionInLine() : 0;
+                int start = p == 0 ? document.utf16Column(line, token.getCharPositionInLine()) : 0;
                 if (parts[p].isEmpty()) {
                     continue;
                 }
