@@ -80,6 +80,9 @@ final class Workspace {
     void closeDocument(String uri) {
         open.remove(uri);
         lastParsed.remove(uri);
+        if (client != null) {
+            client.publishDiagnostics(new PublishDiagnosticsParams(uri, List.of()));
+        }
     }
 
     void saved(String uri) throws IOException {

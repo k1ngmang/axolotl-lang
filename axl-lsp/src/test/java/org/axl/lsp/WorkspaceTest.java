@@ -126,6 +126,14 @@ class WorkspaceTest {
         assertEquals(List.of(), published.get(uri));
     }
 
+    @Test
+    void clearsDiagnosticsOfAClosedDocument() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");
+        assertFalse(published.get(uri).isEmpty());
+        workspace.closeDocument(uri);
+        assertEquals(List.of(), published.get(uri));
+    }
+
     private String hover(String uri, int line, int character) {
         return new Hovers(workspace).hover(uri, line, character).getContents().getRight().getValue();
     }
