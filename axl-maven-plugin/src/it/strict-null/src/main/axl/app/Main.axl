@@ -1,0 +1,6 @@
+package app
+
+fn homeLength() -> Int {
+    val home = System.getenv("HOME")
+    return home.length()
+}

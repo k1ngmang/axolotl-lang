@@ -37,6 +37,10 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     @Parameter(property = "axl.inlineElvis", defaultValue = "false")
     boolean inlineElvis;
 
+    /** Treat values from Java code without nullness annotations as nullable. */
+    @Parameter(property = "axl.strictNull", defaultValue = "false")
+    boolean strictNull;
+
     /** `--release` for compilation; sets `maven.compiler.release` unless the project defines it. */
     @Parameter(property = "axl.javaRelease", defaultValue = "21")
     int javaRelease;
@@ -146,8 +150,12 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         String root = output.toUri() + "=" + sources.toUri();
         String option = project.getProperties().getProperty(DIAGNOSTICS_PROPERTY, "-Xplugin:AxlDiagnostics");
         if (!option.contains(root)) {
-            project.getProperties().setProperty(DIAGNOSTICS_PROPERTY, option + " " + root);
+            option += " " + root;
         }
+        if (strictNull && !option.endsWith(" strict") && !option.contains(" strict ")) {
+            option += " strict";
+        }
+        project.getProperties().setProperty(DIAGNOSTICS_PROPERTY, option);
     }
 
     private static Map<String, Path> axlFiles(Path sources) throws IOException {

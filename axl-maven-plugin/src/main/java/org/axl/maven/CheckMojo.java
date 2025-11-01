@@ -42,6 +42,10 @@ public class CheckMojo extends AbstractMojo {
     @Parameter(property = "axl.nullAway", defaultValue = "true")
     boolean nullAway;
 
+    /** Treat values from Java code without nullness annotations as nullable. */
+    @Parameter(property = "axl.strictNull", defaultValue = "false")
+    boolean strictNull;
+
     @Parameter(property = "axl.skip", defaultValue = "false")
     boolean skip;
 
@@ -55,7 +59,7 @@ public class CheckMojo extends AbstractMojo {
                     Path::toString);
             List<Path> classpath = project.getCompileClasspathElements().stream().map(Path::of).toList();
             Path classes = Files.createTempDirectory("axl-check");
-            JavaCompilation.Outcome outcome = JavaCompilation.compile(javaSources(), classpath, classes, List.of(), nullAway);
+            JavaCompilation.Outcome outcome = JavaCompilation.compile(javaSources(), classpath, classes, List.of(), nullAway, strictNull);
             var translator = new DiagnosticTranslator(generated, Path::toString);
             boolean failed = false;
             for (var d : outcome.diagnostics()) {
