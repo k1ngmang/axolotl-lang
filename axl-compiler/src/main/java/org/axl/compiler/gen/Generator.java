@@ -186,8 +186,9 @@ public final class Generator {
                 });
             }
             case Stmt.Assign assign -> withCopies(assign.pos().line(), assign.value(), () -> {
+                String target = assignTarget(assign.pos().line(), assign.target(), Lifts.needed(assign.value()));
                 String value = value(assign.pos().line(), assign.value());
-                em.line(assign.pos().line(), expr(assign.target()) + " " + assign.op() + " " + value + ";");
+                em.line(assign.pos().line(), target + " " + assign.op() + " " + value + ";");
             });
             case Stmt.Return ret -> {
                 if (ret.value() == null) {
@@ -498,6 +499,20 @@ public final class Generator {
         };
     }
 
+    /** Java evaluates the object of `a.f = v` before `v`, so before a `try` in `v`. */
+    private String assignTarget(int line, Expr target, boolean valueLifts) {
+        if (!(target instanceof Expr.Member m) || !valueLifts && !Lifts.needed(target)) {
+            return expr(target);
+        }
+        Lifted receiver = lifted(line, m.target());
+        String code = receiver.code();
+        if (valueLifts && !receiver.pure()) {
+            code = "$t" + ++tempCount;
+            em.line(line, "final var " + code + " = " + receiver.code() + ";");
+        }
+        return code + "." + m.name();
+    }
+
     /** Operands in evaluation order; those left of the last lifted one are kept in temporaries. */
     private List<Lifted> operands(int line, List<Expr> exprs) {
         int last = -1;
@@ -527,10 +542,13 @@ public final class Generator {
     private boolean isPure(Expr e) {
         return switch (e) {
             case Expr.Literal l -> true;
-            case Expr.Name n -> analysis.stableNames().contains(n);
+            case Expr.Name n -> analysis.stableNames().contains(n) || analysis.staticNames().contains(n);
             case Expr.Lambda l -> true;
             case Expr.MethodRef r -> true;
             case Expr.Paren p -> isPure(p.inner());
+            // Kept inline so that Java can still infer their type arguments from the target.
+            case Expr.Call c when c.target() == null && (c.name().equals("Ok") || c.name().equals("Err")) ->
+                    c.args().stream().allMatch(this::isPure);
             default -> false;
         };
     }
@@ -568,24 +586,39 @@ public final class Generator {
         while (firstSafe < steps.size() && !steps.get(firstSafe).safe()) {
             firstSafe++;
         }
-        List<Expr> eager = new ArrayList<>(List.of(chain.base()));
-        for (int i = 0; i < firstSafe; i++) {
-            if (steps.get(i).args() != null) {
-                eager.addAll(steps.get(i).args());
-            }
-        }
-        List<Lifted> ops = operands(line, eager);
-        StringBuilder prefix = new StringBuilder(ops.getFirst().code());
-        int next = 1;
+        Lifted base = lifted(line, chain.base());
+        String current = base.code();
+        // fixed: no evaluation can change what `current` denotes; a type or package name is fixed too.
+        boolean fixed = base.pure();
+        boolean typeOrPackage = chain.base() instanceof Expr.Name n && analysis.staticNames().contains(n);
+        String segment = typeOrPackage ? ((Expr.Name) chain.base()).name() : "";
         for (int i = 0; i < firstSafe; i++) {
             Chains.Step step = steps.get(i);
-            prefix.append('.').append(step.name());
-            if (step.args() != null) {
-                prefix.append('(').append(codes(ops.subList(next, next + step.args().size()))).append(')');
-                next += step.args().size();
+            if (step.args() == null) {
+                // java.util.List is a path to a class; System.out is a value read from one.
+                typeOrPackage = typeOrPackage && Character.isLowerCase(segment.charAt(0));
+                fixed = typeOrPackage;
+                segment = step.name();
+                current += "." + step.name();
+                continue;
             }
+            String args;
+            if (step.args().stream().anyMatch(Lifts::needed)) {
+                // The receiver is evaluated before the arguments, so before their `try`.
+                if (!fixed) {
+                    String temp = "$t" + ++tempCount;
+                    em.line(line, "final var " + temp + " = " + current + ";");
+                    current = temp;
+                }
+                args = codes(operands(line, step.args()));
+            } else {
+                args = step.args().stream().map(this::expr).collect(Collectors.joining(", "));
+            }
+            current += "." + step.name() + "(" + args + ")";
+            fixed = false;
+            typeOrPackage = false;
         }
-        return new Lifted(chainFrom(prefix.toString(), steps, firstSafe, false), false);
+        return new Lifted(chainFrom(current, steps, firstSafe, false), false);
     }
 
     /** `xs |> ... |> mapResult { f(it) } |> ...`: a loop that returns the first `Err` from the function. */

@@ -74,6 +74,7 @@ public final class Checker {
     private final Set<Expr.Lambda> implicitIt = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> mutableRefs = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> stableNames = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<Expr.Name> staticNames = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<Expr.Stage, TypeRef> mapResultTypes = new IdentityHashMap<>();
     private Scope scope;
     private Decl.Function function;
@@ -90,7 +91,8 @@ public final class Checker {
         Checker checker = new Checker(file);
         checker.run();
         diagnostics.addAll(checker.diagnostics);
-        return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.mapResultTypes);
+        return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
+                checker.mapResultTypes);
     }
 
     private void run() {
@@ -265,6 +267,9 @@ public final class Checker {
                 }
                 if (symbol != null && symbol.kind != Kind.IMPORTED) {
                     stableNames.add(name);
+                }
+                if (symbol == null) {
+                    staticNames.add(name);
                 }
             }
             case Expr.Member m -> {

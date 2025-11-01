@@ -1,0 +1,39 @@
+package app
+
+import java.awt.Point
+
+val p = Point(1, 2)
+
+fn snapshot(sb: StringBuilder) -> Result<String, String> = Ok(sb.toString())
+
+fn n() -> Result<Int, String> = Ok(4)
+
+fn pt() -> Result<Point, String> = Ok(p)
+
+fn pick(a: Result<Int, String>, b: Int) -> Int = b
+
+fn target() -> Point {
+    println("target")
+    return p
+}
+
+fn value() -> Result<Int, String> {
+    println("value")
+    return Ok(10)
+}
+
+fn run() -> Result<String, String> {
+    val sb = StringBuilder()
+    val r = sb.append("a").append(try snapshot(sb))
+    val a = Math.max(1, try n())
+    System.out.println(try n())
+    val l = java.util.List.of(try n())
+    val b = pick(Ok(1), try n())
+    target().x = try value()
+    (try pt()).y = 5
+    return Ok(r.toString() + " " + a + " " + l + " " + b + " " + p.x + " " + p.y)
+}
+
+fn main() {
+    println(run())
+}
