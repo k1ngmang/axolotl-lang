@@ -14,7 +14,7 @@ import java.util.List;
         for (final var it : texts.stream().filter(it -> !it.isEmpty()).toList()) {
             final var $t1 = parse(it);
             if ($t1.isErr()) return Result.propagate($t1);
-            $p1.add(Result.unwrap($t1));
+            $p1.add(Result.<Integer>unwrap($t1));
         }
         final var numbers = $p1.stream().map(it -> it * 2).toList();
         return new Ok<>(numbers);
@@ -24,7 +24,7 @@ import java.util.List;
         for (final var t : texts) {
             final var $t1 = Result.attempt(() -> t.length(), $ex1 -> "never");
             if ($t1.isErr()) return Result.propagate($t1);
-            $p1.add(Result.unwrap($t1));
+            $p1.add(Result.<Integer>unwrap($t1));
         }
         final List<Integer> sizes = $p1;
         return new Ok<>(sizes);

@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+fn parse(s: String) -> Result<String?, String> = Ok(null)
+
+fn all(xs: List<String>) -> Result<List<String>, String> {
+    val ys: List<String> = xs |> mapResult { parse(it) }
+    return Ok(ys)
+}

@@ -621,7 +621,7 @@ public final class Generator {
         String temp = "$t" + ++tempCount;
         em.line(lambda.pos().line(), "final var " + temp + " = " + expr(body) + ";");
         em.line(lambda.pos().line(), "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");");
-        em.line(lambda.pos().line(), list + ".add(Result.unwrap(" + temp + "));");
+        em.line(lambda.pos().line(), list + ".add(Result.<" + element + ">unwrap(" + temp + "));");
         em.dedent();
         em.line(line, "}");
         List<Expr.Stage> rest = stages.subList(mapResult + 1, stages.size());
