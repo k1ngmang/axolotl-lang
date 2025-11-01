@@ -54,16 +54,26 @@ final class Document {
         return translation.diagnostics();
     }
 
-    /** The token at a 0-based LSP position, or null. */
+    /**
+     * The token at a 0-based LSP position, or null. Between two tokens, as in `f(x`, the one that
+     * starts there wins over the one that ends there.
+     */
     Token tokenAt(int line, int character) {
+        Token ending = null;
         for (Token token : tokens) {
+            if (token.getLine() - 1 != line || token.getChannel() != Token.DEFAULT_CHANNEL) {
+                continue;
+            }
             int start = token.getCharPositionInLine();
             int end = start + token.getText().length();
-            if (token.getLine() - 1 == line && character >= start && character <= end && token.getChannel() == Token.DEFAULT_CHANNEL) {
+            if (character >= start && character < end) {
                 return token;
             }
+            if (character == end) {
+                ending = token;
+            }
         }
-        return null;
+        return ending;
     }
 
     /** The default-channel token before the given one, or null. */
