@@ -14,7 +14,7 @@ import java.util.stream.Stream;
  * Finds modules in the workspace. A module is described by `axl.json` in its directory, or by the
  * `build/axl/axl.json` and `target/axl/axl.json` files the Gradle and Maven plugins write:
  *
- * <pre>{"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["lib/a.jar"]}</pre>
+ * <pre>{"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["lib/a.jar"], "strictNull": false}</pre>
  *
  * Relative paths are relative to the module directory. Without a description every `src/NAME/axl`
  * directory is a module of its own, next to `src/NAME/java`.
@@ -25,6 +25,7 @@ final class ProjectModel {
         List<String> sourceRoots = List.of();
         List<String> javaSourceRoots = List.of();
         List<String> classpath = List.of();
+        boolean strictNull;
     }
 
     private final List<Module> modules;
@@ -47,7 +48,7 @@ final class ProjectModel {
                     if (Files.isDirectory(path) && modules.stream().noneMatch(m -> m.axlRootOf(path) != null)) {
                         Path java = path.resolveSibling("java");
                         modules.add(new Module(path.getParent().getParent().getParent(), List.of(path),
-                                Files.isDirectory(java) ? List.of(java) : List.of(), List.of()));
+                                Files.isDirectory(java) ? List.of(java) : List.of(), List.of(), false));
                     }
                 }
             } catch (IOException e) {
@@ -81,7 +82,7 @@ final class ProjectModel {
         }
         Path root = dir;
         return new Module(root, resolve(root, config.sourceRoots), resolve(root, config.javaSourceRoots),
-                resolve(root, config.classpath));
+                resolve(root, config.classpath), config.strictNull);
     }
 
     private static List<Path> resolve(Path root, List<String> paths) {
@@ -99,7 +100,7 @@ final class ProjectModel {
         Path packagePath = packageName.isEmpty() ? null : Path.of("", packageName.split("\\."));
         Path root = packagePath != null && dir.endsWith(packagePath)
                 ? dir.getRoot().resolve(dir.subpath(0, dir.getNameCount() - packagePath.getNameCount())) : dir;
-        return new Module(root, List.of(root), List.of(), List.of());
+        return new Module(root, List.of(root), List.of(), List.of(), false);
     }
 
     List<Module> modules() {

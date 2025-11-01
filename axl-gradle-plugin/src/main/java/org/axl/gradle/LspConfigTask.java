@@ -9,6 +9,8 @@ import java.util.stream.StreamSupport;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.OutputFile;
@@ -30,6 +32,9 @@ public abstract class LspConfigTask extends DefaultTask {
     @Classpath
     public abstract ConfigurableFileCollection getClasspath();
 
+    @Input
+    public abstract Property<Boolean> getStrictNull();
+
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
@@ -38,7 +43,8 @@ public abstract class LspConfigTask extends DefaultTask {
         String json = "{\n"
                 + "  \"sourceRoots\": " + array(getSourceRoots()) + ",\n"
                 + "  \"javaSourceRoots\": " + array(getJavaSourceRoots()) + ",\n"
-                + "  \"classpath\": " + array(getClasspath()) + "\n"
+                + "  \"classpath\": " + array(getClasspath()) + ",\n"
+                + "  \"strictNull\": " + getStrictNull().get() + "\n"
                 + "}\n";
         File output = getOutputFile().get().getAsFile();
         Files.createDirectories(output.getParentFile().toPath());

@@ -31,13 +31,16 @@ public class LspConfigMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project.basedir}/src/test/axl")
     File testSourceDirectory;
 
+    @Parameter(property = "axl.strictNull", defaultValue = "false")
+    boolean strictNull;
+
     @Parameter(defaultValue = "${project.build.directory}/axl/axl.json")
     File outputFile;
 
     @Override
     public void execute() throws MojoExecutionException {
         try {
-            Map<String, List<String>> config = new LinkedHashMap<>();
+            Map<String, Object> config = new LinkedHashMap<>();
             config.put("sourceRoots", List.of(sourceDirectory.getAbsolutePath(), testSourceDirectory.getAbsolutePath()));
             List<String> javaRoots = new ArrayList<>();
             String build = project.getBuild().getDirectory();
@@ -48,6 +51,7 @@ public class LspConfigMojo extends AbstractMojo {
             }
             config.put("javaSourceRoots", javaRoots);
             config.put("classpath", project.getTestClasspathElements());
+            config.put("strictNull", strictNull);
             Path output = outputFile.toPath();
             Files.createDirectories(output.getParent());
             Files.writeString(output, new GsonBuilder().setPrettyPrinting().create().toJson(config) + "\n",

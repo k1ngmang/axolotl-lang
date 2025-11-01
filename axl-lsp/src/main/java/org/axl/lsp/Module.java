@@ -7,7 +7,7 @@ import java.util.List;
  * A unit that is translated and compiled together: .axl source roots, Java source roots and the
  * classpath, as described by an `axl.json` file or guessed from the directory layout.
  */
-record Module(Path root, List<Path> axlRoots, List<Path> javaRoots, List<Path> classpath) {
+record Module(Path root, List<Path> axlRoots, List<Path> javaRoots, List<Path> classpath, boolean strictNull) {
 
     /** The source root that contains file, or null. */
     Path axlRootOf(Path file) {

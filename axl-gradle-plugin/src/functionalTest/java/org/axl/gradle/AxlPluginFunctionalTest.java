@@ -156,6 +156,7 @@ class AxlPluginFunctionalTest {
         gradle(":core:axlLspConfig").build();
         String json = Files.readString(project.resolve("core/build/axl/axl.json"));
         assertTrue(json.contains(project.resolve("core/src/main/axl").toString()), json);
+        assertTrue(json.contains("\"strictNull\": false"), json);
         assertTrue(json.contains(project.resolve("core/src/main/java").toString()), json);
         assertTrue(json.contains("axl-runtime"), json);
         assertTrue(!json.contains("generated"), json);

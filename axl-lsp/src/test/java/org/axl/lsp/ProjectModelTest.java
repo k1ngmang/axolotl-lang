@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,7 +16,7 @@ class ProjectModelTest {
         Path module = Files.createDirectories(root.resolve("core"));
         Files.createDirectories(module.resolve("build/axl"));
         Files.writeString(module.resolve("build/axl/axl.json"), """
-                {"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["/libs/a.jar"]}
+                {"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["/libs/a.jar"], "strictNull": true}
                 """);
         Files.createDirectories(module.resolve("src/main/axl/core"));
 
@@ -25,6 +26,7 @@ class ProjectModelTest {
         assertEquals(List.of(module.resolve("src/main/axl")), found.axlRoots());
         assertEquals(List.of(module.resolve("src/main/java")), found.javaRoots());
         assertEquals(List.of(Path.of("/libs/a.jar")), found.classpath());
+        assertTrue(found.strictNull());
     }
 
     @Test

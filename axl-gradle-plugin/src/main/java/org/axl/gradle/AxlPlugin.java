@@ -76,6 +76,7 @@ public class AxlPlugin implements Plugin<Project> {
                         .toList());
                 task.getClasspath().from(sourceSet.getCompileClasspath());
             }
+            task.getStrictNull().set(axl.getStrictNull());
             task.getOutputFile().set(project.getLayout().getBuildDirectory().file("axl/axl.json"));
         });
     }
