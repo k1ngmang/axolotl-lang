@@ -39,7 +39,8 @@ final class Workspace {
     private final Map<String, Document> open = new HashMap<>();
     // The last version that parsed, used while the user is typing an incomplete line.
     private final Map<String, Document> lastParsed = new HashMap<>();
-    private final Map<String, List<AxlDiagnostic>> compileErrors = new HashMap<>();
+    // By module, then by document URI; replaced as a whole by each compilation of a module.
+    private final Map<Module, Map<String, List<AxlDiagnostic>>> compileErrors = new HashMap<>();
     private final Map<Module, JavaModel> javaModels = new HashMap<>();
     private ModuleCompiler compiler;
 
@@ -87,8 +88,7 @@ final class Workspace {
             return;
         }
         List<Document> moduleDocuments = documentsOf(document.module);
-        Map<String, List<AxlDiagnostic>> errors = compiler.compile(document.module, moduleDocuments);
-        compileErrors.putAll(errors);
+        compileErrors.put(document.module, compiler.compile(document.module, moduleDocuments));
         for (Document d : moduleDocuments) {
             if (open.containsKey(d.uri)) {
                 publish(open.get(d.uri));
@@ -182,7 +182,7 @@ final class Workspace {
         }
         List<AxlDiagnostic> all = new ArrayList<>(document.diagnostics());
         if (!document.translation.hasErrors()) {
-            all.addAll(compileErrors.getOrDefault(document.uri, List.of()));
+            all.addAll(compileErrors.getOrDefault(document.module, Map.of()).getOrDefault(document.uri, List.of()));
         }
         List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).toList();
         client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));

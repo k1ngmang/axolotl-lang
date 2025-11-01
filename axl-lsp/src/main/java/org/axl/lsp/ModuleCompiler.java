@@ -39,7 +39,7 @@ final class ModuleCompiler {
             result.put(document.uri, new ArrayList<>());
             GeneratedUnit unit = document.translation.unit();
             if (unit == null) {
-                return result;
+                continue;
             }
             generated.add(new GeneratedSource(unit, unit.writeTo(generatedDir), document.uri, document.lines));
         }

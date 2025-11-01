@@ -8,11 +8,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.Location;
+import org.eclipse.lsp4j.MessageActionItem;
+import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.ShowMessageRequestParams;
+import org.eclipse.lsp4j.services.LanguageClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -24,10 +32,12 @@ class WorkspaceTest {
     Path project;
 
     private final Workspace workspace = new Workspace();
+    private final Map<String, List<Diagnostic>> published = new HashMap<>();
 
     @BeforeEach
     void start() throws Exception {
         Files.createDirectories(project.resolve("src/main/axl/app"));
+        workspace.connect(new Client());
         workspace.open(List.of(project));
     }
 
@@ -102,6 +112,20 @@ class WorkspaceTest {
         assertTrue(hover(uri, 11, 46).contains("it: Integer"), hover(uri, 11, 46));
     }
 
+    @Test
+    void compilesTheModuleAroundAFileThatDoesNotTranslate() throws Exception {
+        Path broken = project.resolve("src/main/axl/app/Broken.axl");
+        Files.writeString(broken, "package app\n\nfn broken( {\n");
+        String text = "package app\n\nfn main() {\n    val n: Int = \"not an int\"\n    println(n)\n}\n";
+        String uri = open("Main.axl", text);
+        workspace.saved(uri);
+        assertEquals(List.of("AXL100"), published.get(uri).stream().map(d -> d.getCode().getLeft()).toList());
+
+        workspace.update(uri, text.replace("\"not an int\"", "1"));
+        workspace.saved(uri);
+        assertEquals(List.of(), published.get(uri));
+    }
+
     private String hover(String uri, int line, int character) {
         return new Hovers(workspace).hover(uri, line, character).getContents().getRight().getValue();
     }
@@ -118,5 +142,29 @@ class WorkspaceTest {
             result.add(line + ":" + start + ":" + data.get(i + 2) + ":" + SemanticTokensProvider.TYPES.get(data.get(i + 3)));
         }
         return result;
+    }
+
+    private final class Client implements LanguageClient {
+        @Override
+        public void publishDiagnostics(PublishDiagnosticsParams params) {
+            published.put(params.getUri(), params.getDiagnostics());
+        }
+
+        @Override
+        public void telemetryEvent(Object object) {
+        }
+
+        @Override
+        public void showMessage(MessageParams params) {
+        }
+
+        @Override
+        public CompletableFuture<MessageActionItem> showMessageRequest(ShowMessageRequestParams params) {
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public void logMessage(MessageParams params) {
+        }
     }
 }
