@@ -80,3 +80,14 @@ Known limitations: generated locals are labeled, not hidden, in the debugger; th
 - Pipes `xs |> filter { } |> map { }` expand to Java streams; `|> mapResult { }` expands to a loop that returns the first `Err`.
 - Conformance cases with side effects check the evaluation order; a JDI test stops on a line with a lifted `try`.
 - The language server, the IntelliJ plugin and the TextMate grammar know `|>`; the language is described in `docs/language.md`.
+
+## Stage 9: 0.1.0
+
+- `a!!` asserts that a value is not null.
+- Top-level `val` types are inferred, by local rules or by javac over a draft translation of the module.
+- Strict null mode (`strictNull` in Gradle and Maven, `--strict-null` on the command line, `"strictNull"` in `axl.json`): values from Java code without nullness annotations are nullable until checked (AXL104).
+- Common javac errors are reworded with Axolotl names and types; NullAway's nullable argument error is AXL102.
+- Documentation site built with MkDocs: getting started, installation, migrating from Java, leaving Axolotl, FAQ; checked in CI with `mkdocs build --strict`.
+- Version 0.1.0 everywhere. Nothing is published to a public repository yet; `./gradlew publishToMavenLocal` installs the artifacts locally.
+
+Known limitations: no `for` loops, arrays, casts or classes; strict null mode narrows locals only, like NullAway.
