@@ -1,0 +1,8 @@
+package app
+
+val n = zz.Cfg.count + 1
+val m = n + zz.Cfg.names.size()
+
+fn main() {
+    println(m)
+}

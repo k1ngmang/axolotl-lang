@@ -1,6 +1,7 @@
 package org.axl.javac;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,16 +41,34 @@ public final class Translation {
         List<Path> sourcepath = new ArrayList<>(List.of(outputDir));
         sourcepath.addAll(javaRoots);
         Options typed = options.withJavaTypes(new JavacTypes(classpath, sourcepath));
+        // A value may depend on a value of another draft, so repeat while types keep being found.
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < inputs.size(); i++) {
+                Translator.Result previous = results.get(i);
+                if (!previous.draft()) {
+                    continue;
+                }
+                Input input = inputs.get(i);
+                Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(),
+                        typed.asDraft());
+                if (!result.unit().javaSource().equals(previous.unit().javaSource())) {
+                    result.unit().writeTo(outputDir);
+                    changed = true;
+                }
+                results.set(i, result);
+            }
+        }
         for (int i = 0; i < inputs.size(); i++) {
-            if (!results.get(i).draft()) {
-                continue;
+            Translator.Result draft = results.get(i);
+            if (draft.draft()) {
+                Input input = inputs.get(i);
+                results.set(i, Translator.translate(input.sourcePath(), input.displayPath(), input.text(), typed));
+                // The draft must not be compiled as if the translation had succeeded.
+                Files.deleteIfExists(outputDir.resolve(draft.unit().javaPath()));
+                Files.deleteIfExists(outputDir.resolve(draft.unit().mapPath()));
             }
-            Input input = inputs.get(i);
-            Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(), typed);
-            if (result.unit() != null) {
-                result.unit().writeTo(outputDir);
-            }
-            results.set(i, result);
         }
         return results;
     }

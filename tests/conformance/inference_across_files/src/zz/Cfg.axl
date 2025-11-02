@@ -1,0 +1,6 @@
+package zz
+
+import java.util.List
+
+val names = List.of("a", "b")
+val count = names.size()
