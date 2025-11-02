@@ -31,7 +31,8 @@ function activate(context) {
   client.start();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand('axl.showGeneratedJava', async () => {
+    // The server's own `axl.showGeneratedJava` is registered by the client; this one shows the result.
+    vscode.commands.registerCommand('axl.openGeneratedJava', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.document.languageId !== 'axl') {
         return;

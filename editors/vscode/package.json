@@ -33,7 +33,7 @@
     ],
     "commands": [
       {
-        "command": "axl.showGeneratedJava",
+        "command": "axl.openGeneratedJava",
         "title": "Show Generated Java",
         "category": "Axolotl"
       }
@@ -41,7 +41,7 @@
     "menus": {
       "editor/title": [
         {
-          "command": "axl.showGeneratedJava",
+          "command": "axl.openGeneratedJava",
           "when": "editorLangId == axl"
         }
       ]
