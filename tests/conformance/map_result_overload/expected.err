@@ -1,0 +1,1 @@
+AXL009 app/Main.axl:9:20: error: `mapResult` needs the element type: call a function of this file that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`
