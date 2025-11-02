@@ -1,5 +1,7 @@
 package org.axl.intellij;
 
+import com.intellij.openapi.editor.ex.EditorEx;
+import com.intellij.openapi.editor.highlighter.HighlighterIterator;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -17,6 +19,29 @@ public class AxlLexerTest extends BasePlatformTestCase {
         assertTrue(tokens.toString(), tokens.contains("IDENTIFIER[54,55)"));
         PsiFile file = myFixture.configureByText("Emoji.axl", text);
         assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+    }
+
+    public void testHighlightingFollowsATypedString() {
+        myFixture.configureByText("S.axl", "package app\n\nfn f() {\n    val s = <caret>\n}\n");
+        myFixture.type("\"hello big world\"");
+        assertHighlightingMatchesFreshLexing();
+    }
+
+    public void testHighlightingFollowsATypedBlockComment() {
+        myFixture.configureByText("C.axl", "package app\n\n<caret>fn f() {\n    val s = 1\n}\n");
+        myFixture.type("/* ");
+        myFixture.getEditor().getCaretModel().moveToOffset(myFixture.getEditor().getDocument().getText().indexOf("}\n"));
+        myFixture.type("*/");
+        assertHighlightingMatchesFreshLexing();
+    }
+
+    private void assertHighlightingMatchesFreshLexing() {
+        EditorEx editor = (EditorEx) myFixture.getEditor();
+        List<String> incremental = new ArrayList<>();
+        for (HighlighterIterator it = editor.getHighlighter().createIterator(0); !it.atEnd(); it.advance()) {
+            incremental.add(it.getTokenType() + "[" + it.getStart() + "," + it.getEnd() + ")");
+        }
+        assertEquals(lex(editor.getDocument().getText()), incremental);
     }
 
     private static List<String> lex(String text) {
