@@ -1,0 +1,24 @@
+package app
+
+import java.util.List
+
+fn check(s: String) -> Result<String, String> {
+    println("check " + s)
+    return Ok(s)
+}
+
+fn act() -> Result<Boolean, String> {
+    println("act")
+    return Ok(true)
+}
+
+fn validate(xs: List<String>, go: Boolean) -> Result<Int, String> {
+    xs |> mapResult { check(it) }
+    go && try act()
+    (try act())
+    return Ok(xs.size())
+}
+
+fn main() {
+    println(validate(List.of("a"), true))
+}

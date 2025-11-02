@@ -212,7 +212,7 @@ public final class Generator {
                     Chains.Chain chain = Chains.flatten(e);
                     withCopies(line, Captures.inStatementChain(chain, analysis), () -> safeChainStatement(line, chain));
                 } else if (Lifts.needed(e)) {
-                    withCopies(line, e, () -> em.line(line, lifted(line, e).code() + ";"));
+                    withCopies(line, e, () -> liftedStatement(line, lifted(line, e)));
                 } else {
                     withCopies(line, e, () -> em.line(line, expr(e) + ";"));
                 }
@@ -286,6 +286,32 @@ public final class Generator {
         em.indent();
         block.statements().forEach(this::statement);
         em.dedent();
+    }
+
+    /** What is left of a lifted statement may not be a Java statement: `$p1`, `$t1 + 1`, `(f())`. */
+    private void liftedStatement(int line, Lifted rest) {
+        String code = rest.code();
+        while (code.startsWith("(") && code.endsWith(")") && closingParen(code) == code.length() - 1) {
+            code = code.substring(1, code.length() - 1);
+        }
+        if (code.matches("[\\w$]+")) {
+            return;
+        }
+        boolean call = code.endsWith(")") && !code.startsWith("(");
+        em.line(line, call ? code + ";" : "final var $t" + ++tempCount + " = " + code + ";");
+    }
+
+    private static int closingParen(String code) {
+        int depth = 0;
+        for (int i = 0; i < code.length(); i++) {
+            char c = code.charAt(i);
+            if (c == '(') {
+                depth++;
+            } else if (c == ')' && --depth == 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** The value of a statement; with inlineElvis a root `?:` becomes a temporary and a conditional. */
