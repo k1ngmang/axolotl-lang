@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn it() -> String = "top"
+
+fn main() {
+    val xs = List.of(1, 2)
+    println(xs |> map { it * 2 })
+    val xss = List.of(List.of(1, 2), List.of(3))
+    println(xss |> map { row -> row |> map { it + 1 } })
+    println(it())
+}

@@ -1,0 +1,1 @@
+AXL004 app/Main.axl:11:36: error: this lambda's `it` would shadow the `it` declared at line 11; name the parameter: `{ x -> ... }`

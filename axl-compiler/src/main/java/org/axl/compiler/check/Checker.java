@@ -387,13 +387,28 @@ public final class Checker {
         for (Expr.Param p : lambda.params()) {
             declare(p.pos(), p.name(), Kind.PARAM);
         }
-        if (!lambda.arrow() && scope.lookup("it") == null && (takesElement || mentionsIt(lambda.body()))) {
+        Symbol outerIt = localLookup("it");
+        if (!lambda.arrow() && takesElement && outerIt != null) {
+            error(lambda.pos(), ErrorCode.SHADOWING, "this lambda's `it` would shadow the `it` declared at line "
+                    + outerIt.pos().line() + "; name the parameter: `{ x -> ... }`");
+        } else if (!lambda.arrow() && outerIt == null && (takesElement || mentionsIt(lambda.body()))) {
             implicitIt.add(lambda);
             scope.names.put("it", new Symbol(Kind.PARAM, lambda.pos()));
         }
         statements(lambda.body());
         lambdaDepth--;
         scope = scope.parent;
+    }
+
+    /** A local, parameter or lambda parameter; file-level names do not count. */
+    private Symbol localLookup(String name) {
+        for (Scope s = scope; s != null && !s.fileScope; s = s.parent) {
+            Symbol symbol = s.names.get(name);
+            if (symbol != null) {
+                return symbol;
+            }
+        }
+        return null;
     }
 
     private void declare(Pos pos, String name, Kind kind) {
