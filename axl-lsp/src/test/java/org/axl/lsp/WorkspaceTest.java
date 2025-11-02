@@ -134,6 +134,31 @@ class WorkspaceTest {
         assertEquals(List.of(), published.get(uri));
     }
 
+    @Test
+    void classifiesQualifiedNamesAndLambdaParameters() throws Exception {
+        String uri = open("Main.axl", """
+                package app.util
+                import java.util.List
+                import fn util.Parse.parse
+
+                fn f(xs: java.util.List<Int>) -> Int {
+                    val g = { x: Int -> x * 2 }
+                    return java.util.List.of(1).size()
+                }
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("0:8:3:namespace", "0:12:4:namespace", "1:7:4:namespace", "1:17:4:type",
+                "2:10:4:namespace", "2:15:5:namespace", "2:21:5:function", "4:9:4:namespace", "4:19:4:type",
+                "4:33:3:type", "5:24:1:variable", "6:21:4:type", "6:26:2:function")), tokens.toString());
+    }
+
+    @Test
+    void splitsBlockCommentsAtWindowsLineEnds() throws Exception {
+        String uri = open("Main.axl", "package app\r\n/* a\r\n b */\r\nfn main() {\r\n}\r\n");
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("1:0:4:comment", "2:0:5:comment")), tokens.toString());
+    }
+
     private String hover(String uri, int line, int character) {
         return new Hovers(workspace).hover(uri, line, character).getContents().getRight().getValue();
     }

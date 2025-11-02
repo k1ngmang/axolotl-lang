@@ -12,7 +12,7 @@ import org.eclipse.lsp4j.SemanticTokensLegend;
 final class SemanticTokensProvider {
 
     static final List<String> TYPES = List.of("keyword", "function", "variable", "parameter", "type", "string",
-            "number", "comment", "operator", "property");
+            "number", "comment", "operator", "property", "namespace");
     static final SemanticTokensLegend LEGEND = new SemanticTokensLegend(TYPES, List.of());
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
@@ -36,7 +36,7 @@ final class SemanticTokensProvider {
                 continue;
             }
             // Multi-line block comments are sent one line at a time.
-            String[] parts = token.getText().split("\n", -1);
+            String[] parts = token.getText().split("\r?\n", -1);
             for (int p = 0; p < parts.length; p++) {
                 int line = token.getLine() - 1 + p;
                 int start = p == 0 ? document.utf16Column(line, token.getCharPositionInLine()) : 0;
@@ -76,21 +76,47 @@ final class SemanticTokensProvider {
     private static String name(List<? extends Token> tokens, int index) {
         Token next = neighbour(tokens, index, 1);
         Token previous = neighbour(tokens, index, -1);
+        boolean upperCase = Character.isUpperCase(tokens.get(index).getText().charAt(0));
+        String qualified = inDeclaredName(tokens, index, next);
+        if (qualified != null) {
+            return qualified;
+        }
         if (next != null && next.getType() == AxolotlLexer.LPAREN) {
-            return Character.isUpperCase(tokens.get(index).getText().charAt(0)) ? "type" : "function";
+            return upperCase ? "type" : "function";
         }
         if (previous != null && (previous.getType() == AxolotlLexer.FN)) {
             return "function";
         }
         if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
-            return "property";
+            return upperCase && next != null && next.getType() == AxolotlLexer.DOT ? "type" : "property";
         }
-        if (previous != null && (previous.getType() == AxolotlLexer.COLON || previous.getType() == AxolotlLexer.ARROW
-                && next != null && next.getType() != AxolotlLexer.ASSIGN)
-                || Character.isUpperCase(tokens.get(index).getText().charAt(0))) {
-            return "type";
+        return upperCase ? "type" : "variable";
+    }
+
+    /**
+     * The kind of a segment of the qualified name in a package or import declaration or a written
+     * type, where the segments before the last are packages; null for other names.
+     */
+    private static String inDeclaredName(List<? extends Token> tokens, int index, Token next) {
+        int before = previousIndex(tokens, index);
+        while (type(tokens, before) == AxolotlLexer.DOT && type(tokens, previousIndex(tokens, before)) == AxolotlLexer.IDENTIFIER) {
+            before = previousIndex(tokens, previousIndex(tokens, before));
         }
-        return "variable";
+        int keyword = type(tokens, before);
+        int beforeKeyword = type(tokens, previousIndex(tokens, before));
+        boolean importMember = (keyword == AxolotlLexer.FN || keyword == AxolotlLexer.VAL) && beforeKeyword == AxolotlLexer.IMPORT;
+        boolean written = keyword == AxolotlLexer.COLON || keyword == AxolotlLexer.ARROW && beforeKeyword == AxolotlLexer.RPAREN;
+        if (!importMember && !written && keyword != AxolotlLexer.IMPORT && keyword != AxolotlLexer.PACKAGE) {
+            return null;
+        }
+        boolean last = next == null || next.getType() != AxolotlLexer.DOT;
+        if (!last || keyword == AxolotlLexer.PACKAGE) {
+            return "namespace";
+        }
+        if (importMember) {
+            return keyword == AxolotlLexer.FN ? "function" : "variable";
+        }
+        return "type";
     }
 
     private static Token neighbour(List<? extends Token> tokens, int index, int step) {
@@ -100,5 +126,19 @@ final class SemanticTokensProvider {
             }
         }
         return null;
+    }
+
+    /** The index of the default-channel token before an index, or -1. */
+    private static int previousIndex(List<? extends Token> tokens, int index) {
+        for (int i = index - 1; i >= 0; i--) {
+            if (tokens.get(i).getChannel() == Token.DEFAULT_CHANNEL) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static int type(List<? extends Token> tokens, int index) {
+        return index < 0 ? Token.INVALID_TYPE : tokens.get(index).getType();
     }
 }
