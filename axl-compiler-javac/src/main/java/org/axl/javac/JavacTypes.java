@@ -166,7 +166,7 @@ public final class JavacTypes implements JavaTypes {
             return null;
         }
         String text = type.toString();
-        if (text.contains("capture#") || text.contains("<any>")) {
+        if (text.contains("capture#") || text.contains("<any>") || text.contains("&")) {
             return null;
         }
         return text.replace("@org.jspecify.annotations.", "@").replaceAll("\\bjava\\.lang\\.(?=[@A-Z])", "")

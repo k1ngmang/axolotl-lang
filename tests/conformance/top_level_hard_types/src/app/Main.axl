@@ -1,0 +1,6 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+val mixed = List.of(1, "a")

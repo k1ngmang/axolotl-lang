@@ -66,7 +66,7 @@ public final class TypeInference {
             case Expr.Elvis e -> elvis(e);
             case Expr.Name n -> topLevelValue(n.name());
             case Expr.Call c when c.target() == null -> call(c);
-            case Expr.GenericNew g -> new TypeRef(g.pos(), g.type(), g.typeArgs(), false);
+            case Expr.GenericNew g when !g.typeArgs().isEmpty() -> new TypeRef(g.pos(), g.type(), g.typeArgs(), false);
             case Expr.NotNull n -> nonNull(of(n.target()));
             default -> null;
         };

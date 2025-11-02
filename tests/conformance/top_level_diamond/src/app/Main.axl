@@ -1,0 +1,10 @@
+package app
+
+import java.util.ArrayList
+
+val xs = ArrayList<>()
+
+fn main() {
+    xs.add("a")
+    println(xs)
+}
