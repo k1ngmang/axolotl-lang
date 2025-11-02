@@ -10,7 +10,7 @@ import org.jspecify.annotations.*;
     }
     public static String name(@Nullable String s) {
         final var $t1 = Nulls.map(s, $n1 -> $n1.trim());
-        return $t1 != null ? $t1 : fallback();
+        return java.util.Objects.nonNull($t1) ? $t1 : fallback();
     }
     public static void main(String[] args) {
         System.out.println(name(" axl "));
@@ -18,7 +18,7 @@ import org.jspecify.annotations.*;
         var count = 1;
         final @Nullable Integer boxed = null;
         final var $t1 = boxed;
-        final int n = $t1 != null ? $t1 : count;
+        final int n = java.util.Objects.nonNull($t1) ? $t1 : count;
         count = n + 1;
         System.out.println(count);
     }

@@ -1,0 +1,16 @@
+package app
+
+fn maybeLong() -> Long? = null
+fn maybeDouble() -> Double? = null
+fn maybeInt() -> Int? = 7
+
+fn main() {
+    val a: Long = maybeLong() ?: 0
+    val b: Double = maybeDouble() ?: -1
+    val c = maybeInt() ?: 0
+    val d: Long = maybeLong() ?: 5L
+    println(a)
+    println(b)
+    println(c)
+    println(d)
+}

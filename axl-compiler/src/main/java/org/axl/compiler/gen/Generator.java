@@ -298,7 +298,20 @@ public final class Generator {
         }
         String temp = "$t" + ++tempCount;
         em.line(line, "final var " + temp + " = " + expr(elvis.left()) + ";");
-        return temp + " != null ? " + temp + " : " + expr(elvis.right());
+        // Objects.nonNull also compiles when the left side is a primitive.
+        return "java.util.Objects.nonNull(" + temp + ") ? " + temp + " : " + expr(elvis.right());
+    }
+
+    /**
+     * A number on the right is passed as is, so that Java widens it to the type on the left. Not after
+     * `?.`, whose Nulls.map result type Java could then not infer.
+     */
+    private String elvis(Expr.Elvis elvis, String left) {
+        Expr right = elvis.right();
+        boolean number = !Chains.hasSafeStep(elvis.left())
+                && (right instanceof Expr.Literal l && Character.isDigit(l.text().charAt(0))
+                || right instanceof Expr.Unary u && u.op().equals("-") && u.operand() instanceof Expr.Literal);
+        return number ? "Nulls.or(" + left + ", " + expr(right) + ")" : "Nulls.or(" + left + ", () -> " + expr(right, true) + ")";
     }
 
     /** Copies `var`s that lambdas of this statement capture into fresh finals, then emits it. */
@@ -374,7 +387,7 @@ public final class Generator {
             case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + expr(n.target(), inLambda) + ")";
             case Expr.Unary u -> unary(u.op(), expr(u.operand(), inLambda));
             case Expr.Binary b -> expr(b.left(), inLambda) + " " + b.op() + " " + expr(b.right(), inLambda);
-            case Expr.Elvis e -> "Nulls.or(" + expr(e.left(), inLambda) + ", () -> " + expr(e.right(), true) + ")";
+            case Expr.Elvis e -> elvis(e, expr(e.left(), inLambda));
             // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
             case Expr.Paren p when becomesCall(p.inner()) -> expr(p.inner(), inLambda);
             case Expr.Paren p -> "(" + expr(p.inner(), inLambda) + ")";
@@ -483,7 +496,7 @@ public final class Generator {
                 yield new Lifted(ops.get(0).code() + " " + b.op() + " " + ops.get(1).code(), false);
             }
             case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el);
-            case Expr.Elvis el -> new Lifted("Nulls.or(" + lifted(line, el.left()).code() + ", () -> " + expr(el.right(), true) + ")", false);
+            case Expr.Elvis el -> new Lifted(elvis(el, lifted(line, el.left()).code()), false);
             case Expr.Unary u -> new Lifted(unary(u.op(), lifted(line, u.operand()).code()), false);
             case Expr.Paren p -> {
                 Lifted inner = lifted(line, p.inner());

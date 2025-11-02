@@ -16,7 +16,7 @@ import org.jspecify.annotations.*;
         final @Nullable String c = null;
         System.out.println(Nulls.or(c, () -> fallback()));
         final @Nullable Integer d = null;
-        final int e = Nulls.or(d, () -> 7);
+        final int e = Nulls.or(d, 7);
         System.out.println(e + 1);
     }
 }

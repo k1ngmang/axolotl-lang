@@ -8,6 +8,10 @@ import org.jspecify.annotations.Nullable;
     // with a nullable `b` would pass as non-null; a null-marked interface makes it check.
     @FunctionalInterface public interface Fallback<T extends @Nullable Object> { T get(); }
     public static <T extends @Nullable Object> T or(@Nullable T a, Fallback<T> b) { return a != null ? a : b.get(); }
+    // `a ?: 0` with a Long or Double `a`: a lambda returning the int 0 would not fit their wrapper.
+    public static int or(@Nullable Integer a, int b) { return a != null ? a : b; }
+    public static long or(@Nullable Long a, long b) { return a != null ? a : b; }
+    public static double or(@Nullable Double a, double b) { return a != null ? a : b; }
     // Stream.map takes a JDK Function, whose result NullAway does not check either: a pipe's map
     // stage must not put nulls into a List<T>.
     @FunctionalInterface public interface NonNullFunction<T extends @Nullable Object, R> { R apply(T value); }

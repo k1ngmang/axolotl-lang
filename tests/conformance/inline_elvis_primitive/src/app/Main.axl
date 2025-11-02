@@ -1,0 +1,10 @@
+package app
+
+fn main() {
+    val s = "abc"
+    val n = s.length() ?: 0
+    val maybe: String? = null
+    val m = maybe ?: "none"
+    println(n)
+    println(m)
+}
