@@ -1,12 +1,13 @@
 package org.axl.intellij;
 
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import java.util.List;
 
-/** The PSI parser accepts what the compiler's grammar accepts, and nothing else. */
+/** Syntax errors in IntelliJ are the ones the compiler reports. */
 public class AxlParserTest extends BasePlatformTestCase {
 
     public void testRejectsTrailingCommas() {
@@ -30,6 +31,15 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "fn f() = { a, b -> a }\n", "fn f(x: Boolean) = !!x\n", "fn f() {\n    a.b = 1\n    c = 2\n}\n")) {
             PsiFile file = myFixture.configureByText("Ok.axl", "package app\n\n" + body);
             assertNull(body, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        }
+    }
+
+    public void testShowsTheCompilersSyntaxErrorsForWhatThePsiParserAccepts() {
+        for (String body : List.of("fn f() {\n    private val a = 1\n    println(a)\n}\n",
+                "fn g() -> Int = 1\n\nfn f() {\n    g() = 2\n}\n", "fn f(s: String?) {\n    s?.length = 2\n}\n",
+                "fn f() {\n    (println)(1)\n}\n")) {
+            myFixture.configureByText("Rejected.axl", "package app\n\n" + body);
+            assertTrue(body, myFixture.doHighlighting().stream().anyMatch(h -> h.getSeverity() == HighlightSeverity.ERROR));
         }
     }
 

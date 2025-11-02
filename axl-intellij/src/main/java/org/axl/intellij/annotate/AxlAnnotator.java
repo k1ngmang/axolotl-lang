@@ -22,8 +22,9 @@ import org.axl.intellij.psi.AxlNamedElement;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Runs the translator's checks (shadowing, `try` placement, `$` in names, ...) on the file.
- * Syntax errors come from the PSI parser, so the translator's own syntax errors are skipped.
+ * Runs the translator's checks (shadowing, `try` placement, `$` in names, ...) on the file. The
+ * translator's syntax errors are shown only when the PSI parser found none: it accepts a few
+ * constructs that the translator rejects, such as `g() = 2`.
  */
 public final class AxlAnnotator implements Annotator {
 
@@ -42,8 +43,9 @@ public final class AxlAnnotator implements Annotator {
         }
         Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText(),
                 new Options(false).withJavaTypes(new PsiJavaTypes(file)));
+        boolean psiErrors = PsiTreeUtil.hasErrorElements(file);
         for (AxlDiagnostic d : result.diagnostics()) {
-            if (d.code() == ErrorCode.SYNTAX || d.line() < 1 || d.line() > document.getLineCount()) {
+            if (d.code() == ErrorCode.SYNTAX && psiErrors || d.line() < 1 || d.line() > document.getLineCount()) {
                 continue;
             }
             int offset = Math.min(document.getLineStartOffset(d.line() - 1) + d.column() - 1, document.getTextLength());
