@@ -3,6 +3,7 @@ package org.axl.intellij.parser;
 import static org.axl.compiler.parse.AxolotlLexer.*;
 
 import com.intellij.lang.ASTNode;
+import com.intellij.lang.LighterASTNode;
 import com.intellij.lang.PsiBuilder;
 import com.intellij.lang.PsiParser;
 import com.intellij.psi.TokenType;
@@ -119,19 +120,25 @@ public final class AxlParser implements PsiParser {
             m.done(AxlElementTypes.PARAMETER_LIST);
             return;
         }
-        while (!at(RPAREN) && !b.eof()) {
-            PsiBuilder.Marker param = b.mark();
-            expect(IDENTIFIER, "parameter name expected");
-            if (expect(COLON, "`:` expected")) {
-                type();
-            }
-            param.done(AxlElementTypes.PARAMETER);
-            if (!consume(COMMA)) {
-                break;
-            }
+        if (!at(RPAREN)) {
+            do {
+                parameter();
+            } while (consume(COMMA));
         }
         expect(RPAREN, "`)` expected");
         m.done(AxlElementTypes.PARAMETER_LIST);
+    }
+
+    private void parameter() {
+        PsiBuilder.Marker param = b.mark();
+        if (!expect(IDENTIFIER, "parameter name expected")) {
+            param.drop();
+            return;
+        }
+        if (expect(COLON, "`:` expected")) {
+            type();
+        }
+        param.done(AxlElementTypes.PARAMETER);
     }
 
     private void type() {
@@ -153,7 +160,9 @@ public final class AxlParser implements PsiParser {
 
     private void variable() {
         PsiBuilder.Marker m = b.mark();
-        consume(PRIVATE);
+        if (consume(PRIVATE) && !at(VAL)) {
+            b.error("`val` expected");
+        }
         b.advanceLexer();
         expect(IDENTIFIER, "name expected");
         if (consume(COLON)) {
@@ -199,19 +208,36 @@ public final class AxlParser implements PsiParser {
             b.advanceLexer();
         } else if (startsExpression()) {
             PsiBuilder.Marker m = b.mark();
+            PsiBuilder.Marker target = b.mark();
             expression();
             if (AxlTokenTypes.ASSIGN_OPERATORS.contains(b.getTokenType())) {
+                if (isPostfix(b.getLatestDoneMarker())) {
+                    target.drop();
+                } else {
+                    target.error("only a name, a member or a call result can be assigned");
+                }
                 b.advanceLexer();
                 expression();
                 consume(SEMI);
                 m.done(AxlElementTypes.ASSIGNMENT);
             } else {
+                target.drop();
                 consume(SEMI);
                 m.done(AxlElementTypes.EXPRESSION_STATEMENT);
             }
         } else {
             skip("statement expected");
         }
+    }
+
+    /** The grammar assigns only to a primary expression with postfix operators. */
+    private static boolean isPostfix(LighterASTNode expression) {
+        if (expression == null) {
+            return false;
+        }
+        IElementType type = expression.getTokenType();
+        return type != AxlElementTypes.BINARY && type != AxlElementTypes.UNARY && type != AxlElementTypes.ELVIS
+                && type != AxlElementTypes.PIPE && type != AxlElementTypes.TRY && type != AxlElementTypes.ATTEMPT;
     }
 
     private void ifStatement() {
@@ -401,15 +427,14 @@ public final class AxlParser implements PsiParser {
         b.advanceLexer();
         PsiBuilder.Marker args = b.mark();
         b.advanceLexer();
-        while (!at(GT) && !b.eof()) {
-            if (!at(IDENTIFIER)) {
-                m.rollbackTo();
-                return null;
-            }
-            type();
-            if (!consume(COMMA)) {
-                break;
-            }
+        if (!at(GT)) {
+            do {
+                if (!at(IDENTIFIER)) {
+                    m.rollbackTo();
+                    return null;
+                }
+                type();
+            } while (consume(COMMA));
         }
         if (!consume(GT) || !at(LPAREN)) {
             m.rollbackTo();
@@ -436,6 +461,9 @@ public final class AxlParser implements PsiParser {
             if (!consume(COMMA)) {
                 break;
             }
+            if (!at(IDENTIFIER)) {
+                b.error("parameter name expected");
+            }
         }
         if (at(ARROW)) {
             b.advanceLexer();
@@ -457,11 +485,10 @@ public final class AxlParser implements PsiParser {
     private void arguments() {
         PsiBuilder.Marker m = b.mark();
         b.advanceLexer();
-        while (!at(RPAREN) && !b.eof() && startsExpression()) {
-            expression();
-            if (!consume(COMMA)) {
-                break;
-            }
+        if (startsExpression()) {
+            do {
+                expression();
+            } while (consume(COMMA));
         }
         expect(RPAREN, "`)` expected");
         m.done(AxlElementTypes.ARGUMENTS);
