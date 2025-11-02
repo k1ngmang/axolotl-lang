@@ -13,18 +13,27 @@ import org.axl.compiler.parse.AxolotlLexer;
 public final class AxlLexer extends LexerBase {
 
     private CharSequence buffer;
+    private String text;
     private int base;
     private int end;
     private AxolotlLexer lexer;
     private Token token;
+    private int tokenStart;
+    private int tokenEnd;
+    // ANTLR indexes code points, IntelliJ UTF-16 units; the last converted index of each.
+    private int codePoint;
+    private int utf16;
 
     @Override
     public void start(CharSequence buffer, int startOffset, int endOffset, int initialState) {
         this.buffer = buffer;
         this.base = startOffset;
         this.end = endOffset;
-        this.lexer = new AxolotlLexer(CharStreams.fromString(buffer.subSequence(startOffset, endOffset).toString()));
+        this.text = buffer.subSequence(startOffset, endOffset).toString();
+        this.lexer = new AxolotlLexer(CharStreams.fromString(text));
         this.lexer.removeErrorListeners();
+        this.codePoint = 0;
+        this.utf16 = 0;
         advance();
     }
 
@@ -40,17 +49,30 @@ public final class AxlLexer extends LexerBase {
 
     @Override
     public int getTokenStart() {
-        return token.getType() == Token.EOF ? end : base + token.getStartIndex();
+        return tokenStart;
     }
 
     @Override
     public int getTokenEnd() {
-        return token.getType() == Token.EOF ? end : base + token.getStopIndex() + 1;
+        return tokenEnd;
     }
 
     @Override
     public void advance() {
         token = lexer.nextToken();
+        if (token.getType() == Token.EOF) {
+            tokenStart = end;
+            tokenEnd = end;
+            return;
+        }
+        tokenStart = base + utf16Offset(token.getStartIndex());
+        tokenEnd = base + utf16Offset(token.getStopIndex() + 1);
+    }
+
+    private int utf16Offset(int codePointIndex) {
+        utf16 = text.offsetByCodePoints(utf16, codePointIndex - codePoint);
+        codePoint = codePointIndex;
+        return utf16;
     }
 
     @Override
