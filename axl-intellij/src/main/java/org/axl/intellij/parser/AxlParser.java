@@ -272,8 +272,8 @@ public final class AxlParser implements PsiParser {
 
     private boolean startsExpression() {
         return at(IDENTIFIER) || at(INT_LITERAL) || at(FLOAT_LITERAL) || at(STRING_LITERAL) || at(CHAR_LITERAL)
-                || at(TRUE) || at(FALSE) || at(NULL) || at(LPAREN) || at(LBRACE) || at(BANG) || at(MINUS)
-                || at(PLUS) || at(TRY) || at(ATTEMPT);
+                || at(TRUE) || at(FALSE) || at(NULL) || at(LPAREN) || at(LBRACE) || at(BANG) || at(BANGBANG)
+                || at(MINUS) || at(PLUS) || at(TRY) || at(ATTEMPT);
     }
 
     private void expression() {
@@ -330,7 +330,7 @@ public final class AxlParser implements PsiParser {
     }
 
     private void prefix() {
-        if (at(BANG) || at(MINUS) || at(PLUS)) {
+        if (at(BANG) || at(BANGBANG) || at(MINUS) || at(PLUS)) {
             PsiBuilder.Marker m = b.mark();
             b.advanceLexer();
             prefix();
