@@ -25,7 +25,7 @@
         {
           "name": "string.quoted.double.axl",
           "begin": "\"",
-          "end": "\"",
+          "end": "\"|$",
           "patterns": [{ "name": "constant.character.escape.axl", "match": "\\\\." }]
         },
         { "name": "string.quoted.single.axl", "match": "'(\\\\.|[^'\\\\])+'" }
@@ -40,21 +40,21 @@
     "declarations": {
       "patterns": [
         {
-          "match": "\\b(fn)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(fn)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.function.axl" },
             "2": { "name": "entity.name.function.axl" }
           }
         },
         {
-          "match": "\\b(val|var)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "match": "\\b(val|var)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.variable.axl" },
             "2": { "name": "variable.other.declaration.axl" }
           }
         },
         {
-          "match": "\\b(package|import)\\s+(fn\\s+|val\\s+)?([A-Za-z_][A-Za-z0-9_.]*)",
+          "match": "\\b(package|import)\\s+(fn\\s+|val\\s+)?([\\p{L}_$][\\p{L}\\p{N}_$.]*)",
           "captures": {
             "1": { "name": "keyword.other.import.axl" },
             "2": { "name": "keyword.other.import.axl" },
@@ -75,17 +75,18 @@
         { "name": "keyword.operator.null-safe.axl", "match": "\\?\\.|\\?:|!!" },
         { "name": "keyword.operator.pipe.axl", "match": "\\|>" },
         { "name": "keyword.operator.arrow.axl", "match": "->" },
+        { "name": "keyword.operator.method-reference.axl", "match": "::" },
         { "name": "keyword.operator.axl", "match": "==|!=|<=|>=|&&|\\|\\||[-+*/%!<>=]=?" }
       ]
     },
     "types": {
       "patterns": [
-        { "name": "entity.name.type.axl", "match": "\\b[A-Z][A-Za-z0-9_]*\\b\\??" }
+        { "name": "entity.name.type.axl", "match": "\\b\\p{Lu}[\\p{L}\\p{N}_$]*(\\?(?![.:]))?" }
       ]
     },
     "calls": {
       "patterns": [
-        { "name": "entity.name.function.call.axl", "match": "\\b[a-z_][A-Za-z0-9_]*(?=\\s*\\()" }
+        { "name": "entity.name.function.call.axl", "match": "\\b[\\p{Ll}_$][\\p{L}\\p{N}_$]*(?=\\s*\\()" }
       ]
     }
   }
