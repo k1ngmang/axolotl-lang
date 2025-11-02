@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    println("abc\
+    def")
+}

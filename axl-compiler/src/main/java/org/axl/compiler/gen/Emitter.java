@@ -48,6 +48,9 @@ final class Emitter {
      * every line keeps its .axl line and its indentation relative to that emitter.
      */
     String embedded() {
+        if (out.isEmpty()) {
+            return "";
+        }
         StringBuilder sb = new StringBuilder();
         String[] lines = out.toString().split("\n");
         for (int i = 0; i < lines.length; i++) {

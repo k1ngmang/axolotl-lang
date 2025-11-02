@@ -1,0 +1,9 @@
+package app
+
+fn main() {
+    val r: Runnable = { -> }
+    val s: Runnable = { -> ; }
+    r.run()
+    s.run()
+    println("done")
+}

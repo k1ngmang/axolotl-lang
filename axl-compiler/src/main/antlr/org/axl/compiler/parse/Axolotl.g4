@@ -241,8 +241,8 @@ INT_LITERAL
     | DIGITS [lL]?
     ;
 
-STRING_LITERAL : '"' (~["\\\r\n] | '\\' .)* '"';
-CHAR_LITERAL   : '\'' (~['\\\r\n] | '\\' .)+ '\'';
+STRING_LITERAL : '"' (~["\\\r\n] | '\\' ~[\r\n])* '"';
+CHAR_LITERAL   : '\'' (~['\\\r\n] | '\\' ~[\r\n])+ '\'';
 
 // `$` is accepted here so the translator can report it with a clear message.
 IDENTIFIER : [\p{L}_$] [\p{L}\p{N}_$]*;
