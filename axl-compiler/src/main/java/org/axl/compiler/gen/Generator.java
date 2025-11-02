@@ -208,11 +208,11 @@ public final class Generator {
                 Expr e = exprStmt.expr();
                 if (e instanceof Expr.Try t) {
                     withCopies(line, t.inner(), () -> unwrapTry(line, t));
-                } else if (Lifts.needed(e)) {
-                    withCopies(line, e, () -> em.line(line, lifted(line, e).code() + ";"));
                 } else if (Chains.hasSafeStep(e)) {
                     Chains.Chain chain = Chains.flatten(e);
                     withCopies(line, Captures.inStatementChain(chain, analysis), () -> safeChainStatement(line, chain));
+                } else if (Lifts.needed(e)) {
+                    withCopies(line, e, () -> em.line(line, lifted(line, e).code() + ";"));
                 } else {
                     withCopies(line, e, () -> em.line(line, expr(e) + ";"));
                 }
@@ -333,10 +333,11 @@ public final class Generator {
 
     /** `a?.b()` as a statement: no lambda, so void methods work too. */
     private void safeChainStatement(int line, Chains.Chain chain) {
-        String current = expr(chain.base());
         List<Chains.Step> steps = chain.steps();
+        int firstSafe = firstSafe(steps);
+        String current = liftedPrefix(line, chain, firstSafe);
         int opened = 0;
-        for (int i = 0; i < steps.size(); i++) {
+        for (int i = firstSafe; i < steps.size(); i++) {
             Chains.Step step = steps.get(i);
             if (step.safe()) {
                 String temp = "$n" + ++nullCount;
@@ -581,11 +582,21 @@ public final class Generator {
 
     /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */
     private Lifted chainLifted(int line, Chains.Chain chain) {
-        List<Chains.Step> steps = chain.steps();
-        int firstSafe = 0;
-        while (firstSafe < steps.size() && !steps.get(firstSafe).safe()) {
-            firstSafe++;
+        int firstSafe = firstSafe(chain.steps());
+        return new Lifted(chainFrom(liftedPrefix(line, chain, firstSafe), chain.steps(), firstSafe, false), false);
+    }
+
+    private static int firstSafe(List<Chains.Step> steps) {
+        int index = 0;
+        while (index < steps.size() && !steps.get(index).safe()) {
+            index++;
         }
+        return index;
+    }
+
+    /** The chain up to its first `?.`, with the statements its `try`s need. */
+    private String liftedPrefix(int line, Chains.Chain chain, int firstSafe) {
+        List<Chains.Step> steps = chain.steps();
         Lifted base = lifted(line, chain.base());
         String current = base.code();
         // fixed: no evaluation can change what `current` denotes; a type or package name is fixed too.
@@ -618,7 +629,7 @@ public final class Generator {
             fixed = false;
             typeOrPackage = false;
         }
-        return new Lifted(chainFrom(current, steps, firstSafe, false), false);
+        return current;
     }
 
     /** `xs |> ... |> mapResult { f(it) } |> ...`: a loop that returns the first `Err` from the function. */

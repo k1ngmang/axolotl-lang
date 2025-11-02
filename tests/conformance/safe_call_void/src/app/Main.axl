@@ -1,0 +1,15 @@
+package app
+
+fn find(s: String) -> StringBuilder? = StringBuilder(s)
+
+fn key() -> Result<String, String> = Ok("key")
+
+fn run() -> Result<Int, String> {
+    find(try key())?.setLength(1)
+    find(try key())?.append("!")?.setLength(2)
+    return Ok(1)
+}
+
+fn main() {
+    println(run())
+}
