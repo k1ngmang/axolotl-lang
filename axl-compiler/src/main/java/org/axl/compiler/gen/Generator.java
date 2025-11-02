@@ -517,14 +517,14 @@ public final class Generator {
     private List<Lifted> operands(int line, List<Expr> exprs) {
         int last = -1;
         for (int i = 0; i < exprs.size(); i++) {
-            if (Lifts.needed(exprs.get(i))) {
+            if (Lifts.hoisted(exprs.get(i))) {
                 last = i;
             }
         }
         List<Lifted> result = new ArrayList<>();
         for (int i = 0; i < exprs.size(); i++) {
             Lifted operand = lifted(line, exprs.get(i));
-            if (i < last && !operand.pure()) {
+            if (i < last && !operand.pure() || Chains.hasSafeStep(exprs.get(i))) {
                 String temp = "$t" + ++tempCount;
                 em.line(line, "final var " + temp + " = " + operand.code() + ";");
                 operand = new Lifted(temp, true);
@@ -603,7 +603,7 @@ public final class Generator {
                 continue;
             }
             String args;
-            if (step.args().stream().anyMatch(Lifts::needed)) {
+            if (step.args().stream().anyMatch(Lifts::hoisted)) {
                 // The receiver is evaluated before the arguments, so before their `try`.
                 if (!fixed) {
                     String temp = "$t" + ++tempCount;

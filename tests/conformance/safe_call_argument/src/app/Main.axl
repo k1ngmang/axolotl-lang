@@ -1,0 +1,18 @@
+package app
+
+fn log(s: String) -> String {
+    println("log " + s)
+    return s
+}
+
+fn main() {
+    val s: String? = " a "
+    val none: String? = null
+    println(s?.trim())
+    println(none?.trim())
+    val sb = StringBuilder()
+    sb.append(s?.trim()).append(none?.length())
+    println(sb)
+    println(log("first") + s?.trim() + log("second"))
+    println(String.valueOf(s?.length()))
+}
