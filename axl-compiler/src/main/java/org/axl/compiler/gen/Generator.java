@@ -676,6 +676,7 @@ public final class Generator {
                 case "distinct" -> sb.append(".distinct()");
                 case "count" -> sb.append(".count()");
                 case "first" -> sb.append(".findFirst().orElse(null)");
+                case "map" -> sb.append(".map(Nulls.nonNull(").append(lambda).append("))");
                 default -> sb.append('.').append(stage.name()).append('(').append(lambda).append(')');
             }
             terminal |= Checker.TERMINAL_STAGES.contains(stage.name());

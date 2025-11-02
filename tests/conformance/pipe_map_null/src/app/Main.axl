@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn maybe(s: String) -> String? = null
+
+fn main() {
+    val xs: List<String> = List.of("a")
+    val ys: List<String> = xs |> map { maybe(it) }
+    val lengths = xs |> map { it.length() } |> map { it + 1 }
+    println(ys)
+    println(lengths)
+}

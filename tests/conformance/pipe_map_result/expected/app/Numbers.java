@@ -16,7 +16,7 @@ import java.util.List;
             if ($t1.isErr()) return Result.propagate($t1);
             $p1.add(Result.<Integer>unwrap($t1));
         }
-        final var numbers = $p1.stream().map(it -> it * 2).toList();
+        final var numbers = $p1.stream().map(Nulls.nonNull(it -> it * 2)).toList();
         return new Ok<>(numbers);
     }
     public static Result<List<Integer>, String> lengths(List<String> texts) {
