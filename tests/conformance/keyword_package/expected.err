@@ -1,0 +1,1 @@
+AXL011 my/new/Main.axl:1:1: error: `new` is a reserved word in Java and cannot be part of a package name

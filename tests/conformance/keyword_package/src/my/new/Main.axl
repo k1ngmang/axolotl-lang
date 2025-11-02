@@ -1,0 +1,5 @@
+package my.new
+
+fn main() {
+    println(1)
+}

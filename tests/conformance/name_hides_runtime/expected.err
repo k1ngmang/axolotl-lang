@@ -1,0 +1,1 @@
+AXL012 app/Nulls.axl:1:1: error: file name `Nulls` would hide the class `Nulls` that the generated code uses; rename the file

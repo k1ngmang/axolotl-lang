@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val java = "j"
+    val axl = 1
+    val args = 2
+    println(java + axl + args)
+}

@@ -42,7 +42,16 @@ public final class Checker {
             "continue", "default", "do", "double", "enum", "extends", "final", "finally", "float", "for",
             "goto", "implements", "instanceof", "int", "interface", "long", "native", "new", "protected",
             "public", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw",
-            "throws", "transient", "void", "volatile", "_");
+            "throws", "transient", "void", "volatile", "_",
+            // Restricted identifiers, and Axolotl keywords that only file names could still hit.
+            "var", "yield", "record", "sealed", "permits", "true", "false", "null",
+            "package", "import", "if", "else", "while", "return", "try");
+
+    // Classes the generated code names: a file of the same name would hide them.
+    private static final Set<String> GENERATED_CODE_CLASSES = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable", "NullMarked");
+
+    // Names that would hide the `java` and `axl` packages the generated code qualifies names with.
+    private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
 
     private enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED }
 
@@ -102,6 +111,15 @@ public final class Checker {
         if (!isJavaIdentifier(file.className()) || RESERVED.contains(file.className())) {
             error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME,
                     "file name `" + file.className() + "` is not a valid class name");
+        } else if (GENERATED_CODE_CLASSES.contains(file.className())) {
+            error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + file.className()
+                    + "` would hide the class `" + file.className() + "` that the generated code uses; rename the file");
+        }
+        for (String segment : file.packageName() == null ? new String[0] : file.packageName().split("\\.")) {
+            if (RESERVED.contains(segment)) {
+                error(file.packagePos(), ErrorCode.RESERVED_NAME, "`" + segment
+                        + "` is a reserved word in Java and cannot be part of a package name");
+            }
         }
         scope = new Scope(null, true);
         for (Import imp : file.imports()) {
@@ -400,6 +418,10 @@ public final class Checker {
         scope = scope.parent;
     }
 
+    private static boolean isMain(Decl.Function fn) {
+        return fn.name().equals("main") && fn.params().isEmpty() && fn.returnType() == null;
+    }
+
     /** A local, parameter or lambda parameter; file-level names do not count. */
     private Symbol localLookup(String name) {
         for (Scope s = scope; s != null && !s.fileScope; s = s.parent) {
@@ -432,6 +454,11 @@ public final class Checker {
     private void checkReserved(Pos pos, String name) {
         if (RESERVED.contains(name)) {
             error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` is a reserved word in Java and cannot be used as a name");
+        } else if (PACKAGE_ROOTS.contains(name)) {
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the `" + name
+                    + "` package that the generated code uses; choose another name");
+        } else if (name.equals("args") && function != null && isMain(function)) {
+            error(pos, ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` method; choose another name");
         }
     }
 
