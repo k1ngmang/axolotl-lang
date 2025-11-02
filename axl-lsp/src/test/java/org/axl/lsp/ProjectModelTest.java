@@ -45,4 +45,11 @@ class ProjectModelTest {
         Module found = ProjectModel.discover(List.of(root)).moduleOf(root.resolve("x/app/util/Main.axl"), "app.util");
         assertEquals(List.of(root.resolve("x")), found.axlRoots());
     }
+
+    @Test
+    void takesTheFileSystemRootForALooseFileWhoseDirectoryIsItsPackage() {
+        Path file = Path.of("/app/Main.axl").toAbsolutePath();
+        Module found = ProjectModel.discover(List.of()).moduleOf(file, "app");
+        assertEquals(List.of(file.getRoot()), found.axlRoots());
+    }
 }
