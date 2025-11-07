@@ -1,0 +1,8 @@
+package app
+
+import java.awt.Point
+
+fn main() {
+    val p: Point? = Point(1, 2)
+    p?.location.x = 5
+}

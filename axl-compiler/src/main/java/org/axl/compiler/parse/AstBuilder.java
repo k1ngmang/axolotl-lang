@@ -102,10 +102,12 @@ final class AstBuilder {
                     new Stmt.While(pos(s.start), expr(s.expression()), block(s.block()));
             case AssignStatementContext s -> {
                 Expr target = postfix(s.postfixExpression());
-                boolean assignable = target instanceof Expr.Name
-                        || target instanceof Expr.Member m && !m.safe();
+                boolean assignable = target instanceof Expr.Name || target instanceof Expr.Member;
                 if (!assignable) {
                     throw new Rejected(target.pos(), "only a variable or a field can be assigned");
+                }
+                if (hasSafeStep(target)) {
+                    throw new Rejected(target.pos(), "cannot assign through `?.`; check for null first: `if (x != null) { x.f = v }`");
                 }
                 yield new Stmt.Assign(pos(s.start), target, s.assignOp().getText(), expr(s.expression()));
             }
@@ -197,6 +199,14 @@ final class AstBuilder {
                     a.identifier() == null ? null : name(a.identifier()), expr(a.expression(1)));
             case PostfixAltContext p -> postfix(p.postfixExpression());
             default -> throw new IllegalStateException("unknown expression " + ctx.getClass());
+        };
+    }
+
+    private static boolean hasSafeStep(Expr expr) {
+        return switch (expr) {
+            case Expr.Member m -> m.safe() || hasSafeStep(m.target());
+            case Expr.Call c -> c.safe() || c.target() != null && hasSafeStep(c.target());
+            default -> false;
         };
     }
 
