@@ -42,6 +42,12 @@ public final class AxlResolver {
                 return named;
             }
         }
+        if (name.equals("it")) {
+            PsiElement lambda = implicitParameterOwner(place);
+            if (lambda != null) {
+                return lambda;
+            }
+        }
         AxlFile file = file(place);
         if (file == null) {
             return null;
@@ -78,6 +84,17 @@ public final class AxlResolver {
             }
         }
         return JavaPsiFacade.getInstance(place.getProject()).findPackage(name);
+    }
+
+    /** The innermost lambda without a parameter list, whose single parameter is `it`. */
+    private static @Nullable PsiElement implicitParameterOwner(PsiElement place) {
+        for (PsiElement parent = place.getParent(); parent != null && !(parent instanceof AxlFile); parent = parent.getParent()) {
+            if (parent.getNode().getElementType() == AxlElementTypes.LAMBDA
+                    && parent.getNode().findChildByType(AxlTokenTypes.of(AxolotlLexer.ARROW)) == null) {
+                return parent;
+            }
+        }
+        return null;
     }
 
     static @Nullable PsiElement inPackage(PsiElement place, PsiPackage pkg, String name) {
