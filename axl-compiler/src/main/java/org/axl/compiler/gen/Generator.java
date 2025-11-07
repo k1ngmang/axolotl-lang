@@ -36,6 +36,8 @@ public final class Generator {
     private final Map<String, String> valueTypes;
     // Values declared as locals of a probe method instead of fields, for JavaTypes.
     private final Set<String> probed;
+    // Inside a block lambda nested in a lambda of `?:`, `?.` or `attempt`, whose captured vars are copies.
+    private boolean inCopyingLambda;
     private final Set<String> declaredFunctions = new LinkedHashSet<>();
     private Emitter em = new Emitter();
 
@@ -403,7 +405,7 @@ public final class Generator {
     private String expr(Expr expr, boolean inLambda) {
         return switch (expr) {
             case Expr.Literal l -> l.text();
-            case Expr.Name n -> inLambda && analysis.mutableRefs().contains(n)
+            case Expr.Name n -> (inLambda || inCopyingLambda) && analysis.mutableRefs().contains(n)
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
             case Expr.Call c when c.target() != null -> chain(Chains.flatten(c), inLambda);
@@ -492,12 +494,15 @@ public final class Generator {
         }
         Emitter outer = em;
         Map<String, String> outerCopies = copies;
+        boolean outerCopying = inCopyingLambda;
+        inCopyingLambda = inLambda || inCopyingLambda;
         em = new Emitter();
         em.indent();
         body.forEach(this::statement);
         String block = em.embedded();
         em = outer;
         copies = outerCopies;
+        inCopyingLambda = outerCopying;
         return params + " -> {" + block + Emitter.continuation(lambda.end().line(), "}");
     }
 

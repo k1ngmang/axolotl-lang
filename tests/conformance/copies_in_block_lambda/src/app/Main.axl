@@ -1,0 +1,15 @@
+package app
+
+import java.util.function.Supplier
+
+fn given() -> Supplier<Int>? = null
+
+fn main() {
+    var n = 1
+    n += 1
+    val s = given() ?: { ->
+        val k = n
+        return k
+    }
+    println(s.get())
+}
