@@ -89,7 +89,7 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
             return;
         }
         for (Problem problem : problems) {
-            if (problem.line() > document.getLineCount()) {
+            if (problem.line() < 1 || problem.line() > document.getLineCount()) {
                 continue;
             }
             int lineStart = document.getLineStartOffset(problem.line() - 1);
