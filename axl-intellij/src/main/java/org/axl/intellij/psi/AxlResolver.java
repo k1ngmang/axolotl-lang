@@ -10,10 +10,15 @@ import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiPackage;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.tree.IElementType;
+import com.intellij.psi.util.PsiTreeUtil;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import org.axl.compiler.parse.AxolotlLexer;
+import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
 import org.jetbrains.annotations.Nullable;
 
@@ -22,6 +27,11 @@ public final class AxlResolver {
 
     private static final Map<String, String> BUILTIN_TYPES = Map.of(
             "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Double", "java.lang.Double");
+    private static final Map<String, String> JAVA_TYPES = Map.of("int", "Int", "Integer", "Int", "long", "Long",
+            "boolean", "Boolean", "double", "Double");
+    private static final Map<IElementType, String> LITERAL_TYPES = Map.of(AxlTokenTypes.STRING, "String",
+            AxlTokenTypes.INT, "Int", AxlTokenTypes.FLOAT, "Double", AxlTokenTypes.of(AxolotlLexer.TRUE), "Boolean",
+            AxlTokenTypes.of(AxolotlLexer.FALSE), "Boolean");
 
     private AxlResolver() {}
 
@@ -35,17 +45,16 @@ public final class AxlResolver {
         if (file == null) {
             return null;
         }
-        for (AxlFunction function : file.functions()) {
-            if (name.equals(function.getName())) {
-                return function;
-            }
+        List<AxlFunction> functions = file.functions().stream().filter(f -> name.equals(f.getName())).toList();
+        if (!functions.isEmpty()) {
+            return overloadsFor(place, functions).getFirst();
         }
         for (AxlVariable value : file.values()) {
             if (name.equals(value.getName())) {
                 return value;
             }
         }
-        boolean inImport = com.intellij.psi.util.PsiTreeUtil.getParentOfType(place, AxlImport.class) != null;
+        boolean inImport = PsiTreeUtil.getParentOfType(place, AxlImport.class) != null;
         for (AxlImport imp : file.imports()) {
             if (inImport || !imp.simpleName().equals(name)) {
                 continue;
@@ -55,7 +64,7 @@ public final class AxlResolver {
                 return findClass(place, qualified);
             }
             PsiClass owner = findClass(place, qualified.substring(0, Math.max(0, qualified.lastIndexOf('.'))));
-            List<PsiElement> members = owner == null ? List.of() : members(owner, name);
+            List<PsiElement> members = owner == null ? List.of() : overloadsFor(place, members(owner, name));
             return members.isEmpty() ? null : members.getFirst();
         }
         String pkg = file.packageName();
@@ -87,6 +96,78 @@ public final class AxlResolver {
             result.add(source(field));
         }
         return new ArrayList<>(result);
+    }
+
+    /**
+     * Of several functions or methods with a name, those that a call's arguments fit: by number,
+     * then by the types of literals and typed variables. All of them for a name that is not called.
+     */
+    static List<PsiElement> overloadsFor(PsiElement place, List<? extends PsiElement> candidates) {
+        List<PsiElement> arguments = callArguments(place);
+        if (arguments == null || candidates.size() < 2) {
+            return new ArrayList<>(candidates);
+        }
+        List<PsiElement> sameCount = new ArrayList<>();
+        for (PsiElement candidate : candidates) {
+            List<String> types = parameterTypes(candidate);
+            if (types != null && types.size() == arguments.size()) {
+                sameCount.add(candidate);
+            }
+        }
+        List<PsiElement> fitting = sameCount.stream().filter(c -> fits(parameterTypes(c), arguments)).toList();
+        return !fitting.isEmpty() ? fitting : !sameCount.isEmpty() ? sameCount : new ArrayList<>(candidates);
+    }
+
+    /** The arguments when the place is the callee of a call, otherwise null. */
+    private static @Nullable List<PsiElement> callArguments(PsiElement place) {
+        PsiElement call = place.getParent();
+        if (call == null || call.getNode().getElementType() != AxlElementTypes.CALL || call.getFirstChild() != place) {
+            return null;
+        }
+        PsiElement arguments = call.getLastChild();
+        if (arguments == null || arguments.getNode().getElementType() != AxlElementTypes.ARGUMENTS) {
+            return null;
+        }
+        return new ArrayList<>(PsiTreeUtil.getChildrenOfTypeAsList(arguments, AxlPsiElement.class));
+    }
+
+    /** Simple names of the parameter types, as Axolotl writes them; null when the element is not callable. */
+    private static @Nullable List<String> parameterTypes(PsiElement callable) {
+        if (callable instanceof AxlFunction function) {
+            return function.parameters().stream().map(p -> p.type() == null ? null : p.type().name()).toList();
+        }
+        if (callable instanceof PsiMethod method) {
+            return Arrays.stream(method.getParameterList().getParameters()).map(p -> {
+                String text = p.getType().getPresentableText();
+                String simple = text.contains("<") ? text.substring(0, text.indexOf('<')) : text;
+                return JAVA_TYPES.getOrDefault(simple, simple);
+            }).toList();
+        }
+        return null;
+    }
+
+    private static boolean fits(List<String> parameterTypes, List<PsiElement> arguments) {
+        for (int i = 0; i < arguments.size(); i++) {
+            String argument = argumentType(arguments.get(i));
+            String parameter = parameterTypes.get(i);
+            if (argument != null && parameter != null && !argument.equals(parameter)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The type of a literal or of a variable with a written type, or null when it takes inference. */
+    private static @Nullable String argumentType(PsiElement argument) {
+        if (argument.getNode().getElementType() == AxlElementTypes.LITERAL) {
+            IElementType token = argument.getFirstChild().getNode().getElementType();
+            return LITERAL_TYPES.get(token);
+        }
+        if (argument instanceof AxlReferenceExpression ref && ref.qualifier() == null && ref.getReference() != null
+                && ref.getReference().resolve() instanceof AxlVariable variable && variable.type() != null) {
+            return variable.type().name();
+        }
+        return null;
     }
 
     private static PsiElement source(PsiMember member) {

@@ -48,10 +48,10 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             return member == null ? List.of() : List.of(member);
         }
         if (owner instanceof PsiClass cls) {
-            return AxlResolver.members(cls, name);
+            return AxlResolver.overloadsFor(ref, AxlResolver.members(cls, name));
         }
         PsiClass type = AxlResolver.typeOf(qualifier);
-        return type == null ? List.of() : AxlResolver.members(type, name);
+        return type == null ? List.of() : AxlResolver.overloadsFor(ref, AxlResolver.members(type, name));
     }
 
     @Override
