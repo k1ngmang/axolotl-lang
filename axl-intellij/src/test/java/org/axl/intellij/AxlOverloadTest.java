@@ -78,6 +78,29 @@ public class AxlOverloadTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(String.valueOf(target), target instanceof AxlFunction function && function.parameters().size() == 2);
     }
 
+    public void testFindsJavaCallsOfOverloadsWithTheSameParameterCount() {
+        myFixture.addFileToProject("app/O.axl", """
+                package app
+
+                fn f(a: Int) -> Int = a
+
+                fn f(a: String) -> String = a
+                """);
+        myFixture.addFileToProject("app/Caller.java", """
+                package app;
+
+                class Caller {
+                    Object call() {
+                        return O.f("x");
+                    }
+                }
+                """);
+        myFixture.configureFromTempProjectFile("app/O.axl");
+        List<AxlFunction> functions = ((AxlFile) myFixture.getFile()).functions();
+        assertEquals(0, myFixture.findUsages(functions.get(0)).size());
+        assertEquals(1, myFixture.findUsages(functions.get(1)).size());
+    }
+
     private PsiElement resolveAtCaret() {
         return myFixture.getFile().findReferenceAt(myFixture.getCaretOffset()).resolve();
     }

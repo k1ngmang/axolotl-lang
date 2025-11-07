@@ -12,6 +12,7 @@ import com.intellij.psi.PsiType;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -137,13 +138,15 @@ public final class AxlResolver {
             return function.parameters().stream().map(p -> p.type() == null ? null : p.type().name()).toList();
         }
         if (callable instanceof PsiMethod method) {
-            return Arrays.stream(method.getParameterList().getParameters()).map(p -> {
-                String text = p.getType().getPresentableText();
-                String simple = text.contains("<") ? text.substring(0, text.indexOf('<')) : text;
-                return JAVA_TYPES.getOrDefault(simple, simple);
-            }).toList();
+            return Arrays.stream(method.getParameterList().getParameters()).map(p -> simpleName(p.getType())).toList();
         }
         return null;
+    }
+
+    /** The simple name of a Java type's class as Axolotl writes it: `Int` for `int` and `Integer`. */
+    public static String simpleName(PsiType type) {
+        String simple = TypeConversionUtil.erasure(type).getPresentableText();
+        return JAVA_TYPES.getOrDefault(simple, simple);
     }
 
     private static boolean fits(List<String> parameterTypes, List<PsiElement> arguments) {
