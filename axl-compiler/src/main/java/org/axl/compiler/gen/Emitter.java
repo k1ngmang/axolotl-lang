@@ -63,6 +63,11 @@ final class Emitter {
         return "\n" + MARK + axlLine + MARK + code;
     }
 
+    /** A continuation line of an expression, indented twice. */
+    static String continued(int axlLine, String code) {
+        return continuation(axlLine, INDENT + INDENT + code);
+    }
+
     String text() {
         return out.toString();
     }

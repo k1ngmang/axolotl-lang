@@ -339,7 +339,8 @@ public final class Generator {
         boolean number = !Chains.hasSafeStep(elvis.left())
                 && (right instanceof Expr.Literal l && Character.isDigit(l.text().charAt(0))
                 || right instanceof Expr.Unary u && u.op().equals("-") && u.operand() instanceof Expr.Literal);
-        return number ? "Nulls.or(" + left + ", " + expr(right) + ")" : "Nulls.or(" + left + ", () -> " + expr(right, true) + ")";
+        String fallback = number ? expr(right) : "() -> " + expr(right, true);
+        return joined("Nulls.or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")";
     }
 
     /** Copies `var`s that lambdas of this statement capture into fresh finals, then emits it. */
@@ -409,12 +410,13 @@ public final class Generator {
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
             case Expr.Call c when c.target() != null -> chain(Chains.flatten(c), inLambda);
-            case Expr.Call c -> call(c, args(c.args(), inLambda));
-            case Expr.GenericNew g -> genericNew(g, args(g.args(), inLambda));
+            case Expr.Call c -> call(c, args(c.args(), inLambda, c.pos().line()));
+            case Expr.GenericNew g -> genericNew(g, args(g.args(), inLambda, g.pos().line()));
             case Expr.MethodRef r -> expr(r.target(), inLambda) + "::" + r.name();
             case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + expr(n.target(), inLambda) + ")";
             case Expr.Unary u -> unary(u.op(), expr(u.operand(), inLambda));
-            case Expr.Binary b -> expr(b.left(), inLambda) + " " + b.op() + " " + expr(b.right(), inLambda);
+            case Expr.Binary b -> joined(expr(b.left(), inLambda), " " + b.op() + " ", expr(b.right(), inLambda),
+                    startLine(b.left()), startLine(b.right()));
             case Expr.Elvis e -> elvis(e, expr(e.left(), inLambda));
             // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
             case Expr.Paren p when becomesCall(p.inner()) -> expr(p.inner(), inLambda);
@@ -453,10 +455,10 @@ public final class Generator {
 
     /** Each `?.` wraps the rest of the chain, so the first null skips everything after it. */
     private String chain(Chains.Chain chain, boolean inLambda) {
-        return chainFrom(expr(chain.base(), inLambda), chain.steps(), 0, inLambda);
+        return chainFrom(expr(chain.base(), inLambda), chain.steps(), 0, inLambda, startLine(chain.base()));
     }
 
-    private String chainFrom(String prefix, List<Chains.Step> steps, int index, boolean inLambda) {
+    private String chainFrom(String prefix, List<Chains.Step> steps, int index, boolean inLambda, int baseLine) {
         if (index == steps.size()) {
             return prefix;
         }
@@ -464,17 +466,61 @@ public final class Generator {
         if (step.safe()) {
             String param = "$n" + ++nullCount;
             return "Nulls.map(" + prefix + ", " + param + " -> "
-                    + chainFrom(param + stepText(step, true), steps, index + 1, true) + ")";
+                    + chainFrom(param + stepOnLine(step, true, steps, index, baseLine), steps, index + 1, true, baseLine) + ")";
         }
-        return chainFrom(prefix + stepText(step, inLambda), steps, index + 1, inLambda);
+        return chainFrom(prefix + stepOnLine(step, inLambda, steps, index, baseLine), steps, index + 1, inLambda, baseLine);
+    }
+
+    /** `.name(args)`, on a new Java line when the step starts a new .axl line. */
+    private String stepOnLine(Chains.Step step, boolean inLambda, List<Chains.Step> steps, int index, int baseLine) {
+        String text = stepText(step, inLambda);
+        int previous = index == 0 ? baseLine : steps.get(index - 1).line();
+        return step.line() > previous ? Emitter.continued(step.line(), text) : text;
     }
 
     private String stepText(Chains.Step step, boolean inLambda) {
-        return "." + step.name() + (step.args() == null ? "" : "(" + args(step.args(), inLambda) + ")");
+        return "." + step.name() + (step.args() == null ? "" : "(" + args(step.args(), inLambda, step.line()) + ")");
     }
 
-    private String args(List<Expr> args, boolean inLambda) {
-        return args.stream().map(a -> expr(a, inLambda)).collect(Collectors.joining(", "));
+    private String args(List<Expr> args, boolean inLambda, int line) {
+        List<String> codes = args.stream().map(a -> expr(a, inLambda)).toList();
+        return joinedArgs(args, codes, line);
+    }
+
+    /** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */
+    private static String joinedArgs(List<Expr> args, List<String> codes, int line) {
+        StringBuilder sb = new StringBuilder();
+        int previous = line;
+        for (int i = 0; i < codes.size(); i++) {
+            int argLine = startLine(args.get(i));
+            String code = codes.get(i);
+            if (argLine > previous) {
+                sb.append(i > 0 ? "," : "").append(Emitter.continued(argLine, code));
+            } else {
+                sb.append(i > 0 ? ", " : "").append(code);
+            }
+            previous = argLine;
+        }
+        return sb.toString();
+    }
+
+    /** head, separator and tail, with the tail on a new Java line when it starts a new .axl line. */
+    private static String joined(String head, String separator, String tail, int headLine, int tailLine) {
+        return tailLine > headLine ? head + separator.stripTrailing() + Emitter.continued(tailLine, tail) : head + separator + tail;
+    }
+
+    /** The .axl line an expression starts on; a chain starts with its base. */
+    private static int startLine(Expr e) {
+        return switch (e) {
+            case Expr.Member m -> startLine(m.target());
+            case Expr.Call c when c.target() != null -> startLine(c.target());
+            case Expr.Binary b -> startLine(b.left());
+            case Expr.Elvis el -> startLine(el.left());
+            case Expr.Pipe p -> startLine(p.source());
+            case Expr.MethodRef r -> startLine(r.target());
+            case Expr.NotNull n -> startLine(n.target());
+            default -> e.pos().line();
+        };
     }
 
     private String lambda(Expr.Lambda lambda, boolean inLambda) {
@@ -524,7 +570,8 @@ public final class Generator {
                     shortCircuit(line, b);
             case Expr.Binary b -> {
                 List<Lifted> ops = operands(line, List.of(b.left(), b.right()));
-                yield new Lifted(ops.get(0).code() + " " + b.op() + " " + ops.get(1).code(), false);
+                yield new Lifted(joined(ops.get(0).code(), " " + b.op() + " ", ops.get(1).code(),
+                        startLine(b.left()), startLine(b.right())), false);
             }
             case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el);
             case Expr.Elvis el -> new Lifted(elvis(el, lifted(line, el.left()).code()), false);
@@ -627,7 +674,8 @@ public final class Generator {
     /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */
     private Lifted chainLifted(int line, Chains.Chain chain) {
         int firstSafe = firstSafe(chain.steps());
-        return new Lifted(chainFrom(liftedPrefix(line, chain, firstSafe), chain.steps(), firstSafe, false), false);
+        return new Lifted(chainFrom(liftedPrefix(line, chain, firstSafe), chain.steps(), firstSafe, false,
+                startLine(chain.base())), false);
     }
 
     private static int firstSafe(List<Chains.Step> steps) {
@@ -724,8 +772,13 @@ public final class Generator {
                         java.util.function.Function<Expr, String> arg, boolean inLambda) {
         StringBuilder sb = new StringBuilder(parenthesized(source, sourceExpr)).append(".stream()");
         boolean terminal = false;
+        int previousLine = startLine(sourceExpr);
         for (Expr.Stage stage : stages) {
             String lambda = stage.lambda() == null ? "" : lambda(stage.lambda(), inLambda);
+            if (stage.pos().line() > previousLine) {
+                sb.append(Emitter.continued(stage.pos().line(), ""));
+                previousLine = stage.pos().line();
+            }
             switch (stage.name()) {
                 case "limit", "skip" -> sb.append('.').append(stage.name()).append('(').append(arg.apply(stage.args().getFirst())).append(')');
                 case "distinct" -> sb.append(".distinct()");

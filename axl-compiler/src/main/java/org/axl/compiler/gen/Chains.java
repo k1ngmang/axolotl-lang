@@ -9,7 +9,7 @@ import org.axl.compiler.ast.Expr;
 final class Chains {
 
     /** args is null for a field access. */
-    record Step(String name, List<Expr> args, boolean safe) {}
+    record Step(String name, List<Expr> args, boolean safe, int line) {}
 
     record Chain(Expr base, List<Step> steps) {}
 
@@ -20,10 +20,10 @@ final class Chains {
         Expr current = expr;
         while (true) {
             if (current instanceof Expr.Member m) {
-                steps.add(new Step(m.name(), null, m.safe()));
+                steps.add(new Step(m.name(), null, m.safe(), m.pos().line()));
                 current = m.target();
             } else if (current instanceof Expr.Call c && c.target() != null) {
-                steps.add(new Step(c.name(), c.args(), c.safe()));
+                steps.add(new Step(c.name(), c.args(), c.safe(), c.pos().line()));
                 current = c.target();
             } else {
                 break;

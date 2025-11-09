@@ -1,0 +1,19 @@
+package app
+
+import java.util.List
+
+fn add(a: Int, b: Int) -> Int = a + b
+
+fn main() {
+    val xs = List.of(1, 2)
+    val ys = xs
+        |> filter { it > 1 }
+        |> map { it.foo() }
+    val s = 1 +
+        2 +
+        nope
+    println(add(1,
+        "two"))
+    val t = xs.get(0)
+        .lenght()
+}
