@@ -1,0 +1,13 @@
+package app
+
+fn parse(s: String) -> Result<Int, Int> = attempt Integer.parseInt(s) else 1
+
+fn describe(s: String) -> Result<Int, String> {
+    val n = try parse(s).mapErr({ code -> "error " + code })
+    return Ok(n * 2)
+}
+
+fn main() {
+    println(describe("21"))
+    println(describe("x"))
+}

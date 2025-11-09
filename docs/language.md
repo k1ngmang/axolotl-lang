@@ -105,7 +105,8 @@ fn doubled(s: String) -> Result<Int, String> {
 - `attempt X else e -> Y` runs `X`; an `Exception` becomes `Err(Y)`. Without a name the exception
   is not available: `attempt X else Y`.
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
-  `Result`. The error types must match; convert them first if they do not.
+  `Result`. The error types must match; convert them first with `mapErr`:
+  `try parse(s).mapErr({ code -> "error " + code })`.
 - `try` binds like a unary operator and works anywhere in an expression:
   `Ok(try a() + try b())`, `if (try ready()) { ... }`, `while (try more()) { ... }`.
   Operands to its left are evaluated first, in order. `&&`, `||` and `?:` evaluate a `try` on their

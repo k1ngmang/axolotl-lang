@@ -9,6 +9,11 @@ public sealed interface Result<T extends @Nullable Object, E extends @Nullable O
         try { return new Ok<>(x.get()); } catch (Exception ex) { return new Err<>(y.apply(ex)); }
     }
     default boolean isErr() { return this instanceof Err; }
+    // Converts the error, so that `try` works where the function returns another error type.
+    default <F extends @Nullable Object> Result<T, F> mapErr(Function<? super E, ? extends F> f) {
+        if (this instanceof Err<T, E>(var e)) return new Err<>(f.apply(e));
+        return new Ok<>(((Ok<T, E>) this).value());
+    }
     // for `try`: the value from Ok
     static <T extends @Nullable Object> T unwrap(Result<T, ?> r) {
         if (r instanceof Ok<T, ?>(var v)) return v;
