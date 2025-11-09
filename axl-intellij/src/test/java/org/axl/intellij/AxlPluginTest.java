@@ -161,6 +161,17 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals("Parse.axl", function.getContainingFile().getName());
     }
 
+    public void testResolvesItToTheLambda() {
+        myFixture.configureByText("It.axl", """
+                package app
+                import java.util.List
+
+                fn f(xs: List<String>) = xs |> filter { i<caret>t.isEmpty() }
+                """);
+        PsiElement lambda = resolveAtCaret();
+        assertTrue(lambda.getText(), lambda.getText().startsWith("{ it.isEmpty()"));
+    }
+
     public void testJavaSeesAxolotlFunctionsWithoutBuild() {
         myFixture.addFileToProject("util/Parse.axl", PARSE);
         myFixture.configureByText("Caller.java", """

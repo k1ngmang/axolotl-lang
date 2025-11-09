@@ -98,8 +98,12 @@ final class ProjectModel {
         }
         Path dir = file.getParent();
         Path packagePath = packageName.isEmpty() ? null : Path.of("", packageName.split("\\."));
-        Path root = packagePath != null && dir.endsWith(packagePath)
-                ? dir.getRoot().resolve(dir.subpath(0, dir.getNameCount() - packagePath.getNameCount())) : dir;
+        Path root = dir;
+        if (packagePath != null && dir.endsWith(packagePath)) {
+            for (int i = 0; i < packagePath.getNameCount(); i++) {
+                root = root.getParent();
+            }
+        }
         return new Module(root, List.of(root), List.of(), List.of(), false);
     }
 

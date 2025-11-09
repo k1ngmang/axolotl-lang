@@ -45,7 +45,7 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
         VirtualFile virtualFile = file.getVirtualFile();
         Module module = ModuleUtilCore.findModuleForFile(file);
         // When the language server runs (Ultimate), it reports these errors.
-        if (hasErrors || !(file instanceof AxlFile) || virtualFile == null || module == null || AxlServer.languageServerStarted()
+        if (hasErrors || !(file instanceof AxlFile) || virtualFile == null || module == null || AxlServer.languageServerStarted(file.getProject())
                 || FileDocumentManager.getInstance().isFileModified(virtualFile)) {
             return null;
         }
@@ -89,7 +89,7 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
             return;
         }
         for (Problem problem : problems) {
-            if (problem.line() > document.getLineCount()) {
+            if (problem.line() < 1 || problem.line() > document.getLineCount()) {
                 continue;
             }
             int lineStart = document.getLineStartOffset(problem.line() - 1);

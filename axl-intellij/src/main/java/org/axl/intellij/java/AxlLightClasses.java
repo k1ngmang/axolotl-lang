@@ -23,6 +23,8 @@ import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
+import org.axl.intellij.psi.AxlResolver;
+import org.axl.intellij.psi.AxlType;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -88,15 +90,44 @@ public final class AxlLightClasses {
         return light;
     }
 
+    /** The function a generated method comes from: by name and parameter types. */
     private static @Nullable AxlFunction function(AxlFile file, PsiMethod method) {
+        AxlFunction sameCount = null;
         for (AxlFunction function : file.functions()) {
-            boolean sameArity = function.parameters().size() == method.getParameterList().getParametersCount()
-                    || function.isMain() && method.getName().equals("main");
-            if (method.getName().equals(function.getName()) && sameArity) {
+            if (!method.getName().equals(function.getName())) {
+                continue;
+            }
+            if (function.isMain() && isJavaMain(method)) {
                 return function;
             }
+            if (function.parameters().size() == method.getParameterList().getParametersCount()) {
+                if (sameParameterTypes(function, method)) {
+                    return function;
+                }
+                if (sameCount == null) {
+                    sameCount = function;
+                }
+            }
         }
-        return null;
+        return sameCount;
+    }
+
+    /** `fn main()` becomes `main(String[] args)`. */
+    private static boolean isJavaMain(PsiMethod method) {
+        PsiParameter[] parameters = method.getParameterList().getParameters();
+        return parameters.length == 1 && parameters[0].getType().getCanonicalText().equals("java.lang.String[]");
+    }
+
+    private static boolean sameParameterTypes(AxlFunction function, PsiMethod method) {
+        PsiParameter[] parameters = method.getParameterList().getParameters();
+        for (int i = 0; i < parameters.length; i++) {
+            AxlType type = function.parameters().get(i).type();
+            String name = type == null ? null : type.name().substring(type.name().lastIndexOf('.') + 1);
+            if (name != null && !name.equals(AxlResolver.simpleName(parameters[i].getType()))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static @Nullable AxlVariable value(AxlFile file, String name) {

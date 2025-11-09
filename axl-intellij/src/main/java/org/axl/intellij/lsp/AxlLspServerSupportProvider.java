@@ -21,7 +21,7 @@ public final class AxlLspServerSupportProvider implements LspServerSupportProvid
     public void fileOpened(@NotNull Project project, @NotNull VirtualFile file, @NotNull LspServerStarter starter) {
         if ("axl".equals(file.getExtension())) {
             starter.ensureServerStarted(new Descriptor(project));
-            AxlServer.markLanguageServerStarted();
+            AxlServer.markLanguageServerStarted(project);
         }
     }
 

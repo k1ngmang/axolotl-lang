@@ -49,20 +49,29 @@ final class AxlPositionManager implements PositionManager {
         } catch (AbsentInformationException e) {
             throw NoDataException.INSTANCE;
         }
-        PsiFile file = ReadAction.compute(() -> findFile(path));
+        String className = location.declaringType().name();
+        PsiFile file = ReadAction.compute(() -> findFile(path, className));
         if (file == null || line <= 0) {
             throw NoDataException.INSTANCE;
         }
         return SourcePosition.createFromLine(file, line - 1);
     }
 
-    /** The .axl file with the SMAP's source path, e.g. `app/Main.axl`. */
-    private PsiFile findFile(String path) {
+    /**
+     * The .axl file with the SMAP's source path, e.g. `app/Main.axl`. A path without a directory
+     * names a file in the package of the class.
+     */
+    private PsiFile findFile(String path, String className) {
         String name = path.substring(path.lastIndexOf('/') + 1);
+        String packageName = className.contains(".") ? className.substring(0, className.lastIndexOf('.')) : "";
         GlobalSearchScope scope = GlobalSearchScope.allScope(process.getProject());
         for (VirtualFile file : FilenameIndex.getVirtualFilesByName(name, scope)) {
-            if (file.getPath().endsWith("/" + path) || file.getPath().equals(path) || !path.contains("/")) {
-                return PsiManager.getInstance(process.getProject()).findFile(file);
+            PsiFile psi = PsiManager.getInstance(process.getProject()).findFile(file);
+            boolean matches = path.contains("/")
+                    ? file.getPath().endsWith("/" + path) || file.getPath().equals(path)
+                    : psi instanceof AxlFile axl && axl.packageName().equals(packageName);
+            if (matches) {
+                return psi;
             }
         }
         return null;

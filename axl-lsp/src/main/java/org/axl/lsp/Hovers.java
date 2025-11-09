@@ -7,7 +7,6 @@ import javax.lang.model.type.TypeMirror;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.ast.Decl;
-import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.Hover;
@@ -23,15 +22,21 @@ final class Hovers {
         this.workspace = workspace;
     }
 
+    /** While the text does not parse, an earlier version answers for the lines that are unchanged. */
     Hover hover(String uri, int line, int character) {
+        Document current = workspace.document(uri);
         Document document = workspace.parsed(uri);
-        if (document == null) {
+        if (current == null || document == null) {
+            return null;
+        }
+        line = current.sameLineIn(document, line);
+        if (line < 0) {
             return null;
         }
         List<String> parts = new ArrayList<>();
         Token token = document.tokenAt(line, character);
         if (token != null && token.getType() == AxolotlLexer.IDENTIFIER && !isMember(document, token)) {
-            Symbols.Symbol symbol = Symbols.lookup(document.ast, new Pos(line + 1, character + 1), token.getText());
+            Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), token.getText());
             if (symbol != null) {
                 parts.add("```axl\n" + describe(document, symbol) + "\n```");
             }
@@ -67,7 +72,8 @@ final class Hovers {
             return typeText(symbol.type());
         }
         Decl.Function fn = symbol.function();
-        TypeMirror type = workspace.javaModel(document.module).localType(document.ast, fn.name(), fn.params().size(), symbol.name());
+        TypeMirror type = workspace.javaModel(document.module).localType(document.ast, fn.name(), fn.params().size(), symbol.name(),
+                symbol.pos().line());
         return type == null ? "?" : JavaModel.simple(type.toString());
     }
 

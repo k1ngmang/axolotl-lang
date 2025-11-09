@@ -39,7 +39,8 @@ final class Workspace {
     private final Map<String, Document> open = new HashMap<>();
     // The last version that parsed, used while the user is typing an incomplete line.
     private final Map<String, Document> lastParsed = new HashMap<>();
-    private final Map<String, List<AxlDiagnostic>> compileErrors = new HashMap<>();
+    // By module, then by document URI; replaced as a whole by each compilation of a module.
+    private final Map<Module, Map<String, List<AxlDiagnostic>>> compileErrors = new HashMap<>();
     private final Map<Module, JavaModel> javaModels = new HashMap<>();
     private ModuleCompiler compiler;
 
@@ -79,6 +80,9 @@ final class Workspace {
     void closeDocument(String uri) {
         open.remove(uri);
         lastParsed.remove(uri);
+        if (client != null) {
+            client.publishDiagnostics(new PublishDiagnosticsParams(uri, List.of()));
+        }
     }
 
     void saved(String uri) throws IOException {
@@ -87,8 +91,7 @@ final class Workspace {
             return;
         }
         List<Document> moduleDocuments = documentsOf(document.module);
-        Map<String, List<AxlDiagnostic>> errors = compiler.compile(document.module, moduleDocuments);
-        compileErrors.putAll(errors);
+        compileErrors.put(document.module, compiler.compile(document.module, moduleDocuments));
         for (Document d : moduleDocuments) {
             if (open.containsKey(d.uri)) {
                 publish(open.get(d.uri));
@@ -182,7 +185,7 @@ final class Workspace {
         }
         List<AxlDiagnostic> all = new ArrayList<>(document.diagnostics());
         if (!document.translation.hasErrors()) {
-            all.addAll(compileErrors.getOrDefault(document.uri, List.of()));
+            all.addAll(compileErrors.getOrDefault(document.module, Map.of()).getOrDefault(document.uri, List.of()));
         }
         List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).toList();
         client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
@@ -191,10 +194,11 @@ final class Workspace {
     /** The range covers the token at the reported column, or the rest of the line. */
     static Diagnostic toLsp(Document document, AxlDiagnostic d) {
         int line = Math.max(0, d.line() - 1);
-        int start = Math.max(0, d.column() - 1);
+        int column = Math.max(0, d.column() - 1);
+        int start = document.utf16Column(line, column);
         var token = document.tokenAt(line, start);
-        int end = token != null && token.getCharPositionInLine() == start
-                ? start + token.getText().length()
+        int end = token != null && token.getCharPositionInLine() == column
+                ? document.utf16Column(line, column + token.getStopIndex() - token.getStartIndex() + 1)
                 : line < document.lines.size() ? Math.max(start + 1, document.lines.get(line).length()) : start + 1;
         Diagnostic diagnostic = new Diagnostic(new Range(new Position(line, start), new Position(line, end)), d.message(),
                 d.isError() ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "axl");

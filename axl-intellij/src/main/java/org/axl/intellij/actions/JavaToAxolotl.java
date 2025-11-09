@@ -10,6 +10,7 @@ import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiExpressionList;
 import com.intellij.psi.PsiExpressionStatement;
 import com.intellij.psi.PsiIfStatement;
+import com.intellij.psi.PsiJavaCodeReferenceElement;
 import com.intellij.psi.PsiImportStatement;
 import com.intellij.psi.PsiImportStaticStatement;
 import com.intellij.psi.PsiJavaFile;
@@ -30,8 +31,11 @@ import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiWhileStatement;
 import com.intellij.psi.JavaRecursiveElementVisitor;
+import com.intellij.psi.util.PsiTreeUtil;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Converts the subset of Java that maps one to one: a class with only static methods and fields,
@@ -50,6 +54,11 @@ final class JavaToAxolotl {
             "double", "Double", "void", "");
     private static final Map<String, String> BOXED = Map.of("java.lang.Integer", "Int?", "java.lang.Long", "Long?",
             "java.lang.Boolean", "Boolean?", "java.lang.Double", "Double?");
+    private static final Set<String> KEYWORDS = Set.of("package", "import", "fn", "val", "var", "private", "return",
+            "if", "else", "while", "try", "attempt", "true", "false", "null");
+    private static final Set<String> OPERATORS = Set.of("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=",
+            "&&", "||");
+    private static final Set<String> ASSIGNMENTS = Set.of("=", "+=", "-=", "*=", "/=", "%=");
 
     private final StringBuilder out = new StringBuilder();
 
@@ -72,24 +81,33 @@ final class JavaToAxolotl {
 
     private String file(PsiJavaFile file, PsiClass cls) {
         if (cls.isInterface() || cls.isEnum() || cls.isRecord() || cls.getInnerClasses().length > 0
-                || cls.getExtendsListTypes().length > 0 || cls.getImplementsListTypes().length > 0) {
+                || cls.getExtendsListTypes().length > 0 || cls.getImplementsListTypes().length > 0
+                || cls.hasTypeParameters()) {
             throw new Unsupported("only plain classes with static members are converted");
         }
-        out.append("package ").append(file.getPackageName()).append("\n");
+        if (file.getPackageName().isEmpty()) {
+            throw new Unsupported("classes in the default package have no Axolotl form");
+        }
+        if (cls.getInitializers().length > 0) {
+            throw new Unsupported("initializer blocks have no Axolotl form");
+        }
+        out.append("package ").append(qualifiedName(file.getPackageName())).append("\n");
         if (file.getImportList() != null) {
             for (PsiImportStatement imp : file.getImportList().getImportStatements()) {
                 if (imp.isOnDemand()) {
                     throw new Unsupported("on-demand imports have no Axolotl form");
                 }
-                out.append("import ").append(imp.getQualifiedName()).append("\n");
+                out.append("import ").append(qualifiedName(imp.getQualifiedName())).append("\n");
             }
             for (PsiImportStaticStatement imp : file.getImportList().getImportStaticStatements()) {
-                if (imp.isOnDemand() || imp.resolveTargetClass() == null) {
+                PsiClass target = imp.resolveTargetClass();
+                if (imp.isOnDemand() || target == null) {
                     throw new Unsupported("on-demand static imports have no Axolotl form");
                 }
-                String keyword = imp.resolve() instanceof PsiMethod ? "fn" : "val";
-                out.append("import ").append(keyword).append(" ").append(imp.resolveTargetClass().getQualifiedName())
-                        .append(".").append(imp.getReferenceName()).append("\n");
+                // An overloaded method does not resolve to a single element.
+                String keyword = target.findMethodsByName(imp.getReferenceName(), true).length > 0 ? "fn" : "val";
+                out.append("import ").append(keyword).append(" ").append(qualifiedName(target.getQualifiedName()))
+                        .append(".").append(name(imp.getReferenceName())).append("\n");
             }
         }
         for (var field : cls.getFields()) {
@@ -98,15 +116,19 @@ final class JavaToAxolotl {
                 throw new Unsupported("only static final fields are converted");
             }
             out.append("\n").append(visibility(field.hasModifierProperty(PsiModifier.PRIVATE))).append("val ")
-                    .append(field.getName()).append(": ").append(type(field.getType())).append(" = ")
+                    .append(name(field.getName())).append(": ").append(type(field.getType())).append(" = ")
                     .append(expression(field.getInitializer())).append("\n");
         }
         for (PsiMethod method : cls.getMethods()) {
-            if (method.isConstructor() && method.getParameterList().isEmpty()) {
+            if (method.isConstructor() && method.getParameterList().isEmpty() && method.getBody() != null
+                    && method.getBody().isEmpty()) {
                 continue;
             }
             if (!method.hasModifierProperty(PsiModifier.STATIC) || method.getBody() == null) {
                 throw new Unsupported("only static methods are converted");
+            }
+            if (method.hasTypeParameters()) {
+                throw new Unsupported("generic methods have no Axolotl form");
             }
             function(method);
         }
@@ -116,12 +138,16 @@ final class JavaToAxolotl {
     private void function(PsiMethod method) {
         boolean main = method.getName().equals("main") && method.getParameterList().getParametersCount() == 1
                 && method.getParameterList().getParameters()[0].getType().getCanonicalText().equals("java.lang.String[]");
+        if (main && isUsed(method.getParameterList().getParameters()[0], method.getBody())) {
+            throw new Unsupported("`fn main()` has no command-line arguments");
+        }
         out.append("\n").append(visibility(method.hasModifierProperty(PsiModifier.PRIVATE))).append("fn ")
-                .append(method.getName()).append("(");
+                .append(name(method.getName())).append("(");
         if (!main) {
             PsiParameter[] params = method.getParameterList().getParameters();
             for (int i = 0; i < params.length; i++) {
-                out.append(i == 0 ? "" : ", ").append(params[i].getName()).append(": ").append(type(params[i].getType()));
+                out.append(i == 0 ? "" : ", ").append(name(params[i].getName())).append(": ")
+                        .append(type(params[i].getType()));
             }
         }
         out.append(")");
@@ -151,14 +177,15 @@ final class JavaToAxolotl {
                         throw new Unsupported("locals need an initializer");
                     }
                     String keyword = local.hasModifierProperty(PsiModifier.FINAL) || !isReassigned(local) ? "val " : "var ";
-                    out.append(indent).append(keyword).append(local.getName()).append(": ").append(type(local.getType()))
+                    out.append(indent).append(keyword).append(name(local.getName())).append(": ").append(type(local.getType()))
                             .append(" = ").append(expression(local.getInitializer())).append("\n");
                 }
             }
             case PsiReturnStatement ret -> out.append(indent).append("return")
                     .append(ret.getReturnValue() == null ? "" : " " + expression(ret.getReturnValue())).append("\n");
-            case PsiExpressionStatement expr when expr.getExpression() instanceof PsiAssignmentExpression
-                    || expr.getExpression() instanceof PsiMethodCallExpression ->
+            case PsiExpressionStatement expr when expr.getExpression() instanceof PsiAssignmentExpression assignment ->
+                    out.append(indent).append(assignment(assignment)).append("\n");
+            case PsiExpressionStatement expr when expr.getExpression() instanceof PsiMethodCallExpression ->
                     out.append(indent).append(expression(expr.getExpression())).append("\n");
             case PsiIfStatement ifStatement -> {
                 out.append(indent);
@@ -209,32 +236,80 @@ final class JavaToAxolotl {
         return assigned[0];
     }
 
+    private static boolean isUsed(PsiParameter parameter, PsiElement scope) {
+        return PsiTreeUtil.findChildrenOfType(scope, PsiReferenceExpression.class).stream()
+                .anyMatch(ref -> ref.isReferenceTo(parameter));
+    }
+
+    /** Only as a statement: Axolotl assignments are not expressions. */
+    private static String assignment(PsiAssignmentExpression assignment) {
+        String operator = assignment.getOperationSign().getText();
+        if (!ASSIGNMENTS.contains(operator)) {
+            throw new Unsupported("unsupported assignment: " + operator);
+        }
+        return expression(assignment.getLExpression()) + " " + operator + " " + expression(assignment.getRExpression());
+    }
+
     /** Expressions that read the same in both languages, with `new` and `System.out.println` translated. */
     private static String expression(PsiExpression expression) {
         return switch (expression) {
             case null -> "";
-            case PsiLiteralExpression literal -> literal.getText();
+            case PsiLiteralExpression literal -> literal(literal);
             case PsiParenthesizedExpression paren -> "(" + expression(paren.getExpression()) + ")";
-            case PsiReferenceExpression ref -> ref.getQualifierExpression() == null ? ref.getReferenceName()
-                    : expression(ref.getQualifierExpression()) + "." + ref.getReferenceName();
+            case PsiReferenceExpression ref -> ref.getQualifierExpression() == null ? name(ref.getReferenceName())
+                    : expression(ref.getQualifierExpression()) + "." + name(ref.getReferenceName());
             case PsiMethodCallExpression call when call.getMethodExpression().getText().equals("System.out.println") ->
                     "println" + arguments(call.getArgumentList());
             case PsiMethodCallExpression call -> expression(call.getMethodExpression()) + arguments(call.getArgumentList());
             case PsiNewExpression created when created.getClassReference() != null && created.getArgumentList() != null
-                    && created.getAnonymousClass() == null -> created.getClassReference().getText() + arguments(created.getArgumentList());
+                    && created.getAnonymousClass() == null -> constructorCall(created);
             case PsiPolyadicExpression poly -> {
                 StringBuilder sb = new StringBuilder(expression(poly.getOperands()[0]));
                 for (PsiExpression operand : java.util.Arrays.copyOfRange(poly.getOperands(), 1, poly.getOperands().length)) {
-                    sb.append(" ").append(poly.getTokenBeforeOperand(operand).getText()).append(" ").append(expression(operand));
+                    String operator = poly.getTokenBeforeOperand(operand).getText();
+                    if (!OPERATORS.contains(operator)) {
+                        throw new Unsupported("unsupported operator: " + operator);
+                    }
+                    sb.append(" ").append(operator).append(" ").append(expression(operand));
                 }
                 yield sb.toString();
             }
             case PsiPrefixExpression prefix when List.of("!", "-", "+").contains(prefix.getOperationSign().getText()) ->
                     prefix.getOperationSign().getText() + expression(prefix.getOperand());
-            case PsiAssignmentExpression assignment -> expression(assignment.getLExpression()) + " "
-                    + assignment.getOperationSign().getText() + " " + expression(assignment.getRExpression());
             default -> throw new Unsupported("unsupported expression: " + expression.getText());
         };
+    }
+
+    /** `Name<T>(...)` takes a simple name in Axolotl. */
+    private static String constructorCall(PsiNewExpression created) {
+        PsiJavaCodeReferenceElement reference = created.getClassReference();
+        if (reference.isQualified() && reference.getTypeParameters().length > 0) {
+            throw new Unsupported("a generic class needs an import: " + reference.getText());
+        }
+        return reference.getText() + arguments(created.getArgumentList());
+    }
+
+    /** Numbers in the forms Axolotl reads: no binary or octal, digits on both sides of the point. */
+    private static String literal(PsiLiteralExpression literal) {
+        String text = literal.getText();
+        String lower = text.toLowerCase(Locale.ROOT);
+        Object value = literal.getValue();
+        boolean floating = value instanceof Float || value instanceof Double;
+        if (literal.isTextBlock() || floating && lower.startsWith("0x")) {
+            throw new Unsupported("unsupported literal: " + text);
+        }
+        boolean binaryOrOctal = lower.startsWith("0b") || lower.length() > 1 && lower.charAt(0) == '0'
+                && Character.isDigit(lower.charAt(1));
+        if ((value instanceof Integer || value instanceof Long) && binaryOrOctal) {
+            if (((Number) value).longValue() < 0) {
+                throw new Unsupported("unsupported literal: " + text);
+            }
+            return value + (value instanceof Long ? "L" : "");
+        }
+        if (floating) {
+            return text.replaceFirst("^\\.", "0.").replaceFirst("\\.(?![0-9])", ".0");
+        }
+        return text;
     }
 
     private static String arguments(PsiExpressionList list) {
@@ -260,7 +335,24 @@ final class JavaToAxolotl {
         if (type instanceof com.intellij.psi.PsiArrayType) {
             throw new Unsupported("arrays have no Axolotl form");
         }
+        if (type.getCanonicalText().contains("?")) {
+            throw new Unsupported("wildcard types have no Axolotl form");
+        }
         return type.getPresentableText();
+    }
+
+    private static String name(String name) {
+        if (KEYWORDS.contains(name)) {
+            throw new Unsupported("`" + name + "` is a keyword in Axolotl");
+        }
+        return name;
+    }
+
+    private static String qualifiedName(String name) {
+        for (String segment : name.split("\\.")) {
+            name(segment);
+        }
+        return name;
     }
 
     private static String visibility(boolean isPrivate) {

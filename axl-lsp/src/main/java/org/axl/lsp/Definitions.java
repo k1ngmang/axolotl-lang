@@ -27,9 +27,15 @@ final class Definitions {
         this.workspace = workspace;
     }
 
+    /** While the text does not parse, an earlier version answers for the lines that are unchanged. */
     List<Location> definition(String uri, int line, int character) {
+        Document current = workspace.document(uri);
         Document document = workspace.parsed(uri);
-        if (document == null) {
+        if (current == null || document == null) {
+            return List.of();
+        }
+        line = current.sameLineIn(document, line);
+        if (line < 0) {
             return List.of();
         }
         Token token = document.tokenAt(line, character);
@@ -46,7 +52,7 @@ final class Definitions {
             String type = typeName(document, receiver);
             return type == null ? List.of() : member(type, name);
         }
-        Symbols.Symbol symbol = Symbols.lookup(document.ast, new Pos(line + 1, character + 1), name);
+        Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), name);
         if (symbol == null) {
             String type = typeName(document, token);
             return type == null ? List.of() : classLocation(type);
@@ -57,8 +63,15 @@ final class Definitions {
                 yield member(imported.substring(0, imported.lastIndexOf('.')), symbol.name());
             }
             case TYPE -> classLocation(symbol.imported().name());
-            default -> List.of(location(document.path, symbol.pos()));
+            default -> local(current, document, symbol.pos());
         };
+    }
+
+    /** A declaration in the document, moved to the current text; none when its line was edited. */
+    private static List<Location> local(Document current, Document parsed, Pos pos) {
+        Position position = parsed.position(pos);
+        int line = parsed.sameLineIn(current, position.getLine());
+        return line < 0 ? List.of() : List.of(location(current.path, new Position(line, position.getCharacter())));
     }
 
     /** The qualified class a name refers to: an imported type or a class of the same package. */
@@ -76,7 +89,7 @@ final class Definitions {
 
     private List<Location> classLocation(String qualifiedName) {
         Path source = workspace.sourceOf(qualifiedName);
-        return source == null ? List.of() : List.of(location(source, new Pos(1, 1)));
+        return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
     private List<Location> member(String className, String name) {
@@ -89,33 +102,32 @@ final class Definitions {
             if (other.ast != null) {
                 Decl decl = Symbols.topLevel(other.ast).get(name);
                 if (decl != null) {
-                    return List.of(location(source, decl.pos()));
+                    return List.of(location(source, other.position(decl.pos())));
                 }
             }
-            return List.of(location(source, new Pos(1, 1)));
+            return List.of(location(source, new Position(0, 0)));
         }
         return List.of(location(source, javaMember(source, name)));
     }
 
     /** The first declaration of a method or field with that name in a Java file. */
-    private static Pos javaMember(Path file, String name) {
+    private static Position javaMember(Path file, String name) {
         Pattern declaration = Pattern.compile("\\b[\\w<>\\[\\],.? ]+\\s+(" + Pattern.quote(name) + ")\\s*[(=;]");
         try {
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
             for (int i = 0; i < lines.size(); i++) {
                 Matcher m = declaration.matcher(lines.get(i));
                 if (m.find() && !lines.get(i).strip().startsWith("return")) {
-                    return new Pos(i + 1, m.start(1) + 1);
+                    return new Position(i, m.start(1));
                 }
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return new Pos(1, 1);
+        return new Position(0, 0);
     }
 
-    private static Location location(Path file, Pos pos) {
-        Position position = new Position(pos.line() - 1, pos.column() - 1);
+    private static Location location(Path file, Position position) {
         return new Location(file.toUri().toString(), new Range(position, position));
     }
 }

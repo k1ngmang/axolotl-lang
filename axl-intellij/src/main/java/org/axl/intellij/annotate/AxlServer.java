@@ -4,9 +4,11 @@ import com.intellij.ide.plugins.IdeaPluginDescriptor;
 import com.intellij.ide.plugins.PluginManagerCore;
 import com.intellij.openapi.extensions.PluginId;
 import com.intellij.openapi.module.Module;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.projectRoots.JavaSdkType;
 import com.intellij.openapi.projectRoots.Sdk;
 import com.intellij.openapi.roots.ModuleRootManager;
+import com.intellij.openapi.util.Key;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,16 +23,16 @@ public final class AxlServer {
     private static final List<String> COMPILER_PACKAGES = List.of("api", "code", "comp", "file", "main", "model",
             "parser", "processing", "tree", "util");
 
-    private static volatile boolean languageServerStarted;
+    private static final Key<Boolean> LANGUAGE_SERVER_STARTED = Key.create("axl.languageServerStarted");
 
     private AxlServer() {}
 
-    public static void markLanguageServerStarted() {
-        languageServerStarted = true;
+    public static void markLanguageServerStarted(Project project) {
+        project.putUserData(LANGUAGE_SERVER_STARTED, true);
     }
 
-    public static boolean languageServerStarted() {
-        return languageServerStarted;
+    public static boolean languageServerStarted(Project project) {
+        return Boolean.TRUE.equals(project.getUserData(LANGUAGE_SERVER_STARTED));
     }
 
     /** `java ... -cp server/lib/* mainClass`, with the module's JDK when it is one. */
