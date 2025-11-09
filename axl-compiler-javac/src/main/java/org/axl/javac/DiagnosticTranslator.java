@@ -49,7 +49,10 @@ public final class DiagnosticTranslator {
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
         String[] javaLines = source.unit().javaSource().split("\n", -1);
         Messages.Translated translated = Messages.translate(message, javaLines, javaLine);
-        return new AxlDiagnostic(source.displayPath(), Math.max(axlLine, 1), source.firstColumn(axlLine),
+        int line = Math.max(axlLine, 1);
+        String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
+        String axlText = line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
+        return new AxlDiagnostic(source.displayPath(), line, Columns.find(javaText, diagnostic.getColumnNumber(), axlText),
                 severity, translated.code(), translated.message());
     }
 

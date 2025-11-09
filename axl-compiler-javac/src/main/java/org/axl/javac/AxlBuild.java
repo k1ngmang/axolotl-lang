@@ -102,7 +102,8 @@ public final class AxlBuild {
         var translator = new DiagnosticTranslator(generated, display);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
-            if (translated != null) {
+            // One .axl line becomes several Java lines, which can repeat the same error.
+            if (translated != null && !diagnostics.contains(translated)) {
                 diagnostics.add(translated);
             }
         }

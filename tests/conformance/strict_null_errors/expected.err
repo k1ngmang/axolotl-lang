@@ -1,2 +1,2 @@
-AXL104 app/Main.axl:5:5: error: the result of `trim()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
-AXL104 app/Main.axl:7:5: error: `home` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:5:25: error: the result of `trim()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:7:18: error: `home` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`

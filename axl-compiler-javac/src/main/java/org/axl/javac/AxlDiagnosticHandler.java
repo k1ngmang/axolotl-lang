@@ -12,9 +12,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import org.axl.compiler.LineMap;
@@ -53,6 +55,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     private final JCDiagnostic.Factory factory;
     private final List<DiagnosticsPlugin.Root> roots;
     private final Map<Path, Mapping> mappings = new HashMap<>();
+    private final Set<String> reported = new HashSet<>();
 
     AxlDiagnosticHandler(Context context, List<DiagnosticsPlugin.Root> roots) {
         this.log = Log.instance(context);
@@ -64,7 +67,12 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     @Override
     public void report(JCDiagnostic diagnostic) {
         JCDiagnostic moved = move(diagnostic);
-        prev.report(moved != null ? moved : diagnostic);
+        if (moved == null) {
+            prev.report(diagnostic);
+        } else if (reported.add(moved.getSource().toUri() + ":" + moved.getPosition() + ":" + moved.getMessage(Locale.ROOT))) {
+            // One .axl line becomes several Java lines, which can repeat the same error.
+            prev.report(moved);
+        }
     }
 
     private JCDiagnostic move(JCDiagnostic diagnostic) {
@@ -82,21 +90,11 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         String message = DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT));
         String translated = Messages.translate(message, mapping.javaLines(), javaLine).message();
         AxlFile axl = mapping.axl();
-        int column = firstColumn(axl.lines, axlLine);
+        String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
+        String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
+        int column = Columns.find(javaText, diagnostic.getColumnNumber(), axlText);
         return factory.create(type, new DiagnosticSource(axl, log),
                 new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager", translated);
-    }
-
-    private static int firstColumn(List<String> lines, int line) {
-        if (line > lines.size()) {
-            return 1;
-        }
-        String text = lines.get(line - 1);
-        int column = 0;
-        while (column < text.length() && Character.isWhitespace(text.charAt(column))) {
-            column++;
-        }
-        return column + 1;
     }
 
     private Mapping mapping(Path javaFile) {

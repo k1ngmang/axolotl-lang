@@ -16,7 +16,7 @@ One line per decision where the specification is silent or had to be adjusted.
 - `private val` is allowed at top level and becomes `private static final`.
 - Java keywords cannot be used as names (AXL011); the file name must be a valid Java class name (AXL012).
 - `fn main()` means a function named `main` with no parameters and no result type.
-- javac diagnostics are reported at the first non-blank column of the mapped .axl line; multi-line javac messages are joined with `; `.
+- javac diagnostics are reported at the .axl column of the name javac points at, found by matching that name in the .axl line (counted from the end of the line); without a match, at the first non-blank column. Multi-line javac messages are joined with `; `, and identical diagnostics on one .axl line are reported once.
 - Generated classes have no blank lines between members, as in the specification example.
 - `axl build` writes generated sources to the `-d` directory unless `-s` is given, like javac. `axl run` compiles the whole source root, which it derives from the file path and its package.
 - NullAway runs with `JSpecifyMode=true` and `OnlyNullMarked=true`, which replaces `AnnotatedPackages`; every generated class is `@NullMarked`.

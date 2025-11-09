@@ -1,4 +1,4 @@
-AXL102 app/Main.axl:7:1: error: `null` is passed where null is not accepted; make the type nullable with `?`
+AXL102 app/Main.axl:7:44: error: `null` is passed where null is not accepted; make the type nullable with `?`
 AXL102 app/Main.axl:9:1: error: the argument may be null, but the parameter does not accept null: use `?:` or a null check
-AXL100 app/Main.axl:11:1: error: returning @Nullable expression from method with @NonNull return type
-AXL102 app/Main.axl:17:5: error: value `s` may be null: use `?.`, `?:` or check `if (s != null)`
+AXL100 app/Main.axl:11:54: error: returning @Nullable expression from method with @NonNull return type
+AXL102 app/Main.axl:17:17: error: value `s` may be null: use `?.`, `?:` or check `if (s != null)`

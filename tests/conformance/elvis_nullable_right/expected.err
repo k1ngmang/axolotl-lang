@@ -1,5 +1,5 @@
-AXL100 app/Main.axl:5:1: error: returning @Nullable expression from method with @NonNull return type
-AXL100 app/Main.axl:7:1: error: returning @Nullable expression from method with @NonNull return type
-AXL100 app/Main.axl:9:1: error: returning @Nullable expression from method with @NonNull return type
-AXL102 app/Main.axl:13:5: error: value `local` may be null: use `?.`, `?:` or check `if (local != null)`
-AXL102 app/Main.axl:14:5: error: value `Nulls.or(maybe(), () -> maybe())` may be null: use `?.`, `?:` or check `if (Nulls.or(maybe(), () -> maybe()) != null)`
+AXL100 app/Main.axl:5:50: error: returning @Nullable expression from method with @NonNull return type
+AXL100 app/Main.axl:7:40: error: returning @Nullable expression from method with @NonNull return type
+AXL100 app/Main.axl:9:42: error: returning @Nullable expression from method with @NonNull return type
+AXL102 app/Main.axl:13:19: error: value `local` may be null: use `?.`, `?:` or check `if (local != null)`
+AXL102 app/Main.axl:14:34: error: value `Nulls.or(maybe(), () -> maybe())` may be null: use `?.`, `?:` or check `if (Nulls.or(maybe(), () -> maybe()) != null)`

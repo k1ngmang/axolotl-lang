@@ -1,4 +1,4 @@
-AXL100 app/Main.axl:11:9: error: `it` of type `Int` has no method `foo()`
+AXL100 app/Main.axl:11:21: error: `it` of type `Int` has no method `foo()`
 AXL100 app/Main.axl:14:9: error: unknown name `nope`; check the spelling or add an import
 AXL100 app/Main.axl:16:9: error: type mismatch: expected `Int`, found `String`
-AXL100 app/Main.axl:18:9: error: `Int` has no method `lenght()`
+AXL100 app/Main.axl:18:10: error: `Int` has no method `lenght()`

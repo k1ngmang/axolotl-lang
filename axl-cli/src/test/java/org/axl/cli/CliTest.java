@@ -54,7 +54,7 @@ class CliTest {
         int exit = axl("build", CASES.resolve("javac_error_mapping/src").toString(), "-d", tmp.toString());
         assertEquals(1, exit);
         String message = err.toString(StandardCharsets.UTF_8).strip();
-        assertTrue(message.endsWith("Main.axl:6:5: error: `greeting` of type `String` has no method `lenght()`"), message);
+        assertTrue(message.endsWith("Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()`"), message);
     }
 
     @Test
@@ -84,7 +84,7 @@ class CliTest {
         Files.writeString(java.resolve("Names.java"), "package app;\npublic class Names { public static String name() { return \"x\"; } }\n");
         Files.writeString(axl.resolve("Main.axl"), "package app\n\nfn main() {\n    val n: String? = null\n    println(n.length() + Names.name())\n}\n");
         assertEquals(1, axl("check", tmp.resolve("axl").toString(), tmp.resolve("java").toString()));
-        assertEquals(axl.resolve("Main.axl").toAbsolutePath() + ":5:5: error: value `n` may be null: use `?.`, `?:` or check `if (n != null)`",
+        assertEquals(axl.resolve("Main.axl").toAbsolutePath() + ":5:15: error: value `n` may be null: use `?.`, `?:` or check `if (n != null)`",
                 out.toString(StandardCharsets.UTF_8).strip());
     }
 
@@ -93,7 +93,7 @@ class CliTest {
         String src = CASES.resolve("strict_null_errors/src").toString();
         assertEquals(0, axl("build", src, "-d", tmp.resolve("lenient").toString()), err.toString());
         assertEquals(1, axl("build", src, "-d", tmp.resolve("strict").toString(), "--strict-null"));
-        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Main.axl:7:5: error: `home` may be null"), err.toString());
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Main.axl:7:18: error: `home` may be null"), err.toString());
     }
 
     @Test

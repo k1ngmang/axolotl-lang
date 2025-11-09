@@ -41,7 +41,7 @@ class DiagnosticsPluginTest {
                 .filter(d -> d.getKind() == Diagnostic.Kind.ERROR).findFirst().orElseThrow();
         assertEquals(sources.resolve("Main.axl").toUri(), ((javax.tools.FileObject) error.getSource()).toUri());
         assertEquals(5, error.getLineNumber());
-        assertEquals(5, error.getColumnNumber());
+        assertEquals(22, error.getColumnNumber());
         assertEquals("`greeting` of type `String` has no method `lenght()`", error.getMessage(Locale.ROOT));
     }
 }

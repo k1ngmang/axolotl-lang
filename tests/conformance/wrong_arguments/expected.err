@@ -1,3 +1,3 @@
 AXL100 app/Main.axl:6:5: error: type mismatch: expected `String`, found `Int`
-AXL100 app/Main.axl:7:5: error: wrong arguments for `shout`: expected (String), got (String, String)
+AXL100 app/Main.axl:7:13: error: wrong arguments for `shout`: expected (String), got (String, String)
 AXL100 app/Main.axl:8:5: error: type mismatch: expected `Int`, found `String`
