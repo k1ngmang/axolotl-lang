@@ -40,7 +40,7 @@ final class Document {
         Path root = module.axlRootOf(path);
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
         // Types of top-level values that depend on Java code come from javac, only when needed.
-        Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), module.javaRoots()));
+        Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), module.javaRoots(), module.strictNull()));
         this.translation = Translator.translate(sourcePath, uri, text, options);
     }
 

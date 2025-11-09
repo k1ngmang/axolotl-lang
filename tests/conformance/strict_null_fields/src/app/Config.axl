@@ -1,0 +1,3 @@
+package app
+
+val home = System.getenv("AXL_SURELY_NOT_SET")

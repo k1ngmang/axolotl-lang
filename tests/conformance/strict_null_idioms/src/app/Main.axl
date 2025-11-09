@@ -1,0 +1,35 @@
+package app
+
+import java.util.List
+
+fn count(xs: List<String>) -> Long = xs |> filter { it.isEmpty() } |> count
+
+fn size(flag: Boolean) -> Int {
+    val home = System.getenv("AXL_SURELY_NOT_SET")
+    if (home == null) {
+        if (flag) {
+            return 1
+        } else {
+            return 2
+        }
+    }
+    return home.length()
+}
+
+fn fallback() -> Int {
+    var home = System.getenv("AXL_SURELY_NOT_SET")
+    while (home == null) {
+        home = "fallback"
+    }
+    return home.length()
+}
+
+fn main() {
+    println(count(List.of("a", "")!!))
+    val names = List.of("b", "a")!!
+    println(names |> sorted |> map { it.length() } |> first)
+    println(size(true))
+    println(fallback())
+    val env = System.getenv("AXL_SURELY_NOT_SET") ?: "none"
+    println(env.length())
+}

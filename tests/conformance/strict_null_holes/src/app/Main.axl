@@ -1,0 +1,26 @@
+package app
+
+import java.util.Arrays
+
+fn len(s: String) -> Int = s.length()
+
+fn homeDir() -> String = System.getenv("AXL_SURELY_NOT_SET")
+
+fn main() {
+    println(len(System.getenv("AXL_SURELY_NOT_SET")))
+    val a = System.getenv("AXL_SURELY_NOT_SET")
+    val b = a
+    println(b.length())
+    val typed: String = System.getenv("AXL_SURELY_NOT_SET")
+    val n: Int = Integer.getInteger("axl.surely.not.set")
+    println(Integer.getInteger("axl.surely.not.set") + 1)
+    var s = "x"
+    var i = 0
+    while (i < 2) {
+        println(s.length())
+        s = System.getenv("AXL_SURELY_NOT_SET")
+        i += 1
+    }
+    val xs = Arrays.asList("a", null)!!
+    xs.forEach({ e -> println(e.length()) })
+}

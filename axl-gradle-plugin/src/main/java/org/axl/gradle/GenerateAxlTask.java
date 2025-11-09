@@ -52,6 +52,10 @@ public abstract class GenerateAxlTask extends DefaultTask {
     @Input
     public abstract Property<Boolean> getInlineElvis();
 
+    /** Types top-level values inferred from Java code without nullness annotations as nullable. */
+    @Input
+    public abstract Property<Boolean> getStrictNull();
+
     /** Classpath and Java sources, for the types of top-level values that depend on them. */
     @Classpath
     public abstract ConfigurableFileCollection getClasspath();
@@ -94,7 +98,7 @@ public abstract class GenerateAxlTask extends DefaultTask {
         List<Path> classpath = getClasspath().getFiles().stream().map(File::toPath).toList();
         List<Path> javaRoots = getJavaSourceDirs().getFiles().stream().map(File::toPath).toList();
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
-        for (Translator.Result result : Translation.run(inputs, options, classpath, javaRoots, out)) {
+        for (Translator.Result result : Translation.run(inputs, options, classpath, javaRoots, out, getStrictNull().get())) {
             diagnostics.addAll(result.diagnostics());
         }
         int translated = inputs.size();

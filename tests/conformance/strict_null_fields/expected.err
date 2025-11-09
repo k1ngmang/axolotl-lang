@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:4:5: error: value `Config.home` may be null: use `?.`, `?:` or check `if (Config.home != null)`
+AXL102 app/Main.axl:5:5: error: value `later` may be null: use `?.`, `?:` or check `if (later != null)`

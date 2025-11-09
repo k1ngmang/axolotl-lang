@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    println(Config.home.length())
+    println(later.length())
+}
+
+val later = System.getenv("AXL_SURELY_NOT_SET")

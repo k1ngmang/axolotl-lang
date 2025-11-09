@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeKind;
@@ -46,8 +45,15 @@ public final class JavacTypes implements JavaTypes {
 
     private final List<Path> classpath;
     private final List<Path> sourcepath;
+    private final boolean strictNull;
 
     public JavacTypes(List<Path> classpath, List<Path> sourcepath) {
+        this(classpath, sourcepath, false);
+    }
+
+    /** strictNull: values from Java code without nullness annotations are typed nullable. */
+    public JavacTypes(List<Path> classpath, List<Path> sourcepath, boolean strictNull) {
+        this.strictNull = strictNull;
         this.classpath = new ArrayList<>(RuntimeClasspath.entries());
         this.classpath.addAll(classpath);
         this.sourcepath = sourcepath.stream().filter(Files::isDirectory).toList();
@@ -95,7 +101,7 @@ public final class JavacTypes implements JavaTypes {
                             String type = text(trees.getTypeMirror(path));
                             if (type != null) {
                                 boolean nullable = variable.getInitializer() != null
-                                        && isNullable(trees, new TreePath(path, variable.getInitializer()));
+                                        && isNullable(trees, new TreePath(path, variable.getInitializer()), strictNull);
                                 types.put(variable.getName().toString(), nullable ? NULLABLE + type : type);
                             }
                         }
@@ -113,21 +119,21 @@ public final class JavacTypes implements JavaTypes {
      * Whether an initializer may be null as far as its declarations say. javac drops type-use
      * annotations from inferred types, so this reads the declarations instead.
      */
-    private static boolean isNullable(Trees trees, TreePath path) {
+    private static boolean isNullable(Trees trees, TreePath path, boolean strict) {
         ExpressionTree expression = (ExpressionTree) path.getLeaf();
         return switch (expression) {
-            case ParenthesizedTree p -> isNullable(trees, new TreePath(path, p.getExpression()));
-            case ConditionalExpressionTree c -> isNullable(trees, new TreePath(path, c.getTrueExpression()))
-                    || isNullable(trees, new TreePath(path, c.getFalseExpression()));
+            case ParenthesizedTree p -> isNullable(trees, new TreePath(path, p.getExpression()), strict);
+            case ConditionalExpressionTree c -> isNullable(trees, new TreePath(path, c.getTrueExpression()), strict)
+                    || isNullable(trees, new TreePath(path, c.getFalseExpression()), strict);
             case LiteralTree l -> l.getKind() == Tree.Kind.NULL_LITERAL;
-            case MethodInvocationTree call -> isNullableCall(trees, path, call);
-            case IdentifierTree i -> declaredNullable(trees.getElement(path));
-            case MemberSelectTree m -> declaredNullable(trees.getElement(path));
+            case MethodInvocationTree call -> isNullableCall(trees, path, call, strict);
+            case IdentifierTree i -> declaredNullable(trees.getElement(path), strict);
+            case MemberSelectTree m -> declaredNullable(trees.getElement(path), strict);
             default -> false;
         };
     }
 
-    private static boolean isNullableCall(Trees trees, TreePath path, MethodInvocationTree call) {
+    private static boolean isNullableCall(Trees trees, TreePath path, MethodInvocationTree call, boolean strict) {
         Element method = trees.getElement(path);
         if (method == null) {
             return false;
@@ -138,26 +144,22 @@ public final class JavacTypes implements JavaTypes {
         if (owner.equals("axl.lang.Nulls") && name.equals("or") && call.getArguments().size() == 2
                 && call.getArguments().get(1) instanceof LambdaExpressionTree lambda
                 && lambda.getBody() instanceof ExpressionTree body) {
-            return isNullable(trees, new TreePath(new TreePath(path, lambda), body));
+            return isNullable(trees, new TreePath(new TreePath(path, lambda), body), strict);
         }
         // `|> first` is findFirst().orElse(null).
         if (name.equals("orElse") && call.getArguments().size() == 1
                 && call.getArguments().get(0).getKind() == Tree.Kind.NULL_LITERAL) {
             return true;
         }
-        return declaredNullable(method);
+        return declaredNullable(method, strict);
     }
 
-    private static boolean declaredNullable(Element element) {
+    private static boolean declaredNullable(Element element, boolean strict) {
         if (element == null) {
             return false;
         }
         TypeMirror type = element instanceof ExecutableElement method ? method.getReturnType() : element.asType();
-        return hasNullable(type.getAnnotationMirrors()) || hasNullable(element.getAnnotationMirrors());
-    }
-
-    private static boolean hasNullable(List<? extends AnnotationMirror> annotations) {
-        return annotations.stream().anyMatch(a -> a.getAnnotationType().asElement().getSimpleName().contentEquals("Nullable"));
+        return PlatformValues.isNullable(element, type) || strict && PlatformValues.isPlatform(element);
     }
 
     /** Java source text for a type, or null when it has no such text (errors, captures, intersections). */

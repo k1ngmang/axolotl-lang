@@ -80,8 +80,13 @@ println(home?.length() ?: 0)        // fine
 println(System.getenv("HOME")!!.length())   // fine: the check is explicit
 ```
 
-Static final fields such as `System.out`, the Axolotl runtime, `Objects.requireNonNull` and code in a
-`@NullMarked` scope are trusted in strict mode too.
+Such a value may not be dereferenced, unboxed, passed to an Axolotl parameter, returned from an
+Axolotl function or stored where the type is written without `?` until it is checked. A top-level
+`val` inferred from it gets a nullable type, and a lambda passed to unannotated Java code gets
+nullable parameters.
+
+Static final fields such as `System.out`, the Axolotl runtime, `Objects.requireNonNull`, the stream
+operations that pipes expand to and code in a `@NullMarked` scope are trusted in strict mode.
 
 ## Errors as values
 

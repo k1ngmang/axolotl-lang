@@ -80,7 +80,7 @@ public final class AxlBuild {
             String sourcePath = root.relativize(axl).toString().replace('\\', '/');
             inputs.add(new Translation.Input(sourcePath, display.apply(axl), Files.readString(axl, StandardCharsets.UTF_8)));
         }
-        List<Translator.Result> results = Translation.run(inputs, options, classpath, sourceDirs, generatedDir);
+        List<Translator.Result> results = Translation.run(inputs, options, classpath, sourceDirs, generatedDir, strictNull);
         for (int i = 0; i < results.size(); i++) {
             Translator.Result result = results.get(i);
             diagnostics.addAll(result.diagnostics());

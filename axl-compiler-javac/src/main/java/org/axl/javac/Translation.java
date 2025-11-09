@@ -27,6 +27,12 @@ public final class Translation {
      */
     public static List<Translator.Result> run(List<Input> inputs, Options options, List<Path> classpath,
                                               List<Path> javaRoots, Path outputDir) throws IOException {
+        return run(inputs, options, classpath, javaRoots, outputDir, false);
+    }
+
+    /** strictNull: top-level values inferred from Java code without nullness annotations are nullable. */
+    public static List<Translator.Result> run(List<Input> inputs, Options options, List<Path> classpath,
+                                              List<Path> javaRoots, Path outputDir, boolean strictNull) throws IOException {
         List<Translator.Result> results = new ArrayList<>();
         for (Input input : inputs) {
             Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(), options.asDraft());
@@ -40,7 +46,7 @@ public final class Translation {
         }
         List<Path> sourcepath = new ArrayList<>(List.of(outputDir));
         sourcepath.addAll(javaRoots);
-        Options typed = options.withJavaTypes(new JavacTypes(classpath, sourcepath));
+        Options typed = options.withJavaTypes(new JavacTypes(classpath, sourcepath, strictNull));
         // A value may depend on a value of another draft, so repeat while types keep being found.
         boolean changed = true;
         while (changed) {

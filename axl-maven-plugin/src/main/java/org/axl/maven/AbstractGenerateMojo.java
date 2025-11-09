@@ -117,7 +117,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         List<Translator.Result> results;
         try {
             results = Translation.run(inputs, new Options(inlineElvis), classpath().stream().map(Path::of).toList(),
-                    javaRoots, output);
+                    javaRoots, output, strictNull);
         } catch (DependencyResolutionRequiredException e) {
             throw new IOException(e);
         }

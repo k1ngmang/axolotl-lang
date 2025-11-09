@@ -94,6 +94,7 @@ public class AxlPlugin implements Plugin<Project> {
                     task.setDescription("Translates the " + name + " .axl sources to Java.");
                     task.getSources().from(sources);
                     task.getInlineElvis().set(axl.getInlineElvis());
+                    task.getStrictNull().set(axl.getStrictNull());
                     task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("generated/axl/" + name));
                     task.getClasspath().from(sourceSet.getCompileClasspath());
                     java.io.File generatedRoot = project.getLayout().getBuildDirectory().dir("generated/axl").get().getAsFile();
