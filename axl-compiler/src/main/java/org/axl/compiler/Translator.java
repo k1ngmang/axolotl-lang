@@ -58,13 +58,17 @@ public final class Translator {
             return new Result(null, diagnostics);
         }
         Map<String, String> valueTypes = new HashMap<>();
-        Set<String> unknown = inferValueTypes(file, analysis, options, valueTypes);
+        Map<String, String> reasons = new HashMap<>();
+        Set<String> unknown = inferValueTypes(file, analysis, options, valueTypes, reasons);
         if (!unknown.isEmpty() && !options.draft()) {
             for (Decl decl : file.decls()) {
                 if (decl instanceof Decl.Value value && unknown.contains(value.name())) {
-                    diagnostics.add(AxlDiagnostic.error(displayPath, value.pos().line(), value.pos().column(),
-                            ErrorCode.TYPE_REQUIRED, "cannot infer the type of `" + value.name() + "`; write it: `val "
-                                    + value.name() + ": Type = ...`"));
+                    // An error in the initializer is the real problem; the missing type follows from it.
+                    String reason = reasons.get(value.name());
+                    diagnostics.add(reason != null
+                            ? AxlDiagnostic.error(displayPath, value.pos().line(), value.pos().column(), ErrorCode.JAVAC, reason)
+                            : AxlDiagnostic.error(displayPath, value.pos().line(), value.pos().column(), ErrorCode.TYPE_REQUIRED,
+                                    "cannot infer the type of `" + value.name() + "`; write it: `val " + value.name() + ": Type = ...`"));
                 }
             }
             return new Result(null, diagnostics);
@@ -78,7 +82,7 @@ public final class Translator {
      * then from the compiler if the options give access to one. Returns the names still unknown.
      */
     private static Set<String> inferValueTypes(SourceFile file, Analysis analysis, Options options,
-                                               Map<String, String> valueTypes) {
+                                               Map<String, String> valueTypes, Map<String, String> reasons) {
         Map<String, TypeRef> inferred = new HashMap<>();
         TypeInference.inferAll(file, inferred);
         inferred.forEach((name, type) -> valueTypes.put(name, Generator.javaType(type)));
@@ -95,8 +99,11 @@ public final class Translator {
         String probe = Generator.probe(file, analysis, options, valueTypes, unknown);
         Map<String, String> found = options.javaTypes().localTypes(qualified, probe);
         for (String name : List.copyOf(unknown)) {
-            if (found.containsKey(name)) {
-                valueTypes.put(name, javaType(found.get(name), file));
+            String type = found.get(name);
+            if (type != null && type.startsWith(JavaTypes.ERROR)) {
+                reasons.put(name, type.substring(JavaTypes.ERROR.length()));
+            } else if (type != null) {
+                valueTypes.put(name, javaType(type, file));
                 unknown.remove(name);
             }
         }

@@ -33,6 +33,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -62,8 +63,8 @@ public final class JavacTypes implements JavaTypes {
     @Override
     public Map<String, String> localTypes(String qualifiedClassName, String javaSource) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-        var ignored = new DiagnosticCollector<JavaFileObject>();
-        var files = compiler.getStandardFileManager(ignored, Locale.ROOT, StandardCharsets.UTF_8);
+        var errors = new DiagnosticCollector<JavaFileObject>();
+        var files = compiler.getStandardFileManager(errors, Locale.ROOT, StandardCharsets.UTF_8);
         List<String> options = new ArrayList<>(List.of("-proc:none", "-implicit:none", "-XDaddTypeAnnotationsToSymbol=true",
                 "-classpath", join(classpath)));
         if (!sourcepath.isEmpty()) {
@@ -76,7 +77,8 @@ public final class JavacTypes implements JavaTypes {
                 return javaSource;
             }
         };
-        JavacTask task = (JavacTask) compiler.getTask(null, files, ignored, options, null, List.of(source));
+        JavacTask task = (JavacTask) compiler.getTask(null, files, errors, options, null, List.of(source));
+        String[] lines = javaSource.split("\n", -1);
         try {
             Iterable<? extends CompilationUnitTree> units = task.parse();
             task.analyze();
@@ -103,6 +105,11 @@ public final class JavacTypes implements JavaTypes {
                                 boolean nullable = variable.getInitializer() != null
                                         && isNullable(trees, new TreePath(path, variable.getInitializer()), strictNull);
                                 types.put(variable.getName().toString(), nullable ? NULLABLE + type : type);
+                            } else if (variable.getInitializer() != null) {
+                                String reason = reason(trees, unit, variable.getInitializer(), errors, lines);
+                                if (reason != null) {
+                                    types.put(variable.getName().toString(), ERROR + reason);
+                                }
                             }
                         }
                         return null;
@@ -113,6 +120,20 @@ public final class JavacTypes implements JavaTypes {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** The first error javac reports inside an initializer, in Axolotl terms. */
+    private static String reason(Trees trees, CompilationUnitTree unit, ExpressionTree init,
+                                 DiagnosticCollector<JavaFileObject> errors, String[] lines) {
+        long start = trees.getSourcePositions().getStartPosition(unit, init);
+        long end = trees.getSourcePositions().getEndPosition(unit, init);
+        for (Diagnostic<? extends JavaFileObject> d : errors.getDiagnostics()) {
+            if (d.getKind() == Diagnostic.Kind.ERROR && d.getPosition() >= start && d.getPosition() <= end) {
+                String message = DiagnosticTranslator.oneLine(d.getMessage(Locale.ROOT));
+                return Messages.translate(message, lines, (int) d.getLineNumber()).message();
+            }
+        }
+        return null;
     }
 
     /**

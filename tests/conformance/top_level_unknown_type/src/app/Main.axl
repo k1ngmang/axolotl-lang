@@ -2,3 +2,5 @@ package app
 
 val nothing = null
 val named = java.util.Map.entry("k", 1).getKey()
+val misspelled = undefinedThing
+val wrongArgs = Integer.parseInt(1)
