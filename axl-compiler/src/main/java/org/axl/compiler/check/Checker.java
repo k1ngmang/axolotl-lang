@@ -419,7 +419,7 @@ public final class Checker {
     }
 
     private static boolean isMain(Decl.Function fn) {
-        return fn.name().equals("main") && fn.params().isEmpty() && fn.returnType() == null;
+        return fn.name().equals("main") && fn.params().isEmpty() && fn.returnType() == null && !fn.isPrivate();
     }
 
     /** A local, parameter or lambda parameter; file-level names do not count. */

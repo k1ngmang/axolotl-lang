@@ -18,7 +18,8 @@ public enum ErrorCode {
     TRY_ERROR_TYPE("AXL101"),
     NULLABLE_DEREFERENCE("AXL102"),
     IMPORT_MEMBER("AXL103"),
-    STRICT_NULL("AXL104");
+    STRICT_NULL("AXL104"),
+    TRY_NOT_RESULT("AXL105");
 
     private final String id;
 

@@ -22,3 +22,4 @@ Every diagnostic is printed as `file.axl:line:column: error: message`.
 | AXL102 | A value that may be null is dereferenced or passed where null is not accepted (NullAway). |
 | AXL103 | A member imported without `fn`/`val`. |
 | AXL104 | Strict null mode: a value from Java code without nullness annotations is used without a check. |
+| AXL105 | `try` on a value that is not a `Result`. |

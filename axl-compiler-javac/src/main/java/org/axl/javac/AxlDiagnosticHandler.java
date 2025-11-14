@@ -69,6 +69,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         JCDiagnostic moved = move(diagnostic);
         if (moved == null) {
             prev.report(diagnostic);
+        } else if (Messages.ignored(DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT)))) {
+            return;
         } else if (reported.add(moved.getSource().toUri() + ":" + moved.getPosition() + ":" + moved.getMessage(Locale.ROOT))) {
             // One .axl line becomes several Java lines, which can repeat the same error.
             prev.report(moved);

@@ -1,0 +1,19 @@
+package app
+
+import java.util.List
+
+fn maybe() -> String? = null
+
+fn deref() {
+    println((maybe() ?: maybe()).length())
+    val s: String? = "a"
+    println(s?.length() + 1)
+}
+
+fn returns() -> String = maybe()
+
+val field: String = maybe() ?: maybe()
+
+fn mapping(xs: List<String>) {
+    val ys: List<String> = xs |> map { maybe() }
+}

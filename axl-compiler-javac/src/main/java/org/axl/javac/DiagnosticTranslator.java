@@ -25,7 +25,7 @@ public final class DiagnosticTranslator {
         this.javaDisplay = javaDisplay;
     }
 
-    /** Returns null for notes, which are not worth showing. */
+    /** Returns null for notes and for warnings about the shape of generated code. */
     public AxlDiagnostic translate(Diagnostic<? extends JavaFileObject> diagnostic) {
         AxlDiagnostic.Severity severity = switch (diagnostic.getKind()) {
             case ERROR -> AxlDiagnostic.Severity.ERROR;
@@ -36,6 +36,9 @@ public final class DiagnosticTranslator {
             return null;
         }
         String message = oneLine(diagnostic.getMessage(Locale.ROOT));
+        if (Messages.ignored(message)) {
+            return null;
+        }
         if (diagnostic.getSource() == null) {
             return new AxlDiagnostic("javac", 0, 0, severity, ErrorCode.JAVAC, message);
         }

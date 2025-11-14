@@ -1,0 +1,48 @@
+package app
+
+import java.util.List
+import java.util.Map
+import java.util.Lisst
+import fn java.lang.Math.maxx
+
+fn h(s: String?) -> String? = s
+fn g() -> Result<Int, String> = Ok(1)
+fn gm() -> Result<Int, Map<String, Int>> = Ok(1)
+fn parse(s: String) -> Int = 1
+fn nothing() {}
+fn twice() {}
+fn twice() {}
+
+fn safeCall() {
+    h("a")?.foo()
+}
+
+fn tryNumber() -> Result<Int, String> {
+    val x = try 5
+    return Ok(x)
+}
+
+fn tryErrorTypes() -> Result<Int, String> {
+    val x = try gm()
+    return Ok(x)
+}
+
+fn tryErrorTypes2() -> Result<Int, Map<String, Int>> {
+    val r: Result<Int, String> = Ok(1)
+    val x = try r
+    return Ok(x)
+}
+
+fn lambdas(xs: List<Int>) {
+    val ys = xs |> filter { it + 1 }
+    xs.forEach({ -> println("x") })
+}
+
+fn primitives(n: Int) {
+    println(n.foo())
+    println("a" < 1)
+    val v = nothing()
+    println(nothing())
+}
+
+fn inference() -> Result<Int, String> = attempt parse("1") else 42

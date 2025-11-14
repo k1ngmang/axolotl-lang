@@ -168,7 +168,7 @@ public final class Generator {
     }
 
     private static boolean isMain(Decl.Function fn) {
-        return fn.name().equals("main") && fn.params().isEmpty() && fn.returnType() == null;
+        return fn.name().equals("main") && fn.params().isEmpty() && fn.returnType() == null && !fn.isPrivate();
     }
 
     private static String visibility(Decl decl) {
@@ -277,7 +277,7 @@ public final class Generator {
             em.line(line, "while (true) {");
             em.indent();
             withCopies(line, loop.condition(), () ->
-                    em.line(line, "if (!(" + lifted(line, loop.condition()).code() + ")) break;"));
+                    em.line(line, "if (" + negated(lifted(line, loop.condition()).code()) + ") break;"));
             loop.body().statements().forEach(this::statement);
             em.dedent();
         }
@@ -796,6 +796,10 @@ public final class Generator {
         boolean simple = source instanceof Expr.Name || source instanceof Expr.Call || source instanceof Expr.Member
                 || source instanceof Expr.Paren || source instanceof Expr.GenericNew || source instanceof Expr.Literal;
         return simple ? code : "(" + code + ")";
+    }
+
+    private static String negated(String condition) {
+        return condition.matches("[\\w$]+") ? "!" + condition : "!(" + condition + ")";
     }
 
     /** `- -x` must not become Java's `--x`. */
