@@ -1,2 +1,2 @@
 AXL008 app/Main.axl:5:5: error: cannot assign to `val` `y`; declare it with `var`
-AXL008 app/Main.axl:6:5: error: cannot assign to parameter `x`; declare it with `var`
+AXL008 app/Main.axl:6:5: error: cannot assign to the parameter `x`; copy it into a `var` first: `var current = x`

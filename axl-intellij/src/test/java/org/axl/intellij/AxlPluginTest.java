@@ -109,7 +109,7 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
                 fn f(x: Int) -> Int {
                     val y = 1
                     if (x > 0) {
-                        val <error descr="`y` shadows the local variable declared at line 10; choose another name">y</error> = 2
+                        val <error descr="`y` shadows the `y` declared at line 10; choose another name">y</error> = 2
                         return y
                     }
                     return y

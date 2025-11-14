@@ -1,0 +1,8 @@
+AXL007 app/Main.axl:8:25: error: `try` can only be used in a function that returns `Result`
+AXL007 app/Main.axl:11:12: error: `try` can only be used in a function that returns `Result`
+AXL009 app/Main.axl:15:5: error: `val f` needs a type when it is initialized with a lambda: `val f: Type = ...`
+AXL006 app/Main.axl:15:25: error: `try` cannot be used in a lambda or `attempt`: it would not return from the function; move it into a `val` first, or use `|> mapResult` for a collection
+AXL008 app/Main.axl:20:5: error: cannot assign to the parameter `p`; copy it into a `var` first: `var current = p`
+AXL008 app/Main.axl:21:5: error: cannot assign to the top-level value `limit`; top-level values cannot change
+AXL008 app/Main.axl:22:5: error: `helper` is a function, not a variable
+AXL009 app/Main.axl:23:5: error: `val n` needs a type when it is initialized with `null`: `val n: Type = ...`

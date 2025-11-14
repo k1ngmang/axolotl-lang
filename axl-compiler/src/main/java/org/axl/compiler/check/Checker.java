@@ -24,7 +24,8 @@ import org.axl.compiler.ast.TypeRef;
 public final class Checker {
 
     public static final String TRY_IN_LAMBDA =
-            "`try` cannot be used in a lambda: it would return from the lambda, not the function; use `|> mapResult` or `attempt`";
+            "`try` cannot be used in a lambda or `attempt`: it would not return from the function; move it into a `val` first, "
+                    + "or use `|> mapResult` for a collection";
     public static final String TRY_AFTER_SAFE_CALL =
             "`try` after `?.` runs only for a non-null value; move `try` into a separate `val`";
     public static final String RETURN_TRY =
@@ -165,7 +166,7 @@ public final class Checker {
         }
         if (fn.exprBody() != null) {
             if (fn.exprBody() instanceof Expr.Try t) {
-                if (fn.returnType() == null) {
+                if (!returnsResult(fn)) {
                     statementTry(t);
                 } else {
                     error(t.pos(), ErrorCode.RETURN_TRY, RETURN_TRY);
@@ -192,12 +193,12 @@ public final class Checker {
     private void statement(Stmt stmt) {
         switch (stmt) {
             case Stmt.Local local -> {
-                boolean needsType = local.init() instanceof Expr.Lambda
-                        || local.init() instanceof Expr.Literal l && l.text().equals("null");
+                Expr init = unparenthesized(local.init());
+                boolean needsType = init instanceof Expr.Lambda || init instanceof Expr.Literal l && l.text().equals("null");
                 if (needsType && local.type() == null) {
                     String keyword = local.mutable() ? "var" : "val";
                     error(local.pos(), ErrorCode.TYPE_REQUIRED, "`" + keyword + " " + local.name()
-                            + "` needs a type when it is initialized with " + (local.init() instanceof Expr.Lambda
+                            + "` needs a type when it is initialized with " + (init instanceof Expr.Lambda
                             ? "a lambda" : "`null`") + ": `" + keyword + " " + local.name() + ": Type = ...`");
                 }
                 declaredType = local.type();
@@ -213,16 +214,16 @@ public final class Checker {
                 if (assign.target() instanceof Expr.Name name) {
                     Symbol symbol = scope.lookup(name.name());
                     if (symbol != null && symbol.kind != Kind.MUTABLE_LOCAL) {
-                        String what = symbol.kind == Kind.PARAM ? "parameter" : "`val`";
-                        error(assign.pos(), ErrorCode.ASSIGN_TO_VAL, "cannot assign to " + what + " `" + name.name()
-                                + "`; declare it with `var`");
+                        error(assign.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(name.name(), symbol));
                     }
                 }
                 expr(assign.target());
                 expr(assign.value());
             }
             case Stmt.Return ret -> {
-                if (ret.value() instanceof Expr.Try t) {
+                if (ret.value() instanceof Expr.Try t && (lambdaDepth > 0 || !returnsResult(function))) {
+                    statementTry(t);
+                } else if (ret.value() instanceof Expr.Try t) {
                     error(t.pos(), ErrorCode.RETURN_TRY, RETURN_TRY);
                     expr(t.inner());
                 } else if (ret.value() != null) {
@@ -249,6 +250,20 @@ public final class Checker {
             }
             case Stmt.Block block -> statements(block.statements());
         }
+    }
+
+    private String assignmentProblem(String name, Symbol symbol) {
+        return switch (symbol.kind) {
+            case PARAM -> "cannot assign to the parameter `" + name + "`; copy it into a `var` first: `var current = " + name + "`";
+            case TOP_LEVEL -> file.decls().stream().anyMatch(d -> d instanceof Decl.Function && d.name().equals(name))
+                    ? "`" + name + "` is a function, not a variable"
+                    : "cannot assign to the top-level value `" + name + "`; top-level values cannot change";
+            default -> "cannot assign to `val` `" + name + "`; declare it with `var`";
+        };
+    }
+
+    private static Expr unparenthesized(Expr e) {
+        return e instanceof Expr.Paren p ? unparenthesized(p.inner()) : e;
     }
 
     /** A `try` in one of the two allowed statement positions. */
@@ -443,7 +458,7 @@ public final class Checker {
             if (s == scope) {
                 error(pos, ErrorCode.DUPLICATE_NAME, "`" + name + "` is already declared at line " + existing.pos().line());
             } else {
-                error(pos, ErrorCode.SHADOWING, "`" + name + "` shadows the local variable declared at line "
+                error(pos, ErrorCode.SHADOWING, "`" + name + "` shadows the `" + name + "` declared at line "
                         + existing.pos().line() + "; choose another name");
             }
             break;

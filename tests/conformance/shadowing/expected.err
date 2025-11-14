@@ -1,4 +1,4 @@
-AXL004 app/Main.axl:6:9: error: `y` shadows the local variable declared at line 4; choose another name
-AXL004 app/Main.axl:9:54: error: `x` shadows the local variable declared at line 3; choose another name
-AXL004 app/Main.axl:10:34: error: `y` shadows the local variable declared at line 4; choose another name
+AXL004 app/Main.axl:6:9: error: `y` shadows the `y` declared at line 4; choose another name
+AXL004 app/Main.axl:9:54: error: `x` shadows the `x` declared at line 3; choose another name
+AXL004 app/Main.axl:10:34: error: `y` shadows the `y` declared at line 4; choose another name
 AXL010 app/Main.axl:11:5: error: `y` is already declared at line 4

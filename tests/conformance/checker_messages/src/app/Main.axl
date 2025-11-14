@@ -1,0 +1,24 @@
+package app
+
+val limit = 10
+
+fn g() -> Result<Int, String> = Ok(1)
+fn helper() -> Int = 1
+
+fn notResult() -> Int = try g()
+
+fn notResultReturn() -> Int {
+    return try g()
+}
+
+fn inLambda() -> Result<Int, String> {
+    val f = { -> return try g() }
+    return Ok(1)
+}
+
+fn assignments(p: Int) {
+    p = 1
+    limit = 2
+    helper = 3
+    val n = (null)
+}
