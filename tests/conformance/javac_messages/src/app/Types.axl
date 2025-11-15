@@ -51,3 +51,7 @@ fn voidSafeCall() {
     val sb: StringBuilder? = StringBuilder("a")
     val r: Runnable = { -> sb?.setLength(0) }
 }
+
+fn sleeps() {
+    Thread.sleep(10)
+}

@@ -30,6 +30,7 @@ final class Messages {
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
     private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
+    private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
     private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
@@ -211,6 +212,11 @@ final class Messages {
         }
         if (message.equals("local variables referenced from a lambda expression must be final or effectively final")) {
             return "a lambda uses a `var` that changes; copy it to a `val` first";
+        }
+        Matcher unreported = UNREPORTED.matcher(message);
+        if (unreported.find()) {
+            return "this call can throw `" + axlType(unreported.group(1)) + "`, which Axolotl functions cannot pass on; "
+                    + "wrap it in `attempt ... else ...` to turn it into a `Result`";
         }
         if (message.equals("illegal forward reference")) {
             return "a top-level value is used before it is declared; move its declaration up";
