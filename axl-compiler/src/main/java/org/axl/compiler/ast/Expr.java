@@ -35,7 +35,8 @@ public sealed interface Expr {
     record Try(Pos pos, Expr inner) implements Expr {}
 
     /** `attempt body else handler`; errorName is null when the handler names no parameter. */
-    record Attempt(Pos pos, Expr body, String errorName, Expr handler) implements Expr {}
+    /** errorName and errorNamePos are null without `else e ->`. */
+    record Attempt(Pos pos, Expr body, String errorName, Pos errorNamePos, Expr handler) implements Expr {}
 
     /** arrow is true when the parameter list is written out, even if empty: `{ -> f() }`. */
     record Lambda(Pos pos, List<Param> params, boolean arrow, List<Stmt> body, Pos end) implements Expr {}

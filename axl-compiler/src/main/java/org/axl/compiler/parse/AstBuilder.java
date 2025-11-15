@@ -46,7 +46,7 @@ final class AstBuilder {
                 decls.add(function(top.functionDecl()));
             } else if (top.valDecl() != null) {
                 ValDeclContext val = top.valDecl();
-                decls.add(new Decl.Value(pos(val.start), val.PRIVATE() != null, name(val.identifier()),
+                decls.add(new Decl.Value(pos(val.start), pos(val.identifier().start), val.PRIVATE() != null, name(val.identifier()),
                         typeOrNull(val.type()), expr(val.expression())));
             }
         }
@@ -61,7 +61,7 @@ final class AstBuilder {
         FunctionBodyContext body = ctx.functionBody();
         Expr exprBody = body.expression() == null ? null : expr(body.expression());
         Stmt.Block block = body.block() == null ? null : block(body.block());
-        return new Decl.Function(pos(ctx.start), ctx.PRIVATE() != null, name(ctx.identifier()), params,
+        return new Decl.Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, name(ctx.identifier()), params,
                 typeOrNull(ctx.type()), exprBody, block);
     }
 
@@ -87,12 +87,12 @@ final class AstBuilder {
                     throw new Rejected(pos(s.start), "`private` is only allowed on top-level declarations");
                 }
                 ValDeclContext val = s.valDecl();
-                yield new Stmt.Local(pos(val.start), name(val.identifier()), typeOrNull(val.type()),
+                yield new Stmt.Local(pos(val.start), pos(val.identifier().start), name(val.identifier()), typeOrNull(val.type()),
                         expr(val.expression()), false);
             }
             case VarStatementContext s -> {
                 VarDeclContext var = s.varDecl();
-                yield new Stmt.Local(pos(var.start), name(var.identifier()), typeOrNull(var.type()),
+                yield new Stmt.Local(pos(var.start), pos(var.identifier().start), name(var.identifier()), typeOrNull(var.type()),
                         expr(var.expression()), true);
             }
             case ReturnStatementContext s ->
@@ -196,7 +196,8 @@ final class AstBuilder {
             case UnaryExpressionContext u -> new Expr.Unary(pos(u.start), u.start.getText(), prefix(u.prefixExpression()));
             case TryExpressionContext t -> new Expr.Try(pos(t.start), prefix(t.prefixExpression()));
             case AttemptExpressionContext a -> new Expr.Attempt(pos(a.start), expr(a.expression(0)),
-                    a.identifier() == null ? null : name(a.identifier()), expr(a.expression(1)));
+                    a.identifier() == null ? null : name(a.identifier()),
+                    a.identifier() == null ? null : pos(a.identifier().start), expr(a.expression(1)));
             case PostfixAltContext p -> postfix(p.postfixExpression());
             default -> throw new IllegalStateException("unknown expression " + ctx.getClass());
         };

@@ -132,14 +132,14 @@ public final class Checker {
             if (decl instanceof Decl.Value value) {
                 Symbol existing = scope.names.get(value.name());
                 if (existing != null) {
-                    error(value.pos(), ErrorCode.DUPLICATE_NAME,
+                    error(value.namePos(), ErrorCode.DUPLICATE_NAME,
                             "`" + value.name() + "` is already declared at line " + existing.pos().line());
                 }
                 scope.names.put(value.name(), new Symbol(Kind.TOP_LEVEL, value.pos()));
             } else {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos()));
             }
-            checkReserved(decl.pos(), decl.name());
+            checkReserved(decl.namePos(), decl.name());
         }
         for (Decl decl : file.decls()) {
             switch (decl) {
@@ -208,7 +208,7 @@ public final class Checker {
                     expr(local.init());
                 }
                 declaredType = null;
-                declare(local.pos(), local.name(), local.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL);
+                declare(local.namePos(), local.name(), local.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL);
             }
             case Stmt.Assign assign -> {
                 if (assign.target() instanceof Expr.Name name) {
@@ -345,7 +345,7 @@ public final class Checker {
                 expr(a.body());
                 scope = new Scope(scope, false);
                 if (a.errorName() != null) {
-                    declare(a.pos(), a.errorName(), Kind.PARAM);
+                    declare(a.errorNamePos(), a.errorName(), Kind.PARAM);
                 }
                 expr(a.handler());
                 scope = scope.parent;

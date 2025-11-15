@@ -7,7 +7,7 @@ public sealed interface Stmt {
     Pos pos();
 
     /** `val` or `var`; type is null when it is left to javac. */
-    record Local(Pos pos, String name, TypeRef type, Expr init, boolean mutable) implements Stmt {}
+    record Local(Pos pos, Pos namePos, String name, TypeRef type, Expr init, boolean mutable) implements Stmt {}
 
     record Assign(Pos pos, Expr target, String op, Expr value) implements Stmt {}
 
