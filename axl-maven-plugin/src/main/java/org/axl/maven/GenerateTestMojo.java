@@ -20,9 +20,6 @@ public class GenerateTestMojo extends AbstractGenerateMojo {
     @Parameter(defaultValue = "${project.build.directory}/generated-test-sources/axl")
     File testOutputDirectory;
 
-    @Parameter(defaultValue = "${project.build.directory}/axl-test-state.json", readonly = true)
-    File stateFile;
-
     @Override
     Path sourceDirectory() {
         return testSourceDirectory.toPath();
@@ -31,11 +28,6 @@ public class GenerateTestMojo extends AbstractGenerateMojo {
     @Override
     Path outputDirectory() {
         return testOutputDirectory.toPath();
-    }
-
-    @Override
-    Path stateFile() {
-        return stateFile.toPath();
     }
 
     @Override

@@ -24,7 +24,6 @@ class GenerateMojoTest {
         mojo.project.getBuild().setOutputDirectory(base.resolve("target/classes").toString());
         mojo.sourceDirectory = base.resolve("src/main/axl").toFile();
         mojo.outputDirectory = base.resolve("target/generated-sources/axl").toFile();
-        mojo.stateFile = base.resolve("target/axl-state.json").toFile();
         mojo.javaRelease = 21;
         mojo.setLog(new SystemStreamLog() {
             @Override
@@ -45,7 +44,7 @@ class GenerateMojoTest {
         mojo(base).execute();
         assertEquals("Translated 2 of 2 .axl file(s)", messages.getLast());
         assertTrue(Files.exists(generated.resolve("A.java")));
-        assertTrue(Files.exists(base.resolve("target/axl-state.json")));
+        assertTrue(Files.exists(base.resolve("target/generated-sources/axl/.axl-state.json")));
 
         mojo(base).execute();
         assertEquals("Translated 0 of 2 .axl file(s)", messages.getLast());
@@ -60,5 +59,31 @@ class GenerateMojoTest {
         assertEquals(List.of(base.resolve("target/generated-sources/axl").toString()), mojo.project.getCompileSourceRoots());
         assertTrue(mojo.project.getProperties().getProperty("axl.javacPlugin").startsWith("-Xplugin:AxlDiagnostics file:"));
         assertEquals("21", mojo.project.getProperties().getProperty("maven.compiler.release"));
+    }
+
+    @Test
+    void retranslatesInferredValuesWhenAnotherFileChanges(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn make() -> String = \"x\"\n");
+        Files.writeString(sources.resolve("B.axl"), "package app\n\nval v = A.make()\n");
+        Path b = base.resolve("target/generated-sources/axl/app/B.java");
+        mojo(base).execute();
+        assertTrue(Files.readString(b).contains("String v"));
+
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn make() -> Int = 1\n");
+        mojo(base).execute();
+        assertEquals("Translated 2 of 2 .axl file(s)", messages.getLast());
+        assertTrue(Files.readString(b).contains("int v"));
+    }
+
+    @Test
+    void retranslatesEverythingWhenAnOptionChanges(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a(s: String?) {\n    val r = s ?: \"none\"\n}\n");
+        mojo(base).execute();
+        GenerateMojo inline = mojo(base);
+        inline.inlineElvis = true;
+        inline.execute();
+        assertEquals("Translated 1 of 1 .axl file(s)", messages.getLast());
     }
 }

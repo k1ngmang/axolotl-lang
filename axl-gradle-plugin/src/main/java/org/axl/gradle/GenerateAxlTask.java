@@ -10,6 +10,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import org.axl.compiler.AxlDiagnostic;
@@ -32,10 +34,10 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
 import org.gradle.work.FileChange;
-import org.gradle.work.Incremental;
 import org.gradle.work.InputChanges;
 
 /** Translates .axl files to .java files and line maps; only changed files are translated again. */
@@ -43,7 +45,8 @@ import org.gradle.work.InputChanges;
 public abstract class GenerateAxlTask extends DefaultTask {
 
     /** The .axl source trees; paths relative to their roots decide the generated paths. */
-    @Incremental
+    // Also makes the property incremental; generateTestAxl without test sources is NO-SOURCE.
+    @SkipWhenEmpty
     @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)
     @InputFiles
@@ -95,6 +98,9 @@ public abstract class GenerateAxlTask extends DefaultTask {
                         Files.readString(file.toPath(), StandardCharsets.UTF_8)));
             }
         }
+        if (!inputs.isEmpty() && changes.isIncremental()) {
+            addValueInferringFiles(inputs, outputsBySource);
+        }
         List<Path> classpath = getClasspath().getFiles().stream().map(File::toPath).toList();
         List<Path> javaRoots = getJavaSourceDirs().getFiles().stream().map(File::toPath).toList();
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
@@ -113,6 +119,28 @@ public abstract class GenerateAxlTask extends DefaultTask {
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             throw new GradleException("Axolotl translation failed; see the errors above.");
         }
+    }
+
+    /** Files with inferred top-level types may depend on the files that changed, so they are redone too. */
+    private void addValueInferringFiles(List<Translation.Input> inputs, Map<String, List<Path>> outputsBySource) {
+        Set<String> changed = inputs.stream().map(Translation.Input::sourcePath).collect(Collectors.toSet());
+        getSources().getAsFileTree().visit(details -> {
+            String sourcePath = details.getRelativePath().getPathString();
+            if (details.isDirectory() || changed.contains(sourcePath)) {
+                return;
+            }
+            try {
+                String text = Files.readString(details.getFile().toPath(), StandardCharsets.UTF_8);
+                if (Translator.infersValueTypes(sourcePath, text)) {
+                    for (Path stale : outputsBySource.getOrDefault(sourcePath, List.of())) {
+                        Files.deleteIfExists(stale);
+                    }
+                    inputs.add(new Translation.Input(sourcePath, details.getFile().getAbsolutePath(), text));
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     /** Generated files keyed by the .axl path recorded in their line maps. */

@@ -138,6 +138,12 @@ public final class Translator {
         return result;
     }
 
+    /** Whether a file has top-level values without a written type, whose type may depend on other code. */
+    public static boolean infersValueTypes(String sourcePath, String text) {
+        SourceFile file = SourceParser.parse(sourcePath, className(sourcePath), text).file();
+        return file != null && file.decls().stream().anyMatch(d -> d instanceof Decl.Value value && value.type() == null);
+    }
+
     public static String className(String sourcePath) {
         String name = sourcePath.substring(sourcePath.lastIndexOf('/') + 1);
         return name.endsWith(".axl") ? name.substring(0, name.length() - 4) : name;

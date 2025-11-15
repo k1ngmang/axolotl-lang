@@ -18,8 +18,10 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 | `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
 
-Generation is incremental: `target/axl-state.json` (`axl-test-state.json` for tests) stores a
-SHA-256 of every `.axl` file and the files generated from it, and only changed files are
+Generation is incremental: `.axl-state.json` in the output directory stores a SHA-256 of every
+`.axl` file and the files generated from it, and only changed files are translated again, together
+with files whose top-level values have inferred types, which may depend on the changed ones. A change
+of the options, the plugin version, the classpath or the Java sources makes every file
 translated again. Outputs of removed files are deleted.
 
 ## Parameters

@@ -78,6 +78,16 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void changingAFileRetypesValuesInferredFromIt() throws IOException {
+        Files.writeString(project.resolve("core/src/main/axl/core/Maker.axl"), "package core\n\nfn make() -> String = \"x\"\n");
+        Files.writeString(project.resolve("core/src/main/axl/core/Values.axl"), "package core\n\nval made = Maker.make()\n");
+        gradle(":core:compileJava").build();
+        Files.writeString(project.resolve("core/src/main/axl/core/Maker.axl"), "package core\n\nfn make() -> Int = 1\n");
+        gradle(":core:compileJava").build();
+        assertTrue(Files.readString(project.resolve("core/build/generated/axl/main/core/Values.java")).contains("int made"));
+    }
+
+    @Test
     void changingOneFileRegeneratesOnlyIt() throws IOException {
         Files.writeString(project.resolve("core/src/main/axl/core/Extra.axl"), "package core\n\nfn extra() -> Int = 1\n");
         gradle(":core:generateAxl").build();
@@ -103,7 +113,7 @@ class AxlPluginFunctionalTest {
         Path main = project.resolve("app/src/main/axl/app/Main.axl");
         Files.writeString(main, Files.readString(main).replace("fn main() {", "fn main() {\n    return try title(\"x\")"));
         BuildResult result = gradle(":app:compileJava").buildAndFail();
-        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":6:12: error: `return try e`"), result.getOutput());
+        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":6:12: error: `try` can only be used in a function that returns `Result`"), result.getOutput());
     }
 
     @Test

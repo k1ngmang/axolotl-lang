@@ -52,7 +52,13 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
 
     abstract Path outputDirectory();
 
-    abstract Path stateFile();
+    /** Kept with the output, so that executions with different output directories do not share it. */
+    Path stateFile() {
+        return outputDirectory().resolve(".axl-state.json");
+    }
+
+    @Parameter(defaultValue = "${plugin.version}", readonly = true)
+    String pluginVersion;
 
     abstract void addSourceRoot(String path);
 
@@ -89,6 +95,18 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         GenerationState previous = GenerationState.read(stateFile());
         GenerationState next = new GenerationState();
         Map<String, Path> current = axlFiles(sources);
+        List<Path> generatedRoots = List.of(output.toAbsolutePath().normalize());
+        List<Path> javaRoots = javaRoots().stream().map(Path::of)
+                .filter(p -> !generatedRoots.contains(p.toAbsolutePath().normalize())).toList();
+        List<Path> classpath;
+        try {
+            classpath = classpath().stream().map(Path::of).toList();
+        } catch (DependencyResolutionRequiredException e) {
+            throw new IOException(e);
+        }
+        // Options, the plugin and the code inferred types depend on: when they change, everything is redone.
+        next.environment = environment(classpath, javaRoots);
+        boolean sameEnvironment = next.environment.equals(previous.environment);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         for (Map.Entry<String, GenerationState.Entry> old : previous.files.entrySet()) {
             if (!current.containsKey(old.getKey())) {
@@ -101,7 +119,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             String text = Files.readString(file.getValue(), StandardCharsets.UTF_8);
             String hash = sha256(text);
             GenerationState.Entry old = previous.files.get(file.getKey());
-            if (old != null && old.hash.equals(hash) && outputsExist(output, old)) {
+            if (sameEnvironment && old != null && old.hash.equals(hash) && outputsExist(output, old)) {
                 next.files.put(file.getKey(), old);
                 continue;
             }
@@ -111,16 +129,11 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             inputs.add(new Translation.Input(file.getKey(), file.getValue().toString(), text));
             hashes.put(file.getKey(), hash);
         }
-        List<Path> generatedRoots = List.of(output.toAbsolutePath().normalize());
-        List<Path> javaRoots = javaRoots().stream().map(Path::of)
-                .filter(p -> !generatedRoots.contains(p.toAbsolutePath().normalize())).toList();
-        List<Translator.Result> results;
-        try {
-            results = Translation.run(inputs, new Options(inlineElvis), classpath().stream().map(Path::of).toList(),
-                    javaRoots, output, strictNull);
-        } catch (DependencyResolutionRequiredException e) {
-            throw new IOException(e);
+        if (!inputs.isEmpty()) {
+            addValueInferringFiles(current, inputs, hashes, next, output);
         }
+        List<Translator.Result> results = Translation.run(inputs, new Options(inlineElvis), classpath, javaRoots, output,
+                strictNull);
         for (int i = 0; i < results.size(); i++) {
             Translator.Result result = results.get(i);
             diagnostics.addAll(result.diagnostics());
@@ -143,6 +156,43 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             throw new MojoFailureException("Axolotl translation failed; see the errors above.");
         }
+    }
+
+    /** Files with inferred top-level types may depend on the files that changed, so they are redone too. */
+    private void addValueInferringFiles(Map<String, Path> current, List<Translation.Input> inputs, Map<String, String> hashes,
+                                        GenerationState next, Path output) throws IOException {
+        for (Map.Entry<String, Path> file : current.entrySet()) {
+            if (hashes.containsKey(file.getKey())) {
+                continue;
+            }
+            String text = Files.readString(file.getValue(), StandardCharsets.UTF_8);
+            if (Translator.infersValueTypes(file.getKey(), text)) {
+                GenerationState.Entry old = next.files.remove(file.getKey());
+                if (old != null) {
+                    deleteOutputs(output, old);
+                }
+                inputs.add(new Translation.Input(file.getKey(), file.getValue().toString(), text));
+                hashes.put(file.getKey(), sha256(text));
+            }
+        }
+    }
+
+    private String environment(List<Path> classpath, List<Path> javaRoots) throws IOException {
+        StringBuilder sb = new StringBuilder("inlineElvis=" + inlineElvis + " strictNull=" + strictNull + " plugin=" + pluginVersion);
+        for (Path entry : classpath) {
+            sb.append('\n').append(entry).append(' ').append(Files.exists(entry) ? Files.getLastModifiedTime(entry) : "-");
+        }
+        for (Path root : javaRoots) {
+            if (!Files.isDirectory(root)) {
+                continue;
+            }
+            try (Stream<Path> files = Files.walk(root)) {
+                for (Path java : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
+                    sb.append('\n').append(java).append(' ').append(Files.getLastModifiedTime(java)).append(' ').append(Files.size(java));
+                }
+            }
+        }
+        return sha256(sb.toString());
     }
 
     /** Collects every root as `generated=sources` in one javac plugin argument. */

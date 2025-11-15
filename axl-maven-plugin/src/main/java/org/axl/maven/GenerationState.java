@@ -26,6 +26,7 @@ final class GenerationState {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create();
 
     int version = 1;
+    String environment = "";
     Map<String, Entry> files = new TreeMap<>();
 
     static GenerationState read(Path file) throws IOException {
@@ -33,7 +34,13 @@ final class GenerationState {
             return new GenerationState();
         }
         GenerationState state = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), GenerationState.class);
-        return state != null && state.files != null ? state : new GenerationState();
+        if (state == null || state.files == null) {
+            return new GenerationState();
+        }
+        if (state.environment == null) {
+            state.environment = "";
+        }
+        return state;
     }
 
     void write(Path file) throws IOException {

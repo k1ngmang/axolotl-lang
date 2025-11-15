@@ -24,7 +24,9 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
 - Adds an `axl` source directory set to every source set (`sourceSets.main.axl`).
 - Registers `generateAxl`, `generateTestAxl`, ... which translate `.axl` files into
   `build/generated/axl/<sourceSet>` (`.java` plus `.axlmap`). The task is cacheable and
-  incremental: only changed files are translated again, removed files lose their outputs.
+  incremental: changed files are translated again, together with files whose top-level values have
+  inferred types; removed files lose their outputs. A change of the Java sources, the classpath or an
+  option translates every file again.
 - Adds the generated directory to the Java sources, so `compileJava` compiles `.axl` and
   `.java` code together and both see each other. The classpath and the Java sources are inputs
 of the task only for the types of top-level values that call into them.
