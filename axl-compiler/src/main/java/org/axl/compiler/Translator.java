@@ -53,6 +53,12 @@ public final class Translator {
             return new Result(null, diagnostics);
         }
         SourceFile file = parsed.file();
+        String directory = sourcePath.contains("/") ? sourcePath.substring(0, sourcePath.lastIndexOf('/')).replace('/', '.') : null;
+        if (directory != null && file.packageName() != null && !directory.equals(file.packageName())) {
+            diagnostics.add(AxlDiagnostic.warning(displayPath, file.packagePos().line(), file.packagePos().column(),
+                    ErrorCode.PACKAGE_MISMATCH, "the package `" + file.packageName() + "` does not match the directory `"
+                            + directory.replace('.', '/') + "`; Java and the IDE look for the class in its package directory"));
+        }
         Analysis analysis = Checker.check(file, diagnostics);
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             return new Result(null, diagnostics);

@@ -1,0 +1,2 @@
+AXL015 app/Main.axl:1:1: error: the class `app.Main` is declared by several files: app/Main.axl, x/Main.axl
+AXL015 x/Main.axl:1:1: error: the class `app.Main` is declared by several files: app/Main.axl, x/Main.axl

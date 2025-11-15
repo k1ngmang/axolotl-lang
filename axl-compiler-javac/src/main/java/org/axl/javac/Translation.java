@@ -4,7 +4,12 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 
@@ -17,6 +22,33 @@ public final class Translation {
 
     /** An .axl file: its path relative to its source root, how diagnostics name it, and its text. */
     public record Input(String sourcePath, String displayPath, String text) {}
+
+    /** Two files that declare the same class would overwrite each other's Java. */
+    private static void rejectDuplicateClasses(List<Input> inputs, List<Translator.Result> results, Path outputDir)
+            throws IOException {
+        Map<String, List<Integer>> byClass = new HashMap<>();
+        for (int i = 0; i < results.size(); i++) {
+            if (results.get(i).unit() != null) {
+                byClass.computeIfAbsent(results.get(i).unit().qualifiedName(), k -> new ArrayList<>()).add(i);
+            }
+        }
+        for (var entry : byClass.entrySet()) {
+            List<Integer> same = entry.getValue();
+            if (same.size() < 2) {
+                continue;
+            }
+            Translator.Result first = results.get(same.getFirst());
+            Files.deleteIfExists(outputDir.resolve(first.unit().javaPath()));
+            Files.deleteIfExists(outputDir.resolve(first.unit().mapPath()));
+            String files = same.stream().map(i -> inputs.get(i).displayPath()).collect(Collectors.joining(", "));
+            for (int i : same) {
+                List<AxlDiagnostic> diagnostics = new ArrayList<>(results.get(i).diagnostics());
+                diagnostics.add(AxlDiagnostic.error(inputs.get(i).displayPath(), 1, 1, ErrorCode.DUPLICATE_CLASS,
+                        "the class `" + entry.getKey() + "` is declared by several files: " + files));
+                results.set(i, new Translator.Result(null, diagnostics, false));
+            }
+        }
+    }
 
     private Translation() {}
 
@@ -41,6 +73,7 @@ public final class Translation {
             }
             results.add(result);
         }
+        rejectDuplicateClasses(inputs, results, outputDir);
         if (results.stream().noneMatch(Translator.Result::draft)) {
             return results;
         }

@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -91,7 +92,7 @@ public final class AxlBuild {
             }
         }
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
-            return new Result(false, diagnostics, generated);
+            return new Result(false, sorted(diagnostics), generated);
         }
         List<Path> sources = new ArrayList<>(files(".java"));
         generated.forEach(g -> sources.add(g.javaFile()));
@@ -107,7 +108,13 @@ public final class AxlBuild {
                 diagnostics.add(translated);
             }
         }
-        return new Result(outcome.success(), diagnostics, generated);
+        return new Result(outcome.success(), sorted(diagnostics), generated);
+    }
+
+    private static List<AxlDiagnostic> sorted(List<AxlDiagnostic> diagnostics) {
+        diagnostics.sort(Comparator.comparing(AxlDiagnostic::file).thenComparingInt(AxlDiagnostic::line)
+                .thenComparingInt(AxlDiagnostic::column));
+        return diagnostics;
     }
 
     private List<Path> files(String extension) throws IOException {
