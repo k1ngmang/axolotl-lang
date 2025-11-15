@@ -1,0 +1,7 @@
+AXL001 app/BadChar.axl:4:15: error: unexpected character `#`
+AXL001 app/BadName.axl:4:9: error: `x²` is not a valid name: use letters, digits and `_`
+AXL001 app/MissingName.axl:4:9: error: missing a name before `=`
+AXL001 app/MissingParen.axl:4:16: error: missing `)` at the end of the line
+AXL001 app/UnclosedBrace.axl:5:1: error: unexpected end of file: the `{` at line 3 is not closed
+AXL001 app/UnclosedComment.axl:3:1: error: unclosed comment: add `*/`
+AXL001 app/UnclosedString.axl:4:13: error: unclosed string: add `"` before the end of the line

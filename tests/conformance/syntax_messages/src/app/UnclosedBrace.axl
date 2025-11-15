@@ -1,0 +1,4 @@
+package app
+
+fn main() {
+    println(1)

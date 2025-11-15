@@ -1,2 +1,2 @@
-AXL001 app/Main.axl:4:13: error: no viable alternative at input '("'
-AXL001 app/Main.axl:5:8: error: extraneous input '"' expecting {'val', 'var', 'private', 'return', 'if', 'while', 'try', 'attempt', 'true', 'false', 'null', ';', '(', '{', '}', '!!', '!', '+', '-', FLOAT_LITERAL, INT_LITERAL, STRING_LITERAL, CHAR_LITERAL, name}
+AXL001 app/Main.axl:4:13: error: unclosed string: add `"` before the end of the line
+AXL001 app/Main.axl:5:8: error: unclosed string: add `"` before the end of the line
