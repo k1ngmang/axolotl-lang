@@ -46,6 +46,14 @@ public class AxlPlugin implements Plugin<Project> {
                         deps.add(project.getDependencies().create("org.axl:axl-runtime:" + Versions.AXL));
                     }
                 }));
+        // Public .axl functions use axl.lang types, so consumers of a library need the runtime to compile.
+        project.getPluginManager().withPlugin("java-library", plugin ->
+                project.getConfigurations().named(JavaPlugin.API_CONFIGURATION_NAME).configure(c ->
+                        c.withDependencies(deps -> {
+                            if (axl.getAddRuntime().get()) {
+                                deps.add(project.getDependencies().create("org.axl:axl-runtime:" + Versions.AXL));
+                            }
+                        })));
         project.getConfigurations().named(ErrorPronePlugin.CONFIGURATION_NAME).configure(c ->
                 c.withDependencies(deps -> {
                     deps.add(project.getDependencies().create("com.google.errorprone:error_prone_core:" + Versions.ERROR_PRONE));
@@ -119,6 +127,7 @@ public class AxlPlugin implements Plugin<Project> {
             diagnostics.getStrictNull().set(axl.getStrictNull());
             compile.getOptions().getCompilerArgumentProviders().add(diagnostics);
 
+            compile.getInputs().property("axlSmap", axl.getSmap());
             compile.doLast(new InjectSmap(generate.flatMap(GenerateAxlTask::getOutputDir), axl.getSmap()));
 
             ErrorProneOptions errorprone = ((ExtensionAware) compile.getOptions()).getExtensions()

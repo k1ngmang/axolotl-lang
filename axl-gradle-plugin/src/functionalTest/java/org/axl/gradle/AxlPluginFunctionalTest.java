@@ -88,6 +88,31 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void togglingSmapRecompiles() throws IOException {
+        Path build = project.resolve("core/build.gradle.kts");
+        String original = Files.readString(build);
+        Path titles = project.resolve("core/build/classes/java/main/core/Titles.class");
+        Files.writeString(build, original + "\naxl {\n    smap = false\n}\n");
+        gradle(":core:compileJava").build();
+        assertTrue(!new String(Files.readAllBytes(titles), java.nio.charset.StandardCharsets.ISO_8859_1).contains("*S Axolotl"));
+        Files.writeString(build, original);
+        gradle(":core:compileJava").build();
+        assertTrue(new String(Files.readAllBytes(titles), java.nio.charset.StandardCharsets.ISO_8859_1).contains("*S Axolotl"));
+    }
+
+    @Test
+    void javaConsumersOfALibrarySeeTheRuntime() throws IOException {
+        Path settings = project.resolve("settings.gradle.kts");
+        Files.writeString(settings, Files.readString(settings) + "\ninclude(\"javaapp\")\n");
+        Path app = Files.createDirectories(project.resolve("javaapp/src/main/java/javaapp"));
+        Files.writeString(project.resolve("javaapp/build.gradle.kts"),
+                "plugins {\n    java\n}\n\ndependencies {\n    implementation(project(\":core\"))\n}\n");
+        Files.writeString(app.resolve("Use.java"), "package javaapp;\n\nclass Use {\n    String use() {\n"
+                + "        return core.Titles.title(\"x\").toString();\n    }\n}\n");
+        gradle(":javaapp:compileJava").build();
+    }
+
+    @Test
     void changingOneFileRegeneratesOnlyIt() throws IOException {
         Files.writeString(project.resolve("core/src/main/axl/core/Extra.axl"), "package core\n\nfn extra() -> Int = 1\n");
         gradle(":core:generateAxl").build();

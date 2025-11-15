@@ -38,6 +38,7 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
+import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.axl.compiler.JavaTypes;
 
@@ -64,7 +65,16 @@ public final class JavacTypes implements JavaTypes {
     public Map<String, String> localTypes(String qualifiedClassName, String javaSource) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         var errors = new DiagnosticCollector<JavaFileObject>();
-        var files = compiler.getStandardFileManager(errors, Locale.ROOT, StandardCharsets.UTF_8);
+        try (var files = compiler.getStandardFileManager(errors, Locale.ROOT, StandardCharsets.UTF_8)) {
+            return localTypes(compiler, files, errors, qualifiedClassName, javaSource);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private Map<String, String> localTypes(JavaCompiler compiler, StandardJavaFileManager files,
+                                           DiagnosticCollector<JavaFileObject> errors, String qualifiedClassName,
+                                           String javaSource) {
         List<String> options = new ArrayList<>(List.of("-proc:none", "-implicit:none", "-XDaddTypeAnnotationsToSymbol=true",
                 "-classpath", join(classpath)));
         if (!sourcepath.isEmpty()) {

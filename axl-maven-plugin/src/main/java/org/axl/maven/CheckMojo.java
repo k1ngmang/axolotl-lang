@@ -58,7 +58,8 @@ public class CheckMojo extends AbstractMojo {
             List<GeneratedSource> generated = GeneratedSources.load(outputDirectory.toPath(), sourceDirectory.toPath(),
                     Path::toString);
             List<Path> classpath = project.getCompileClasspathElements().stream().map(Path::of).toList();
-            Path classes = Files.createTempDirectory("axl-check");
+            // Inside target, so that `mvn clean` removes it; it is not the real output directory.
+            Path classes = Files.createDirectories(Path.of(project.getBuild().getDirectory(), "axl-check-classes"));
             JavaCompilation.Outcome outcome = JavaCompilation.compile(javaSources(), classpath, classes, List.of(), nullAway, strictNull);
             var translator = new DiagnosticTranslator(generated, Path::toString);
             boolean failed = false;
