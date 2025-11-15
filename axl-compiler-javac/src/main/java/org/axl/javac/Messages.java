@@ -66,7 +66,7 @@ final class Messages {
             }
         }
         if (message.startsWith("[NullAway] ")) {
-            return nullAway(message, text);
+            return nullAway(message, text, javaLines);
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
@@ -87,7 +87,7 @@ final class Messages {
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines)).replaceAll(""));
     }
 
-    private static Translated nullAway(String message, String text) {
+    private static Translated nullAway(String message, String text, String[] javaLines) {
         Matcher dereference = DEREFERENCE.matcher(message);
         if (dereference.find()) {
             String value = dereference.group(1);
@@ -131,7 +131,12 @@ final class Messages {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE,
                     "a value that may be null is used as a number or boolean; give a default with `?:`");
         }
-        return new Translated(ErrorCode.JAVAC, plain);
+        if (plain.startsWith("incompatible types: ") && text.contains(">unwrap(")) {
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`mapResult` may produce null values here, but the list "
+                    + "it builds cannot hold nulls; add `?` to the element type or return values that are not null");
+        }
+        return new Translated(plain.startsWith("incompatible types: ") ? ErrorCode.NULLABLE_DEREFERENCE : ErrorCode.JAVAC,
+                javacMessage(plain, text, javaLines));
     }
 
     /** Plain javac errors, in Axolotl's words and type names. */
@@ -140,6 +145,10 @@ final class Messages {
         if (lambdaReturn.find()) {
             return "the lambda returns `" + axlType(lambdaReturn.group(1)) + "`, but `" + axlType(lambdaReturn.group(2))
                     + "` is expected";
+        }
+        if (message.contains("lambda body is not compatible with a void functional interface") && text.contains("Nulls.map(")) {
+            return "a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; "
+                    + "write it with a null check: `{ -> if (x != null) { x.m() } }`";
         }
         if (message.equals("incompatible types: incompatible parameter types in lambda expression")) {
             return "the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`";

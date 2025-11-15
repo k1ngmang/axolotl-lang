@@ -1,1 +1,1 @@
-AXL100 app/Main.axl:8:5: error: incompatible types: Result<@Nullable String, String> cannot be converted to Result<String, ?>
+AXL102 app/Main.axl:8:5: error: `mapResult` may produce null values here, but the list it builds cannot hold nulls; add `?` to the element type or return values that are not null
