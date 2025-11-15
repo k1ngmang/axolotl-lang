@@ -117,12 +117,16 @@ public final class AxlBuild {
         return diagnostics;
     }
 
+    /** Source files; outputs inside a source directory, as with `-d` there, are not sources. */
     private List<Path> files(String extension) throws IOException {
+        List<Path> outputs = List.of(generatedDir.toAbsolutePath().normalize(), classesDir.toAbsolutePath().normalize());
         List<Path> result = new ArrayList<>();
         for (Path dir : sourceDirs) {
             if (Files.isDirectory(dir)) {
                 try (Stream<Path> walk = Files.walk(dir)) {
-                    walk.filter(p -> p.toString().endsWith(extension) && Files.isRegularFile(p)).sorted().forEach(result::add);
+                    walk.filter(p -> p.toString().endsWith(extension) && Files.isRegularFile(p))
+                            .filter(p -> outputs.stream().noneMatch(p.toAbsolutePath().normalize()::startsWith))
+                            .sorted().forEach(result::add);
                 }
             }
         }

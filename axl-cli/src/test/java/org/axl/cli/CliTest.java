@@ -97,6 +97,39 @@ class CliTest {
     }
 
     @Test
+    void rejectsMissingSourceDirectoriesAndFiles(@TempDir Path tmp) throws Exception {
+        assertEquals(2, axl("build", tmp.resolve("missing").toString(), "-d", tmp.resolve("out").toString()));
+        assertEquals(2, axl("check", tmp.resolve("missing").toString()));
+        assertEquals(2, axl("run", tmp.resolve("Missing.axl").toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("axl: no such directory: "), err.toString());
+    }
+
+    @Test
+    void runReportsAMissingMainAndInitializerFailures(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("app"));
+        Files.writeString(app.resolve("Lib.axl"), "package app\n\nfn f() = println(1)\n");
+        assertEquals(1, axl("run", app.resolve("Lib.axl").toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("has no `fn main()`"), err.toString());
+
+        Files.writeString(app.resolve("Init.axl"), "package app\n\nval limit: Int = Integer.parseInt(\"zz\")\n\nfn main() {\n    println(limit)\n}\n");
+        err.reset();
+        assertEquals(1, axl("run", app.resolve("Init.axl").toString()));
+        String trace = err.toString(StandardCharsets.UTF_8);
+        assertTrue(trace.contains("at app.Init.<clinit>(Init.axl:3)"), trace);
+        assertTrue(!trace.contains("picocli") && !trace.contains("RunCommand"), trace);
+    }
+
+    @Test
+    void buildIgnoresOutputsInsideTheSourceDirectory(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        assertEquals(0, axl("build", tmp.toString(), "-d", tmp.resolve("out").toString(), "--no-null-checks"), err.toString());
+        Files.move(app.resolve("Main.axl"), app.resolve("Start.axl"));
+        Files.writeString(app.resolve("Start.axl"), "package app\n\nfn main() {\n    println(2)\n}\n");
+        assertEquals(0, axl("build", tmp.toString(), "-d", tmp.resolve("out").toString(), "--no-null-checks"), err.toString());
+    }
+
+    @Test
     void sourceRootStripsPackageDirectories() {
         Path file = Path.of("/work/src/app/util/Main.axl");
         assertEquals(Path.of("/work/src"), RunCommand.sourceRoot(file, "app.util"));

@@ -41,6 +41,9 @@ final class BuildCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        if (!Paths.isDirectory(sourceDir)) {
+            return 2;
+        }
         Path generated = generatedDir != null ? generatedDir : classesDir;
         AxlBuild.Result result = new AxlBuild(sourceDir, generated, classesDir)
                 .classpath(classpath)

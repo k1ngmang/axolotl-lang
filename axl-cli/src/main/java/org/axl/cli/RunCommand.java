@@ -9,6 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import org.axl.compiler.Translator;
@@ -23,6 +24,9 @@ import picocli.CommandLine.Parameters;
 
 @Command(name = "run", description = "Compile the source tree of an .axl file and run its main function.")
 final class RunCommand implements Callable<Integer> {
+
+    /** Set once the program's main has run, whose threads may outlive it. */
+    static volatile boolean programRan;
 
     @Parameters(index = "0", description = "The .axl file with `fn main()`.")
     Path file;
@@ -41,11 +45,17 @@ final class RunCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
+        if (!Files.isRegularFile(file)) {
+            System.err.println("axl: no such file: " + file);
+            return 2;
+        }
         String text = Files.readString(file, StandardCharsets.UTF_8);
         String className = Translator.className(file.getFileName().toString());
         String packageName = packageOf(className, text);
         Path root = sourceRoot(file.toAbsolutePath().normalize(), packageName);
         Path work = Files.createTempDirectory("axl-run");
+        // The program's threads may load classes from it until the JVM ends.
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> Paths.deleteRecursively(work)));
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
                 .display(Paths::display)
                 .nullChecks(!noNullChecks)
@@ -75,17 +85,45 @@ final class RunCommand implements Callable<Integer> {
         return dir.endsWith(expected) ? dir.getRoot().resolve(dir.subpath(0, dir.getNameCount() - expected.getNameCount())) : dir;
     }
 
-    private int runMain(Path classes, Path generated, String mainClass) throws IOException, ReflectiveOperationException {
-        try (var loader = new URLClassLoader(new URL[] {classes.toUri().toURL()}, getClass().getClassLoader())) {
-            Method main = loader.loadClass(mainClass).getMethod("main", String[].class);
-            Thread.currentThread().setContextClassLoader(loader);
-            main.invoke(null, (Object) args.toArray(String[]::new));
-            return 0;
-        } catch (InvocationTargetException e) {
-            Throwable failure = e.getCause();
-            Retracer.of(List.of(generated), List.of()).retrace(failure);
-            failure.printStackTrace();
+    private int runMain(Path classes, Path generated, String mainClass) throws IOException {
+        // Not closed: threads the program starts may still load classes after main returns.
+        var loader = new URLClassLoader(new URL[] {classes.toUri().toURL()}, getClass().getClassLoader());
+        Method main;
+        try {
+            main = loader.loadClass(mainClass).getMethod("main", String[].class);
+        } catch (ReflectiveOperationException e) {
+            System.err.println("axl: " + file + " has no `fn main()`");
             return 1;
         }
+        Thread.currentThread().setContextClassLoader(loader);
+        try {
+            main.invoke(null, (Object) args.toArray(String[]::new));
+            programRan = true;
+            return 0;
+        } catch (InvocationTargetException e) {
+            report(e.getCause(), generated);
+            return 1;
+        } catch (ExceptionInInitializerError e) {
+            report(e, generated);
+            return 1;
+        } catch (IllegalAccessException e) {
+            System.err.println("axl: " + file + " has no `fn main()`");
+            return 1;
+        }
+    }
+
+    /** The program's stack trace at .axl lines, without the frames of this tool below its main. */
+    private static void report(Throwable failure, Path generated) {
+        Retracer.of(List.of(generated), List.of()).retrace(failure);
+        for (Throwable t = failure; t != null; t = t.getCause()) {
+            StackTraceElement[] frames = t.getStackTrace();
+            int end = 0;
+            while (end < frames.length && !frames[end].getClassName().startsWith("jdk.internal.reflect.")
+                    && !frames[end].getClassName().equals("java.lang.reflect.Method")) {
+                end++;
+            }
+            t.setStackTrace(Arrays.copyOf(frames, end));
+        }
+        failure.printStackTrace();
     }
 }

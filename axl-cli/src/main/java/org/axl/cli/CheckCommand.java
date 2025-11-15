@@ -5,6 +5,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
+import org.axl.compiler.Options;
 import org.axl.javac.AxlBuild;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -27,16 +28,27 @@ final class CheckCommand implements Callable<Integer> {
     @Option(names = "--strict-null", description = "Treat values from Java code without nullness annotations as nullable.")
     boolean strictNull;
 
+    @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
+    boolean inlineElvis;
+
     @Override
     public Integer call() throws Exception {
+        if (!sourceDirs.stream().allMatch(Paths::isDirectory)) {
+            return 2;
+        }
         Path work = Files.createTempDirectory("axl-check");
-        AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
-                .classpath(classpath)
-                .nullChecks(!noNullChecks)
-                .strictNull(strictNull)
-                .display(p -> p.toAbsolutePath().toString())
-                .run();
-        result.diagnostics().forEach(d -> System.out.println(d.format()));
-        return result.success() ? 0 : 1;
+        try {
+            AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
+                    .classpath(classpath)
+                    .nullChecks(!noNullChecks)
+                    .strictNull(strictNull)
+                    .options(new Options(inlineElvis))
+                    .display(p -> p.toAbsolutePath().toString())
+                    .run();
+            result.diagnostics().forEach(d -> System.out.println(d.format()));
+            return result.success() ? 0 : 1;
+        } finally {
+            Paths.deleteRecursively(work);
+        }
     }
 }
