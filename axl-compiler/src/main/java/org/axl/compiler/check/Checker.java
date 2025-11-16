@@ -56,7 +56,13 @@ public final class Checker {
 
     private enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED }
 
-    private record Symbol(Kind kind, Pos pos) {}
+    /** type is the written type of a local, or null. */
+    private record Symbol(Kind kind, Pos pos, TypeRef type) {
+
+        Symbol(Kind kind, Pos pos) {
+            this(kind, pos, null);
+        }
+    }
 
     private static final class Scope {
         final Scope parent;
@@ -147,6 +153,12 @@ public final class Checker {
                 case Decl.Function fn -> function(fn);
             }
         }
+        for (InitOrder.Problem problem : InitOrder.check(file)) {
+            Decl.Value value = problem.value();
+            error(value.namePos(), ErrorCode.INIT_ORDER, "`" + value.name() + "` is computed from `" + problem.later()
+                    + "`, which is declared " + (problem.later().equals(value.name()) ? "by itself" : "later")
+                    + "; top-level values are set in order, so declare `" + problem.later() + "` first");
+        }
     }
 
     private void topLevelValue(Decl.Value value) {
@@ -208,13 +220,19 @@ public final class Checker {
                     expr(local.init());
                 }
                 declaredType = null;
-                declare(local.namePos(), local.name(), local.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL);
+                if (local.type() != null && !local.type().nullable() && isNull(local.init())) {
+                    error(local.init().pos(), ErrorCode.NULLABLE_DEREFERENCE, notNullable(local.name(), local.type()));
+                }
+                declare(local.namePos(), local.name(), local.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL, local.type());
             }
             case Stmt.Assign assign -> {
                 if (assign.target() instanceof Expr.Name name) {
                     Symbol symbol = scope.lookup(name.name());
                     if (symbol != null && symbol.kind != Kind.MUTABLE_LOCAL) {
                         error(assign.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(name.name(), symbol));
+                    } else if (symbol != null && symbol.type() != null && !symbol.type().nullable() && isNull(assign.value())) {
+                        // NullAway does not check what is assigned to locals.
+                        error(assign.value().pos(), ErrorCode.NULLABLE_DEREFERENCE, notNullable(name.name(), symbol.type()));
                     }
                 }
                 expr(assign.target());
@@ -260,6 +278,15 @@ public final class Checker {
                     : "cannot assign to the top-level value `" + name + "`; top-level values cannot change";
             default -> "cannot assign to `val` `" + name + "`; declare it with `var`";
         };
+    }
+
+    private static boolean isNull(Expr e) {
+        return unparenthesized(e) instanceof Expr.Literal l && l.text().equals("null");
+    }
+
+    private static String notNullable(String name, TypeRef type) {
+        return "`" + name + "` is declared as `" + type.name() + "`, which does not allow null; declare it as `"
+                + type.name() + "?`";
     }
 
     private static Expr unparenthesized(Expr e) {
@@ -449,6 +476,10 @@ public final class Checker {
     }
 
     private void declare(Pos pos, String name, Kind kind) {
+        declare(pos, name, kind, null);
+    }
+
+    private void declare(Pos pos, String name, Kind kind, TypeRef type) {
         checkReserved(pos, name);
         for (Scope s = scope; s != null && !s.fileScope; s = s.parent) {
             Symbol existing = s.names.get(name);
@@ -463,7 +494,7 @@ public final class Checker {
             }
             break;
         }
-        scope.names.put(name, new Symbol(kind, pos));
+        scope.names.put(name, new Symbol(kind, pos, type));
     }
 
     private void checkReserved(Pos pos, String name) {

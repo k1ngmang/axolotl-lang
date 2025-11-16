@@ -1,0 +1,3 @@
+AXL016 app/Main.axl:3:5: error: `size` is computed from `names`, which is declared later; top-level values are set in order, so declare `names` first
+AXL102 app/Main.axl:17:9: error: `s` is declared as `String`, which does not allow null; declare it as `String?`
+AXL102 app/Main.axl:18:21: error: `t` is declared as `String`, which does not allow null; declare it as `String?`

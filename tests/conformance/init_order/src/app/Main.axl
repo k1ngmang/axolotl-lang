@@ -1,0 +1,19 @@
+package app
+
+val size = firstLen()
+
+fn firstLen() -> Int = names.length()
+
+val names = StringBuilder("abc")
+
+val fine = names.length()
+
+fn helper(names: Int) -> Int = names
+
+val alsoFine = helper(1)
+
+fn main() {
+    var s: String = "a"
+    s = null
+    val t: String = (null)
+}
