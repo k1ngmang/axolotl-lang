@@ -22,3 +22,7 @@ fn assignments(p: Int) {
     helper = 3
     val n = (null)
 }
+
+fn block() {
+    { println(1) }
+}

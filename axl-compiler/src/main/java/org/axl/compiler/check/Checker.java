@@ -260,6 +260,10 @@ public final class Checker {
                 statements(loop.body().statements());
             }
             case Stmt.ExprStmt exprStmt -> {
+                if (exprStmt.expr() instanceof Expr.Lambda lambda) {
+                    error(lambda.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; "
+                            + "to run these statements, remove the braces");
+                }
                 if (exprStmt.expr() instanceof Expr.Try t) {
                     statementTry(t);
                 } else {
