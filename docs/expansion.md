@@ -18,8 +18,10 @@ always gives byte-for-byte the same output.
 | `val x = e` / `var x = e` | `final var x = e;` / `var x = e;` |
 | `val x: String? = null` | `final @Nullable String x = null;` |
 | `a ?: b` | `Nulls.or(a, () -> b)` |
+| `a ?: 0` (a number) | `Nulls.or(a, 0)` |
 | `a!!` | `java.util.Objects.requireNonNull(a)` |
 | `a?.m(x)` | `Nulls.map(a, $n1 -> $n1.m(x))`; the lambda covers the rest of the chain |
+| `f(a?.m())` | `final var $t1 = Nulls.map(a, $n1 -> $n1.m()); f($t1)` |
 | `a?.m()` as a statement | `final var $n1 = a; if ($n1 != null) { $n1.m(); }` |
 | `attempt X else e -> Y` | `Result.attempt(() -> X, e -> Y)`; without a name the parameter is `$ex1` |
 | `val x = try r` | `final var $t1 = r; if ($t1.isErr()) return Result.propagate($t1); final var x = Result.unwrap($t1);` |
@@ -33,7 +35,7 @@ always gives byte-for-byte the same output.
 | `println(x)` | `System.out.println(x)` |
 | `{ x -> e }`, `{ it > 0 }` | `x -> e`, `it -> it > 0` |
 | `xs \|> filter { it > 0 } \|> map { it * 2 }` | `xs.stream().filter(it -> it > 0).map(Nulls.nonNull(it -> it * 2)).toList()`; `Nulls.nonNull` makes NullAway reject a `map` that may produce null |
-| `xs \|> mapResult { f(it) }` | `final java.util.List<T> $p1 = new java.util.ArrayList<>(); for (final var it : xs) { final var $t1 = f(it); if ($t1.isErr()) return Result.propagate($t1); $p1.add(Result.unwrap($t1)); }` |
+| `xs \|> mapResult { f(it) }` | `final java.util.List<T> $p1 = new java.util.ArrayList<>(); for (final var it : xs) { final var $t1 = f(it); if ($t1.isErr()) return Result.propagate($t1); $p1.add(Result.<T>unwrap($t1)); }` |
 | A `var` captured by `?:`, `?.` or `attempt` | copied first: `final var $c1 = count;` |
 
 Generated names start with `$`, which Axolotl names cannot contain: `$t` for temporaries, `$n` for

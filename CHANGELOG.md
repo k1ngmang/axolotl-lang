@@ -91,3 +91,16 @@ Known limitations: generated locals are labeled, not hidden, in the debugger; th
 - Version 0.1.0 everywhere. Nothing is published to a public repository yet; `./gradlew publishToMavenLocal` installs the artifacts locally.
 
 Known limitations: no `for` loops, arrays, casts or classes; strict null mode narrows locals only, like NullAway.
+
+## Audit fixes for 0.1.0
+
+An audit of the whole toolchain found about 95 problems; all of them are fixed, each with a conformance case or test.
+
+- Null safety: `a ?: b` with a nullable `b`, `Ok(null)`, `attempt` of a nullable value, `mapResult` and pipe `map` producing null, null assigned to a non-null local, and top-level values read before they are set are now errors instead of runtime NPEs.
+- Wrong results: `- -x` decremented `x`; a `try` in a call chain or an assigned value ran before the code to its left.
+- Code that did not compile or crashed the compiler: `println(a?.trim())`, `try` in calls on classes such as `Math`, empty lambdas, `?:` with numbers on `Long?`, statement forms of `mapResult`, nested pipes, non-denotable inferred types and more.
+- Strict null mode checks arguments, returns, written types, unboxing, copies, loops and lambda parameters, and accepts pipes.
+- Diagnostics: errors point to the right line and column, do not show generated names, and javac, NullAway and syntax errors are worded in Axolotl terms; new codes AXL014 to AXL016 and AXL105.
+- Build tools: incremental builds retype values inferred from changed files; Maven state per output directory; Gradle `smap` is a compile input and the runtime is an `api` dependency of libraries; the CLI reports missing files and directories and lets programs' threads finish.
+- Editors: UTF-16 positions in IntelliJ and the language server, overloads in rename and find usages, parser parity with the grammar, and several language server fixes.
+- `Result.mapErr` was added; parsing is no longer quadratic on long expressions.
