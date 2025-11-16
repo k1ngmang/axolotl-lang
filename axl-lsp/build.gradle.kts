@@ -45,5 +45,6 @@ tasks.register<Exec>("vsix") {
     } else {
         commandLine("sh", "-c", npm)
     }
+    inputs.files(vscode.asFileTree.matching { exclude("node_modules/**", "*.vsix") })
     outputs.file(vscode.file("axolotl-0.1.0.vsix"))
 }
