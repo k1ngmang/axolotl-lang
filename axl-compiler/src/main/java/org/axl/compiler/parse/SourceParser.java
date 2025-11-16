@@ -62,6 +62,8 @@ public final class SourceParser {
             } else if (t.getType() == AxolotlLexer.SLASH && i + 1 < all.size() && all.get(i + 1).getType() == AxolotlLexer.STAR
                     && all.get(i + 1).getStartIndex() == t.getStopIndex() + 1) {
                 message = "unclosed comment: add `*/`";
+            } else if (t.getType() == AxolotlLexer.INT_LITERAL && t.getText().matches("0[0-9_]+[lL]?")) {
+                message = "a number cannot start with 0: Java would read `" + t.getText() + "` as octal";
             } else if (t.getType() == AxolotlLexer.IDENTIFIER && !isJavaName(t.getText())) {
                 message = "`" + t.getText() + "` is not a valid name: use letters, digits and `_`";
             }

@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    println("q\u0022" + "x")
+    println('\u0027')
+    println("\u00e9\\u0041")
+    println(0x10 + 0)
+}

@@ -405,7 +405,7 @@ public final class Generator {
     /** inLambda is true inside the lambdas generated for `?:`, `?.` and `attempt`. */
     private String expr(Expr expr, boolean inLambda) {
         return switch (expr) {
-            case Expr.Literal l -> l.text();
+            case Expr.Literal l -> literal(l.text());
             case Expr.Name n -> (inLambda || inCopyingLambda) && analysis.mutableRefs().contains(n)
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
@@ -796,6 +796,48 @@ public final class Generator {
         boolean simple = source instanceof Expr.Name || source instanceof Expr.Call || source instanceof Expr.Member
                 || source instanceof Expr.Paren || source instanceof Expr.GenericNew || source instanceof Expr.Literal;
         return simple ? code : "(" + code + ")";
+    }
+
+    /**
+     * javac turns unicode escapes into their characters before it reads anything else, so an escaped
+     * quote would end the string there. In a string or character literal it becomes an ordinary escape.
+     */
+    private static String literal(String text) {
+        if (!text.contains("\\u") || !(text.startsWith("\"") || text.startsWith("'"))) {
+            return text;
+        }
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\\' && i + 5 < text.length() && text.charAt(i + 1) == 'u') {
+                int end = i + 2;
+                while (end < text.length() && text.charAt(end) == 'u') {
+                    end++;
+                }
+                char decoded = (char) Integer.parseInt(text.substring(end, end + 4), 16);
+                sb.append(escaped(decoded));
+                i = end + 3;
+            } else if (c == '\\') {
+                sb.append(c).append(text.charAt(++i));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String escaped(char c) {
+        return switch (c) {
+            case '"' -> "\\\"";
+            case '\'' -> "\\'";
+            case '\\' -> "\\\\";
+            case '\n' -> "\\n";
+            case '\r' -> "\\r";
+            case '\t' -> "\\t";
+            case '\b' -> "\\b";
+            case '\f' -> "\\f";
+            default -> c < 0x20 ? String.format("\\%03o", (int) c) : c > 0x7e ? String.format("\\u%04x", (int) c) : String.valueOf(c);
+        };
     }
 
     private static String negated(String condition) {
