@@ -2,12 +2,15 @@ package org.axl.compiler.parse;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.antlr.v4.runtime.BailErrorStrategy;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.atn.PredictionMode;
+import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
 import org.axl.compiler.ast.SourceFile;
@@ -18,6 +21,26 @@ public final class SourceParser {
     public record Result(SourceFile file, List<AxlDiagnostic> diagnostics) {}
 
     private SourceParser() {}
+
+    /**
+     * The faster SLL prediction first; the line predicates make full LL prediction slow on long
+     * expressions. Only input that SLL cannot handle, which includes all broken input, is parsed again.
+     */
+    private static AxolotlParser.CompilationUnitContext parseTree(CommonTokenStream tokens, BaseErrorListener errors) {
+        var fast = new AxolotlParser(tokens);
+        fast.removeErrorListeners();
+        fast.getInterpreter().setPredictionMode(PredictionMode.SLL);
+        fast.setErrorHandler(new BailErrorStrategy());
+        try {
+            return fast.compilationUnit();
+        } catch (ParseCancellationException e) {
+            tokens.seek(0);
+            var full = new AxolotlParser(tokens);
+            full.removeErrorListeners();
+            full.addErrorListener(errors);
+            return full.compilationUnit();
+        }
+    }
 
     private static String lexerMessage(String msg) {
         return "unexpected character `" + msg.replaceFirst("^token recognition error at: '", "").replaceFirst("'$", "") + "`";
@@ -163,10 +186,7 @@ public final class SourceParser {
                 }
             }
         };
-        var parser = new AxolotlParser(tokens);
-        parser.removeErrorListeners();
-        parser.addErrorListener(parserErrors);
-        var tree = parser.compilationUnit();
+        var tree = parseTree(tokens, parserErrors);
         if (!diagnostics.isEmpty()) {
             return new Result(null, diagnostics);
         }
