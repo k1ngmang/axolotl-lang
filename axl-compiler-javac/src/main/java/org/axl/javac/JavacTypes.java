@@ -24,10 +24,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -97,6 +99,8 @@ public final class JavacTypes implements JavaTypes {
             for (CompilationUnitTree unit : units) {
                 new TreePathScanner<Void, Void>() {
                     private boolean inProbe;
+                    // Probe locals typed nullable: javac drops the annotation from the type of a `var`.
+                    private final Set<Element> nullableLocals = new HashSet<>();
 
                     @Override
                     public Void visitMethod(MethodTree method, Void unused) {
@@ -112,8 +116,11 @@ public final class JavacTypes implements JavaTypes {
                             TreePath path = new TreePath(getCurrentPath(), variable);
                             String type = text(trees.getTypeMirror(path));
                             if (type != null) {
-                                boolean nullable = variable.getInitializer() != null
-                                        && isNullable(trees, new TreePath(path, variable.getInitializer()), strictNull);
+                                boolean nullable = variable.getInitializer() != null && isNullable(trees,
+                                        new TreePath(path, variable.getInitializer()), strictNull, nullableLocals);
+                                if (nullable) {
+                                    nullableLocals.add(trees.getElement(path));
+                                }
                                 types.put(variable.getName().toString(), nullable ? NULLABLE + type : type);
                             } else if (variable.getInitializer() != null) {
                                 String reason = reason(trees, unit, variable.getInitializer(), errors, lines);
@@ -150,21 +157,29 @@ public final class JavacTypes implements JavaTypes {
      * Whether an initializer may be null as far as its declarations say. javac drops type-use
      * annotations from inferred types, so this reads the declarations instead.
      */
-    private static boolean isNullable(Trees trees, TreePath path, boolean strict) {
+    private static boolean isNullable(Trees trees, TreePath path, boolean strict, Set<Element> nullableLocals) {
         ExpressionTree expression = (ExpressionTree) path.getLeaf();
         return switch (expression) {
-            case ParenthesizedTree p -> isNullable(trees, new TreePath(path, p.getExpression()), strict);
-            case ConditionalExpressionTree c -> isNullable(trees, new TreePath(path, c.getTrueExpression()), strict)
-                    || isNullable(trees, new TreePath(path, c.getFalseExpression()), strict);
+            case ParenthesizedTree p -> isNullable(trees, new TreePath(path, p.getExpression()), strict, nullableLocals);
+            case ConditionalExpressionTree c -> isNullable(trees, new TreePath(path, c.getTrueExpression()), strict, nullableLocals)
+                    || isNullable(trees, new TreePath(path, c.getFalseExpression()), strict, nullableLocals);
             case LiteralTree l -> l.getKind() == Tree.Kind.NULL_LITERAL;
-            case MethodInvocationTree call -> isNullableCall(trees, path, call, strict);
-            case IdentifierTree i -> declaredNullable(trees.getElement(path), strict);
-            case MemberSelectTree m -> declaredNullable(trees.getElement(path), strict);
+            case MethodInvocationTree call -> isNullableCall(trees, path, call, strict, nullableLocals) || hasNullableType(trees, path);
+            case IdentifierTree i -> declaredNullable(trees.getElement(path), strict) || hasNullableType(trees, path)
+                    || nullableLocals.contains(trees.getElement(path));
+            case MemberSelectTree m -> declaredNullable(trees.getElement(path), strict) || hasNullableType(trees, path);
             default -> false;
         };
     }
 
-    private static boolean isNullableCall(Trees trees, TreePath path, MethodInvocationTree call, boolean strict) {
+    /** `xs.get(0)` on a `List<String?>`: the type argument's annotation reaches the result. */
+    private static boolean hasNullableType(Trees trees, TreePath path) {
+        TypeMirror type = trees.getTypeMirror(path);
+        return type != null && PlatformValues.hasAnnotation(type.getAnnotationMirrors(), "Nullable");
+    }
+
+    private static boolean isNullableCall(Trees trees, TreePath path, MethodInvocationTree call, boolean strict,
+                                          Set<Element> nullableLocals) {
         Element method = trees.getElement(path);
         if (method == null) {
             return false;
@@ -175,7 +190,7 @@ public final class JavacTypes implements JavaTypes {
         if (owner.equals("axl.lang.Nulls") && name.equals("or") && call.getArguments().size() == 2
                 && call.getArguments().get(1) instanceof LambdaExpressionTree lambda
                 && lambda.getBody() instanceof ExpressionTree body) {
-            return isNullable(trees, new TreePath(new TreePath(path, lambda), body), strict);
+            return isNullable(trees, new TreePath(new TreePath(path, lambda), body), strict, nullableLocals);
         }
         return declaredNullable(method, strict);
     }

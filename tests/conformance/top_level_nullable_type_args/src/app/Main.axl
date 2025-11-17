@@ -1,0 +1,19 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn items() -> List<String?> {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    return xs
+}
+
+val all = items()
+val second = all.get(0)
+val copy = second
+val mapped = all |> map { it ?: "x" }
+
+fn main() {
+    println(second?.length())
+}
