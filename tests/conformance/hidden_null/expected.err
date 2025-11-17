@@ -1,0 +1,13 @@
+AXL102 app/Main.axl:16:36: error: the result of `maybe()` may be null, but the lambda must not return null: `Supplier.get` returns `String` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:17:23: error: the result of `maybe()` may be null, but the lambda must not return null: `Supplier.get` returns `String` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:18:31: error: the result of `maybeInt()` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:20:31: error: the result of `maybeBool()` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:21:39: error: the result of `maybeInt()` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:39: error: the result of `maybe()` may be null, but the lambda must not return null: `Function.apply` returns `String` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:24:43: error: the result of `maybe()` may be null, but the lambda must not return null: `Function.apply` returns `String` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:26:23: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:27:28: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:28:31: error: `it` may be null: it holds a value of a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:29:19: error: the elements may be null, and `sorted` compares them; drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:30:21: error: the result of `maybe()` may be null, but `s` is not nullable; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:32:15: error: the result of `maybe()` may be null, but `add` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`

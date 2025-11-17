@@ -11,8 +11,9 @@ import java.util.List;
 /**
  * javac plugin that reports errors in generated .java files at their .axl lines.
  * Build tools enable it with {@code -Xplugin:AxlDiagnostics <generated-dir>=<axl-dir> ...}. Directories are
- * file URIs, so that paths with spaces survive javac's argument splitting, or plain paths. The argument
- * {@code strict} turns on strict null mode (see StrictNullChecker).
+ * file URIs, so that paths with spaces survive javac's argument splitting, or plain paths. The plugin
+ * also makes the null checks NullAway cannot make; the argument {@code strict} turns on strict null
+ * mode (see NullChecker).
  */
 public final class DiagnosticsPlugin implements Plugin {
 
@@ -44,13 +45,15 @@ public final class DiagnosticsPlugin implements Plugin {
     @Override
     public void init(JavacTask task, String... args) {
         List<Root> roots = new ArrayList<>();
+        boolean strict = false;
         for (String arg : args) {
             if (arg.equals(STRICT)) {
-                task.addTaskListener(new StrictNullChecker(task));
+                strict = true;
             } else {
                 roots.add(Root.parse(arg));
             }
         }
+        task.addTaskListener(new NullChecker(task, strict));
         if (!roots.isEmpty()) {
             new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
         }

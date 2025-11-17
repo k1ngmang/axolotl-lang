@@ -1,0 +1,30 @@
+package app
+
+fn maybe() -> String? = null
+fn maybeInt() -> Int? = null
+fn shout(s: String) {
+    println(s.length())
+}
+fn env() -> Result<String, String> = attempt System.getenv("AXL_SURELY_NOT_SET") else "failed"
+fn wrapped() -> Result<String, String> = Ok(System.getenv("AXL_SURELY_NOT_SET"))
+fn optional() -> Result<String?, String> = Ok(System.getenv("AXL_SURELY_NOT_SET"))
+
+fn main() {
+    val s = maybe() ?: System.getenv("AXL_SURELY_NOT_SET")
+    println(s.length())
+    val ys = java.util.List.of("A") |> map { System.getenv(it) }
+    var n = 0
+    n += Integer.getInteger("axl.surely.not.set")
+    if (lib.Legacy.flag()) {
+        println("on")
+    }
+    lib.Legacy.call(Main::shout)
+    lib.Legacy.call(({ x -> println(x.length()) }))
+    val c: java.util.function.Consumer<String> = { x -> println(x.length()) }
+    println(lib.Legacy.CONST.length())
+    val home = System.getProperty("user.home")
+    home!!
+    println(home.length())
+    println(" a ".trim().length() + String.valueOf(4).length())
+    val m: Int = maybeInt() ?: Integer.getInteger("axl.surely.not.set")
+}

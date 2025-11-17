@@ -57,8 +57,11 @@ final class Messages {
 
     private static Translated rewrite(String message, String[] javaLines, int javaLine) {
         String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
-        if (message.startsWith(StrictNullChecker.PREFIX)) {
-            return new Translated(ErrorCode.STRICT_NULL, message.substring(StrictNullChecker.PREFIX.length()));
+        if (message.startsWith(NullChecker.STRICT_PREFIX)) {
+            return new Translated(ErrorCode.STRICT_NULL, message.substring(NullChecker.STRICT_PREFIX.length()));
+        }
+        if (message.startsWith(NullChecker.PREFIX)) {
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, message.substring(NullChecker.PREFIX.length()));
         }
         if (text.contains("Result.propagate(") || text.contains("Result.unwrap(") || text.contains("Result.<")) {
             Translated tryProblem = tryProblem(message, javaLines, javaLine);

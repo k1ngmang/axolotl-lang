@@ -1,0 +1,34 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.List
+import java.util.function.IntSupplier
+import java.util.function.Supplier
+
+fn maybe() -> String? = null
+fn maybeInt() -> Int? = null
+fn maybeBool() -> Boolean? = null
+fn items() -> List<String?> = ArrayList<String?>()
+fn take(f: Supplier<String>) -> Int = f.get().length()
+
+fn main() {
+    val f: Supplier<String> = { -> maybe() }
+    println(take({ -> maybe() }))
+    val g: IntSupplier = { -> maybeInt() }
+    val words = List.of("a", "b")
+    println(words |> filter { maybeBool() } |> count)
+    println(words |> sorted { a, b -> maybeInt() })
+    println(words.stream().map({ s -> maybe() }).toList())
+    val m = HashMap<String, String>()
+    println(m.computeIfAbsent("k", { k -> maybe() }))
+    val xs = ArrayList<String?>()
+    println(xs.get(0).length())
+    println(items().get(0).length())
+    println(xs |> filter { it.length() > 0 } |> count)
+    println(xs |> sorted)
+    val s: String = maybe()
+    val names = ArrayList<String>()
+    names.add(maybe())
+    println(maybe() ?: maybe() ?: "x")
+}

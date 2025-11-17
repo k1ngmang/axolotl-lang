@@ -47,7 +47,7 @@ public final class JavaCompilation {
         return compile(sources, classpath, classesDir, extraOptions, nullChecks, false);
     }
 
-    /** strictNull: values from Java code without nullness annotations may be null (see StrictNullChecker). */
+    /** strictNull: values from Java code without nullness annotations may be null (see NullChecker). */
     public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions,
                                   boolean nullChecks, boolean strictNull) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
@@ -72,11 +72,11 @@ public final class JavaCompilation {
                         "-processorpath", processorPath(),
                         ERROR_PRONE_PLUGIN));
             }
-            if (strictNull) {
-                if (!nullChecks) {
-                    options.addAll(List.of("-processorpath", processorPath()));
-                }
-                options.add("-Xplugin:" + DiagnosticsPlugin.NAME + " " + DiagnosticsPlugin.STRICT);
+            if (strictNull && !nullChecks) {
+                options.addAll(List.of("-processorpath", processorPath()));
+            }
+            if (nullChecks || strictNull) {
+                options.add("-Xplugin:" + DiagnosticsPlugin.NAME + (strictNull ? " " + DiagnosticsPlugin.STRICT : ""));
             }
             options.addAll(extraOptions);
             var units = files.getJavaFileObjectsFromPaths(sources);

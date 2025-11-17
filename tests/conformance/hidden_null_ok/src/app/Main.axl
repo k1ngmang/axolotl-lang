@@ -1,0 +1,35 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.function.Supplier
+
+fn maybe() -> String? = null
+
+fn main() {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    xs.add("ab")
+    println(xs |> first)
+    println(xs |> filter { it != null } |> map { it.length() })
+    println(xs |> map { it ?: "-" } |> sorted)
+    val lazy: Supplier<String?> = { -> maybe() }
+    println(lazy.get())
+    val m = HashMap<String, String?>()
+    m.put("k", null)
+    println(m.computeIfAbsent("j", { k -> maybe() }))
+    val text: String? = maybe()
+    val n: Int = text?.length() ?: 0
+    val length: Supplier<Int?> = { -> text?.length() }
+    println(n)
+    println(length.get())
+    for0()
+}
+
+fn for0() {
+    val s = maybe()
+    if (s != null) {
+        val f: Supplier<String> = { -> s }
+        println(f.get())
+    }
+}

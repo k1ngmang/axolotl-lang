@@ -9,6 +9,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
@@ -25,15 +26,50 @@ final class PlatformValues {
         if (element == null || element.getKind() != ElementKind.METHOD && element.getKind() != ElementKind.FIELD) {
             return false;
         }
-        // Constants like `System.out` are set once at class init; flagging them would bury real problems.
-        if (element.getKind() == ElementKind.FIELD && element.getModifiers().containsAll(Set.of(Modifier.STATIC, Modifier.FINAL))) {
+        // JDK constants like `System.out` are set once at class init; flagging them would bury real problems.
+        if (element.getKind() == ElementKind.FIELD && element.getModifiers().containsAll(Set.of(Modifier.STATIC, Modifier.FINAL))
+                && (isJdk(element) || element instanceof VariableElement field && field.getConstantValue() != null)) {
             return false;
         }
         TypeMirror type = element instanceof ExecutableElement method ? method.getReturnType() : element.asType();
-        if (type.getKind().isPrimitive() || type.getKind() == TypeKind.VOID) {
+        if (type.getKind().isPrimitive() || type.getKind() == TypeKind.VOID || neverNull(element)) {
             return false;
         }
         return !trusted(element) && !annotated(element, type, List.of("NonNull", "NotNull", "Nonnull", "Nullable"));
+    }
+
+    /**
+     * JDK methods that never return null although nothing says so: string and number methods and the
+     * immutable collection factories. Without them strict mode would flag `s.trim().length()`.
+     */
+    private static boolean neverNull(Element element) {
+        if (!(element instanceof ExecutableElement method) || !(method.getEnclosingElement() instanceof TypeElement owner)) {
+            return false;
+        }
+        String type = owner.getQualifiedName().toString();
+        String name = method.getSimpleName().toString();
+        if (name.equals("toString") && method.getParameters().isEmpty()) {
+            return true;
+        }
+        return switch (type) {
+            case "java.lang.String", "java.lang.StringBuilder", "java.lang.Math" -> true;
+            // Integer.getInteger and Long.getLong read system properties and return null when one is missing.
+            case "java.lang.Integer", "java.lang.Long", "java.lang.Double", "java.lang.Boolean", "java.lang.Character",
+                 "java.lang.Short", "java.lang.Byte", "java.lang.Float" -> !name.startsWith("get");
+            case "java.util.List", "java.util.Set", "java.util.Map" ->
+                    method.getModifiers().contains(Modifier.STATIC) && (name.equals("of") || name.equals("copyOf"));
+            default -> false;
+        };
+    }
+
+    private static boolean isJdk(Element element) {
+        for (Element e = element; e != null; e = e.getEnclosingElement()) {
+            if (e instanceof PackageElement pkg) {
+                String name = pkg.getQualifiedName().toString();
+                return name.startsWith("java.") || name.startsWith("javax.");
+            }
+        }
+        return false;
     }
 
     /** Whether a declaration states that it accepts or returns null. */
