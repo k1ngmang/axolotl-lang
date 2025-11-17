@@ -12,7 +12,7 @@ import java.util.List;
         System.out.println(numbers.stream().sorted((a, b) -> b.compareTo(a)).skip(4).toList());
         System.out.println(numbers.stream().filter(n -> n > 4).count());
         System.out.println(numbers.stream().anyMatch(it -> it < 0));
-        System.out.println(numbers.stream().filter(it -> it > 100).findFirst().orElse(null));
+        System.out.println(Nulls.first(numbers.stream().filter(it -> it > 100).iterator()));
         numbers.stream().filter(it -> it == 3).forEach(it -> System.out.println("three"));
     }
 }

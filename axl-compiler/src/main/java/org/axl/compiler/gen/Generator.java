@@ -783,7 +783,7 @@ public final class Generator {
                 case "limit", "skip" -> sb.append('.').append(stage.name()).append('(').append(arg.apply(stage.args().getFirst())).append(')');
                 case "distinct" -> sb.append(".distinct()");
                 case "count" -> sb.append(".count()");
-                case "first" -> sb.append(".findFirst().orElse(null)");
+                case "first" -> sb.insert(0, "Nulls.first(").append(".iterator())");
                 case "map" -> sb.append(".map(Nulls.nonNull(").append(lambda).append("))");
                 default -> sb.append('.').append(stage.name()).append('(').append(lambda).append(')');
             }

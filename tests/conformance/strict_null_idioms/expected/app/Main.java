@@ -29,7 +29,7 @@ import java.util.List;
     public static void main(String[] args) {
         System.out.println(count(java.util.Objects.requireNonNull(List.of("a", ""))));
         final var names = java.util.Objects.requireNonNull(List.of("b", "a"));
-        System.out.println(names.stream().sorted().map(Nulls.nonNull(it -> it.length())).findFirst().orElse(null));
+        System.out.println(Nulls.first(names.stream().sorted().map(Nulls.nonNull(it -> it.length())).iterator()));
         System.out.println(size(true));
         System.out.println(fallback());
         final var env = Nulls.or(System.getenv("AXL_SURELY_NOT_SET"), () -> "none");

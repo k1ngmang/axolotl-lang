@@ -177,11 +177,6 @@ public final class JavacTypes implements JavaTypes {
                 && lambda.getBody() instanceof ExpressionTree body) {
             return isNullable(trees, new TreePath(new TreePath(path, lambda), body), strict);
         }
-        // `|> first` is findFirst().orElse(null).
-        if (name.equals("orElse") && call.getArguments().size() == 1
-                && call.getArguments().get(0).getKind() == Tree.Kind.NULL_LITERAL) {
-            return true;
-        }
         return declaredNullable(method, strict);
     }
 

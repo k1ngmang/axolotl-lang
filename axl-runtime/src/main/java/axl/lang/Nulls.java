@@ -1,4 +1,5 @@
 package axl.lang;
+import java.util.Iterator;
 import java.util.function.Function;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
@@ -16,6 +17,12 @@ import org.jspecify.annotations.Nullable;
     // stage must not put nulls into a List<T>.
     @FunctionalInterface public interface NonNullFunction<T extends @Nullable Object, R> { R apply(T value); }
     public static <T extends @Nullable Object, R> Function<T, R> nonNull(NonNullFunction<T, R> f) { return f::apply; }
+    // findFirst throws on a null element; a pipe's `first` gives null for it as for an empty pipe.
+    // It takes the stream's iterator, not the stream: the argument then has its type before Java picks
+    // an overload for the call around `first`, such as println(char[]) or println(String).
+    public static <T extends @Nullable Object> @Nullable T first(Iterator<T> items) {
+        return items.hasNext() ? items.next() : null;
+    }
     public static <T, R> @Nullable R map(@Nullable T a, Function<? super T, ? extends @Nullable R> f) {
         return a == null ? null : f.apply(a);
     }
