@@ -188,9 +188,20 @@ public final class Generator {
                 });
             }
             case Stmt.Assign assign -> withCopies(assign.pos().line(), assign.value(), () -> {
-                String target = assignTarget(assign.pos().line(), assign.target(), Lifts.needed(assign.value()));
-                String value = value(assign.pos().line(), assign.value());
-                em.line(assign.pos().line(), target + " " + assign.op() + " " + value + ";");
+                int line = assign.pos().line();
+                boolean valueLifts = Lifts.needed(assign.value());
+                String target = assignTarget(line, assign.target(), valueLifts);
+                String old = null;
+                if (valueLifts && !assign.op().equals("=") && !isLocal(assign.target())) {
+                    // `a.f += try g()` reads `a.f` before `g` runs, which may change it.
+                    old = "$t" + ++tempCount;
+                    em.line(line, "final var " + old + " = " + target + ";");
+                }
+                String value = value(line, assign.value());
+                if (old != null) {
+                    em.line(line, target + " = " + old + ";");
+                }
+                em.line(line, target + " " + assign.op() + " " + value + ";");
             });
             case Stmt.Return ret -> {
                 if (ret.value() == null) {
@@ -589,6 +600,12 @@ public final class Generator {
             case Expr.Pipe p -> pipeLifted(line, p);
             default -> throw new IllegalStateException("nothing to lift in " + e);
         };
+    }
+
+    /** A local, which no call can change; top-level values cannot be shadowed, so a name of one is not. */
+    private boolean isLocal(Expr target) {
+        return target instanceof Expr.Name n && file.decls().stream()
+                .noneMatch(d -> d instanceof Decl.Value v && v.name().equals(n.name()));
     }
 
     /** Java evaluates the object of `a.f = v` before `v`, so before a `try` in `v`. */

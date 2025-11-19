@@ -1,0 +1,20 @@
+package app
+
+fn bump(b: Box) -> Result<Int, String> {
+    b.value = 100
+    return Ok(1)
+}
+
+fn run() -> Result<Int, String> {
+    val b = Box()
+    b.value += try bump(b)
+    println(b.value)
+    val c = Box()
+    c.value = c.value + try bump(c)
+    println(c.value)
+    return Ok(0)
+}
+
+fn main() {
+    println(run())
+}
