@@ -1,0 +1,7 @@
+package app
+
+val a = zz.B.word
+
+fn main() {
+    println(a.length())
+}

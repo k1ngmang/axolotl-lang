@@ -108,6 +108,9 @@ public final class Translator {
             String type = found.get(name);
             if (type != null && type.startsWith(JavaTypes.ERROR)) {
                 reasons.put(name, type.substring(JavaTypes.ERROR.length()));
+            } else if (type != null && options.draft() && type.replace(JavaTypes.NULLABLE, "").equals("Object")) {
+                // The value may read a draft of another file, typed `Object` only until its own type is known.
+                continue;
             } else if (type != null) {
                 valueTypes.put(name, javaType(type, file));
                 unknown.remove(name);
