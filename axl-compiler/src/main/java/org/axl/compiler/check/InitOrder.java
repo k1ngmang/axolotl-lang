@@ -19,6 +19,8 @@ final class InitOrder {
     record Problem(Decl.Value value, String later) {}
 
     private final SourceFile file;
+    // Functions and values already followed while one initializer is checked; a cycle reads nothing new.
+    private final Set<String> visited = new HashSet<>();
 
     private InitOrder(SourceFile file) {
         this.file = file;
@@ -33,7 +35,8 @@ final class InitOrder {
         List<Problem> problems = new ArrayList<>();
         for (int i = 0; i < values.size(); i++) {
             Set<String> read = new HashSet<>();
-            names(values.get(i).init(), read, new HashSet<>());
+            visited.clear();
+            names(values.get(i).init(), Set.of(), read);
             for (Decl.Value later : values.subList(i, values.size())) {
                 if (read.contains(later.name())) {
                     problems.add(new Problem(values.get(i), later.name()));
@@ -44,98 +47,172 @@ final class InitOrder {
         return problems;
     }
 
-    /** Names an expression reads when it runs, following calls into functions of the file. */
-    private void names(Expr expr, Set<String> out, Set<String> visitedFunctions) {
+    /**
+     * Names an expression reads when it runs, following calls into functions of the file.
+     *
+     * @param hidden parameters and locals in scope, which are not the top-level values of the same name
+     */
+    private void names(Expr expr, Set<String> hidden, Set<String> out) {
         switch (expr) {
-            case Expr.Name n -> out.add(n.name());
+            case Expr.Name n -> read(n.name(), hidden, out);
             case Expr.Call c -> {
-                if (c.target() == null) {
-                    function(c.name(), out, visitedFunctions);
-                } else {
-                    names(c.target(), out, visitedFunctions);
+                if (c.target() == null && !hidden.contains(c.name()) || c.target() != null && isThisClass(c.target())) {
+                    function(c.name(), out);
+                } else if (c.target() != null) {
+                    names(c.target(), hidden, out);
                 }
-                c.args().forEach(a -> names(a, out, visitedFunctions));
+                arguments(c.args(), hidden, out);
             }
-            case Expr.Member m -> names(m.target(), out, visitedFunctions);
-            case Expr.GenericNew g -> g.args().forEach(a -> names(a, out, visitedFunctions));
-            case Expr.MethodRef r -> names(r.target(), out, visitedFunctions);
-            case Expr.NotNull n -> names(n.target(), out, visitedFunctions);
-            case Expr.Unary u -> names(u.operand(), out, visitedFunctions);
+            case Expr.Member m -> {
+                if (isThisClass(m.target())) {
+                    read(m.name(), Set.of(), out);
+                } else {
+                    names(m.target(), hidden, out);
+                }
+            }
+            case Expr.GenericNew g -> arguments(g.args(), hidden, out);
+            case Expr.MethodRef r -> names(r.target(), hidden, out);
+            case Expr.NotNull n -> names(n.target(), hidden, out);
+            case Expr.Unary u -> names(u.operand(), hidden, out);
             case Expr.Binary b -> {
-                names(b.left(), out, visitedFunctions);
-                names(b.right(), out, visitedFunctions);
+                names(b.left(), hidden, out);
+                names(b.right(), hidden, out);
             }
             case Expr.Elvis e -> {
-                names(e.left(), out, visitedFunctions);
-                names(e.right(), out, visitedFunctions);
+                names(e.left(), hidden, out);
+                names(e.right(), hidden, out);
             }
-            case Expr.Paren p -> names(p.inner(), out, visitedFunctions);
-            case Expr.Try t -> names(t.inner(), out, visitedFunctions);
+            case Expr.Paren p -> names(p.inner(), hidden, out);
+            case Expr.Try t -> names(t.inner(), hidden, out);
             case Expr.Attempt a -> {
-                names(a.body(), out, visitedFunctions);
-                names(a.handler(), out, visitedFunctions);
+                names(a.body(), hidden, out);
+                names(a.handler(), a.errorName() == null ? hidden : with(hidden, Set.of(a.errorName())), out);
             }
             case Expr.Pipe p -> {
-                names(p.source(), out, visitedFunctions);
+                names(p.source(), hidden, out);
                 for (Expr.Stage stage : p.stages()) {
-                    stage.args().forEach(a -> names(a, out, visitedFunctions));
+                    stage.args().forEach(a -> names(a, hidden, out));
                     if (stage.lambda() != null) {
-                        stage.lambda().body().forEach(s -> statement(s, out, visitedFunctions));
+                        lambdaBody(stage.lambda(), hidden, out);
                     }
                 }
             }
-            // A lambda runs later, if at all.
+            // A lambda that is not passed to a call runs later, if at all.
             case Expr.Lambda l -> { }
             case Expr.Literal l -> { }
         }
     }
 
-    private void function(String name, Set<String> out, Set<String> visitedFunctions) {
-        if (!visitedFunctions.add(name)) {
-            return;
-        }
-        for (Decl decl : file.decls()) {
-            if (decl instanceof Decl.Function fn && fn.name().equals(name)) {
-                Set<String> read = new HashSet<>();
-                if (fn.exprBody() != null) {
-                    names(fn.exprBody(), read, visitedFunctions);
-                } else {
-                    statement(fn.body(), read, visitedFunctions);
-                }
-                // Parameters and locals of the function are not the top-level values of the same name.
-                fn.params().forEach(p -> read.remove(p.name()));
-                read.removeAll(locals(fn.body() == null ? List.of() : fn.body().statements()));
-                out.addAll(read);
+    /** A lambda or function reference passed to a call is likely called by it. */
+    private void arguments(List<Expr> args, Set<String> hidden, Set<String> out) {
+        for (Expr arg : args) {
+            Expr inner = arg instanceof Expr.Paren p ? p.inner() : arg;
+            if (inner instanceof Expr.Lambda lambda) {
+                lambdaBody(lambda, hidden, out);
+            } else if (inner instanceof Expr.MethodRef ref && isThisClass(ref.target())) {
+                function(ref.name(), out);
+            } else {
+                names(arg, hidden, out);
             }
         }
     }
 
-    private void statement(Stmt stmt, Set<String> out, Set<String> visitedFunctions) {
+    private void read(String name, Set<String> hidden, Set<String> out) {
+        if (hidden.contains(name)) {
+            return;
+        }
+        out.add(name);
+        // Reading a value that holds a lambda is usually done to call it.
+        for (Decl decl : file.decls()) {
+            if (decl instanceof Decl.Value value && value.name().equals(name) && visited.add("val " + name)) {
+                Expr init = value.init() instanceof Expr.Paren p ? p.inner() : value.init();
+                if (init instanceof Expr.Lambda lambda) {
+                    lambdaBody(lambda, Set.of(), out);
+                } else if (init instanceof Expr.MethodRef ref && isThisClass(ref.target())) {
+                    function(ref.name(), out);
+                }
+            }
+        }
+    }
+
+    private void lambdaBody(Expr.Lambda lambda, Set<String> hidden, Set<String> out) {
+        Set<String> scope = new HashSet<>(hidden);
+        lambda.params().forEach(p -> scope.add(p.name()));
+        if (lambda.params().isEmpty()) {
+            scope.add("it");
+        }
+        scope.addAll(locals(lambda.body()));
+        lambda.body().forEach(s -> statement(s, scope, out));
+    }
+
+    private void function(String name, Set<String> out) {
+        if (!visited.add("fn " + name)) {
+            return;
+        }
+        for (Decl decl : file.decls()) {
+            if (decl instanceof Decl.Function fn && fn.name().equals(name)) {
+                Set<String> scope = new HashSet<>();
+                fn.params().forEach(p -> scope.add(p.name()));
+                if (fn.exprBody() != null) {
+                    names(fn.exprBody(), scope, out);
+                } else {
+                    scope.addAll(locals(fn.body().statements()));
+                    statement(fn.body(), scope, out);
+                }
+            }
+        }
+    }
+
+    /** `Main.names` and `app.Main.names` name a value of this file too. */
+    private boolean isThisClass(Expr target) {
+        String qualified = file.packageName().isEmpty() ? file.className() : file.packageName() + "." + file.className();
+        String text = dotted(target);
+        return text != null && (text.equals(file.className()) || text.equals(qualified));
+    }
+
+    private static String dotted(Expr expr) {
+        if (expr instanceof Expr.Name n) {
+            return n.name();
+        }
+        if (expr instanceof Expr.Member m && !m.safe()) {
+            String target = dotted(m.target());
+            return target == null ? null : target + "." + m.name();
+        }
+        return null;
+    }
+
+    private void statement(Stmt stmt, Set<String> hidden, Set<String> out) {
         switch (stmt) {
-            case Stmt.Local l -> names(l.init(), out, visitedFunctions);
+            case Stmt.Local l -> names(l.init(), hidden, out);
             case Stmt.Assign a -> {
-                names(a.target(), out, visitedFunctions);
-                names(a.value(), out, visitedFunctions);
+                names(a.target(), hidden, out);
+                names(a.value(), hidden, out);
             }
             case Stmt.Return r -> {
                 if (r.value() != null) {
-                    names(r.value(), out, visitedFunctions);
+                    names(r.value(), hidden, out);
                 }
             }
             case Stmt.If i -> {
-                names(i.condition(), out, visitedFunctions);
-                statement(i.then(), out, visitedFunctions);
+                names(i.condition(), hidden, out);
+                statement(i.then(), hidden, out);
                 if (i.elseBranch() != null) {
-                    statement(i.elseBranch(), out, visitedFunctions);
+                    statement(i.elseBranch(), hidden, out);
                 }
             }
             case Stmt.While w -> {
-                names(w.condition(), out, visitedFunctions);
-                statement(w.body(), out, visitedFunctions);
+                names(w.condition(), hidden, out);
+                statement(w.body(), hidden, out);
             }
-            case Stmt.ExprStmt e -> names(e.expr(), out, visitedFunctions);
-            case Stmt.Block b -> b.statements().forEach(s -> statement(s, out, visitedFunctions));
+            case Stmt.ExprStmt e -> names(e.expr(), hidden, out);
+            case Stmt.Block b -> b.statements().forEach(s -> statement(s, hidden, out));
         }
+    }
+
+    private static Set<String> with(Set<String> names, Set<String> more) {
+        Set<String> result = new HashSet<>(names);
+        result.addAll(more);
+        return result;
     }
 
     private static Set<String> locals(List<Stmt> statements) {

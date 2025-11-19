@@ -1,0 +1,28 @@
+package app
+
+import java.util.List
+
+val viaQualified = Main.later.length()
+val viaShadow = outer()
+val withParams = List.of("a") |> map { later -> later + "!" }
+val withIt = List.of("a") |> map { it + "!" }
+val attempted = attempt Integer.parseInt("x") else later -> 0
+val viaArgument = run({ -> later.length() })
+val viaReference = run(Main::inner)
+val lazy: java.util.function.Supplier<Int> = { -> later.length() }
+val viaLambdaValue = lazy.get()
+
+fn outer() -> Int {
+    val later = "x"
+    return inner() + later.length()
+}
+
+fn inner() -> Int = later.length()
+
+fn run(f: java.util.function.Supplier<Int>) -> Int = f.get()
+
+val later = "abc".trim()
+
+fn main() {
+    println(viaQualified)
+}
