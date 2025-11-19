@@ -77,6 +77,10 @@ Common options: `--no-null-checks` skips Error Prone and NullAway, `--strict-nul
 [strict null mode](language.md#java-code-without-nullness-annotations), `--inline-elvis` expands a
 statement-level `?:` without a lambda.
 
+Options of `axl run` go before the `.axl` file; everything after it, options and `--` included, is
+passed to the program unchanged: `axl run --no-null-checks app/Main.axl --verbose`. A `--` before
+the file ends the options of `axl run`, for a file whose name starts with `-`.
+
 ## IntelliJ IDEA
 
 IntelliJ IDEA 2024.2 or newer, Community or Ultimate:

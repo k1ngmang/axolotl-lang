@@ -31,7 +31,7 @@ final class RunCommand implements Callable<Integer> {
     @Parameters(index = "0", description = "The .axl file with `fn main()`.")
     Path file;
 
-    @Parameters(index = "1..*", description = "Arguments for the program.")
+    @Parameters(index = "1..*", description = "Arguments for the program, passed unchanged, options included.")
     List<String> args = new ArrayList<>();
 
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")

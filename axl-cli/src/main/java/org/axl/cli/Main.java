@@ -11,7 +11,17 @@ import picocli.CommandLine.Command;
 public final class Main {
 
     public static void main(String[] args) {
+        int code = commandLine().execute(args);
+        // A program started by `axl run` may still have threads running; the JVM ends when they do.
+        if (code != 0 || !RunCommand.programRan) {
+            System.exit(code);
+        }
+    }
+
+    static CommandLine commandLine() {
         CommandLine commandLine = new CommandLine(new Main());
+        // Everything after the .axl file belongs to the program, options included.
+        commandLine.getSubcommands().get("run").setStopAtPositional(true);
         commandLine.setExecutionExceptionHandler((e, cl, parsed) -> {
             if (!(e instanceof IOException)) {
                 throw e;
@@ -19,10 +29,6 @@ public final class Main {
             cl.getErr().println("axl: " + (e instanceof NoSuchFileException ? "no such file: " : "") + e.getMessage());
             return 2;
         });
-        int code = commandLine.execute(args);
-        // A program started by `axl run` may still have threads running; the JVM ends when they do.
-        if (code != 0 || !RunCommand.programRan) {
-            System.exit(code);
-        }
+        return commandLine;
     }
 }

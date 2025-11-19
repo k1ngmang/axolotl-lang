@@ -8,6 +8,7 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -25,7 +26,7 @@ class CliTest {
         System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
         System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
         try {
-            return new CommandLine(new Main()).execute(args);
+            return Main.commandLine().execute(args);
         } finally {
             System.setOut(originalOut);
             System.setErr(originalErr);
@@ -37,6 +38,22 @@ class CliTest {
         int exit = axl("run", CASES.resolve("hello/src/app/Main.axl").toString());
         assertEquals(0, exit, err.toString());
         assertEquals("Hello, stranger\nOk[value=42]\n", out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n"));
+    }
+
+    @Test
+    void runPassesEverythingAfterTheFileToTheProgram() {
+        CommandLine commandLine = Main.commandLine();
+        commandLine.parseArgs("run", "--no-null-checks", "A.axl", "one", "--verbose", "--", "-x");
+        RunCommand run = commandLine.getSubcommands().get("run").getCommand();
+        assertTrue(run.noNullChecks);
+        assertEquals(Path.of("A.axl"), run.file);
+        assertEquals(List.of("one", "--verbose", "--", "-x"), run.args);
+
+        commandLine = Main.commandLine();
+        commandLine.parseArgs("run", "--", "-A.axl", "-x");
+        run = commandLine.getSubcommands().get("run").getCommand();
+        assertEquals(Path.of("-A.axl"), run.file);
+        assertEquals(List.of("-x"), run.args);
     }
 
     @Test
