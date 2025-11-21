@@ -122,6 +122,24 @@ class CliTest {
     }
 
     @Test
+    void reportsUnusableOutputDirectoriesAndNonUtf8Sources(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        Path file = Files.writeString(tmp.resolve("file"), "");
+        assertEquals(2, axl("build", tmp.resolve("src").toString(), "-d", file.resolve("classes").toString(),
+                "-s", tmp.resolve("gen").toString(), "--no-null-checks"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).startsWith("axl: "), err.toString());
+
+        Files.write(app.resolve("Main.axl"), new byte[] {'f', 'n', ' ', (byte) 0xff});
+        err.reset();
+        assertEquals(2, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("out").toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Main.axl is not UTF-8 text"), err.toString());
+        err.reset();
+        assertEquals(2, axl("run", app.resolve("Main.axl").toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("Main.axl is not UTF-8 text"), err.toString());
+    }
+
+    @Test
     void runReportsAMissingMainAndInitializerFailures(@TempDir Path tmp) throws Exception {
         Path app = Files.createDirectories(tmp.resolve("app"));
         Files.writeString(app.resolve("Lib.axl"), "package app\n\nfn f() = println(1)\n");

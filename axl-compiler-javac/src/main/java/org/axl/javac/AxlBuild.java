@@ -1,6 +1,7 @@
 package org.axl.javac;
 
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -79,7 +80,7 @@ public final class AxlBuild {
         for (Path axl : axlFiles) {
             Path root = sourceDirs.stream().filter(axl::startsWith).findFirst().orElseThrow();
             String sourcePath = root.relativize(axl).toString().replace('\\', '/');
-            inputs.add(new Translation.Input(sourcePath, display.apply(axl), Files.readString(axl, StandardCharsets.UTF_8)));
+            inputs.add(new Translation.Input(sourcePath, display.apply(axl), read(axl)));
         }
         List<Translator.Result> results = Translation.run(inputs, options, classpath, sourceDirs, generatedDir, strictNull);
         for (int i = 0; i < results.size(); i++) {
@@ -109,6 +110,14 @@ public final class AxlBuild {
             }
         }
         return new Result(outcome.success(), sorted(diagnostics), generated);
+    }
+
+    private String read(Path axl) throws IOException {
+        try {
+            return Files.readString(axl, StandardCharsets.UTF_8);
+        } catch (CharacterCodingException e) {
+            throw new IOException(display.apply(axl) + " is not UTF-8 text", e);
+        }
     }
 
     private static List<AxlDiagnostic> sorted(List<AxlDiagnostic> diagnostics) {

@@ -5,6 +5,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -49,7 +50,12 @@ final class RunCommand implements Callable<Integer> {
             System.err.println("axl: no such file: " + file);
             return 2;
         }
-        String text = Files.readString(file, StandardCharsets.UTF_8);
+        String text;
+        try {
+            text = Files.readString(file, StandardCharsets.UTF_8);
+        } catch (CharacterCodingException e) {
+            throw new IOException(file + " is not UTF-8 text", e);
+        }
         String className = Translator.className(file.getFileName().toString());
         String packageName = packageOf(className, text);
         Path root = sourceRoot(file.toAbsolutePath().normalize(), packageName);

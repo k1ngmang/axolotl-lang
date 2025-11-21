@@ -1,6 +1,7 @@
 package org.axl.cli;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
@@ -23,10 +24,11 @@ public final class Main {
         // Everything after the .axl file belongs to the program, options included.
         commandLine.getSubcommands().get("run").setStopAtPositional(true);
         commandLine.setExecutionExceptionHandler((e, cl, parsed) -> {
-            if (!(e instanceof IOException)) {
+            Exception cause = e instanceof UncheckedIOException unchecked ? unchecked.getCause() : e;
+            if (!(cause instanceof IOException)) {
                 throw e;
             }
-            cl.getErr().println("axl: " + (e instanceof NoSuchFileException ? "no such file: " : "") + e.getMessage());
+            cl.getErr().println("axl: " + (cause instanceof NoSuchFileException ? "no such file: " : "") + cause.getMessage());
             return 2;
         });
         return commandLine;
