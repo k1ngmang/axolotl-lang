@@ -77,6 +77,16 @@ class GenerateMojoTest {
     }
 
     @Test
+    void ownClassesDoNotCountAsAClasspathChange(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a() -> Int = 1\n");
+        mojo(base).execute();
+        Files.write(Files.createDirectories(base.resolve("target/classes/app")).resolve("A.class"), new byte[] {1});
+        mojo(base).execute();
+        assertEquals("Translated 0 of 1 .axl file(s)", messages.getLast());
+    }
+
+    @Test
     void retranslatesEverythingWhenAnOptionChanges(@TempDir Path base) throws Exception {
         Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
         Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a(s: String?) {\n    val r = s ?: \"none\"\n}\n");

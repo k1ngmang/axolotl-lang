@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 import org.apache.maven.plugin.AbstractMojo;
@@ -179,7 +180,11 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
 
     private String environment(List<Path> classpath, List<Path> javaRoots) throws IOException {
         StringBuilder sb = new StringBuilder("inlineElvis=" + inlineElvis + " strictNull=" + strictNull + " plugin=" + pluginVersion);
+        List<Path> ownOutputs = ownOutputDirectories();
         for (Path entry : classpath) {
+            if (ownOutputs.contains(entry.toAbsolutePath().normalize())) {
+                continue;
+            }
             sb.append('\n').append(entry).append(' ').append(Files.exists(entry) ? Files.getLastModifiedTime(entry) : "-");
         }
         for (Path root : javaRoots) {
@@ -193,6 +198,17 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             }
         }
         return sha256(sb.toString());
+    }
+
+    /**
+     * The classes this module compiles: missing after a clean and present after the build, they would
+     * make every second build translate everything again. Its Java sources are hashed instead.
+     */
+    private List<Path> ownOutputDirectories() {
+        return Stream.of(project.getBuild().getOutputDirectory(), project.getBuild().getTestOutputDirectory())
+                .filter(Objects::nonNull)
+                .map(dir -> Path.of(dir).toAbsolutePath().normalize())
+                .toList();
     }
 
     /** Collects every root as `generated=sources` in one javac plugin argument. */
