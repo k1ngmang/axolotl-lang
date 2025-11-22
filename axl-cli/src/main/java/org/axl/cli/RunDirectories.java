@@ -20,7 +20,6 @@ final class RunDirectories {
 
     static final String PREFIX = "axl-run";
     private static final String LOCK = ".lock";
-    private static final Path TEMP = Path.of(System.getProperty("java.io.tmpdir"));
     // Referenced so that the locks are held until the JVM ends.
     private static final List<FileChannel> HELD = new ArrayList<>();
 
@@ -36,7 +35,7 @@ final class RunDirectories {
     }
 
     private static void deleteFinished() {
-        try (DirectoryStream<Path> dirs = Files.newDirectoryStream(TEMP, PREFIX + "*")) {
+        try (DirectoryStream<Path> dirs = Files.newDirectoryStream(Paths.TEMP, PREFIX + "*")) {
             for (Path dir : dirs) {
                 if (isFinished(dir)) {
                     Paths.deleteRecursively(dir);

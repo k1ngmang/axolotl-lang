@@ -67,6 +67,14 @@ class CliTest {
     }
 
     @Test
+    void workDirectoriesOfOtherRunsAreNotSources() {
+        assertTrue(Paths.isInWorkDirectory(Paths.TEMP.resolve("axl-run123/generated/app/Main.java")));
+        assertTrue(Paths.isInWorkDirectory(Paths.TEMP.resolve("axl-check7/generated/Main.java")));
+        assertTrue(!Paths.isInWorkDirectory(Paths.TEMP.resolve("app/Main.axl")));
+        assertTrue(!Paths.isInWorkDirectory(Path.of("src/axl-run1/Main.axl")));
+    }
+
+    @Test
     void buildWritesClassesSourcesAndLineMaps(@TempDir Path tmp) {
         int exit = axl("build", CASES.resolve("hello/src").toString(), "-d", tmp.resolve("classes").toString(),
                 "-s", tmp.resolve("gen").toString());

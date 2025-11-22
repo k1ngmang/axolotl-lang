@@ -16,6 +16,8 @@ import picocli.CommandLine.Parameters;
         "Used by editors: every source directory may hold .axl and .java files."})
 final class CheckCommand implements Callable<Integer> {
 
+    static final String PREFIX = "axl-check";
+
     @Parameters(arity = "1..*", description = "Source directories.")
     List<Path> sourceDirs = new ArrayList<>();
 
@@ -36,7 +38,7 @@ final class CheckCommand implements Callable<Integer> {
         if (!sourceDirs.stream().allMatch(Paths::isDirectory)) {
             return 2;
         }
-        Path work = Files.createTempDirectory("axl-check");
+        Path work = Files.createTempDirectory(PREFIX);
         try {
             AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
                     .classpath(classpath)
@@ -44,6 +46,7 @@ final class CheckCommand implements Callable<Integer> {
                     .strictNull(strictNull)
                     .options(new Options(inlineElvis))
                     .display(p -> p.toAbsolutePath().toString())
+                    .skip(Paths::isInWorkDirectory)
                     .run();
             result.diagnostics().forEach(d -> System.out.println(d.format()));
             return result.success() ? 0 : 1;

@@ -8,6 +8,8 @@ import java.util.stream.Stream;
 
 final class Paths {
 
+    static final Path TEMP = Path.of(System.getProperty("java.io.tmpdir")).toAbsolutePath().normalize();
+
     private Paths() {}
 
     /** Reports a source directory that is missing or a file. */
@@ -35,5 +37,15 @@ final class Paths {
         Path cwd = Path.of("").toAbsolutePath();
         Path absolute = path.toAbsolutePath().normalize();
         return absolute.startsWith(cwd) ? cwd.relativize(absolute).toString() : absolute.toString();
+    }
+
+    /** Files of the temporary directories of `axl run` and `axl check`, which may lie under a source directory. */
+    static boolean isInWorkDirectory(Path file) {
+        Path absolute = file.toAbsolutePath().normalize();
+        if (!absolute.startsWith(TEMP) || absolute.equals(TEMP)) {
+            return false;
+        }
+        String top = TEMP.relativize(absolute).getName(0).toString();
+        return top.startsWith(RunDirectories.PREFIX) || top.startsWith(CheckCommand.PREFIX);
     }
 }

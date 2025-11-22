@@ -62,6 +62,7 @@ final class RunCommand implements Callable<Integer> {
         Path work = RunDirectories.create();
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
                 .display(Paths::display)
+                .skip(Paths::isInWorkDirectory)
                 .nullChecks(!noNullChecks)
                 .strictNull(strictNull)
                 .options(new Options(inlineElvis))
