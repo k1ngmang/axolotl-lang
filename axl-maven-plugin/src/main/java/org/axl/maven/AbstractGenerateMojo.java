@@ -53,9 +53,15 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
 
     abstract Path outputDirectory();
 
-    /** Kept with the output, so that executions with different output directories do not share it. */
+    /**
+     * Kept out of the output directory, which goes into the sources jar, and named after it, so that
+     * executions with different output directories do not share it.
+     */
     Path stateFile() {
-        return outputDirectory().resolve(".axl-state.json");
+        Path build = Path.of(project.getBuild().getDirectory()).toAbsolutePath().normalize();
+        Path output = outputDirectory().toAbsolutePath().normalize();
+        Path name = output.startsWith(build) ? build.relativize(output) : output;
+        return build.resolve("axl").resolve(name.toString().replaceAll("[/\\\\:]", "_") + ".state.json");
     }
 
     @Parameter(defaultValue = "${plugin.version}", readonly = true)

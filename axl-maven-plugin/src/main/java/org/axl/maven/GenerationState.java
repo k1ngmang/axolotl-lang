@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/** What the previous run generated, stored as `axl-state.json`: per .axl file its hash and outputs. */
+/** What the previous run generated, stored in `target/axl/*.state.json`: per .axl file its hash and outputs. */
 final class GenerationState {
 
     static final class Entry {

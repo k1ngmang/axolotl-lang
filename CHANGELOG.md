@@ -38,7 +38,7 @@ Known limitation: `compileJava` always runs in a forked JVM because the javac pl
 
 ## Stage 4: Maven plugin
 
-- `axl-maven-plugin` with goals `generate`, `generate-test` (incremental by SHA-256 in `target/axl-state.json`) and `check`.
+- `axl-maven-plugin` with goals `generate`, `generate-test` (incremental by SHA-256 in `target/axl/<output directory>.state.json`) and `check`.
 - Parameters `javaRelease`, `inlineElvis`, `smap`, `skip`.
 - `samples/maven-app` with the full Error Prone and NullAway configuration; errors in `.axl` code are shown at their `.axl` lines.
 - Archetype `axl-archetype-quickstart`; its integration test builds a generated project.

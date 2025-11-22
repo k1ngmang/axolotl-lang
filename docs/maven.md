@@ -18,11 +18,15 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 | `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
 
-Generation is incremental: `.axl-state.json` in the output directory stores a SHA-256 of every
+Generation is incremental: a state file in `target/axl`, named after the output directory
+(`generated-sources_axl.state.json`, `generated-test-sources_axl.state.json`), stores a SHA-256 of every
 `.axl` file and the files generated from it, and only changed files are translated again, together
 with files whose top-level values have inferred types, which may depend on the changed ones. A change
 of the options, the plugin version, the classpath or the Java sources makes every file
 translated again. Outputs of removed files are deleted.
+
+The `.axlmap` line maps stay next to the generated `.java` files, where the javac plugin and
+`axl:check` read them, so a sources jar made by `maven-source-plugin` contains them as well.
 
 ## Parameters
 

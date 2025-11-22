@@ -3,10 +3,12 @@ package org.axl.maven;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Stream;
 import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.apache.maven.model.Build;
 import org.apache.maven.project.MavenProject;
@@ -24,6 +26,7 @@ class GenerateMojoTest {
     private GenerateMojo configure(GenerateMojo mojo, Path base) {
         mojo.project = new MavenProject();
         mojo.project.getModel().setBuild(new Build());
+        mojo.project.getBuild().setDirectory(base.resolve("target").toString());
         mojo.project.getBuild().setOutputDirectory(base.resolve("target/classes").toString());
         mojo.sourceDirectory = base.resolve("src/main/axl").toFile();
         mojo.outputDirectory = base.resolve("target/generated-sources/axl").toFile();
@@ -47,7 +50,8 @@ class GenerateMojoTest {
         mojo(base).execute();
         assertEquals("Translated 2 of 2 .axl file(s)", messages.getLast());
         assertTrue(Files.exists(generated.resolve("A.java")));
-        assertTrue(Files.exists(base.resolve("target/generated-sources/axl/.axl-state.json")));
+        assertTrue(Files.exists(base.resolve("target/axl/generated-sources_axl.state.json")));
+        assertEquals(List.of("app"), fileNames(base.resolve("target/generated-sources/axl")));
 
         mojo(base).execute();
         assertEquals("Translated 0 of 2 .axl file(s)", messages.getLast());
@@ -62,6 +66,12 @@ class GenerateMojoTest {
         assertEquals(List.of(base.resolve("target/generated-sources/axl").toString()), mojo.project.getCompileSourceRoots());
         assertTrue(mojo.project.getProperties().getProperty("axl.javacPlugin").startsWith("-Xplugin:AxlDiagnostics file:"));
         assertEquals("21", mojo.project.getProperties().getProperty("maven.compiler.release"));
+    }
+
+    private static List<String> fileNames(Path dir) throws IOException {
+        try (Stream<Path> files = Files.list(dir)) {
+            return files.map(p -> p.getFileName().toString()).toList();
+        }
     }
 
     @Test
