@@ -126,19 +126,38 @@ public final class AxlBuild {
         return diagnostics;
     }
 
-    /** Source files; outputs inside a source directory, as with `-d` there, are not sources. */
+    /**
+     * Source files. Output directories inside a source directory, as with `-d out` there, are skipped;
+     * with the output in the source directory itself, as with `-d .`, the translated .java files are.
+     */
     private List<Path> files(String extension) throws IOException {
-        List<Path> outputs = List.of(generatedDir.toAbsolutePath().normalize(), classesDir.toAbsolutePath().normalize());
         List<Path> result = new ArrayList<>();
         for (Path dir : sourceDirs) {
             if (Files.isDirectory(dir)) {
+                List<Path> outputs = outputsInside(dir);
                 try (Stream<Path> walk = Files.walk(dir)) {
                     walk.filter(p -> p.toString().endsWith(extension) && Files.isRegularFile(p))
                             .filter(p -> outputs.stream().noneMatch(p.toAbsolutePath().normalize()::startsWith))
+                            .filter(p -> !isTranslated(p))
                             .sorted().forEach(result::add);
                 }
             }
         }
         return result;
+    }
+
+    /** The output directories strictly inside a source directory. */
+    private List<Path> outputsInside(Path sourceDir) {
+        Path root = sourceDir.toAbsolutePath().normalize();
+        return Stream.of(generatedDir, classesDir).map(p -> p.toAbsolutePath().normalize())
+                .filter(p -> p.startsWith(root) && !p.equals(root))
+                .toList();
+    }
+
+    /** A .java file with an .axlmap next to it was translated from an .axl file. */
+    private static boolean isTranslated(Path file) {
+        String name = file.getFileName().toString();
+        return name.endsWith(".java")
+                && Files.exists(file.resolveSibling(name.substring(0, name.length() - ".java".length()) + ".axlmap"));
     }
 }

@@ -165,6 +165,21 @@ class CliTest {
     }
 
     @Test
+    void buildsWithTheOutputInTheSourceDirectoryOrAbove(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(Names.name())\n}\n");
+        Files.writeString(app.resolve("Names.java"), "package app;\npublic class Names { public static String name() { return \"x\"; } }\n");
+        String src = tmp.resolve("src").toString();
+        assertEquals(0, axl("build", src, "-d", src, "--no-null-checks"), err.toString());
+        assertTrue(Files.exists(app.resolve("Main.class")));
+        assertTrue(Files.exists(app.resolve("Names.class")));
+        assertEquals(0, axl("build", src, "-d", src, "--no-null-checks"), err.toString());
+
+        assertEquals(0, axl("build", src, "-d", tmp.toString(), "--no-null-checks"), err.toString());
+        assertTrue(Files.exists(tmp.resolve("app/Main.class")));
+    }
+
+    @Test
     void sourceRootStripsPackageDirectories() {
         Path file = Path.of("/work/src/app/util/Main.axl");
         assertEquals(Path.of("/work/src"), RunCommand.sourceRoot(file, "app.util"));
