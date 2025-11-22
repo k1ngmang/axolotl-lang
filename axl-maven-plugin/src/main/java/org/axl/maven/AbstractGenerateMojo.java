@@ -185,19 +185,30 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             if (ownOutputs.contains(entry.toAbsolutePath().normalize())) {
                 continue;
             }
-            sb.append('\n').append(entry).append(' ').append(Files.exists(entry) ? Files.getLastModifiedTime(entry) : "-");
+            sb.append('\n').append(entry);
+            if (Files.isDirectory(entry)) {
+                appendFiles(sb, entry, ".class");
+            } else {
+                sb.append(' ').append(Files.exists(entry) ? Files.getLastModifiedTime(entry) : "-");
+            }
         }
         for (Path root : javaRoots) {
-            if (!Files.isDirectory(root)) {
-                continue;
-            }
-            try (Stream<Path> files = Files.walk(root)) {
-                for (Path java : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
-                    sb.append('\n').append(java).append(' ').append(Files.getLastModifiedTime(java)).append(' ').append(Files.size(java));
-                }
+            sb.append('\n').append(root);
+            if (Files.isDirectory(root)) {
+                appendFiles(sb, root, ".java");
             }
         }
         return sha256(sb.toString());
+    }
+
+    /** The time of a directory does not change when a file in a subdirectory does, so the files are listed. */
+    private static void appendFiles(StringBuilder sb, Path dir, String extension) throws IOException {
+        try (Stream<Path> files = Files.walk(dir)) {
+            for (Path file : files.filter(p -> p.toString().endsWith(extension)).sorted().toList()) {
+                sb.append('\n').append(dir.relativize(file)).append(' ').append(Files.getLastModifiedTime(file))
+                        .append(' ').append(Files.size(file));
+            }
+        }
     }
 
     /**

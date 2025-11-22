@@ -18,7 +18,10 @@ class GenerateMojoTest {
     private final List<String> messages = new ArrayList<>();
 
     private GenerateMojo mojo(Path base) {
-        GenerateMojo mojo = new GenerateMojo();
+        return configure(new GenerateMojo(), base);
+    }
+
+    private GenerateMojo configure(GenerateMojo mojo, Path base) {
         mojo.project = new MavenProject();
         mojo.project.getModel().setBuild(new Build());
         mojo.project.getBuild().setOutputDirectory(base.resolve("target/classes").toString());
@@ -84,6 +87,28 @@ class GenerateMojoTest {
         Files.write(Files.createDirectories(base.resolve("target/classes/app")).resolve("A.class"), new byte[] {1});
         mojo(base).execute();
         assertEquals("Translated 0 of 1 .axl file(s)", messages.getLast());
+    }
+
+    @Test
+    void retranslatesWhenAClassInAClasspathDirectoryChanges(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a() -> Int = 1\n");
+        Path lib = base.resolve("lib/target/classes");
+        Path libClass = Files.createDirectories(lib.resolve("lib")).resolve("Lib.class");
+        Files.write(libClass, new byte[] {1});
+        configure(withClasspath(lib), base).execute();
+        Files.write(libClass, new byte[] {1, 2});
+        configure(withClasspath(lib), base).execute();
+        assertEquals("Translated 1 of 1 .axl file(s)", messages.getLast());
+    }
+
+    private static GenerateMojo withClasspath(Path entry) {
+        return new GenerateMojo() {
+            @Override
+            List<String> classpath() {
+                return List.of(entry.toString());
+            }
+        };
     }
 
     @Test
