@@ -59,9 +59,7 @@ final class RunCommand implements Callable<Integer> {
         String className = Translator.className(file.getFileName().toString());
         String packageName = packageOf(className, text);
         Path root = sourceRoot(file.toAbsolutePath().normalize(), packageName);
-        Path work = Files.createTempDirectory("axl-run");
-        // The program's threads may load classes from it until the JVM ends.
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> Paths.deleteRecursively(work)));
+        Path work = RunDirectories.create();
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
                 .display(Paths::display)
                 .nullChecks(!noNullChecks)

@@ -57,6 +57,16 @@ class CliTest {
     }
 
     @Test
+    void runKeepsItsClassesUntilALaterRunFindsThemUnused() throws Exception {
+        Path finished = Files.createTempDirectory(RunDirectories.PREFIX);
+        Files.createFile(finished.resolve(".lock"));
+        Path running = RunDirectories.create();
+        assertTrue(Files.notExists(finished));
+        RunDirectories.create();
+        assertTrue(Files.exists(running));
+    }
+
+    @Test
     void buildWritesClassesSourcesAndLineMaps(@TempDir Path tmp) {
         int exit = axl("build", CASES.resolve("hello/src").toString(), "-d", tmp.resolve("classes").toString(),
                 "-s", tmp.resolve("gen").toString());
