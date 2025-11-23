@@ -122,6 +122,20 @@ class GenerateMojoTest {
     }
 
     @Test
+    void deletesTheOutputsWhenTheSourceDirectoryIsGone(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a() -> Int = 1\n");
+        mojo(base).execute();
+        Files.delete(sources.resolve("A.axl"));
+        Files.delete(sources);
+        Files.delete(base.resolve("src/main/axl"));
+        mojo(base).execute();
+        assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/A.java")));
+        assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/A.axlmap")));
+        assertTrue(Files.notExists(base.resolve("target/axl/generated-sources_axl.state.json")));
+    }
+
+    @Test
     void retranslatesEverythingWhenAnOptionChanges(@TempDir Path base) throws Exception {
         Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
         Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a(s: String?) {\n    val r = s ?: \"none\"\n}\n");

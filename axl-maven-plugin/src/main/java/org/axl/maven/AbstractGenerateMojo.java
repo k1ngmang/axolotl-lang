@@ -87,15 +87,24 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         Path output = outputDirectory();
         addSourceRoot(output.toString());
         addDiagnosticsRoot(output, sources);
-        if (!Files.isDirectory(sources)) {
-            getLog().debug("No .axl sources in " + sources);
-            return;
-        }
         try {
-            generate(sources, output);
+            if (Files.isDirectory(sources)) {
+                generate(sources, output);
+            } else {
+                getLog().debug("No .axl sources in " + sources);
+                deleteGenerated(output);
+            }
         } catch (IOException e) {
             throw new MojoExecutionException("Axolotl generation failed", e);
         }
+    }
+
+    /** Without the source directory, what earlier runs generated from it must not be compiled. */
+    private void deleteGenerated(Path output) throws IOException {
+        for (GenerationState.Entry entry : GenerationState.read(stateFile()).files.values()) {
+            deleteOutputs(output, entry);
+        }
+        Files.deleteIfExists(stateFile());
     }
 
     private void generate(Path sources, Path output) throws IOException, MojoFailureException {
