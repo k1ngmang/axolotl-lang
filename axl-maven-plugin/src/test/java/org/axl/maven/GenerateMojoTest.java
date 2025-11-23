@@ -1,6 +1,7 @@
 package org.axl.maven;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -9,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.apache.maven.model.Build;
 import org.apache.maven.project.MavenProject;
@@ -133,6 +135,17 @@ class GenerateMojoTest {
         assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/A.java")));
         assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/A.axlmap")));
         assertTrue(Files.notExists(base.resolve("target/axl/generated-sources_axl.state.json")));
+    }
+
+    @Test
+    void retranslatesInferredValuesWhenAFileIsRemoved(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn make() -> String = \"x\"\n");
+        Files.writeString(sources.resolve("B.axl"), "package app\n\nval v = A.make()\n");
+        mojo(base).execute();
+        Files.delete(sources.resolve("A.axl"));
+        assertThrows(MojoFailureException.class, () -> mojo(base).execute());
+        assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/B.java")));
     }
 
     @Test

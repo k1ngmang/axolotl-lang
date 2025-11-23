@@ -124,9 +124,11 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         next.environment = environment(classpath, javaRoots);
         boolean sameEnvironment = next.environment.equals(previous.environment);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
+        boolean removed = false;
         for (Map.Entry<String, GenerationState.Entry> old : previous.files.entrySet()) {
             if (!current.containsKey(old.getKey())) {
                 deleteOutputs(output, old.getValue());
+                removed = true;
             }
         }
         List<Translation.Input> inputs = new ArrayList<>();
@@ -145,7 +147,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             inputs.add(new Translation.Input(file.getKey(), file.getValue().toString(), text));
             hashes.put(file.getKey(), hash);
         }
-        if (!inputs.isEmpty()) {
+        if (!inputs.isEmpty() || removed) {
             addValueInferringFiles(current, inputs, hashes, next, output);
         }
         List<Translator.Result> results = Translation.run(inputs, new Options(inlineElvis), classpath, javaRoots, output,
@@ -174,7 +176,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         }
     }
 
-    /** Files with inferred top-level types may depend on the files that changed, so they are redone too. */
+    /** Files with inferred top-level types may depend on the files that changed or were removed, so they are redone too. */
     private void addValueInferringFiles(Map<String, Path> current, List<Translation.Input> inputs, Map<String, String> hashes,
                                         GenerationState next, Path output) throws IOException {
         for (Map.Entry<String, Path> file : current.entrySet()) {
