@@ -21,9 +21,13 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 Generation is incremental: a state file in `target/axl`, named after the output directory
 (`generated-sources_axl.state.json`, `generated-test-sources_axl.state.json`), stores a SHA-256 of every
 `.axl` file and the files generated from it, and only changed files are translated again, together
-with files whose top-level values have inferred types, which may depend on the changed ones. A change
-of the options, the plugin version, the classpath or the Java sources makes every file
-translated again. Outputs of removed files are deleted.
+with files whose top-level values have inferred types, which may depend on the changed or removed
+ones. A change of the options, the plugin version, the classpath or the Java sources makes every file
+translated again; for a classpath directory, such as `target/classes` of another module in the
+reactor, every class file in it counts, while the module's own `target/classes` and
+`target/test-classes` do not. Outputs of removed files are deleted, all of them when the source
+directory itself is removed. Two files that declare the same class are reported as an error even
+when only one of them changed.
 
 The `.axlmap` line maps stay next to the generated `.java` files, where the javac plugin and
 `axl:check` read them, so a sources jar made by `maven-source-plugin` contains them as well.
