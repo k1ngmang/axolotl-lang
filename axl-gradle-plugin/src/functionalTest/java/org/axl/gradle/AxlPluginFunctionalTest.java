@@ -117,6 +117,27 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void readsJavaSourcesGeneratedByAnotherTask() throws IOException {
+        Path build = project.resolve("core/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + """
+
+                val genJava by tasks.registering {
+                    val dir = layout.buildDirectory.dir("gen-java")
+                    outputs.dir(dir)
+                    doLast {
+                        val file = dir.get().file("core/Gen.java").asFile
+                        file.parentFile.mkdirs()
+                        file.writeText("package core;\\npublic class Gen { public static String name() { return \\"gen\\"; } }\\n")
+                    }
+                }
+                sourceSets.main { java.srcDir(genJava) }
+                """);
+        Files.writeString(project.resolve("core/src/main/axl/core/UsesGen.axl"), "package core\n\nval genName = Gen.name()\n");
+        gradle(":core:compileJava", "--configuration-cache").build();
+        assertTrue(Files.readString(project.resolve("core/build/generated/axl/main/core/UsesGen.java")).contains("String genName"));
+    }
+
+    @Test
     void togglingSmapRecompiles() throws IOException {
         Path build = project.resolve("core/build.gradle.kts");
         String original = Files.readString(build);

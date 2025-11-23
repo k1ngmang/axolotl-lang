@@ -2,12 +2,15 @@ package org.axl.gradle;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
 import net.ltgt.gradle.errorprone.CheckSeverity;
 import net.ltgt.gradle.errorprone.ErrorProneOptions;
 import net.ltgt.gradle.errorprone.ErrorPronePlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.JavaPlugin;
@@ -106,9 +109,13 @@ public class AxlPlugin implements Plugin<Project> {
                     task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("generated/axl/" + name));
                     task.getClasspath().from(sourceSet.getCompileClasspath());
                     java.io.File generatedRoot = project.getLayout().getBuildDirectory().dir("generated/axl").get().getAsFile();
-                    task.getJavaSourceDirs().from(project.provider(() -> sourceSet.getJava().getSrcDirs().stream()
+                    FileCollection javaDirs = sourceSet.getJava().getSourceDirectories();
+                    task.getJavaSourceDirs().from(project.provider(() -> javaDirs.getFiles().stream()
                             .filter(dir -> !dir.toPath().startsWith(generatedRoot.toPath()))
                             .collect(Collectors.toCollection(ArrayList::new))));
+                    // The Java sources include the output of this task; the tasks that produce the others stay dependencies.
+                    task.getJavaSourceDirs().builtBy((Callable<List<? extends Task>>) () -> javaDirs.getBuildDependencies()
+                            .getDependencies(task).stream().filter(t -> t != task).toList());
                 });
         sourceSet.getJava().srcDir(generate.flatMap(GenerateAxlTask::getOutputDir));
 
