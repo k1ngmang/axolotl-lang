@@ -88,6 +88,35 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void removingAFileRetranslatesValuesInferredFromIt() throws IOException {
+        Path maker = project.resolve("core/src/main/axl/core/Maker.axl");
+        Path values = project.resolve("core/src/main/axl/core/Values.axl");
+        Files.writeString(maker, "package core\n\nfn make() -> String = \"x\"\n");
+        Files.writeString(values, "package core\n\nval made = Maker.make()\n");
+        gradle(":core:generateAxl").build();
+        Files.delete(maker);
+        BuildResult result = gradle(":core:generateAxl").buildAndFail();
+        assertTrue(result.getOutput().contains(values.toAbsolutePath() + ":3:"), result.getOutput());
+    }
+
+    @Test
+    void rejectsAClassDeclaredAgainByANewFile() throws IOException {
+        Path x = Files.createDirectories(project.resolve("core/src/main/axl/x")).resolve("Util.axl");
+        Path y = Files.createDirectories(project.resolve("core/src/main/axl/y")).resolve("Util.axl");
+        Files.writeString(x, "package p\n\nfn a() -> Int = 1\n");
+        gradle(":core:generateAxl").build();
+
+        Files.writeString(y, "package p\n\nfn b() -> Int = 2\n");
+        BuildResult result = gradle(":core:generateAxl").buildAndFail();
+        assertTrue(result.getOutput().contains("the class `p.Util` is declared by several files: "
+                + x.toAbsolutePath() + ", " + y.toAbsolutePath()), result.getOutput());
+
+        Files.delete(y);
+        gradle(":core:generateAxl").build();
+        assertTrue(Files.readString(project.resolve("core/build/generated/axl/main/p/Util.java")).contains("a()"));
+    }
+
+    @Test
     void togglingSmapRecompiles() throws IOException {
         Path build = project.resolve("core/build.gradle.kts");
         String original = Files.readString(build);

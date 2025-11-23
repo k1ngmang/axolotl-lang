@@ -8,16 +8,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.inject.Inject;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.LineMap;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.Translation;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
@@ -82,33 +87,59 @@ public abstract class GenerateAxlTask extends DefaultTask {
             Files.createDirectories(out);
         }
         Map<String, List<Path>> outputsBySource = outputsBySource(out);
-        Options options = new Options(getInlineElvis().get());
-        List<Translation.Input> inputs = new ArrayList<>();
+        Set<String> changed = new HashSet<>();
+        boolean removed = false;
         for (FileChange change : changes.getFileChanges(getSources())) {
             if (change.getFileType() == FileType.DIRECTORY) {
                 continue;
             }
             String sourcePath = change.getNormalizedPath().replace('\\', '/');
-            for (Path stale : outputsBySource.getOrDefault(sourcePath, List.of())) {
-                Files.deleteIfExists(stale);
-            }
-            if (change.getChangeType() != ChangeType.REMOVED) {
-                File file = change.getFile();
-                inputs.add(new Translation.Input(sourcePath, file.getAbsolutePath(),
-                        Files.readString(file.toPath(), StandardCharsets.UTF_8)));
+            deleteOutputs(outputsBySource.remove(sourcePath));
+            if (change.getChangeType() == ChangeType.REMOVED) {
+                removed = true;
+            } else {
+                changed.add(sourcePath);
             }
         }
-        if (!inputs.isEmpty() && changes.isIncremental()) {
-            addValueInferringFiles(inputs, outputsBySource);
+        Map<String, Translation.Input> sources = readSources();
+        Map<String, String> duplicates = duplicateClasses(sources);
+        List<AxlDiagnostic> diagnostics = new ArrayList<>();
+        List<Translation.Input> inputs = new ArrayList<>();
+        boolean anyChange = removed || !changed.isEmpty();
+        for (Translation.Input source : sources.values()) {
+            String sourcePath = source.sourcePath();
+            if (duplicates.containsKey(sourcePath)) {
+                deleteOutputs(outputsBySource.remove(sourcePath));
+                diagnostics.add(AxlDiagnostic.error(source.displayPath(), 1, 1, ErrorCode.DUPLICATE_CLASS,
+                        duplicates.get(sourcePath)));
+            } else if (needsTranslation(source, changed, outputsBySource, anyChange)) {
+                deleteOutputs(outputsBySource.remove(sourcePath));
+                inputs.add(source);
+            }
         }
+        translate(inputs, out, diagnostics);
+    }
+
+    /**
+     * Besides changed files: files with inferred top-level types, which may depend on any change, and
+     * files without outputs, whose translation failed before or whose outputs a removed file that
+     * declared the same class overwrote.
+     */
+    private static boolean needsTranslation(Translation.Input source, Set<String> changed,
+                                            Map<String, List<Path>> outputsBySource, boolean anyChange) {
+        String sourcePath = source.sourcePath();
+        return changed.contains(sourcePath) || !outputsBySource.containsKey(sourcePath)
+                || anyChange && Translator.infersValueTypes(sourcePath, source.text());
+    }
+
+    private void translate(List<Translation.Input> inputs, Path out, List<AxlDiagnostic> diagnostics) throws IOException {
+        Options options = new Options(getInlineElvis().get());
         List<Path> classpath = getClasspath().getFiles().stream().map(File::toPath).toList();
         List<Path> javaRoots = getJavaSourceDirs().getFiles().stream().map(File::toPath).toList();
-        List<AxlDiagnostic> diagnostics = new ArrayList<>();
         for (Translator.Result result : Translation.run(inputs, options, classpath, javaRoots, out, getStrictNull().get())) {
             diagnostics.addAll(result.diagnostics());
         }
-        int translated = inputs.size();
-        getLogger().info("Translated {} .axl file(s)", translated);
+        getLogger().info("Translated {} .axl file(s)", inputs.size());
         for (AxlDiagnostic d : diagnostics) {
             if (d.isError()) {
                 getLogger().error(d.format());
@@ -121,26 +152,56 @@ public abstract class GenerateAxlTask extends DefaultTask {
         }
     }
 
-    /** Files with inferred top-level types may depend on the files that changed, so they are redone too. */
-    private void addValueInferringFiles(List<Translation.Input> inputs, Map<String, List<Path>> outputsBySource) {
-        Set<String> changed = inputs.stream().map(Translation.Input::sourcePath).collect(Collectors.toSet());
+    /** Every .axl file by its path relative to its source root. */
+    private Map<String, Translation.Input> readSources() {
+        Map<String, Translation.Input> result = new TreeMap<>();
         getSources().getAsFileTree().visit(details -> {
-            String sourcePath = details.getRelativePath().getPathString();
-            if (details.isDirectory() || changed.contains(sourcePath)) {
+            if (details.isDirectory()) {
                 return;
             }
+            String sourcePath = details.getRelativePath().getPathString();
             try {
                 String text = Files.readString(details.getFile().toPath(), StandardCharsets.UTF_8);
-                if (Translator.infersValueTypes(sourcePath, text)) {
-                    for (Path stale : outputsBySource.getOrDefault(sourcePath, List.of())) {
-                        Files.deleteIfExists(stale);
-                    }
-                    inputs.add(new Translation.Input(sourcePath, details.getFile().getAbsolutePath(), text));
-                }
+                result.put(sourcePath, new Translation.Input(sourcePath, details.getFile().getAbsolutePath(), text));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
+        return result;
+    }
+
+    /**
+     * Files that declare the same class, with the error for each. Two such files overwrite each
+     * other's Java, and only all files together show it, not just the changed ones.
+     */
+    private static Map<String, String> duplicateClasses(Map<String, Translation.Input> sources) {
+        Map<String, List<Translation.Input>> byClass = new TreeMap<>();
+        for (Translation.Input source : sources.values()) {
+            SourceFile file = SourceParser.parse(source.sourcePath(), Translator.className(source.sourcePath()),
+                    source.text()).file();
+            if (file != null) {
+                String name = file.packageName() == null || file.packageName().isEmpty()
+                        ? file.className() : file.packageName() + "." + file.className();
+                byClass.computeIfAbsent(name, k -> new ArrayList<>()).add(source);
+            }
+        }
+        Map<String, String> result = new TreeMap<>();
+        byClass.forEach((name, same) -> {
+            if (same.size() > 1) {
+                String files = same.stream().map(Translation.Input::displayPath).collect(Collectors.joining(", "));
+                same.forEach(s -> result.put(s.sourcePath(), "the class `" + name + "` is declared by several files: " + files));
+            }
+        });
+        return result;
+    }
+
+    private static void deleteOutputs(List<Path> outputs) throws IOException {
+        if (outputs == null) {
+            return;
+        }
+        for (Path output : outputs) {
+            Files.deleteIfExists(output);
+        }
     }
 
     /** Generated files keyed by the .axl path recorded in their line maps. */
