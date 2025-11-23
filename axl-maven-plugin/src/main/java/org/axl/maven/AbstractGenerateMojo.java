@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
@@ -19,9 +20,12 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.Translation;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 
@@ -131,12 +135,22 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
                 removed = true;
             }
         }
+        Map<String, String> texts = readAll(current);
+        Map<String, String> duplicates = duplicateClasses(current, texts);
         List<Translation.Input> inputs = new ArrayList<>();
         Map<String, String> hashes = new TreeMap<>();
         for (Map.Entry<String, Path> file : current.entrySet()) {
-            String text = Files.readString(file.getValue(), StandardCharsets.UTF_8);
+            String text = texts.get(file.getKey());
             String hash = sha256(text);
             GenerationState.Entry old = previous.files.get(file.getKey());
+            if (duplicates.containsKey(file.getKey())) {
+                if (old != null) {
+                    deleteOutputs(output, old);
+                }
+                diagnostics.add(AxlDiagnostic.error(file.getValue().toString(), 1, 1, ErrorCode.DUPLICATE_CLASS,
+                        duplicates.get(file.getKey())));
+                continue;
+            }
             if (sameEnvironment && old != null && old.hash.equals(hash) && outputsExist(output, old)) {
                 next.files.put(file.getKey(), old);
                 continue;
@@ -148,7 +162,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             hashes.put(file.getKey(), hash);
         }
         if (!inputs.isEmpty() || removed) {
-            addValueInferringFiles(current, inputs, hashes, next, output);
+            addValueInferringFiles(current, texts, inputs, hashes, next, output);
         }
         List<Translator.Result> results = Translation.run(inputs, new Options(inlineElvis), classpath, javaRoots, output,
                 strictNull);
@@ -164,6 +178,10 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         int translated = inputs.size();
         next.write(stateFile());
         getLog().info("Translated " + translated + " of " + current.size() + " .axl file(s)");
+        report(diagnostics);
+    }
+
+    private void report(List<AxlDiagnostic> diagnostics) throws MojoFailureException {
         for (AxlDiagnostic d : diagnostics) {
             if (d.isError()) {
                 getLog().error(d.format());
@@ -176,23 +194,49 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         }
     }
 
+    private static Map<String, String> readAll(Map<String, Path> files) throws IOException {
+        Map<String, String> texts = new TreeMap<>();
+        for (Map.Entry<String, Path> file : files.entrySet()) {
+            texts.put(file.getKey(), Files.readString(file.getValue(), StandardCharsets.UTF_8));
+        }
+        return texts;
+    }
+
     /** Files with inferred top-level types may depend on the files that changed or were removed, so they are redone too. */
-    private void addValueInferringFiles(Map<String, Path> current, List<Translation.Input> inputs, Map<String, String> hashes,
-                                        GenerationState next, Path output) throws IOException {
-        for (Map.Entry<String, Path> file : current.entrySet()) {
-            if (hashes.containsKey(file.getKey())) {
-                continue;
-            }
-            String text = Files.readString(file.getValue(), StandardCharsets.UTF_8);
-            if (Translator.infersValueTypes(file.getKey(), text)) {
-                GenerationState.Entry old = next.files.remove(file.getKey());
-                if (old != null) {
-                    deleteOutputs(output, old);
-                }
-                inputs.add(new Translation.Input(file.getKey(), file.getValue().toString(), text));
-                hashes.put(file.getKey(), sha256(text));
+    private void addValueInferringFiles(Map<String, Path> current, Map<String, String> texts, List<Translation.Input> inputs,
+                                        Map<String, String> hashes, GenerationState next, Path output) throws IOException {
+        for (String sourcePath : List.copyOf(next.files.keySet())) {
+            String text = texts.get(sourcePath);
+            if (Translator.infersValueTypes(sourcePath, text)) {
+                deleteOutputs(output, next.files.remove(sourcePath));
+                inputs.add(new Translation.Input(sourcePath, current.get(sourcePath).toString(), text));
+                hashes.put(sourcePath, sha256(text));
             }
         }
+    }
+
+    /**
+     * Files that declare the same class, with the error for each. Two such files overwrite each
+     * other's Java, and only all files together show it, not just the changed ones.
+     */
+    private static Map<String, String> duplicateClasses(Map<String, Path> current, Map<String, String> texts) {
+        Map<String, List<String>> byClass = new TreeMap<>();
+        texts.forEach((sourcePath, text) -> {
+            SourceFile file = SourceParser.parse(sourcePath, Translator.className(sourcePath), text).file();
+            if (file != null) {
+                String name = file.packageName() == null || file.packageName().isEmpty()
+                        ? file.className() : file.packageName() + "." + file.className();
+                byClass.computeIfAbsent(name, k -> new ArrayList<>()).add(sourcePath);
+            }
+        });
+        Map<String, String> result = new TreeMap<>();
+        byClass.forEach((name, sourcePaths) -> {
+            if (sourcePaths.size() > 1) {
+                String files = sourcePaths.stream().map(p -> current.get(p).toString()).collect(Collectors.joining(", "));
+                sourcePaths.forEach(p -> result.put(p, "the class `" + name + "` is declared by several files: " + files));
+            }
+        });
+        return result;
     }
 
     private String environment(List<Path> classpath, List<Path> javaRoots) throws IOException {

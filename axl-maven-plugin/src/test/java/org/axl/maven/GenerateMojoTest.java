@@ -149,6 +149,31 @@ class GenerateMojoTest {
     }
 
     @Test
+    void rejectsAClassDeclaredAgainByANewFile(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl"));
+        Path x = Files.createDirectories(sources.resolve("x")).resolve("Util.axl");
+        Path y = Files.createDirectories(sources.resolve("y")).resolve("Util.axl");
+        Files.writeString(x, "package p\n\nfn a() -> Int = 1\n");
+        mojo(base).execute();
+
+        Files.writeString(y, "package p\n\nfn b() -> Int = 2\n");
+        List<String> errors = new ArrayList<>();
+        GenerateMojo mojo = mojo(base);
+        mojo.setLog(new SystemStreamLog() {
+            @Override
+            public void error(CharSequence content) {
+                errors.add(content.toString());
+            }
+        });
+        assertThrows(MojoFailureException.class, mojo::execute);
+        assertEquals(x + ":1:1: error: the class `p.Util` is declared by several files: " + x + ", " + y, errors.getFirst());
+
+        Files.delete(y);
+        mojo(base).execute();
+        assertTrue(Files.readString(base.resolve("target/generated-sources/axl/p/Util.java")).contains("a()"));
+    }
+
+    @Test
     void retranslatesEverythingWhenAnOptionChanges(@TempDir Path base) throws Exception {
         Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
         Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a(s: String?) {\n    val r = s ?: \"none\"\n}\n");
