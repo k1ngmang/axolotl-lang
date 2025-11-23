@@ -29,9 +29,12 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
   option translates every file again.
 - Adds the generated directory to the Java sources, so `compileJava` compiles `.axl` and
   `.java` code together and both see each other. The classpath and the Java sources are inputs
-of the task only for the types of top-level values that call into them.
-- Adds `org.axl:axl-runtime` to `implementation`. In a multi-project build every project
-  depends on the same artifact.
+  of the task only for the types of top-level values that call into them.
+- Adds `org.axl:axl-runtime` to the `implementation` configuration of every source set (`api` too
+  with `java-library`). In a multi-project build every project depends on the same artifact.
+- Source sets other than `main`, such as `test`, custom source sets and JVM test suites, get the same
+  `axl` directory (`src/<name>/axl`), a `generate<Name>Axl` task, the runtime and, with `smap`,
+  `org.axl:axl-smap` in `runtimeOnly` for `.axl` lines in stack traces of failing tests.
 - Applies `net.ltgt.errorprone` and turns on NullAway in JSpecify mode for every `JavaCompile`.
 - Reports errors of `compileJava` in generated files at their `.axl` file and line.
 - Adds a JSR-45 SMAP to compiled classes and rewrites stack traces of failing tests to
@@ -41,7 +44,7 @@ of the task only for the types of top-level values that call into them.
 
 ```kotlin
 axl {
-    addRuntime = true    // add org.axl:axl-runtime to implementation
+    addRuntime = true    // add org.axl:axl-runtime to implementation of every source set
     nullAway = true      // Error Prone + NullAway on compileJava
     javaRelease = 21     // --release, unless the task sets its own
     inlineElvis = false  // expand statement-level ?: without a lambda

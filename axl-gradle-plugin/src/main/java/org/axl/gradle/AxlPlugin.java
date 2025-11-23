@@ -43,12 +43,6 @@ public class AxlPlugin implements Plugin<Project> {
         axl.getSmap().convention(true);
         axl.getStrictNull().convention(false);
 
-        project.getConfigurations().named(JavaPlugin.IMPLEMENTATION_CONFIGURATION_NAME).configure(c ->
-                c.withDependencies(deps -> {
-                    if (axl.getAddRuntime().get()) {
-                        deps.add(project.getDependencies().create("org.axl:axl-runtime:" + Versions.AXL));
-                    }
-                }));
         // Public .axl functions use axl.lang types, so consumers of a library need the runtime to compile.
         project.getPluginManager().withPlugin("java-library", plugin ->
                 project.getConfigurations().named(JavaPlugin.API_CONFIGURATION_NAME).configure(c ->
@@ -61,14 +55,6 @@ public class AxlPlugin implements Plugin<Project> {
                 c.withDependencies(deps -> {
                     deps.add(project.getDependencies().create("com.google.errorprone:error_prone_core:" + Versions.ERROR_PRONE));
                     deps.add(project.getDependencies().create("com.uber.nullaway:nullaway:" + Versions.NULLAWAY));
-                }));
-
-        // Rewrites stack traces of failed tests to .axl lines, using the SMAPs.
-        project.getConfigurations().named(JavaPlugin.TEST_RUNTIME_ONLY_CONFIGURATION_NAME).configure(c ->
-                c.withDependencies(deps -> {
-                    if (axl.getSmap().get()) {
-                        deps.add(project.getDependencies().create("org.axl:axl-smap:" + Versions.AXL));
-                    }
                 }));
 
         project.getTasks().withType(Test.class).configureEach(test ->
@@ -118,6 +104,22 @@ public class AxlPlugin implements Plugin<Project> {
                             .getDependencies(task).stream().filter(t -> t != task).toList());
                 });
         sourceSet.getJava().srcDir(generate.flatMap(GenerateAxlTask::getOutputDir));
+
+        project.getConfigurations().named(sourceSet.getImplementationConfigurationName()).configure(c ->
+                c.withDependencies(deps -> {
+                    if (axl.getAddRuntime().get()) {
+                        deps.add(project.getDependencies().create("org.axl:axl-runtime:" + Versions.AXL));
+                    }
+                }));
+        // Rewrites stack traces of failed tests to .axl lines, using the SMAPs; not a dependency of the main code.
+        if (!SourceSet.MAIN_SOURCE_SET_NAME.equals(name)) {
+            project.getConfigurations().named(sourceSet.getRuntimeOnlyConfigurationName()).configure(c ->
+                    c.withDependencies(deps -> {
+                        if (axl.getSmap().get()) {
+                            deps.add(project.getDependencies().create("org.axl:axl-smap:" + Versions.AXL));
+                        }
+                    }));
+        }
 
         project.getDependencies().add(sourceSet.getAnnotationProcessorConfigurationName(),
                 "org.axl:axl-compiler-javac:" + Versions.AXL);

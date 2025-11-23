@@ -138,6 +138,18 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void customSourceSetsGetTheRuntime() throws IOException {
+        Path build = project.resolve("core/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + "\nval integration by sourceSets.creating\n");
+        Path dir = Files.createDirectories(project.resolve("core/src/integration/axl/it"));
+        Files.writeString(dir.resolve("Check.axl"), "package it\n\nfn check(text: String?) -> String = text ?: \"none\"\n");
+        BuildResult result = gradle(":core:compileIntegrationJava", ":core:dependencies", "--configuration", "integrationRuntimeClasspath")
+                .build();
+        assertEquals(TaskOutcome.SUCCESS, result.task(":core:compileIntegrationJava").getOutcome());
+        assertTrue(result.getOutput().contains("org.axl:axl-smap"), result.getOutput());
+    }
+
+    @Test
     void togglingSmapRecompiles() throws IOException {
         Path build = project.resolve("core/build.gradle.kts");
         String original = Files.readString(build);

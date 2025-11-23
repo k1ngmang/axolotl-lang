@@ -5,7 +5,7 @@ import org.gradle.api.provider.Property;
 /** The `axl { }` block. */
 public abstract class AxlExtension {
 
-    /** Adds `org.axl:axl-runtime` to `implementation`. */
+    /** Adds `org.axl:axl-runtime` to the `implementation` configuration of every source set. */
     public abstract Property<Boolean> getAddRuntime();
 
     /** Runs Error Prone and NullAway on `compileJava`. */
