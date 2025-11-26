@@ -84,10 +84,12 @@ final class Symbols {
     }
 
     private static void statements(List<Stmt> statements, Pos pos, Decl.Function fn, List<Symbol> out) {
-        for (Stmt stmt : statements) {
+        for (int i = 0; i < statements.size(); i++) {
+            Stmt stmt = statements.get(i);
             if (!before(stmt.pos(), pos)) {
                 return;
             }
+            int start = out.size();
             switch (stmt) {
                 case Stmt.Local local -> {
                     expr(local.init(), pos, fn, out);
@@ -113,6 +115,10 @@ final class Symbols {
                     }
                 }
                 case Stmt.ExprStmt e -> expr(e.expr(), pos, fn, out);
+            }
+            if (i + 1 < statements.size() && before(statements.get(i + 1).pos(), pos)) {
+                // An `attempt` error name is visible only in its own statement.
+                out.subList(start, out.size()).removeIf(s -> s.kind() == Kind.PARAMETER);
             }
         }
     }
@@ -160,6 +166,9 @@ final class Symbols {
             case Expr.Try t -> expr(t.inner(), pos, fn, out);
             case Expr.Attempt a -> {
                 expr(a.body(), pos, fn, out);
+                if (a.errorName() != null && before(a.errorNamePos(), pos)) {
+                    out.add(new Symbol(a.errorName(), Kind.PARAMETER, a.errorNamePos(), null, fn, null));
+                }
                 expr(a.handler(), pos, fn, out);
             }
             case Expr.Pipe p -> {

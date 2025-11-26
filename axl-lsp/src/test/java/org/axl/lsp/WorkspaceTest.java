@@ -113,6 +113,16 @@ class WorkspaceTest {
     }
 
     @Test
+    void findsTheErrorNameOfAttempt() throws Exception {
+        String line = "fn p(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> e.getMessage()";
+        String uri = open("Main.axl", "package app\n\n" + line + "\n");
+        int use = line.lastIndexOf("e.getMessage");
+        assertTrue(hover(uri, 2, use).contains("e: "), hover(uri, 2, use));
+        List<Location> found = new Definitions(workspace).definition(uri, 2, use);
+        assertEquals(List.of(new Position(2, line.indexOf("e ->"))), found.stream().map(l -> l.getRange().getStart()).toList());
+    }
+
+    @Test
     void compilesTheModuleAroundAFileThatDoesNotTranslate() throws Exception {
         Path broken = project.resolve("src/main/axl/app/Broken.axl");
         Files.writeString(broken, "package app\n\nfn broken( {\n");
