@@ -35,8 +35,8 @@ final class Symbols {
         }
         for (Decl decl : file.decls()) {
             switch (decl) {
-                case Decl.Function fn -> result.add(new Symbol(fn.name(), Kind.FUNCTION, fn.pos(), fn.returnType(), fn, null));
-                case Decl.Value value -> result.add(new Symbol(value.name(), Kind.VALUE, value.pos(), value.type(), null, null));
+                case Decl.Function fn -> result.add(new Symbol(fn.name(), Kind.FUNCTION, fn.namePos(), fn.returnType(), fn, null));
+                case Decl.Value value -> result.add(new Symbol(value.name(), Kind.VALUE, value.namePos(), value.type(), null, null));
             }
         }
         Decl.Function fn = enclosingFunction(file, pos);
@@ -91,7 +91,7 @@ final class Symbols {
             switch (stmt) {
                 case Stmt.Local local -> {
                     expr(local.init(), pos, fn, out);
-                    out.add(new Symbol(local.name(), local.mutable() ? Kind.VARIABLE : Kind.LOCAL, local.pos(),
+                    out.add(new Symbol(local.name(), local.mutable() ? Kind.VARIABLE : Kind.LOCAL, local.namePos(),
                             local.type(), fn, null));
                 }
                 case Stmt.If ifStmt -> {

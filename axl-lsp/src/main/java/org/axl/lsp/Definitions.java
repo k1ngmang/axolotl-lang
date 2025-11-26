@@ -102,7 +102,7 @@ final class Definitions {
             if (other.ast != null) {
                 Decl decl = Symbols.topLevel(other.ast).get(name);
                 if (decl != null) {
-                    return List.of(location(source, other.position(decl.pos())));
+                    return List.of(location(source, other.position(decl.namePos())));
                 }
             }
             return List.of(location(source, new Position(0, 0)));

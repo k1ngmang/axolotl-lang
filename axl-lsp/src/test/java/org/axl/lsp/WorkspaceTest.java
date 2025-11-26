@@ -59,7 +59,7 @@ class WorkspaceTest {
     void findsTheNameRightAfterAParenthesis() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val count = 1\n    println(count)\n}\n");
         List<Location> found = new Definitions(workspace).definition(uri, 4, 12);
-        assertEquals(List.of(new Position(3, 4)), found.stream().map(l -> l.getRange().getStart()).toList());
+        assertEquals(List.of(new Position(3, 8)), found.stream().map(l -> l.getRange().getStart()).toList());
     }
 
     @Test
@@ -85,7 +85,7 @@ class WorkspaceTest {
         String hover = new Hovers(workspace).hover(uri, 5, 13).getContents().getRight().getValue();
         assertTrue(hover.contains("val count"), hover);
         List<Location> found = new Definitions(workspace).definition(uri, 5, 13);
-        assertEquals(List.of(new Position(4, 4)), found.stream().map(l -> l.getRange().getStart()).toList());
+        assertEquals(List.of(new Position(4, 8)), found.stream().map(l -> l.getRange().getStart()).toList());
         assertNull(new Hovers(workspace).hover(uri, 3, 8));
         assertEquals(List.of(), new Definitions(workspace).definition(uri, 3, 8));
     }

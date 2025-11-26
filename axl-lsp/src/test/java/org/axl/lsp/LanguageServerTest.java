@@ -186,11 +186,11 @@ class LanguageServerTest {
         diagnosticsWhere(List::isEmpty);
         Location local = definition(7, 25);
         assertEquals(uri(), local.getUri());
-        assertEquals(new Position(3, 0), local.getRange().getStart());
+        assertEquals(new Position(3, 3), local.getRange().getStart());
 
         Location imported = definition(6, 17);
         assertTrue(imported.getUri().endsWith("util/Parse.axl"), imported.getUri());
-        assertEquals(2, imported.getRange().getStart().getLine());
+        assertEquals(new Position(2, 3), imported.getRange().getStart());
 
         Location java = definition(3, 45);
         assertTrue(java.getUri().endsWith("app/Helper.java"), java.getUri());
