@@ -84,8 +84,11 @@ final class SemanticTokensProvider {
         if (next != null && next.getType() == AxolotlLexer.LPAREN) {
             return upperCase ? "type" : "function";
         }
-        if (previous != null && (previous.getType() == AxolotlLexer.FN)) {
+        if (previous != null && (previous.getType() == AxolotlLexer.FN || previous.getType() == AxolotlLexer.COLONCOLON)) {
             return "function";
+        }
+        if (previous != null && previous.getType() == AxolotlLexer.ELSE && next != null && next.getType() == AxolotlLexer.ARROW) {
+            return "parameter";
         }
         if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
             return upperCase && next != null && next.getType() == AxolotlLexer.DOT ? "type" : "property";

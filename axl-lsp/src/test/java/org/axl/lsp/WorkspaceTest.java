@@ -163,6 +163,21 @@ class WorkspaceTest {
     }
 
     @Test
+    void classifiesMethodReferencesAndAttemptErrorNames() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn f(s: String) -> Result<Int, String> {
+                    val r = attempt Integer.parseInt(s) else e -> 0
+                    val m = String::valueOf
+                    return Ok(1)
+                }
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("3:45:1:parameter", "4:20:7:function")), tokens.toString());
+    }
+
+    @Test
     void splitsBlockCommentsAtWindowsLineEnds() throws Exception {
         String uri = open("Main.axl", "package app\r\n/* a\r\n b */\r\nfn main() {\r\n}\r\n");
         List<String> tokens = semanticTokens(workspace.document(uri));
