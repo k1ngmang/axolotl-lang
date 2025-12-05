@@ -159,6 +159,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void movesCompileErrorsWithTheTextUntilTheNextSave() throws Exception {
+        String text = "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n";
+        String uri = open("Main.axl", text);
+        workspace.saved(uri);
+        assertEquals(List.of(3), errorLines(uri));
+
+        workspace.update(uri, text.replace("fn main() {\n", "fn main() {\n    println(1)\n    println(2)\n"));
+        assertEquals(List.of(5), errorLines(uri));
+        workspace.update(uri, text.replace("\"s\"", "\"t\""));
+        assertEquals(List.of(), errorLines(uri));
+    }
+
+    @Test
     void clearsDiagnosticsOfAClosedDocument() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");
         assertFalse(published.get(uri).isEmpty());
@@ -212,6 +225,10 @@ class WorkspaceTest {
 
     private List<Integer> definitionLines(String uri, int line, int character) {
         return new Definitions(workspace).definition(uri, line, character).stream().map(l -> l.getRange().getStart().getLine()).toList();
+    }
+
+    private List<Integer> errorLines(String uri) {
+        return published.get(uri).stream().map(d -> d.getRange().getStart().getLine()).toList();
     }
 
     /** Semantic tokens as line:start:length:type. */

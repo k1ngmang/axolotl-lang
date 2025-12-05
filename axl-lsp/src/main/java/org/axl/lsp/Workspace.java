@@ -29,6 +29,9 @@ import org.eclipse.lsp4j.services.LanguageClient;
  */
 final class Workspace {
 
+    /** The errors the compiler found in a document, and the version of its text they are about. */
+    private record Compiled(Document version, List<AxlDiagnostic> errors) {}
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
         Thread thread = new Thread(r, "axl-lsp");
         thread.setDaemon(true);
@@ -40,7 +43,7 @@ final class Workspace {
     // The last version that parsed, used while the user is typing an incomplete line.
     private final Map<String, Document> lastParsed = new HashMap<>();
     // By module, then by document URI; replaced as a whole by each compilation of a module.
-    private final Map<Module, Map<String, List<AxlDiagnostic>>> compileErrors = new HashMap<>();
+    private final Map<Module, Map<String, Compiled>> compileErrors = new HashMap<>();
     private final Map<Module, JavaModel> javaModels = new HashMap<>();
     private ModuleCompiler compiler;
 
@@ -91,7 +94,12 @@ final class Workspace {
             return;
         }
         List<Document> moduleDocuments = documentsOf(document.module);
-        compileErrors.put(document.module, compiler.compile(document.module, moduleDocuments));
+        Map<String, List<AxlDiagnostic>> errors = compiler.compile(document.module, moduleDocuments);
+        Map<String, Compiled> compiled = new HashMap<>();
+        for (Document d : moduleDocuments) {
+            compiled.put(d.uri, new Compiled(d, errors.getOrDefault(d.uri, List.of())));
+        }
+        compileErrors.put(document.module, compiled);
         for (Document d : moduleDocuments) {
             if (open.containsKey(d.uri)) {
                 publish(open.get(d.uri));
@@ -184,11 +192,24 @@ final class Workspace {
             return;
         }
         List<AxlDiagnostic> all = new ArrayList<>(document.diagnostics());
-        if (!document.translation.hasErrors()) {
-            all.addAll(compileErrors.getOrDefault(document.module, Map.of()).getOrDefault(document.uri, List.of()));
+        Compiled compiled = compileErrors.getOrDefault(document.module, Map.of()).get(document.uri);
+        if (!document.translation.hasErrors() && compiled != null) {
+            all.addAll(movedTo(document, compiled));
         }
         List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).toList();
         client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
+    }
+
+    /** Errors of the compiled version on the lines that are unchanged in the current text, moved to them. */
+    private static List<AxlDiagnostic> movedTo(Document current, Compiled compiled) {
+        List<AxlDiagnostic> result = new ArrayList<>();
+        for (AxlDiagnostic d : compiled.errors()) {
+            int line = compiled.version().sameLineIn(current, d.line() - 1);
+            if (line >= 0) {
+                result.add(new AxlDiagnostic(d.file(), line + 1, d.column(), d.severity(), d.code(), d.message()));
+            }
+        }
+        return result;
     }
 
     /** The range covers the token at the reported column, or the rest of the line. */
