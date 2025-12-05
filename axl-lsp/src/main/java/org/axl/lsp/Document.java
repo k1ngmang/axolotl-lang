@@ -2,8 +2,10 @@ package org.axl.lsp;
 
 import java.net.URI;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
@@ -144,6 +146,67 @@ final class Document {
             count++;
         }
         return count;
+    }
+
+    /**
+     * When a name is called, the types of the arguments that are literals, null for the others;
+     * null when it is not called.
+     */
+    List<String> argumentTypes(Token name) {
+        Token open = next(name);
+        if (open == null || open.getType() != AxolotlLexer.LPAREN || open.getLine() != name.getLine()) {
+            return null;
+        }
+        List<String> types = new ArrayList<>();
+        List<Token> argument = new ArrayList<>();
+        int depth = 0;
+        for (Token token : tokens.subList(tokens.indexOf(open) + 1, tokens.size())) {
+            if (token.getChannel() != Token.DEFAULT_CHANNEL) {
+                continue;
+            }
+            int type = token.getType();
+            if (depth == 0 && (type == AxolotlLexer.COMMA || type == AxolotlLexer.RPAREN)) {
+                if (!argument.isEmpty()) {
+                    types.add(literalType(argument));
+                }
+                argument.clear();
+                if (type == AxolotlLexer.RPAREN) {
+                    break;
+                }
+                continue;
+            }
+            if (type == AxolotlLexer.LPAREN || type == AxolotlLexer.LBRACE) {
+                depth++;
+            } else if (type == AxolotlLexer.RPAREN || type == AxolotlLexer.RBRACE) {
+                depth--;
+            }
+            argument.add(token);
+        }
+        return types;
+    }
+
+    private static String literalType(List<Token> argument) {
+        if (argument.size() != 1) {
+            return null;
+        }
+        Token token = argument.getFirst();
+        return switch (token.getType()) {
+            case AxolotlLexer.STRING_LITERAL -> "String";
+            case AxolotlLexer.INT_LITERAL -> token.getText().toLowerCase(Locale.ROOT).endsWith("l") ? "Long" : "Int";
+            case AxolotlLexer.FLOAT_LITERAL -> "Double";
+            case AxolotlLexer.TRUE, AxolotlLexer.FALSE -> "Boolean";
+            default -> null;
+        };
+    }
+
+    /** The default-channel token after the given one, or null. */
+    Token next(Token token) {
+        for (int i = tokens.indexOf(token) + 1; i > 0 && i < tokens.size(); i++) {
+            if (tokens.get(i).getChannel() == Token.DEFAULT_CHANNEL) {
+                return tokens.get(i);
+            }
+        }
+        return null;
     }
 
     /** The default-channel token before the given one, or null. */

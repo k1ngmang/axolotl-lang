@@ -43,6 +43,7 @@ final class Definitions {
             return List.of();
         }
         String name = token.getText();
+        List<String> argumentTypes = document.argumentTypes(token);
         Token previous = document.previous(token);
         if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
             Token receiver = document.previous(previous);
@@ -50,9 +51,9 @@ final class Definitions {
                 return List.of();
             }
             String type = typeName(document, receiver);
-            return type == null ? List.of() : member(type, name);
+            return type == null ? List.of() : member(type, name, argumentTypes);
         }
-        Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), name);
+        Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), name, argumentTypes);
         if (symbol == null) {
             String type = typeName(document, token);
             return type == null ? List.of() : classLocation(type);
@@ -60,7 +61,7 @@ final class Definitions {
         return switch (symbol.kind()) {
             case IMPORTED_FUNCTION, IMPORTED_VALUE -> {
                 String imported = symbol.imported().name();
-                yield member(imported.substring(0, imported.lastIndexOf('.')), symbol.name());
+                yield member(imported.substring(0, imported.lastIndexOf('.')), symbol.name(), argumentTypes);
             }
             case TYPE -> classLocation(symbol.imported().name());
             default -> local(current, document, symbol.pos());
@@ -92,7 +93,7 @@ final class Definitions {
         return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
-    private List<Location> member(String className, String name) {
+    private List<Location> member(String className, String name, List<String> argumentTypes) {
         Path source = workspace.sourceOf(className);
         if (source == null) {
             return List.of();
@@ -100,7 +101,7 @@ final class Definitions {
         if (source.toString().endsWith(".axl")) {
             Document other = workspace.load(source);
             if (other.ast != null) {
-                Decl decl = Symbols.topLevel(other.ast).get(name);
+                Decl decl = Symbols.topLevel(other.ast, name, argumentTypes);
                 if (decl != null) {
                     return List.of(location(source, other.position(decl.namePos())));
                 }

@@ -123,6 +123,28 @@ class WorkspaceTest {
     }
 
     @Test
+    void picksTheOverloadThatFitsTheArguments() throws Exception {
+        open("Util.axl", "package app\n\nfn g(s: String) -> String = s\n\nfn g(n: Int) -> Int = n\n");
+        String uri = open("Main.axl", """
+                package app
+
+                fn f(a: Int, b: Int) -> Int = a + b
+
+                fn f(a: Int) -> Int = a
+
+                fn main() {
+                    println(f(1))
+                    println(f(1, 2))
+                    println(Util.g(1))
+                }
+                """);
+        assertEquals(List.of(4), definitionLines(uri, 7, 12));
+        assertEquals(List.of(2), definitionLines(uri, 8, 12));
+        assertTrue(hover(uri, 7, 12).contains("fn f(a: Int) -> Int"), hover(uri, 7, 12));
+        assertEquals(List.of(4), definitionLines(uri, 9, 17));
+    }
+
+    @Test
     void compilesTheModuleAroundAFileThatDoesNotTranslate() throws Exception {
         Path broken = project.resolve("src/main/axl/app/Broken.axl");
         Files.writeString(broken, "package app\n\nfn broken( {\n");
@@ -186,6 +208,10 @@ class WorkspaceTest {
 
     private String hover(String uri, int line, int character) {
         return new Hovers(workspace).hover(uri, line, character).getContents().getRight().getValue();
+    }
+
+    private List<Integer> definitionLines(String uri, int line, int character) {
+        return new Definitions(workspace).definition(uri, line, character).stream().map(l -> l.getRange().getStart().getLine()).toList();
     }
 
     /** Semantic tokens as line:start:length:type. */

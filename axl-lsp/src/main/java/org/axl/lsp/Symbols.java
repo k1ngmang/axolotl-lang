@@ -1,9 +1,7 @@
 package org.axl.lsp;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Import;
@@ -54,20 +52,69 @@ final class Symbols {
     }
 
     static Symbol lookup(SourceFile file, Pos pos, String name) {
-        Symbol found = null;
-        for (Symbol symbol : visibleAt(file, pos)) {
-            if (symbol.name().equals(name)) {
-                found = symbol;
-            }
-        }
-        return found;
+        return lookup(file, pos, name, null);
     }
 
-    /** Functions of a file by name; for overloads the first one. */
-    static Map<String, Decl> topLevel(SourceFile file) {
-        Map<String, Decl> result = new LinkedHashMap<>();
-        file.decls().forEach(d -> result.putIfAbsent(d.name(), d));
-        return result;
+    /**
+     * The symbol a name refers to; of overloaded functions the one that fits the arguments best.
+     * argumentTypes: see {@link Document#argumentTypes}.
+     */
+    static Symbol lookup(SourceFile file, Pos pos, String name, List<String> argumentTypes) {
+        List<Symbol> found = visibleAt(file, pos).stream().filter(s -> s.name().equals(name)).toList();
+        if (found.isEmpty()) {
+            return null;
+        }
+        Symbol last = found.getLast();
+        if (last.kind() != Kind.FUNCTION || argumentTypes == null) {
+            return last;
+        }
+        List<Decl.Function> functions = found.stream().filter(s -> s.kind() == Kind.FUNCTION).map(Symbol::function).toList();
+        Decl.Function best = bestOverload(functions, argumentTypes);
+        return found.stream().filter(s -> s.function() == best).findFirst().orElse(last);
+    }
+
+    /** A top-level declaration by name; of overloaded functions the one that fits the arguments best. */
+    static Decl topLevel(SourceFile file, String name, List<String> argumentTypes) {
+        List<Decl> found = file.decls().stream().filter(d -> d.name().equals(name)).toList();
+        List<Decl.Function> functions = found.stream().filter(d -> d instanceof Decl.Function)
+                .map(d -> (Decl.Function) d).toList();
+        if (functions.size() > 1 && argumentTypes != null) {
+            return bestOverload(functions, argumentTypes);
+        }
+        return found.isEmpty() ? null : found.getFirst();
+    }
+
+    private static Decl.Function bestOverload(List<Decl.Function> functions, List<String> argumentTypes) {
+        Decl.Function best = functions.getFirst();
+        int bestScore = Integer.MIN_VALUE;
+        for (Decl.Function fn : functions) {
+            int score = fit(fn, argumentTypes);
+            if (score > bestScore) {
+                best = fn;
+                bestScore = score;
+            }
+        }
+        return best;
+    }
+
+    /** Higher for a better fit: the number of arguments first, then the types of literal arguments. */
+    private static int fit(Decl.Function fn, List<String> argumentTypes) {
+        if (fn.params().size() != argumentTypes.size()) {
+            return Integer.MIN_VALUE + 1;
+        }
+        int score = 0;
+        for (int i = 0; i < argumentTypes.size(); i++) {
+            String argument = argumentTypes.get(i);
+            TypeRef parameter = fn.params().get(i).type();
+            if (argument == null || parameter == null) {
+                score += 1;
+            } else if (argument.equals(parameter.name())) {
+                score += 2;
+            } else if (argument.equals("Int") && List.of("Long", "Double").contains(parameter.name())) {
+                score += 1;
+            }
+        }
+        return score;
     }
 
     /** A function covers its declaration up to the next declaration. */

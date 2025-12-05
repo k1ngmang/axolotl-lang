@@ -36,7 +36,8 @@ final class Hovers {
         List<String> parts = new ArrayList<>();
         Token token = document.tokenAt(line, character);
         if (token != null && token.getType() == AxolotlLexer.IDENTIFIER && !isMember(document, token)) {
-            Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), token.getText());
+            Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), token.getText(),
+                    document.argumentTypes(token));
             if (symbol != null) {
                 parts.add("```axl\n" + describe(document, symbol) + "\n```");
             }
