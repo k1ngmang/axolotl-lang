@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.MessageActionItem;
 import org.eclipse.lsp4j.MessageParams;
@@ -169,6 +170,25 @@ class WorkspaceTest {
         assertEquals(List.of(5), errorLines(uri));
         workspace.update(uri, text.replace("\"s\"", "\"t\""));
         assertEquals(List.of(), errorLines(uri));
+    }
+
+    @Test
+    void reportsClassesDeclaredByTwoFiles() throws Exception {
+        String first = open("Main.axl", "package app\n\nfn main() {\n    println(1)\n}\n");
+        Path copy = project.resolve("src/main/axl/old/Main.axl");
+        Files.createDirectories(copy.getParent());
+        String text = "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n";
+        Files.writeString(copy, text);
+        String second = copy.toUri().toString();
+        workspace.update(second, text);
+        workspace.saved(second);
+
+        String message = "the class `app.Main` is declared by several files: app/Main.axl, old/Main.axl";
+        for (String uri : List.of(first, second)) {
+            List<String> errors = published.get(uri).stream().filter(d -> d.getSeverity() == DiagnosticSeverity.Error)
+                    .map(Diagnostic::getMessage).toList();
+            assertEquals(List.of(message), errors, uri);
+        }
     }
 
     @Test

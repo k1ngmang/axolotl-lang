@@ -6,10 +6,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.javac.DiagnosticTranslator;
 import org.axl.javac.GeneratedSource;
@@ -35,16 +38,34 @@ final class ModuleCompiler {
         Path classes = clean(work.resolve("classes"));
         List<GeneratedSource> generated = new ArrayList<>();
         Map<String, List<AxlDiagnostic>> result = new HashMap<>();
+        Map<String, List<Document>> byClass = new LinkedHashMap<>();
         for (Document document : documents) {
             result.put(document.uri, new ArrayList<>());
             GeneratedUnit unit = document.translation.unit();
-            if (unit == null) {
+            if (unit != null) {
+                byClass.computeIfAbsent(unit.qualifiedName(), k -> new ArrayList<>()).add(document);
+            }
+        }
+        for (var entry : byClass.entrySet()) {
+            List<Document> same = entry.getValue();
+            if (same.size() > 1) {
+                // Their Java would overwrite each other's, so none of them is compiled.
+                String files = same.stream().map(d -> d.sourcePath).collect(Collectors.joining(", "));
+                for (Document document : same) {
+                    result.get(document.uri).add(AxlDiagnostic.error(document.uri, 1, 1, ErrorCode.DUPLICATE_CLASS,
+                            "the class `" + entry.getKey() + "` is declared by several files: " + files));
+                }
                 continue;
             }
+            Document document = same.getFirst();
+            GeneratedUnit unit = document.translation.unit();
             generated.add(new GeneratedSource(unit, unit.writeTo(generatedDir), document.uri, document.lines));
         }
         List<Path> sources = new ArrayList<>(javaFiles(module));
         generated.forEach(g -> sources.add(g.javaFile()));
+        if (sources.isEmpty()) {
+            return result;
+        }
         List<Path> classpath = new ArrayList<>(RuntimeClasspath.entries());
         classpath.addAll(module.classpath());
         JavaCompilation.Outcome outcome;
