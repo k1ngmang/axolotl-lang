@@ -3,8 +3,11 @@ package org.axl.lsp;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -13,7 +16,10 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import javax.lang.model.SourceVersion;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.GeneratedUnit;
 import org.eclipse.lsp4j.Diagnostic;
@@ -28,6 +34,8 @@ import org.eclipse.lsp4j.services.LanguageClient;
  * All state of the server. Every request runs on one thread, so the state needs no locking.
  */
 final class Workspace {
+
+    private static final Pattern PACKAGE = Pattern.compile("^\\s*package\\s+([\\w.]+)", Pattern.MULTILINE);
 
     /** The errors the compiler found in a document, and the version of its text they are about. */
     private record Compiled(Document version, List<AxlDiagnostic> errors) {}
@@ -126,23 +134,64 @@ final class Workspace {
     /** Every .axl file of a module, open ones with their unsaved text. */
     List<Document> documentsOf(Module module) {
         List<Document> result = new ArrayList<>();
-        for (Path root : module.axlRoots()) {
-            if (!Files.isDirectory(root)) {
-                continue;
-            }
-            try (Stream<Path> walk = Files.walk(root)) {
-                for (Path file : walk.filter(p -> p.toString().endsWith(".axl")).sorted().toList()) {
-                    String uri = file.toUri().toString();
+        boolean loose = !project.modules().contains(module);
+        try {
+            for (Path root : module.axlRoots()) {
+                for (Path file : loose ? looseFiles(root) : axlFiles(root)) {
                     Document doc = findOpen(file);
-                    result.add(doc != null ? doc : new Document(uri, Files.readString(file, StandardCharsets.UTF_8), project));
+                    result.add(doc != null ? doc
+                            : new Document(file.toUri().toString(), Files.readString(file, StandardCharsets.UTF_8), project));
                 }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
         open.values().stream().filter(d -> d.module.equals(module) && result.stream().noneMatch(r -> r.path.equals(d.path)))
                 .forEach(result::add);
         return result;
+    }
+
+    private static List<Path> axlFiles(Path root) throws IOException {
+        if (!Files.isDirectory(root)) {
+            return List.of();
+        }
+        try (Stream<Path> walk = Files.walk(root)) {
+            return walk.filter(p -> p.toString().endsWith(".axl")).sorted().toList();
+        }
+    }
+
+    /**
+     * The .axl files under the source root of a file outside every module, only those whose package
+     * matches their directory: the other directories may hold anything, such as old copies.
+     */
+    private static List<Path> looseFiles(Path root) throws IOException {
+        List<Path> result = new ArrayList<>();
+        if (!Files.isDirectory(root)) {
+            return result;
+        }
+        Files.walkFileTree(root, new SimpleFileVisitor<>() {
+            @Override
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attributes) {
+                boolean packageName = dir.equals(root) || SourceVersion.isIdentifier(dir.getFileName().toString());
+                return packageName ? FileVisitResult.CONTINUE : FileVisitResult.SKIP_SUBTREE;
+            }
+
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+                if (file.toString().endsWith(".axl") && packageDirectory(file).equals(root.relativize(file.getParent()))) {
+                    result.add(file);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        result.sort(null);
+        return result;
+    }
+
+    /** The directory of a file's package relative to its source root, from its package declaration. */
+    private static Path packageDirectory(Path file) throws IOException {
+        Matcher matcher = PACKAGE.matcher(Files.readString(file, StandardCharsets.UTF_8));
+        return matcher.find() ? Path.of("", matcher.group(1).split("\\.")) : Path.of("");
     }
 
     private Document findOpen(Path file) {

@@ -192,6 +192,26 @@ class WorkspaceTest {
     }
 
     @Test
+    void takesOnlyFilesInTheirPackageDirectoryIntoALooseModule(@TempDir Path loose) throws Exception {
+        Files.createDirectories(loose.resolve("app"));
+        Files.createDirectories(loose.resolve("util"));
+        Files.createDirectories(loose.resolve("old/copy"));
+        Files.createDirectories(loose.resolve("old-copies/app"));
+        Files.writeString(loose.resolve("util/Strings.axl"), "package util\n\nfn shout(s: String) -> String = s\n");
+        Files.writeString(loose.resolve("old/copy/Main.axl"), "package app\n\nfn main() {\n}\n");
+        Files.writeString(loose.resolve("old-copies/app/Main.axl"), "package app\n\nfn main() {\n}\n");
+        Path main = loose.resolve("app/Main.axl");
+        String text = "package app\n\nfn main() {\n}\n";
+        Files.writeString(main, text);
+        workspace.update(main.toUri().toString(), text);
+
+        Document document = workspace.document(main.toUri().toString());
+        assertEquals(loose, document.module.root());
+        assertEquals(List.of(main, loose.resolve("util/Strings.axl")),
+                workspace.documentsOf(document.module).stream().map(d -> d.path).toList());
+    }
+
+    @Test
     void clearsDiagnosticsOfAClosedDocument() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");
         assertFalse(published.get(uri).isEmpty());
