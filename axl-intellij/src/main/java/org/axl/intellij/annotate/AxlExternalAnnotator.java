@@ -92,9 +92,8 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
             if (problem.line() < 1 || problem.line() > document.getLineCount()) {
                 continue;
             }
-            int lineStart = document.getLineStartOffset(problem.line() - 1);
             int lineEnd = document.getLineEndOffset(problem.line() - 1);
-            int offset = Math.min(lineStart + problem.column() - 1, lineEnd);
+            int offset = AxlAnnotator.offsetOf(document, problem.line(), problem.column());
             var annotation = holder.newAnnotation(problem.error() ? HighlightSeverity.ERROR : HighlightSeverity.WARNING,
                     problem.message()).range(new TextRange(offset, lineEnd));
             PsiElement at = file.findElementAt(offset);

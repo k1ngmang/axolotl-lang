@@ -48,7 +48,7 @@ public final class AxlAnnotator implements Annotator {
             if (d.code() == ErrorCode.SYNTAX && psiErrors || d.line() < 1 || d.line() > document.getLineCount()) {
                 continue;
             }
-            int offset = Math.min(document.getLineStartOffset(d.line() - 1) + d.column() - 1, document.getTextLength());
+            int offset = offsetOf(document, d.line(), d.column());
             PsiElement leaf = file.findElementAt(offset);
             // Errors about a declaration point at its keyword; the name is the better place to mark.
             if (leaf != null && leaf.getParent() instanceof AxlNamedElement named && named.getNameIdentifier() != null
@@ -64,6 +64,14 @@ public final class AxlAnnotator implements Annotator {
             }
             annotation.create();
         }
+    }
+
+    /** The offset of a 1-based line and column; the compiler counts code points, the document UTF-16 units. */
+    static int offsetOf(Document document, int line, int column) {
+        int start = document.getLineStartOffset(line - 1);
+        String text = document.getText(new TextRange(start, document.getLineEndOffset(line - 1)));
+        int codePoints = Math.clamp(column - 1, 0, text.codePointCount(0, text.length()));
+        return start + text.offsetByCodePoints(0, codePoints);
     }
 
     private static CommonIntentionAction fixFor(ErrorCode code, PsiElement leaf) {

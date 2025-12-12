@@ -1,6 +1,7 @@
 package org.axl.intellij;
 
 import com.intellij.codeInsight.intention.IntentionAction;
+import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
@@ -116,6 +117,14 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
                 }
                 """);
         myFixture.checkHighlighting(false, false, false);
+    }
+
+    public void testMarksErrorsAfterEmojiAtTheirColumn() {
+        String text = "package app\n\nfn main() {\n    val s = \"😀😀\"; val y = 1; y = 2\n}\n";
+        myFixture.configureByText("Main.axl", text);
+        List<Integer> errors = myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getStartOffset()).toList();
+        assertEquals(List.of(text.indexOf("y = 2")), errors);
     }
 
     public void testQuickFixRemovesReturnTry() {
