@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
@@ -32,7 +33,8 @@ final class Document {
     final Module module;
     final String sourcePath;
 
-    Document(String uri, String text, ProjectModel project) {
+    /** drafts: the directory with the Java of the other .axl files of a module. */
+    Document(String uri, String text, ProjectModel project, Function<Module, Path> drafts) {
         this.uri = uri;
         this.path = Path.of(URI.create(uri));
         this.text = text;
@@ -44,8 +46,10 @@ final class Document {
         this.module = project.moduleOf(path, packageName);
         Path root = module.axlRootOf(path);
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
-        // Types of top-level values that depend on Java code come from javac, only when needed.
-        Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), module.javaRoots(), module.strictNull()));
+        // Types of top-level values that depend on Java code or other files come from javac, only when needed.
+        List<Path> sourcepath = new ArrayList<>(List.of(drafts.apply(module)));
+        sourcepath.addAll(module.javaRoots());
+        Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), sourcepath, module.strictNull()));
         this.translation = Translator.translate(sourcePath, uri, text, options);
     }
 

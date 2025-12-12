@@ -22,6 +22,9 @@ import java.util.stream.Stream;
 import javax.lang.model.SourceVersion;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.GeneratedUnit;
+import org.axl.compiler.Options;
+import org.axl.compiler.Translator;
+import org.axl.javac.Translation;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Position;
@@ -53,6 +56,7 @@ final class Workspace {
     // By module, then by document URI; replaced as a whole by each compilation of a module.
     private final Map<Module, Map<String, Compiled>> compileErrors = new HashMap<>();
     private final Map<Module, JavaModel> javaModels = new HashMap<>();
+    private final Map<Module, Path> drafts = new HashMap<>();
     private ModuleCompiler compiler;
 
     <T> CompletableFuture<T> submit(Callable<T> work) {
@@ -72,6 +76,7 @@ final class Workspace {
     void open(List<Path> roots) throws IOException {
         project = ProjectModel.discover(roots);
         compiler = new ModuleCompiler();
+        drafts.clear();
     }
 
     void close() {
@@ -79,8 +84,9 @@ final class Workspace {
     }
 
     void update(String uri, String text) {
-        Document document = new Document(uri, text, project);
+        Document document = new Document(uri, text, project, this::draftsOf);
         open.put(uri, document);
+        writeDraft(document);
         if (document.ast != null) {
             lastParsed.put(uri, document);
         }
@@ -134,13 +140,12 @@ final class Workspace {
     /** Every .axl file of a module, open ones with their unsaved text. */
     List<Document> documentsOf(Module module) {
         List<Document> result = new ArrayList<>();
-        boolean loose = !project.modules().contains(module);
         try {
             for (Path root : module.axlRoots()) {
-                for (Path file : loose ? looseFiles(root) : axlFiles(root)) {
+                for (Path file : filesOf(module, root)) {
                     Document doc = findOpen(file);
-                    result.add(doc != null ? doc
-                            : new Document(file.toUri().toString(), Files.readString(file, StandardCharsets.UTF_8), project));
+                    result.add(doc != null ? doc : new Document(file.toUri().toString(),
+                            Files.readString(file, StandardCharsets.UTF_8), project, this::draftsOf));
                 }
             }
         } catch (IOException e) {
@@ -149,6 +154,53 @@ final class Workspace {
         open.values().stream().filter(d -> d.module.equals(module) && result.stream().noneMatch(r -> r.path.equals(d.path)))
                 .forEach(result::add);
         return result;
+    }
+
+    /**
+     * The Java of every .axl file of a module, which javac reads when the type of a value depends on
+     * another file. Written by translating the module once, then kept up to date by each edit.
+     */
+    private Path draftsOf(Module module) {
+        Path dir = drafts.get(module);
+        if (dir != null) {
+            return dir;
+        }
+        try {
+            dir = Files.createTempDirectory("axl-lsp-drafts");
+            List<Translation.Input> inputs = new ArrayList<>();
+            for (Path root : module.axlRoots()) {
+                for (Path file : filesOf(module, root)) {
+                    Document doc = findOpen(file);
+                    String text = doc != null ? doc.text : Files.readString(file, StandardCharsets.UTF_8);
+                    String sourcePath = root.relativize(file).toString().replace('\\', '/');
+                    inputs.add(new Translation.Input(sourcePath, file.toString(), text));
+                }
+            }
+            for (Translator.Result result : Translation.run(inputs, new Options(false), module.classpath(),
+                    module.javaRoots(), dir, module.strictNull())) {
+                if (result.unit() != null) {
+                    result.unit().writeTo(dir);
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        drafts.put(module, dir);
+        return dir;
+    }
+
+    private void writeDraft(Document document) {
+        if (document.translation.unit() != null) {
+            try {
+                document.translation.unit().writeTo(draftsOf(document.module));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    private List<Path> filesOf(Module module, Path root) throws IOException {
+        return project.modules().contains(module) ? axlFiles(root) : looseFiles(root);
     }
 
     private static List<Path> axlFiles(Path root) throws IOException {
@@ -225,7 +277,7 @@ final class Workspace {
             return doc;
         }
         try {
-            return new Document(file.toUri().toString(), Files.readString(file, StandardCharsets.UTF_8), project);
+            return new Document(file.toUri().toString(), Files.readString(file, StandardCharsets.UTF_8), project, this::draftsOf);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

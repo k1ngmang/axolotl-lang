@@ -212,6 +212,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void infersValuesFromOtherFilesOfTheModule() throws Exception {
+        Files.writeString(project.resolve("src/main/axl/app/Names.axl"),
+                "package app\n\nfn greeting() -> String = \"hi\"\nval words = java.util.List.of(\"a\")\n");
+        String main = open("Main.axl", "package app\n\nval g = Names.greeting()\nval w = Names.words\n\nfn main() {\n"
+                + "    println(g.length() + w.size())\n}\n");
+        assertEquals(List.of(), published.get(main));
+
+        open("Names.axl", "package app\n\nfn greeting() -> String = \"hi\"\nfn count() -> Int = 1\n");
+        String other = open("Other.axl", "package app\n\nval c = Names.count()\n");
+        assertEquals(List.of(), published.get(other));
+    }
+
+    @Test
     void clearsDiagnosticsOfAClosedDocument() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");
         assertFalse(published.get(uri).isEmpty());
