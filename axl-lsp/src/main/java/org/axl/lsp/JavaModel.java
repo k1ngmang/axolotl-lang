@@ -215,6 +215,23 @@ final class JavaModel {
         return new ArrayList<>(result.values());
     }
 
+    /** The type of a field (arguments -1) or the result of a method with that many parameters; null if none. */
+    TypeMirror memberType(TypeElement type, String name, int arguments) {
+        for (Element member : elements.getAllMembers(type)) {
+            if (!member.getSimpleName().contentEquals(name)) {
+                continue;
+            }
+            if (arguments < 0 && member.getKind().isField()) {
+                return member.asType();
+            }
+            if (arguments >= 0 && member instanceof ExecutableElement method && method.getKind() == ElementKind.METHOD
+                    && method.getParameters().size() == arguments) {
+                return method.getReturnType();
+            }
+        }
+        return null;
+    }
+
     static String signature(Element member) {
         if (member instanceof ExecutableElement method) {
             return method.getSimpleName() + method.getParameters().stream()

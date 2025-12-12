@@ -4,13 +4,15 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
+import java.util.stream.Collectors;
 import java.util.regex.Pattern;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
+import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionItemKind;
 
@@ -23,7 +25,9 @@ final class Completions {
     static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
     private static final Pattern PIPE_STAGE = Pattern.compile("\\|>\\s*\\w*$");
-    private static final Pattern MEMBER = Pattern.compile("([\\w.]+)\\??\\.(\\w*)$");
+
+    /** A name or a call in a receiver such as `a.b().c`; arguments is -1 for a name. */
+    private record Step(String name, int arguments) {}
 
     private final Workspace workspace;
 
@@ -46,9 +50,10 @@ final class Completions {
                 return item;
             }).toList();
         }
-        Matcher member = MEMBER.matcher(prefix);
-        if (member.find()) {
-            return parsed == null ? List.of() : members(parsed, pos, member.group(1));
+        Token dot = memberDot(current, line, character);
+        if (dot != null) {
+            List<Step> receiver = receiver(current, dot);
+            return parsed == null || receiver == null ? List.of() : members(parsed, pos, receiver);
         }
         List<CompletionItem> items = new ArrayList<>();
         if (parsed != null) {
@@ -85,22 +90,95 @@ final class Completions {
         return same >= 0 ? parsed.pos(same, character) : new Pos(current.sharedLeadingLines(parsed) + 1, 1);
     }
 
-    private List<CompletionItem> members(Document document, Pos pos, String receiver) {
+    /** The `.` or `?.` before the member being typed, which may be on an earlier line; or null. */
+    private static Token memberDot(Document document, int line, int character) {
+        int column = document.codePointColumn(line, character);
+        Token last = null;
+        for (Token token : document.tokens) {
+            int tokenLine = token.getLine() - 1;
+            if (tokenLine > line || tokenLine == line && token.getCharPositionInLine() >= column) {
+                break;
+            }
+            if (token.getChannel() == Token.DEFAULT_CHANNEL) {
+                last = token;
+            }
+        }
+        if (last != null && last.getType() == AxolotlLexer.IDENTIFIER) {
+            last = document.previous(last);
+        }
+        return last != null && (last.getType() == AxolotlLexer.DOT || last.getType() == AxolotlLexer.SAFE_DOT) ? last : null;
+    }
+
+    /** The names and calls before a dot, first to last; null when it is another expression. */
+    private static List<Step> receiver(Document document, Token dot) {
+        List<Step> steps = new ArrayList<>();
+        Token token = dot;
+        while (token != null && (token.getType() == AxolotlLexer.DOT || token.getType() == AxolotlLexer.SAFE_DOT)) {
+            token = document.previous(token);
+            if (token != null && token.getType() == AxolotlLexer.BANGBANG) {
+                token = document.previous(token);
+            }
+            int arguments = -1;
+            if (token != null && token.getType() == AxolotlLexer.RPAREN) {
+                Token open = openingParenthesis(document, token);
+                token = open == null ? null : document.previous(open);
+                List<String> argumentTypes = token == null ? null : document.argumentTypes(token);
+                if (argumentTypes == null) {
+                    return null;
+                }
+                arguments = argumentTypes.size();
+            }
+            if (token == null || token.getType() != AxolotlLexer.IDENTIFIER) {
+                return null;
+            }
+            steps.addFirst(new Step(token.getText(), arguments));
+            Token name = token;
+            token = document.previous(token);
+            if (token != null && token.getLine() < name.getLine()) {
+                // A dot at the end of the line above is being typed there: `label.` over `Integer.`.
+                break;
+            }
+        }
+        return steps;
+    }
+
+    private static Token openingParenthesis(Document document, Token close) {
+        int depth = 0;
+        for (Token token = close; token != null; token = document.previous(token)) {
+            if (token.getType() == AxolotlLexer.RPAREN || token.getType() == AxolotlLexer.RBRACE) {
+                depth++;
+            } else if (token.getType() == AxolotlLexer.LPAREN || token.getType() == AxolotlLexer.LBRACE) {
+                depth--;
+            }
+            if (depth == 0) {
+                return token.getType() == AxolotlLexer.LPAREN ? token : null;
+            }
+        }
+        return null;
+    }
+
+    private List<CompletionItem> members(Document document, Pos pos, List<Step> receiver) {
         SourceFile ast = document.ast;
         JavaModel java = workspace.javaModel(document.module);
         TypeElement type = null;
         boolean statics = false;
-        Symbols.Symbol symbol = receiver.contains(".") ? null : Symbols.lookup(ast, pos, receiver);
+        int used = 1;
+        Step first = receiver.getFirst();
+        Symbols.Symbol symbol = Symbols.lookup(ast, pos, first.name());
         if (symbol != null && symbol.kind() != Symbols.Kind.TYPE) {
-            if (symbol.type() != null) {
-                type = java.resolveType(ast, symbol.type());
-            } else if (symbol.function() != null) {
-                type = JavaModel.elementOf(java.localType(ast, symbol.function().name(),
-                        symbol.function().params().size(), symbol.name(), symbol.pos().line()));
-            }
+            boolean member = first.arguments() >= 0 || symbol.function() == null && symbol.type() == null;
+            type = member ? memberOfOwner(java, ast, symbol, first) : valueType(java, ast, symbol);
         } else {
-            type = java.resolveType(ast, receiver);
+            // A class, maybe written with its package: `java.util.List`.
             statics = true;
+            for (used = 0; type == null && used < receiver.size() && receiver.get(used).arguments() < 0; used++) {
+                String name = receiver.subList(0, used + 1).stream().map(Step::name).collect(Collectors.joining("."));
+                type = java.resolveType(ast, name);
+            }
+        }
+        for (Step step : receiver.subList(used, receiver.size())) {
+            type = type == null ? null : JavaModel.elementOf(java.memberType(type, step.name(), step.arguments()));
+            statics = false;
         }
         if (type == null) {
             return List.of();
@@ -116,6 +194,25 @@ final class Completions {
             items.add(item);
         }
         return items;
+    }
+
+    /** The type of a local, a parameter or a value with a written type. */
+    private static TypeElement valueType(JavaModel java, SourceFile ast, Symbols.Symbol symbol) {
+        if (symbol.type() != null) {
+            return java.resolveType(ast, symbol.type());
+        }
+        return JavaModel.elementOf(java.localType(ast, symbol.function().name(), symbol.function().params().size(),
+                symbol.name(), symbol.pos().line()));
+    }
+
+    /** The type of a top-level value or of a function's result, of this file or imported. */
+    private static TypeElement memberOfOwner(JavaModel java, SourceFile ast, Symbols.Symbol symbol, Step step) {
+        String owner = ast.className();
+        if (symbol.imported() != null) {
+            owner = symbol.imported().name().substring(0, symbol.imported().name().lastIndexOf('.'));
+        }
+        TypeElement type = java.resolveType(ast, owner);
+        return type == null ? null : JavaModel.elementOf(java.memberType(type, step.name(), step.arguments()));
     }
 
     private static CompletionItemKind kind(Symbols.Kind kind) {

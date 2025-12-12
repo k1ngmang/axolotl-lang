@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Location;
@@ -54,6 +55,34 @@ class WorkspaceTest {
     void completesOnTheEmptyLastLine() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n}\n");
         assertFalse(new Completions(workspace).complete(uri, 4, 0).isEmpty());
+    }
+
+    @Test
+    void completesMembersOfCallsChainsAndContinuationLines() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn name() -> String = "x"
+
+                fn main() {
+                    val s: String = "a"
+                    val n = s
+                        .le
+                    val t = name().le
+                    val u = s.trim().le
+                    System.out.pr
+                    val l = java.util.List.o
+                }
+                """);
+        assertTrue(memberNames(uri, 7, 11).contains("length"), memberNames(uri, 7, 11).toString());
+        assertTrue(memberNames(uri, 8, 21).contains("length"), memberNames(uri, 8, 21).toString());
+        assertTrue(memberNames(uri, 9, 23).contains("length"), memberNames(uri, 9, 23).toString());
+        assertTrue(memberNames(uri, 10, 17).contains("println"), memberNames(uri, 10, 17).toString());
+        assertTrue(memberNames(uri, 11, 28).contains("of"), memberNames(uri, 11, 28).toString());
+    }
+
+    private List<String> memberNames(String uri, int line, int character) {
+        return new Completions(workspace).complete(uri, line, character).stream().map(CompletionItem::getInsertText).toList();
     }
 
     @Test
