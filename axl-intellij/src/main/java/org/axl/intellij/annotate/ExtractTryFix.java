@@ -6,6 +6,8 @@ import com.intellij.modcommand.ModPsiUpdater;
 import com.intellij.modcommand.PsiUpdateModCommandAction;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiParserFacade;
+import com.intellij.psi.PsiWhiteSpace;
+import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import java.util.HashSet;
 import java.util.Set;
@@ -19,6 +21,20 @@ final class ExtractTryFix extends PsiUpdateModCommandAction<PsiElement> {
 
     ExtractTryFix(PsiElement tryExpression) {
         super(tryExpression);
+    }
+
+    /** Only for a `try` that runs whenever its statement does: not in a lambda or an `attempt`. */
+    static boolean isApplicable(PsiElement tryExpression) {
+        for (PsiElement parent = tryExpression.getParent(); parent != null; parent = parent.getParent()) {
+            IElementType type = parent.getNode().getElementType();
+            if (type == AxlElementTypes.BLOCK) {
+                return true;
+            }
+            if (type == AxlElementTypes.LAMBDA || type == AxlElementTypes.ATTEMPT) {
+                return false;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -38,8 +54,12 @@ final class ExtractTryFix extends PsiUpdateModCommandAction<PsiElement> {
         String name = freshName(statement);
         PsiElement declaration = AxlPsiFactory.statement(tryExpression.getProject(), "val " + name + " = " + tryExpression.getText());
         PsiElement block = statement.getParent();
+        String indent = "";
+        if (statement.getPrevSibling() instanceof PsiWhiteSpace space) {
+            indent = space.getText().substring(space.getText().lastIndexOf('\n') + 1);
+        }
         PsiElement added = block.addBefore(declaration, statement);
-        block.addAfter(PsiParserFacade.getInstance(tryExpression.getProject()).createWhiteSpaceFromText("\n"), added);
+        block.addAfter(PsiParserFacade.getInstance(tryExpression.getProject()).createWhiteSpaceFromText("\n" + indent), added);
         tryExpression.replace(AxlPsiFactory.expression(tryExpression.getProject(), name));
     }
 

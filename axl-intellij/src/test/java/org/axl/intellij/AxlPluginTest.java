@@ -151,6 +151,43 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(myFixture.getEditor().getDocument().getText().contains("    return parse(s)\n"));
     }
 
+    public void testQuickFixMovesTryAfterSafeCallIntoAVal() {
+        myFixture.configureByText("Main.axl", """
+                package app
+
+                fn parse(s: String) -> Result<Int, String> = Ok(1)
+
+                fn f(s: String?) -> Result<Int, String> {
+                    if (true) {
+                        val n = s?.substring(t<caret>ry parse("1"))
+                    }
+                    return Ok(1)
+                }
+                """);
+        myFixture.launchAction(myFixture.findSingleIntention("Move `try` into a separate `val`"));
+        String text = myFixture.getEditor().getDocument().getText();
+        assertTrue(text, text.contains("""
+                    if (true) {
+                        val value = try parse("1")
+                        val n = s?.substring(value)
+                    }
+                """));
+    }
+
+    public void testOffersNoMoveOfTryOutOfALambda() {
+        myFixture.configureByText("Main.axl", """
+                package app
+
+                fn parse(s: String) -> Result<Int, String> = Ok(1)
+
+                fn f(xs: java.util.List<String>) -> Result<Int, String> {
+                    xs.forEach({ val n = t<caret>ry parse(it) })
+                    return Ok(1)
+                }
+                """);
+        assertEquals(List.of(), myFixture.filterAvailableIntentions("Move `try` into a separate `val`"));
+    }
+
     public void testResolvesLocalsAndImportedFunctions() {
         myFixture.addFileToProject("util/Parse.axl", PARSE);
         myFixture.configureByText("Main.axl", """

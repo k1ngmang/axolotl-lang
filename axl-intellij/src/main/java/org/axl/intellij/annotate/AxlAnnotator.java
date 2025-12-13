@@ -82,7 +82,7 @@ public final class AxlAnnotator implements Annotator {
         }
         return switch (code) {
             case RETURN_TRY -> new ReturnTryFix(tryExpression);
-            case TRY_IN_EXPRESSION -> new ExtractTryFix(tryExpression);
+            case TRY_IN_EXPRESSION -> ExtractTryFix.isApplicable(tryExpression) ? new ExtractTryFix(tryExpression) : null;
             default -> null;
         };
     }
