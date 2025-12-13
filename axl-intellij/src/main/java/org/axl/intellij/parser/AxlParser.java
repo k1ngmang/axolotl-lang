@@ -501,13 +501,13 @@ public final class AxlParser implements PsiParser {
             if (type == null) {
                 return false;
             }
-            if (type == TokenType.WHITE_SPACE) {
-                CharSequence text = b.getOriginalText().subSequence(b.rawTokenTypeStart(i), b.rawTokenTypeStart(i + 1));
-                if (text.toString().indexOf('\n') >= 0) {
-                    return true;
-                }
-            } else if (!AxlTokenTypes.COMMENTS.contains(type)) {
+            if (type != TokenType.WHITE_SPACE && !AxlTokenTypes.COMMENTS.contains(type)) {
                 return false;
+            }
+            // A block comment can hold the line break too.
+            CharSequence text = b.getOriginalText().subSequence(b.rawTokenTypeStart(i), b.rawTokenTypeStart(i + 1));
+            if (text.toString().indexOf('\n') >= 0) {
+                return true;
             }
         }
     }

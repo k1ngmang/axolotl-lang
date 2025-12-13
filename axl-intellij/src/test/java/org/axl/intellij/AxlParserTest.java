@@ -6,6 +6,7 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import java.util.List;
+import org.axl.intellij.parser.AxlElementTypes;
 
 /** Syntax errors in IntelliJ are the ones the compiler reports. */
 public class AxlParserTest extends BasePlatformTestCase {
@@ -41,6 +42,16 @@ public class AxlParserTest extends BasePlatformTestCase {
             myFixture.configureByText("Rejected.axl", "package app\n\n" + body);
             assertTrue(body, myFixture.doHighlighting().stream().anyMatch(h -> h.getSeverity() == HighlightSeverity.ERROR));
         }
+    }
+
+    public void testEndsAStatementAtALineBreakInABlockComment() {
+        assertEquals(0, calls("fn main() {\n    val a = f /*\n */ (1)\n}\n"));
+        assertEquals(1, calls("fn main() {\n    val a = f /* one line */ (1)\n}\n"));
+    }
+
+    private int calls(String body) {
+        PsiFile file = myFixture.configureByText("Calls.axl", "package app\n\nfn f(x: Int) -> Int = x\n\n" + body);
+        return PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.CALL).length;
     }
 
     private void assertErrors(String body) {
