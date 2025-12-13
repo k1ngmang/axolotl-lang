@@ -38,8 +38,7 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         String name = ref.referenceName();
         PsiElement qualifier = ref.qualifier();
         if (qualifier == null) {
-            PsiElement target = AxlResolver.resolveName(ref, name);
-            return target == null ? List.of() : List.of(target);
+            return AxlResolver.resolveName(ref, name);
         }
         PsiElement owner = qualifier instanceof AxlReferenceExpression q ? q.getReference() == null ? null
                 : q.getReference().resolve() : null;
@@ -104,15 +103,15 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         return getElement();
     }
 
+    /** Only for a single target: a call that several overloads may take must not be renamed with one of them. */
     @Override
     public boolean isReferenceTo(@NotNull PsiElement element) {
-        for (ResolveResult result : multiResolve(false)) {
-            PsiElement target = result.getElement();
-            if (getElement().getManager().areElementsEquivalent(target, element)
-                    || target instanceof PsiMember member && getElement().getManager().areElementsEquivalent(member.getNavigationElement(), element)) {
-                return true;
-            }
+        ResolveResult[] results = multiResolve(false);
+        if (results.length != 1) {
+            return false;
         }
-        return false;
+        PsiElement target = results[0].getElement();
+        return getElement().getManager().areElementsEquivalent(target, element)
+                || target instanceof PsiMember member && getElement().getManager().areElementsEquivalent(member.getNavigationElement(), element);
     }
 }

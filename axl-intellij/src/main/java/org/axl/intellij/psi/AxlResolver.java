@@ -1,6 +1,7 @@
 package org.axl.intellij.psi;
 
 import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
@@ -8,15 +9,21 @@ import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiPackage;
+import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiPrimitiveType;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiTypeParameter;
+import com.intellij.psi.PsiTypes;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.intellij.lexer.AxlTokenTypes;
@@ -30,35 +37,35 @@ public final class AxlResolver {
             "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Double", "java.lang.Double");
     private static final Map<String, String> JAVA_TYPES = Map.of("int", "Int", "Integer", "Int", "long", "Long",
             "boolean", "Boolean", "double", "Double");
-    private static final Map<IElementType, String> LITERAL_TYPES = Map.of(AxlTokenTypes.STRING, "String",
-            AxlTokenTypes.INT, "Int", AxlTokenTypes.FLOAT, "Double", AxlTokenTypes.of(AxolotlLexer.TRUE), "Boolean",
-            AxlTokenTypes.of(AxolotlLexer.FALSE), "Boolean");
+    private static final Map<String, PsiPrimitiveType> PRIMITIVES = Map.of("Int", PsiTypes.intType(),
+            "Long", PsiTypes.longType(), "Boolean", PsiTypes.booleanType(), "Double", PsiTypes.doubleType());
 
     private AxlResolver() {}
 
-    static @Nullable PsiElement resolveName(PsiElement place, String name) {
+    /** What a plain name refers to; several overloads when the call's arguments do not decide. */
+    static List<PsiElement> resolveName(PsiElement place, String name) {
         for (PsiElement local : localDeclarations(place)) {
             if (local instanceof AxlNamedElement named && name.equals(named.getName())) {
-                return named;
+                return List.of(named);
             }
         }
         if (name.equals("it")) {
             PsiElement lambda = implicitParameterOwner(place);
             if (lambda != null) {
-                return lambda;
+                return List.of(lambda);
             }
         }
         AxlFile file = file(place);
         if (file == null) {
-            return null;
+            return List.of();
         }
         List<AxlFunction> functions = file.functions().stream().filter(f -> name.equals(f.getName())).toList();
         if (!functions.isEmpty()) {
-            return overloadsFor(place, functions).getFirst();
+            return overloadsFor(place, functions);
         }
         for (AxlVariable value : file.values()) {
             if (name.equals(value.getName())) {
-                return value;
+                return List.of(value);
             }
         }
         boolean inImport = PsiTreeUtil.getParentOfType(place, AxlImport.class) != null;
@@ -68,11 +75,11 @@ public final class AxlResolver {
             }
             String qualified = imp.qualifiedName();
             if (imp.kind() == AxlImport.Kind.TYPE) {
-                return findClass(place, qualified);
+                PsiClass cls = findClass(place, qualified);
+                return cls == null ? List.of() : List.of(cls);
             }
             PsiClass owner = findClass(place, qualified.substring(0, Math.max(0, qualified.lastIndexOf('.'))));
-            List<PsiElement> members = owner == null ? List.of() : overloadsFor(place, members(owner, name));
-            return members.isEmpty() ? null : members.getFirst();
+            return owner == null ? List.of() : overloadsFor(place, members(owner, name));
         }
         String pkg = file.packageName();
         String builtin = BUILTIN_TYPES.get(name);
@@ -80,10 +87,11 @@ public final class AxlResolver {
                 "java.lang." + name, "axl.lang." + name)) {
             PsiClass cls = findClass(place, candidate);
             if (cls != null) {
-                return cls;
+                return List.of(cls);
             }
         }
-        return JavaPsiFacade.getInstance(place.getProject()).findPackage(name);
+        PsiPackage found = JavaPsiFacade.getInstance(place.getProject()).findPackage(name);
+        return found == null ? List.of() : List.of(found);
     }
 
     /** The innermost lambda without a parameter list, whose single parameter is `it`. */
@@ -117,23 +125,27 @@ public final class AxlResolver {
     }
 
     /**
-     * Of several functions or methods with a name, those that a call's arguments fit: by number,
-     * then by the types of literals and typed variables. All of them for a name that is not called.
+     * Of several functions or methods with a name, the one a call's arguments fit best, as javac
+     * picks it; all that fit when that cannot be told. For a name that is not called, its fields.
+     * Arguments whose type takes inference fit any parameter.
      */
     static List<PsiElement> overloadsFor(PsiElement place, List<? extends PsiElement> candidates) {
         List<PsiElement> arguments = callArguments(place);
-        if (arguments == null || candidates.size() < 2) {
+        if (arguments == null) {
+            List<PsiElement> fields = candidates.stream().filter(c -> parameterTypes(c) == null).map(c -> (PsiElement) c).toList();
+            return new ArrayList<>(fields.isEmpty() ? candidates : fields);
+        }
+        if (candidates.size() < 2) {
             return new ArrayList<>(candidates);
         }
-        List<PsiElement> sameCount = new ArrayList<>();
-        for (PsiElement candidate : candidates) {
-            List<String> types = parameterTypes(candidate);
-            if (types != null && types.size() == arguments.size()) {
-                sameCount.add(candidate);
-            }
+        List<PsiType> types = arguments.stream().map(AxlResolver::argumentType).toList();
+        List<PsiElement> applicable = new ArrayList<>(candidates.stream().filter(c -> isApplicable(c, types)).toList());
+        if (applicable.stream().anyMatch(c -> !isVarArgs(c))) {
+            applicable.removeIf(AxlResolver::isVarArgs);
         }
-        List<PsiElement> fitting = sameCount.stream().filter(c -> fits(parameterTypes(c), arguments)).toList();
-        return !fitting.isEmpty() ? fitting : !sameCount.isEmpty() ? sameCount : new ArrayList<>(candidates);
+        List<PsiElement> best = applicable.stream()
+                .filter(a -> applicable.stream().allMatch(b -> a == b || isMoreSpecific(a, b))).toList();
+        return best.size() == 1 ? best : applicable.isEmpty() ? new ArrayList<>(candidates) : applicable;
     }
 
     /** The arguments when the place is the callee of a call, otherwise null. */
@@ -149,15 +161,65 @@ public final class AxlResolver {
         return new ArrayList<>(PsiTreeUtil.getChildrenOfTypeAsList(arguments, AxlPsiElement.class));
     }
 
-    /** Simple names of the parameter types, as Axolotl writes them; null when the element is not callable. */
-    private static @Nullable List<String> parameterTypes(PsiElement callable) {
+    /** The parameter types of a function or method, null for one that does not resolve; null for other elements. */
+    private static @Nullable List<PsiType> parameterTypes(PsiElement callable) {
         if (callable instanceof AxlFunction function) {
-            return function.parameters().stream().map(p -> p.type() == null ? null : p.type().name()).toList();
+            return function.parameters().stream().map(p -> p.type() == null ? null : javaType(p.type())).toList();
         }
         if (callable instanceof PsiMethod method) {
-            return Arrays.stream(method.getParameterList().getParameters()).map(p -> simpleName(p.getType())).toList();
+            return Arrays.stream(method.getParameterList().getParameters()).map(PsiParameter::getType).toList();
         }
         return null;
+    }
+
+    private static boolean isVarArgs(PsiElement callable) {
+        return callable instanceof PsiMethod method && method.isVarArgs();
+    }
+
+    private static boolean isApplicable(PsiElement callable, List<PsiType> arguments) {
+        List<PsiType> parameters = parameterTypes(callable);
+        if (parameters == null) {
+            return false;
+        }
+        int fixed = isVarArgs(callable) ? parameters.size() - 1 : parameters.size();
+        if (arguments.size() < fixed || !isVarArgs(callable) && arguments.size() > fixed) {
+            return false;
+        }
+        for (int i = 0; i < fixed; i++) {
+            if (!accepts(parameters.get(i), arguments.get(i))) {
+                return false;
+            }
+        }
+        if (isVarArgs(callable) && arguments.size() == parameters.size() && accepts(parameters.getLast(), arguments.getLast())) {
+            return true;
+        }
+        for (int i = fixed; i < arguments.size(); i++) {
+            if (!accepts(((PsiArrayType) parameters.getLast()).getComponentType(), arguments.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether every parameter of a fits the same parameter of b, as javac's most specific method. */
+    private static boolean isMoreSpecific(PsiElement a, PsiElement b) {
+        List<PsiType> mine = parameterTypes(a);
+        List<PsiType> theirs = parameterTypes(b);
+        if (mine == null || theirs == null || mine.size() != theirs.size()) {
+            return false;
+        }
+        for (int i = 0; i < mine.size(); i++) {
+            if (!accepts(theirs.get(i), mine.get(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Unknown types fit anything; generic types are compared without their type arguments. */
+    private static boolean accepts(@Nullable PsiType parameter, @Nullable PsiType argument) {
+        return parameter == null || argument == null
+                || TypeConversionUtil.isAssignable(TypeConversionUtil.erasure(parameter), TypeConversionUtil.erasure(argument));
     }
 
     /** The simple name of a Java type's class as Axolotl writes it: `Int` for `int` and `Integer`. */
@@ -166,28 +228,63 @@ public final class AxlResolver {
         return JAVA_TYPES.getOrDefault(simple, simple);
     }
 
-    private static boolean fits(List<String> parameterTypes, List<PsiElement> arguments) {
-        for (int i = 0; i < arguments.size(); i++) {
-            String argument = argumentType(arguments.get(i));
-            String parameter = parameterTypes.get(i);
-            if (argument != null && parameter != null && !argument.equals(parameter)) {
-                return false;
-            }
+    /**
+     * The type of an argument when it can be told without inference: a literal, a variable with a
+     * written type, a field, a constructor call or a call with a written or declared result type.
+     */
+    private static @Nullable PsiType argumentType(PsiElement argument) {
+        IElementType kind = argument.getNode().getElementType();
+        if (kind == AxlElementTypes.LITERAL) {
+            return literalType(argument);
         }
-        return true;
+        if (kind == AxlElementTypes.PARENTHESIZED) {
+            PsiElement inner = argument.getFirstChild().getNextSibling();
+            return inner == null ? null : argumentType(inner);
+        }
+        boolean call = kind == AxlElementTypes.CALL;
+        PsiElement name = call ? argument.getFirstChild() : argument;
+        PsiElement target = name instanceof AxlReferenceExpression ref && ref.getReference() != null ? ref.getReference().resolve() : null;
+        return switch (target) {
+            case AxlVariable variable when !call -> variable.type() == null ? null : javaType(variable.type());
+            case PsiField field when !call -> declaredType(field.getType());
+            case AxlFunction function when call -> function.returnType() == null ? null : javaType(function.returnType());
+            case PsiMethod method when call -> declaredType(method.getReturnType());
+            case PsiClass cls when call -> JavaPsiFacade.getElementFactory(argument.getProject()).createType(cls);
+            case null, default -> null;
+        };
     }
 
-    /** The type of a literal or of a variable with a written type, or null when it takes inference. */
-    private static @Nullable String argumentType(PsiElement argument) {
-        if (argument.getNode().getElementType() == AxlElementTypes.LITERAL) {
-            IElementType token = argument.getFirstChild().getNode().getElementType();
-            return LITERAL_TYPES.get(token);
+    private static @Nullable PsiType literalType(PsiElement literal) {
+        IElementType token = literal.getFirstChild().getNode().getElementType();
+        if (token == AxlTokenTypes.STRING) {
+            return PsiType.getJavaLangString(literal.getManager(), literal.getResolveScope());
         }
-        if (argument instanceof AxlReferenceExpression ref && ref.qualifier() == null && ref.getReference() != null
-                && ref.getReference().resolve() instanceof AxlVariable variable && variable.type() != null) {
-            return variable.type().name();
+        if (token == AxlTokenTypes.INT) {
+            return literal.getText().toLowerCase(Locale.ROOT).endsWith("l") ? PsiTypes.longType() : PsiTypes.intType();
         }
-        return null;
+        if (token == AxlTokenTypes.FLOAT) {
+            return PsiTypes.doubleType();
+        }
+        if (token == AxlTokenTypes.of(AxolotlLexer.TRUE) || token == AxlTokenTypes.of(AxolotlLexer.FALSE)) {
+            return PsiTypes.booleanType();
+        }
+        return token == AxlTokenTypes.of(AxolotlLexer.NULL) ? PsiTypes.nullType() : null;
+    }
+
+    /** A declared Java type; null for a type variable, whose type takes inference. */
+    private static @Nullable PsiType declaredType(@Nullable PsiType type) {
+        return type == null || PsiUtil.resolveClassInType(type) instanceof PsiTypeParameter ? null : type;
+    }
+
+    /** The Java type of a written type, without its type arguments; null when it does not resolve. */
+    private static @Nullable PsiType javaType(AxlType type) {
+        boolean nullable = type.getText().endsWith("?");
+        PsiPrimitiveType primitive = PRIMITIVES.get(type.name());
+        if (primitive != null && !nullable) {
+            return primitive;
+        }
+        PsiClass cls = classOf(type);
+        return cls == null ? null : JavaPsiFacade.getElementFactory(type.getProject()).createType(cls);
     }
 
     private static PsiElement source(PsiMember member) {
