@@ -41,7 +41,7 @@ public final class AxlAnnotator implements Annotator {
         if (document == null) {
             return;
         }
-        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText(),
+        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(),
                 new Options(false).withJavaTypes(new PsiJavaTypes(file)));
         boolean psiErrors = PsiTreeUtil.hasErrorElements(file);
         for (AxlDiagnostic d : result.diagnostics()) {

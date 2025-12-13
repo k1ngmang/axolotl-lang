@@ -43,7 +43,7 @@ public final class AxlLightClasses {
     }
 
     private static @Nullable PsiClass build(AxlFile file) {
-        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText(),
+        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(),
                 new Options(false).withJavaTypes(new PsiJavaTypes(file)));
         GeneratedUnit unit = result.unit();
         if (unit == null) {

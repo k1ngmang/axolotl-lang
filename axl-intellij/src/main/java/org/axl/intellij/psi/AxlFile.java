@@ -2,6 +2,9 @@ package org.axl.intellij.psi;
 
 import com.intellij.extapi.psi.PsiFileBase;
 import com.intellij.openapi.fileTypes.FileType;
+import com.intellij.openapi.roots.ProjectFileIndex;
+import com.intellij.openapi.vfs.VfsUtilCore;
+import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.FileViewProvider;
 import com.intellij.psi.util.PsiTreeUtil;
 import java.util.List;
@@ -31,6 +34,14 @@ public final class AxlFile extends PsiFileBase {
     public String className() {
         String name = getName();
         return name.endsWith(".axl") ? name.substring(0, name.length() - 4) : name;
+    }
+
+    /** The path in its source root, which the translator checks against the package; the name outside source roots. */
+    public String sourcePath() {
+        VirtualFile file = getOriginalFile().getVirtualFile();
+        VirtualFile root = file == null ? null : ProjectFileIndex.getInstance(getProject()).getSourceRootForFile(file);
+        String relative = root == null ? null : VfsUtilCore.getRelativePath(file, root);
+        return relative != null ? relative : getName();
     }
 
     public String qualifiedClassName() {

@@ -127,6 +127,15 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of(text.indexOf("y = 2")), errors);
     }
 
+    public void testWarnsAboutAPackageThatDoesNotMatchTheDirectory() {
+        PsiFile file = myFixture.addFileToProject("x/Main.axl", "package app\n\nfn main() {\n    println(1)\n}\n");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        List<String> warnings = myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.WARNING).map(h -> h.getDescription()).toList();
+        assertEquals(warnings.toString(), 1, warnings.size());
+        assertTrue(warnings.getFirst(), warnings.getFirst().contains("`x`"));
+    }
+
     public void testQuickFixRemovesReturnTry() {
         myFixture.configureByText("Main.axl", """
                 package app

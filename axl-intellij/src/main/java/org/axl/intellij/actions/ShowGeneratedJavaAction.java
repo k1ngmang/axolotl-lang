@@ -37,7 +37,7 @@ public final class ShowGeneratedJavaAction extends AnAction {
         if (!(psi instanceof AxlFile file) || e.getProject() == null) {
             return;
         }
-        Translator.Result result = Translator.translate(file.getName(), file.getName(), file.getText(),
+        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(),
                 new Options(false).withJavaTypes(new PsiJavaTypes(file)));
         if (result.unit() == null) {
             Messages.showWarningDialog(e.getProject(), "The file has errors; no Java was generated.", "Show Generated Java");
