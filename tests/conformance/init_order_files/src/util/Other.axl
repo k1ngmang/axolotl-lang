@@ -1,0 +1,4 @@
+package util
+
+val copy: String = app.Main.first
+val label: String = "abc".trim()

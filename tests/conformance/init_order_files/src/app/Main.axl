@@ -1,0 +1,7 @@
+package app
+
+val first: String = util.Other.label
+
+fn main() {
+    println(util.Other.copy.length())
+}

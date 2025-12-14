@@ -1,0 +1,2 @@
+AXL016 app/Main.axl:3:32: error: `first` reads `util.Other.label`, and the values of `util.Other` read values of this file; the first file Java starts sees the other's values before they are set, so break the cycle
+AXL016 util/Other.axl:3:29: error: `copy` reads `app.Main.first`, and the values of `app.Main` read values of this file; the first file Java starts sees the other's values before they are set, so break the cycle

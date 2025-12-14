@@ -131,7 +131,7 @@ final class NullChecker implements TaskListener {
     }
 
     /** Generated files have their .axl line map next to them. */
-    private static boolean isGenerated(CompilationUnitTree unit) {
+    static boolean isGenerated(CompilationUnitTree unit) {
         var uri = unit.getSourceFile().toUri();
         if (!"file".equals(uri.getScheme())) {
             return false;

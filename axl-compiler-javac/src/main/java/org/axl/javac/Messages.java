@@ -60,6 +60,9 @@ final class Messages {
         if (message.startsWith(NullChecker.STRICT_PREFIX)) {
             return new Translated(ErrorCode.STRICT_NULL, message.substring(NullChecker.STRICT_PREFIX.length()));
         }
+        if (message.startsWith(InitCycles.PREFIX)) {
+            return new Translated(ErrorCode.INIT_ORDER, message.substring(InitCycles.PREFIX.length()));
+        }
         if (message.startsWith(NullChecker.PREFIX)) {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, message.substring(NullChecker.PREFIX.length()));
         }
