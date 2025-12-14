@@ -120,7 +120,7 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
     }
 
     public void testMarksErrorsAfterEmojiAtTheirColumn() {
-        String text = "package app\n\nfn main() {\n    val s = \"😀😀\"; val y = 1; y = 2\n}\n";
+        String text = "package app\n\nfn main() {\n    val s = \"\uD83D\uDE00\uD83D\uDE00\"; val y = 1; y = 2\n}\n";
         myFixture.configureByText("Main.axl", text);
         List<Integer> errors = myFixture.doHighlighting().stream()
                 .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getStartOffset()).toList();
