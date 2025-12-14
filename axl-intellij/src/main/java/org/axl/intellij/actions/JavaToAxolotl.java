@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.Translator;
 
 /**
  * Converts the subset of Java that maps one to one: a class with only static methods and fields,
@@ -70,7 +72,20 @@ final class JavaToAxolotl {
         if (classes.length != 1) {
             throw new Unsupported("the file must contain exactly one class");
         }
-        return new JavaToAxolotl().file(file, classes[0]);
+        String axl = new JavaToAxolotl().file(file, classes[0]);
+        rejectErrors(file, axl);
+        return axl;
+    }
+
+    /** What the conversion cannot see, such as reserved names and the order of values, the translator checks. */
+    private static void rejectErrors(PsiJavaFile file, String axl) {
+        String name = file.getName().replaceFirst("\\.java$", ".axl");
+        String sourcePath = file.getPackageName().replace('.', '/') + "/" + name;
+        for (AxlDiagnostic diagnostic : Translator.translate(sourcePath, name, axl).diagnostics()) {
+            if (diagnostic.isError()) {
+                throw new Unsupported(diagnostic.message());
+            }
+        }
     }
 
     static boolean isConvertible(PsiJavaFile file) {

@@ -27,6 +27,15 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
     }
 
+    public void testRefusesWhatTheTranslatorRejects() {
+        assertRefused("Dollar.java", inClass("public static int f(int a$b) { return a$b; }"));
+        assertRefused("JavaName.java", inClass("public static int f(int java) { return java; }"));
+        assertRefused("MainArgs.java", inClass("public static void main(String[] a) { int args = 1; System.out.println(args); }"));
+        assertRefused("Result.java", inClass("public static int f() { return 1; }"));
+        assertRefused("Order.java", inClass("static final int A = compute();\nstatic final int B = 2;\n"
+                + "static int compute() { return B; }"));
+    }
+
     public void testDeclaresVariablesThatHoldNullNullable() {
         String axl = convert("Maybe.java", inClass("""
                 static final String NONE = null;
