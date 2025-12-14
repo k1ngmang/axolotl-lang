@@ -1,0 +1,9 @@
+package app
+
+fn maybeInt() -> Int? = null
+fn maybeLong() -> Long? = null
+
+fn main() {
+    val a = maybeInt() ?: maybeLong()
+    println(a)
+}

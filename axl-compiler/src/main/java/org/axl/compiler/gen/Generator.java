@@ -19,6 +19,7 @@ import org.axl.compiler.ast.Stmt;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.check.Analysis;
 import org.axl.compiler.check.Checker;
+import org.axl.compiler.check.TypeInference;
 
 /** Generates Java following the expansion rules of the specification. Expects a file without errors. */
 public final class Generator {
@@ -332,13 +333,24 @@ public final class Generator {
         if (Lifts.needed(expr)) {
             return lifted(line, expr).code();
         }
-        if (!options.inlineElvis() || !(expr instanceof Expr.Elvis elvis)) {
+        if (!options.inlineElvis() || !(expr instanceof Expr.Elvis elvis) || mixesBoxedNumbers(elvis)) {
             return expr(expr);
         }
         String temp = "$t" + ++tempCount;
         em.line(line, "final var " + temp + " = " + expr(elvis.left()) + ";");
         // Objects.nonNull also compiles when the left side is a primitive.
         return "java.util.Objects.nonNull(" + temp + ") ? " + temp + " : " + expr(elvis.right());
+    }
+
+    /**
+     * `Int? ?: Long?`: Java unboxes both sides of such a conditional, and fails on a null right side.
+     * Nulls.or keeps them boxed.
+     */
+    private boolean mixesBoxedNumbers(Expr.Elvis elvis) {
+        TypeRef left = TypeInference.typeOf(file, elvis.left());
+        TypeRef right = TypeInference.typeOf(file, elvis.right());
+        return left != null && right != null && right.nullable() && !left.name().equals(right.name())
+                && PRIMITIVES.containsKey(left.name()) && PRIMITIVES.containsKey(right.name());
     }
 
     /**

@@ -1,5 +1,6 @@
 package org.axl.compiler.check;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +41,11 @@ public final class TypeInference {
                 }
             }
         }
+    }
+
+    /** The type of an expression of the file as far as the file alone tells, or null. */
+    public static TypeRef typeOf(SourceFile file, Expr expr) {
+        return new TypeInference(file, new HashMap<>()).of(expr);
     }
 
     private TypeRef value(Decl.Value value) {
