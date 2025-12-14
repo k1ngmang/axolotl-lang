@@ -27,6 +27,22 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
     }
 
+    public void testDeclaresVariablesThatHoldNullNullable() {
+        String axl = convert("Maybe.java", inClass("""
+                static final String NONE = null;
+                public static void f(boolean b) {
+                    String r = null;
+                    if (b) {
+                        r = "x";
+                    }
+                    String s = "y";
+                    System.out.println(r + s + NONE);
+                }"""));
+        assertTrue(axl, axl.contains("val NONE: String? = null\n"));
+        assertTrue(axl, axl.contains("var r: String? = null\n"));
+        assertTrue(axl, axl.contains("val s: String = \"y\"\n"));
+    }
+
     public void testConvertsLiteralsToTheirAxolotlForm() {
         String axl = convert("Lits.java", inClass("""
                 public static double f() {

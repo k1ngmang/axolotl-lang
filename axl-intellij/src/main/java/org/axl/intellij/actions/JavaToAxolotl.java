@@ -29,9 +29,12 @@ import com.intellij.psi.PsiReferenceExpression;
 import com.intellij.psi.PsiReturnStatement;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiTypes;
+import com.intellij.psi.PsiVariable;
 import com.intellij.psi.PsiWhileStatement;
 import com.intellij.psi.JavaRecursiveElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiUtil;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -116,7 +119,7 @@ final class JavaToAxolotl {
                 throw new Unsupported("only static final fields are converted");
             }
             out.append("\n").append(visibility(field.hasModifierProperty(PsiModifier.PRIVATE))).append("val ")
-                    .append(name(field.getName())).append(": ").append(type(field.getType())).append(" = ")
+                    .append(name(field.getName())).append(": ").append(type(field, cls)).append(" = ")
                     .append(expression(field.getInitializer())).append("\n");
         }
         for (PsiMethod method : cls.getMethods()) {
@@ -177,7 +180,8 @@ final class JavaToAxolotl {
                         throw new Unsupported("locals need an initializer");
                     }
                     String keyword = local.hasModifierProperty(PsiModifier.FINAL) || !isReassigned(local) ? "val " : "var ";
-                    out.append(indent).append(keyword).append(name(local.getName())).append(": ").append(type(local.getType()))
+                    String type = type(local, local.getParent().getParent());
+                    out.append(indent).append(keyword).append(name(local.getName())).append(": ").append(type)
                             .append(" = ").append(expression(local.getInitializer())).append("\n");
                 }
             }
@@ -234,6 +238,19 @@ final class JavaToAxolotl {
             }
         });
         return assigned[0];
+    }
+
+    /** Whether a variable starts as or is set to `null` in a scope. */
+    private static boolean holdsNull(PsiVariable variable, PsiElement scope) {
+        return isNull(variable.getInitializer())
+                || PsiTreeUtil.findChildrenOfType(scope, PsiAssignmentExpression.class).stream().anyMatch(assignment ->
+                        assignment.getLExpression() instanceof PsiReferenceExpression ref && ref.isReferenceTo(variable)
+                                && isNull(assignment.getRExpression()));
+    }
+
+    private static boolean isNull(PsiExpression expression) {
+        return PsiUtil.skipParenthesizedExprDown(expression) instanceof PsiLiteralExpression literal
+                && literal.getType() == PsiTypes.nullType();
     }
 
     private static boolean isUsed(PsiParameter parameter, PsiElement scope) {
@@ -315,6 +332,13 @@ final class JavaToAxolotl {
     private static String arguments(PsiExpressionList list) {
         return java.util.Arrays.stream(list.getExpressions()).map(JavaToAxolotl::expression)
                 .collect(java.util.stream.Collectors.joining(", ", "(", ")"));
+    }
+
+    /** The type of a variable, nullable when it holds `null`. */
+    private static String type(PsiVariable variable, PsiElement scope) {
+        String type = type(variable.getType());
+        boolean nullable = !type.endsWith("?") && !(variable.getType() instanceof PsiPrimitiveType) && holdsNull(variable, scope);
+        return nullable ? type + "?" : type;
     }
 
     private static String type(PsiType type) {
