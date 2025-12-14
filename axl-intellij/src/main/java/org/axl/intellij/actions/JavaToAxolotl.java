@@ -299,7 +299,7 @@ final class JavaToAxolotl {
             throw new Unsupported("unsupported literal: " + text);
         }
         boolean binaryOrOctal = lower.startsWith("0b") || lower.length() > 1 && lower.charAt(0) == '0'
-                && Character.isDigit(lower.charAt(1));
+                && (Character.isDigit(lower.charAt(1)) || lower.charAt(1) == '_');
         if ((value instanceof Integer || value instanceof Long) && binaryOrOctal) {
             if (((Number) value).longValue() < 0) {
                 throw new Unsupported("unsupported literal: " + text);

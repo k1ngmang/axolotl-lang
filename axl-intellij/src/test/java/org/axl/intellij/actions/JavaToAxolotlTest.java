@@ -32,12 +32,14 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
                 public static double f() {
                     final int b = 0b101;
                     final int o = 017;
+                    final int u = 0_7;
                     final double d = .5;
                     final double e = 5.;
                     return b + o + d + e;
                 }"""));
         assertTrue(axl, axl.contains("val b: Int = 5\n"));
         assertTrue(axl, axl.contains("val o: Int = 15\n"));
+        assertTrue(axl, axl.contains("val u: Int = 7\n"));
         assertTrue(axl, axl.contains("val d: Double = 0.5\n"));
         assertTrue(axl, axl.contains("val e: Double = 5.0\n"));
     }
