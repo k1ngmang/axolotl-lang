@@ -1,0 +1,13 @@
+package app
+
+fn ok(v: Int) -> Result<Int, String> = Ok(v)
+
+fn run(n: Int) -> Result<Int, String> {
+    val a = n ?: 5
+    val b = n ?: try ok(1)
+    return Ok(a + b)
+}
+
+fn main() {
+    println(run(3))
+}
