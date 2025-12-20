@@ -1,0 +1,15 @@
+package app
+
+fn name() -> Result<String, String> = Ok("NEW")
+
+fn run() -> Result<String, String> {
+    val st = Thread.State.valueOf(try name())
+    val s: String? = "RUNNABLE"
+    val st2 = Thread.State.valueOf(s ?: "NEW")
+    println(Thread.State.valueOf(s!!))
+    return Ok(st.toString() + st2)
+}
+
+fn main() {
+    println(run())
+}

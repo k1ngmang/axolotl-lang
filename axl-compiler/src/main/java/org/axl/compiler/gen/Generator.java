@@ -747,6 +747,10 @@ public final class Generator {
         return index;
     }
 
+    private static boolean isTypeName(String name) {
+        return Character.isUpperCase(name.charAt(0)) && !name.equals(name.toUpperCase(java.util.Locale.ROOT));
+    }
+
     /** The chain up to its first `?.`, with the statements its `try`s need. */
     private String liftedPrefix(int line, Chains.Chain chain, int firstSafe) {
         List<Chains.Step> steps = chain.steps();
@@ -759,8 +763,8 @@ public final class Generator {
         for (int i = 0; i < firstSafe; i++) {
             Chains.Step step = steps.get(i);
             if (step.args() == null) {
-                // java.util.List is a path to a class; System.out is a value read from one.
-                typeOrPackage = typeOrPackage && Character.isLowerCase(segment.charAt(0));
+                // java.util.List and Thread.State are paths to a class; System.out and Color.RED are values.
+                typeOrPackage = typeOrPackage && (Character.isLowerCase(segment.charAt(0)) || isTypeName(step.name()));
                 fixed = typeOrPackage;
                 segment = step.name();
                 current += "." + step.name();
