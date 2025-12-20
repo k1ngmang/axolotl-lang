@@ -354,14 +354,12 @@ public final class Generator {
     }
 
     /**
-     * A number on the right is passed as is, so that Java widens it to the type on the left. Not after
-     * `?.`, whose Nulls.map result type Java could then not infer.
+     * A number on the right is passed as is, so that Java widens it to the type on the left. After
+     * `?.` only when the left side is a temporary: Java could not infer the type of its Nulls.map.
      */
     private String elvis(Expr.Elvis elvis, String left) {
         Expr right = elvis.right();
-        boolean number = !Chains.hasSafeStep(elvis.left())
-                && (right instanceof Expr.Literal l && Character.isDigit(l.text().charAt(0))
-                || right instanceof Expr.Unary u && u.op().equals("-") && u.operand() instanceof Expr.Literal);
+        boolean number = Lifts.isNumber(right) && (!Chains.hasSafeStep(elvis.left()) || left.matches("\\$t\\d+"));
         String fallback = number ? expr(right) : "() -> " + expr(right, true);
         return joined("Nulls.or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")";
     }
@@ -597,6 +595,11 @@ public final class Generator {
                         startLine(b.left()), startLine(b.right())), false);
             }
             case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el);
+            case Expr.Elvis el when Lifts.numberAfterSafeCall(el) && !Lifts.needed(el.left()) -> {
+                String temp = "$t" + ++tempCount;
+                em.line(line, "final var " + temp + " = " + expr(el.left()) + ";");
+                yield new Lifted(elvis(el, temp), false);
+            }
             case Expr.Elvis el -> new Lifted(elvis(el, lifted(line, el.left()).code()), false);
             case Expr.Unary u -> new Lifted(unary(u.op(), lifted(line, u.operand()).code()), false);
             case Expr.Paren p -> {

@@ -1,0 +1,16 @@
+package app
+
+fn number() -> Number? = null
+fn anything() -> Object? = null
+fn text() -> String? = null
+
+fn main() {
+    val n: Number = number() ?: 0
+    println(n)
+    println(anything() ?: 1.5)
+    val count = text()?.chars()?.count() ?: 0
+    println(count + 1)
+    println(text()?.length() ?: -1)
+    val s: String = text() ?: "none"
+    println(s)
+}

@@ -6,7 +6,8 @@ import org.axl.compiler.ast.Expr;
  * Finds expressions that must be split into statements: a `try` or a `mapResult` stage returns from
  * the function, which an expression cannot do. Lambdas never contain them; the checker rejects that.
  * A `?.` chain passed to a call is split off too: as an argument, Java cannot infer the type of its
- * `Nulls.map` and overloads such as `println(String)` and `println(char[])` become ambiguous.
+ * `Nulls.map` and overloads such as `println(String)` and `println(char[])` become ambiguous. So is
+ * the left side of `a?.b ?: 0`, for the same reason with the number overloads of Nulls.or.
  */
 final class Lifts {
 
@@ -15,6 +16,15 @@ final class Lifts {
     /** Operands that become statements of their own. */
     static boolean hoisted(Expr expr) {
         return needed(expr) || Chains.hasSafeStep(expr);
+    }
+
+    static boolean numberAfterSafeCall(Expr.Elvis elvis) {
+        return Chains.hasSafeStep(elvis.left()) && isNumber(elvis.right());
+    }
+
+    static boolean isNumber(Expr expr) {
+        return expr instanceof Expr.Literal l && Character.isDigit(l.text().charAt(0))
+                || expr instanceof Expr.Unary u && u.op().equals("-") && u.operand() instanceof Expr.Literal;
     }
 
     static boolean needed(Expr expr) {
@@ -29,7 +39,7 @@ final class Lifts {
             case Expr.NotNull n -> needed(n.target());
             case Expr.Unary u -> needed(u.operand());
             case Expr.Binary b -> needed(b.left()) || needed(b.right());
-            case Expr.Elvis e -> needed(e.left()) || needed(e.right());
+            case Expr.Elvis e -> needed(e.left()) || needed(e.right()) || numberAfterSafeCall(e);
             case Expr.Paren p -> needed(p.inner());
             case Expr.Literal l -> false;
             case Expr.Name n -> false;
