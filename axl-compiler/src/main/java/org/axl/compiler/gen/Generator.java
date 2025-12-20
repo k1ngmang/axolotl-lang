@@ -520,8 +520,17 @@ public final class Generator {
     }
 
     private String args(List<Expr> args, boolean inLambda, int line) {
-        List<String> codes = args.stream().map(a -> expr(a, inLambda)).toList();
+        List<String> codes = args.stream().map(a -> argument(a, inLambda)).toList();
         return joinedArgs(args, codes, line);
+    }
+
+    /** Where a `?.` argument cannot be moved into a temporary, Nulls.typed gives it its type. */
+    private String argument(Expr arg, boolean inLambda) {
+        return switch (arg) {
+            case Expr.Paren p -> "(" + argument(p.inner(), inLambda) + ")";
+            case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + argument(n.target(), inLambda) + ")";
+            default -> Chains.hasSafeStep(arg) ? "Nulls.typed(" + expr(arg, inLambda) + ").value()" : expr(arg, inLambda);
+        };
     }
 
     /** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */

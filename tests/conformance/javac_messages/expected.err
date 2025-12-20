@@ -13,4 +13,5 @@ AXL100 app/Types.axl:44:9: error: `v` cannot hold the result of a function that 
 AXL100 app/Types.axl:45:5: error: this function returns nothing, so its result cannot be used as a value
 AXL100 app/Types.axl:48:49: error: type mismatch: expected `String`, found `Int`
 AXL100 app/Types.axl:52:28: error: a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; write it with a null check: `{ -> if (x != null) { x.m() } }`
-AXL100 app/Types.axl:56:5: error: this call can throw `InterruptedException`, which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`
+AXL100 app/Types.axl:53:39: error: a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; write it with a null check: `{ -> if (x != null) { x.m() } }`
+AXL100 app/Types.axl:57:5: error: this call can throw `InterruptedException`, which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`

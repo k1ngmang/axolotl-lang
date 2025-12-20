@@ -29,6 +29,10 @@ import org.jspecify.annotations.Nullable;
     public static <T extends @Nullable Object> @Nullable T first(Iterator<T> items) {
         return items.hasNext() ? items.next() : null;
     }
+    // As an argument, a Nulls.map call takes its type from the overloads of the method it is passed to,
+    // and println(String) and println(char[]) both fit. As the receiver of `.value()` it is typed first.
+    public record Typed<T extends @Nullable Object>(@Nullable T value) {}
+    public static <T extends @Nullable Object> Typed<T> typed(@Nullable T value) { return new Typed<>(value); }
     public static <T, R> @Nullable R map(@Nullable T a, Function<? super T, ? extends @Nullable R> f) {
         return a == null ? null : f.apply(a);
     }

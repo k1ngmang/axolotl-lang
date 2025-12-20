@@ -1,0 +1,15 @@
+package app
+
+import java.util.List
+
+val s: String? = " x "
+val t = String.valueOf(s?.length())
+
+fn main() {
+    List.of(1) |> forEach { println(s?.trim()) }
+    val r = attempt String.valueOf(s?.length()) else "err"
+    println(r)
+    println((s?.trim()))
+    println(s?.trim()!!)
+    println(t)
+}

@@ -153,7 +153,9 @@ final class Messages {
             return "the lambda returns `" + axlType(lambdaReturn.group(1)) + "`, but `" + axlType(lambdaReturn.group(2))
                     + "` is expected";
         }
-        if (message.contains("lambda body is not compatible with a void functional interface") && text.contains("Nulls.map(")) {
+        boolean voidResult = message.contains("lambda body is not compatible with a void functional interface")
+                || message.contains("void cannot be converted to") || message.contains("lower bounds: void");
+        if (voidResult && text.contains("Nulls.map(")) {
             return "a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; "
                     + "write it with a null check: `{ -> if (x != null) { x.m() } }`";
         }
