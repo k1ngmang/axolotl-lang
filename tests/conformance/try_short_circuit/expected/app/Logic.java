@@ -39,7 +39,7 @@ import org.jspecify.annotations.*;
     }
     public static Result<Integer, String> fallback(@Nullable Integer value, boolean ok) {
         var $t1 = value;
-        if ($t1 == null) {
+        if (java.util.Objects.isNull($t1)) {
             final var $t2 = number("elvis", ok);
             if ($t2.isErr()) return Result.propagate($t2);
             $t1 = Result.unwrap($t2);

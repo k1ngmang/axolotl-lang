@@ -1,0 +1,20 @@
+package app
+
+fn sb() -> Result<StringBuilder, String> = Ok(StringBuilder("sb"))
+fn none() -> Result<Int, String> = Ok(-1)
+
+fn run(s: String?) -> Result<String, String> {
+    val cs: CharSequence = s ?: try sb()
+    return Ok(cs.toString())
+}
+
+fn length(s: String?) -> Result<Int, String> {
+    val n: Int = s?.length() ?: try none()
+    return Ok(n)
+}
+
+fn main() {
+    println(run(null))
+    println(run("x"))
+    println(length(null))
+}

@@ -49,6 +49,8 @@ public final class Generator {
     private int copyCount;
     private int listCount;
     private Map<String, String> copies = Map.of();
+    // The Java result type of the function whose body is being emitted; null inside a lambda.
+    private String returnType;
 
     private Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
         this.file = file;
@@ -152,6 +154,7 @@ public final class Generator {
                 : fn.params().stream().map(p -> type(p.type()) + " " + p.name()).collect(Collectors.joining(", "));
         String returnType = fn.returnType() == null ? "void" : type(fn.returnType());
         em.line(fn.pos().line(), visibility(fn) + " static " + returnType + " " + fn.name() + "(" + params + ") {");
+        this.returnType = fn.returnType() == null ? null : nullableType(fn.returnType());
         em.indent();
         if (fn.exprBody() != null) {
             int line = fn.exprBody().pos().line();
@@ -182,7 +185,8 @@ public final class Generator {
                 int line = local.pos().line();
                 Expr init = local.init();
                 withCopies(line, init, () -> {
-                    String value = init instanceof Expr.Try t ? unwrapTry(line, t) : value(line, init);
+                    String value = init instanceof Expr.Try t ? unwrapTry(line, t)
+                            : value(line, init, local.type() == null ? null : nullableType(local.type()));
                     String modifiers = local.mutable() ? "" : "final ";
                     String type = local.type() == null ? "var" : type(local.type());
                     em.line(line, modifiers + type + " " + local.name() + " = " + value + ";");
@@ -209,7 +213,7 @@ public final class Generator {
                     em.line(ret.pos().line(), "return;");
                 } else {
                     withCopies(ret.pos().line(), ret.value(), () ->
-                            em.line(ret.pos().line(), "return " + value(ret.pos().line(), ret.value()) + ";"));
+                            em.line(ret.pos().line(), "return " + value(ret.pos().line(), ret.value(), returnType) + ";"));
                 }
             }
             case Stmt.If ifStmt -> {
@@ -328,8 +332,20 @@ public final class Generator {
         return -1;
     }
 
-    /** The value of a statement; with inlineElvis a root `?:` becomes a temporary and a conditional. */
     private String value(int line, Expr expr) {
+        return value(line, expr, null);
+    }
+
+    /**
+     * The value of a statement; with inlineElvis a root `?:` becomes a temporary and a conditional.
+     *
+     * @param javaType the type the value is stored as, if the code says; a root `?:` whose right side
+     *                 needs statements gets its temporary declared with it
+     */
+    private String value(int line, Expr expr, String javaType) {
+        if (expr instanceof Expr.Elvis elvis && Lifts.needed(elvis.right())) {
+            return elvisChain(line, elvis, javaType).code();
+        }
         if (Lifts.needed(expr)) {
             return lifted(line, expr).code();
         }
@@ -562,6 +578,8 @@ public final class Generator {
         Emitter outer = em;
         Map<String, String> outerCopies = copies;
         boolean outerCopying = inCopyingLambda;
+        String outerReturnType = returnType;
+        returnType = null;
         inCopyingLambda = inLambda || inCopyingLambda;
         em = new Emitter();
         em.indent();
@@ -570,6 +588,7 @@ public final class Generator {
         em = outer;
         copies = outerCopies;
         inCopyingLambda = outerCopying;
+        returnType = outerReturnType;
         return params + " -> {" + block + Emitter.continuation(lambda.end().line(), "}");
     }
 
@@ -594,7 +613,7 @@ public final class Generator {
                 yield new Lifted(joined(ops.get(0).code(), " " + b.op() + " ", ops.get(1).code(),
                         startLine(b.left()), startLine(b.right())), false);
             }
-            case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el);
+            case Expr.Elvis el when Lifts.needed(el.right()) -> elvisChain(line, el, null);
             case Expr.Elvis el when Lifts.numberAfterSafeCall(el) && !Lifts.needed(el.left()) -> {
                 String temp = "$t" + ++tempCount;
                 em.line(line, "final var " + temp + " = " + expr(el.left()) + ";");
@@ -691,11 +710,12 @@ public final class Generator {
     }
 
     /** `a ?: try b` evaluates `b` and its `try` only when `a` is null. */
-    private Lifted elvisChain(int line, Expr.Elvis elvis) {
+    private Lifted elvisChain(int line, Expr.Elvis elvis, String javaType) {
         String left = lifted(line, elvis.left()).code();
         String temp = "$t" + ++tempCount;
-        em.line(line, "var " + temp + " = " + left + ";");
-        em.line(line, "if (" + temp + " == null) {");
+        em.line(line, (javaType == null ? "var" : javaType) + " " + temp + " = " + left + ";");
+        // Objects.isNull also compiles when the left side is a primitive.
+        em.line(line, "if (java.util.Objects.isNull(" + temp + ")) {");
         em.indent();
         em.line(line, temp + " = " + lifted(line, elvis.right()).code() + ";");
         em.dedent();
@@ -880,6 +900,11 @@ public final class Generator {
     private static String unary(String op, String operand) {
         boolean merges = !operand.isEmpty() && "+-".indexOf(operand.charAt(0)) >= 0 && !op.equals("!");
         return merges ? op + " " + operand : op + operand;
+    }
+
+    /** The type as a temporary that may hold null before it gets its value. */
+    private static String nullableType(TypeRef type) {
+        return type(new TypeRef(type.pos(), type.name(), type.args(), true), true);
     }
 
     private static String type(TypeRef type) {
