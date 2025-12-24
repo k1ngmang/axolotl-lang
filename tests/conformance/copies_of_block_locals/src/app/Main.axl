@@ -1,0 +1,22 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val s: String? = null
+    List.of(1, 2) |> forEach {
+        var n = it
+        n += 10
+        println(s ?: "n=" + n)
+    }
+    println(lengths())
+}
+
+fn lengths() -> java.util.List<Int> {
+    val s: String? = null
+    return List.of(1, 2) |> map { x ->
+        var n = x
+        n += 10
+        return s?.length() ?: n
+    }
+}
