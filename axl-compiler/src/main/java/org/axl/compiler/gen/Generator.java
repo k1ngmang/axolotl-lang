@@ -260,6 +260,17 @@ public final class Generator {
             em.dedent();
             return;
         }
+        if (prefix.isEmpty() && captured.isEmpty() && ifStmt.elseBranch() == null
+                && ifStmt.condition() instanceof Expr.Binary b && b.op().equals("&&") && Lifts.needed(b.right())) {
+            // Nested ifs keep what the left side checks, such as `s != null`, known in the right side and the body.
+            em.line(line, "if (" + lifted(line, b.left()).code() + ") {");
+            em.indent();
+            Stmt.If inner = new Stmt.If(ifStmt.pos(), b.right(), ifStmt.then(), null);
+            emitIf(inner, "");
+            em.line(blockEnd(inner), "}");
+            em.dedent();
+            return;
+        }
         withCopies(line, ifStmt.condition(), () ->
                 em.line(line, prefix + "if (" + lifted(line, ifStmt.condition()).code() + ") {"));
         block(ifStmt.then());
@@ -709,8 +720,10 @@ public final class Generator {
     private Lifted shortCircuit(int line, Expr.Binary b) {
         String left = lifted(line, b.left()).code();
         String temp = "$t" + ++tempCount;
-        em.line(line, "boolean " + temp + " = " + left + ";");
-        em.line(line, "if (" + (b.op().equals("&&") ? temp : "!" + temp) + ") {");
+        boolean and = b.op().equals("&&");
+        // The left side stays in the condition, so that a null check in it covers the right side.
+        em.line(line, "boolean " + temp + " = " + !and + ";");
+        em.line(line, "if (" + (and ? left : negated(left)) + ") {");
         em.indent();
         em.line(line, temp + " = " + lifted(line, b.right()).code() + ";");
         em.dedent();

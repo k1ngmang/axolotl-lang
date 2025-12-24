@@ -20,8 +20,8 @@ import java.util.List;
             if ($t1.isErr()) return Result.propagate($t1);
             $p1.add(Result.<String>unwrap($t1));
         }
-        boolean $t2 = go;
-        if ($t2) {
+        boolean $t2 = false;
+        if (go) {
             final var $t3 = act();
             if ($t3.isErr()) return Result.propagate($t3);
             $t2 = Result.unwrap($t3);

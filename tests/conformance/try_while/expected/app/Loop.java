@@ -23,14 +23,12 @@ import org.jspecify.annotations.*;
         if (Result.unwrap($t2)) {
             return new Err<>("unreachable");
         } else {
-            boolean $t3 = i > 2;
-            if ($t3) {
-                final var $t4 = below(i, 9);
-                if ($t4.isErr()) return Result.propagate($t4);
-                $t3 = Result.unwrap($t4);
-            }
-            if ($t3) {
-                return new Ok<>(i * 10);
+            if (i > 2) {
+                final var $t3 = below(i, 9);
+                if ($t3.isErr()) return Result.propagate($t3);
+                if (Result.unwrap($t3)) {
+                    return new Ok<>(i * 10);
+                }
             }
         }
         return new Ok<>(i);

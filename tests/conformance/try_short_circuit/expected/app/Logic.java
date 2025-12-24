@@ -19,8 +19,8 @@ import org.jspecify.annotations.*;
         return new Err<>("failed " + label);
     }
     public static Result<Boolean, String> both(boolean first, boolean ok) {
-        boolean $t1 = first;
-        if ($t1) {
+        boolean $t1 = false;
+        if (first) {
             final var $t2 = flag("and", ok);
             if ($t2.isErr()) return Result.propagate($t2);
             $t1 = Result.unwrap($t2);
@@ -29,8 +29,8 @@ import org.jspecify.annotations.*;
         return new Ok<>(result);
     }
     public static Result<Boolean, String> either(boolean first, boolean ok) {
-        boolean $t1 = first;
-        if (!$t1) {
+        boolean $t1 = true;
+        if (!first) {
             final var $t2 = flag("or", ok);
             if ($t2.isErr()) return Result.propagate($t2);
             $t1 = Result.unwrap($t2);

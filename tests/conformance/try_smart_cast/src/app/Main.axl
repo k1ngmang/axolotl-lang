@@ -1,0 +1,17 @@
+package app
+
+fn ok(v: Int) -> Result<Int, String> = Ok(v)
+
+fn run(s: String?) -> Result<Boolean, String> {
+    if (s != null && s.length() > try ok(1)) {
+        println("long " + s.length())
+    }
+    val t: String? = s
+    val shortish = t == null || t.length() < try ok(5)
+    return Ok(shortish)
+}
+
+fn main() {
+    println(run("abc"))
+    println(run(null))
+}
