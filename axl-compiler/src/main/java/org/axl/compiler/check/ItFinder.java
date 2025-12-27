@@ -3,7 +3,10 @@ package org.axl.compiler.check;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Stmt;
 
-/** Looks for a reference to `it` that is not bound by a nested lambda parameter. */
+/**
+ * Looks for a reference to `it` that is not bound by a nested lambda. A nested lambda without `->`
+ * that uses `it` has an `it` of its own.
+ */
 final class ItFinder {
 
     boolean in(Stmt stmt) {
@@ -33,7 +36,7 @@ final class ItFinder {
             case Expr.Paren p -> in(p.inner());
             case Expr.Try t -> in(t.inner());
             case Expr.Attempt a -> in(a.body()) || !"it".equals(a.errorName()) && in(a.handler());
-            case Expr.Lambda l -> l.params().stream().noneMatch(p -> p.name().equals("it"))
+            case Expr.Lambda l -> l.arrow() && l.params().stream().noneMatch(p -> p.name().equals("it"))
                     && l.body().stream().anyMatch(this::in);
             case Expr.Pipe p -> in(p.source()) || p.stages().stream().anyMatch(s -> s.args().stream().anyMatch(this::in)
                     || s.lambda() != null && in(s.lambda()));

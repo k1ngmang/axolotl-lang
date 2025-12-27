@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val t: Runnable = { List.of(1, 2) |> forEach { println(it) } }
+    t.run()
+    val u: Runnable = { List.of(3, 4).forEach({ println(it) }) }
+    u.run()
+}
