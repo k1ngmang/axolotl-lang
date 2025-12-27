@@ -1,0 +1,10 @@
+package app
+
+val LOW = 1
+
+fn both(a: Boolean, b: Boolean) -> Boolean = a && b
+
+fn main() {
+    val v = 5
+    println(both(LOW < v, v > (2 - 1)))
+}

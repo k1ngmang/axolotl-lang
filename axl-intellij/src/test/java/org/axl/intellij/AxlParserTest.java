@@ -49,6 +49,13 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(1, calls("fn main() {\n    val a = f /* one line */ (1)\n}\n"));
     }
 
+    public void testReadsComparisonsWithNamesThatAreNotTypesAsComparisons() {
+        PsiFile file = myFixture.configureByText("Cmp.axl", "package app\n\nfn f(v: Int) = g(LOW < v, v > (1))\n");
+        assertEquals(0, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
+        file = myFixture.configureByText("New.axl", "package app\n\nfn f() = Box<java.util.List<String>>(1)\n");
+        assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
+    }
+
     private int calls(String body) {
         PsiFile file = myFixture.configureByText("Calls.axl", "package app\n\nfn f(x: Int) -> Int = x\n\n" + body);
         return PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.CALL).length;

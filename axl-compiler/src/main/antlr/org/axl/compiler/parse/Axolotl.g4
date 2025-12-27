@@ -9,9 +9,39 @@ grammar Axolotl;
         return prev == null || prev.getLine() == next.getLine();
     }
 
-    private boolean upperCase() {
-        String text = _input.LT(1).getText();
-        return !text.isEmpty() && Character.isUpperCase(text.charAt(0));
+    /**
+     * `Box<String>(x)` builds an object; `LOW < v, v > (1)` compares. Type names start with an upper
+     * case letter, so the arguments between `<` and `>` must look like types.
+     */
+    private boolean genericConstructor() {
+        if (!startsUpper(_input.LT(1)) || _input.LT(2).getType() != LT) {
+            return false;
+        }
+        int depth = 0;
+        for (int i = 2; ; i++) {
+            Token t = _input.LT(i);
+            switch (t.getType()) {
+                case LT -> depth++;
+                case GT -> {
+                    if (--depth == 0) {
+                        return _input.LT(i + 1).getType() == LPAREN;
+                    }
+                }
+                case IDENTIFIER -> {
+                    if (_input.LT(i + 1).getType() != DOT && !startsUpper(t)) {
+                        return false;
+                    }
+                }
+                case DOT, COMMA, QUESTION -> { }
+                default -> {
+                    return false;
+                }
+            }
+        }
+    }
+
+    private static boolean startsUpper(Token t) {
+        return t.getType() == IDENTIFIER && Character.isUpperCase(t.getText().charAt(0));
     }
 }
 
@@ -137,7 +167,7 @@ arguments
     ;
 
 primary
-    : {upperCase()}? identifier typeArgs LPAREN arguments? RPAREN   # genericConstructor
+    : {genericConstructor()}? identifier typeArgs LPAREN arguments? RPAREN   # genericConstructor
     | literal                                                       # literalPrimary
     | identifier                                                    # namePrimary
     | LPAREN expression RPAREN                                      # parenPrimary

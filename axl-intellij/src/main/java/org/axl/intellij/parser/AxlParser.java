@@ -395,7 +395,8 @@ public final class AxlParser implements PsiParser {
             return m;
         }
         if (at(IDENTIFIER)) {
-            if (Character.isUpperCase(b.getTokenText().charAt(0)) && b.lookAhead(1) == AxlTokenTypes.of(LT)) {
+            if (Character.isUpperCase(b.getTokenText().charAt(0)) && b.lookAhead(1) == AxlTokenTypes.of(LT)
+                    && typeArgumentsAhead()) {
                 PsiBuilder.Marker generic = genericNew();
                 if (generic != null) {
                     return generic;
@@ -422,6 +423,39 @@ public final class AxlParser implements PsiParser {
     }
 
     /** `Name<T>(args)`; rolls back when the `<` turns out to be a comparison. */
+    /** As in the grammar: `LOW < v, v > (1)` compares, because `v` does not look like a type. */
+    private boolean typeArgumentsAhead() {
+        PsiBuilder.Marker probe = b.mark();
+        try {
+            b.advanceLexer();
+            b.advanceLexer();
+            int depth = 1;
+            while (!b.eof()) {
+                if (at(LT)) {
+                    depth++;
+                } else if (at(GT)) {
+                    if (--depth == 0) {
+                        b.advanceLexer();
+                        return at(LPAREN);
+                    }
+                } else if (at(IDENTIFIER)) {
+                    String name = b.getTokenText();
+                    b.advanceLexer();
+                    if (!at(DOT) && (name == null || !Character.isUpperCase(name.charAt(0)))) {
+                        return false;
+                    }
+                    continue;
+                } else if (!at(DOT) && !at(COMMA) && !at(QUESTION)) {
+                    return false;
+                }
+                b.advanceLexer();
+            }
+            return false;
+        } finally {
+            probe.rollbackTo();
+        }
+    }
+
     private PsiBuilder.Marker genericNew() {
         PsiBuilder.Marker m = b.mark();
         b.advanceLexer();
