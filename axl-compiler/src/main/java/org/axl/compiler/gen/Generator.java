@@ -230,7 +230,7 @@ public final class Generator {
                     Chains.Chain chain = Chains.flatten(e);
                     withCopies(line, Captures.inStatementChain(chain, analysis), () -> safeChainStatement(line, chain));
                 } else if (Lifts.needed(e)) {
-                    withCopies(line, e, () -> liftedStatement(line, lifted(line, e)));
+                    withCopies(line, e, () -> liftedStatement(line, e, lifted(line, e)));
                 } else {
                     withCopies(line, e, () -> em.line(line, expr(e) + ";"));
                 }
@@ -318,7 +318,7 @@ public final class Generator {
     }
 
     /** What is left of a lifted statement may not be a Java statement: `$p1`, `$t1 + 1`, `(f())`. */
-    private void liftedStatement(int line, Lifted rest) {
+    private void liftedStatement(int line, Expr statement, Lifted rest) {
         String code = rest.code();
         while (code.startsWith("(") && code.endsWith(")") && closingParen(code) == code.length() - 1) {
             code = code.substring(1, code.length() - 1);
@@ -326,7 +326,12 @@ public final class Generator {
         if (code.matches("[\\w$]+")) {
             return;
         }
-        boolean call = code.endsWith(")") && !code.startsWith("(");
+        Expr e = statement;
+        while (e instanceof Expr.Paren p) {
+            e = p.inner();
+        }
+        // A call stays a statement: it may return nothing, which a temporary cannot hold.
+        boolean call = (e instanceof Expr.Call || e instanceof Expr.GenericNew || e instanceof Expr.Try) && code.endsWith(")");
         em.line(line, call ? code + ";" : "final var $t" + ++tempCount + " = " + code + ";");
     }
 

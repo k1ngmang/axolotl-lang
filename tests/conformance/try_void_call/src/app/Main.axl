@@ -1,0 +1,12 @@
+package app
+
+fn sbRes() -> Result<StringBuilder, String> = Ok(StringBuilder("abc"))
+
+fn run() -> Result<Int, String> {
+    (try sbRes()).setLength(1)
+    return Ok(0)
+}
+
+fn main() {
+    println(run())
+}
