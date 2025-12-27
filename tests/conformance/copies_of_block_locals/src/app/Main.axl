@@ -10,6 +10,7 @@ fn main() {
         println(s ?: "n=" + n)
     }
     println(lengths())
+    println(nested().get())
 }
 
 fn lengths() -> java.util.List<Int> {
@@ -18,5 +19,17 @@ fn lengths() -> java.util.List<Int> {
         var n = x
         n += 10
         return s?.length() ?: n
+    }
+}
+
+fn given() -> java.util.function.Supplier<String>? = null
+
+fn nested() -> java.util.function.Supplier<String> {
+    var n = 1
+    n += 1
+    val s: String? = null
+    return given() ?: { ->
+        val k = s ?: "v" + n
+        return k
     }
 }

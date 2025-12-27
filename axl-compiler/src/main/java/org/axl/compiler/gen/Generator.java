@@ -404,6 +404,10 @@ public final class Generator {
         Map<String, String> saved = copies;
         copies = new HashMap<>(saved);
         for (String name : captured) {
+            if (saved.containsKey(name)) {
+                // Already a copy made around an enclosing lambda.
+                continue;
+            }
             String copy = "$c" + ++copyCount;
             em.line(line, "final var " + copy + " = " + name + ";");
             copies.put(name, copy);
