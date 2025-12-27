@@ -1,0 +1,9 @@
+AXL001 app/Main.axl:4:13: error: a character literal holds one character; write text in double quotes
+AXL001 app/Main.axl:5:13: error: unknown escape `\q`; write `\\` for a backslash
+AXL001 app/Main.axl:6:13: error: `0x` is not a valid number
+AXL001 app/Main.axl:7:13: error: `1_000_`: an underscore in a number must stand between two digits
+AXL001 app/Main.axl:8:13: error: `99999999999` is too large for an `Int`; add `L` for a `Long`
+AXL001 app/Main.axl:9:13: error: Axolotl has no `Float` type; write `1.5` for a `Double`
+AXL001 app/Main.axl:10:13: error: unknown escape `\u12G4`; write `\\` for a backslash
+AXL001 app/Main.axl:11:13: error: a character literal holds one character; write text in double quotes
+AXL001 app/Main.axl:12:13: error: `9223372036854775808L` is too large for a `Long`

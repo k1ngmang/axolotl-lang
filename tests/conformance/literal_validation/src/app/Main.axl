@@ -1,0 +1,13 @@
+package app
+
+fn main() {
+    val a = 'ab'
+    val b = "\q"
+    val c = 0x
+    val d = 1_000_
+    val e = 99999999999
+    val f = 1.5f
+    val g = "a\u12G4b"
+    val h = '\u005c\u005c'
+    val i = 9223372036854775808L
+}

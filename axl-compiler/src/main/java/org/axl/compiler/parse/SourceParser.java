@@ -1,7 +1,10 @@
 package org.axl.compiler.parse;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.antlr.v4.runtime.BailErrorStrategy;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
@@ -16,6 +19,10 @@ import org.axl.compiler.ErrorCode;
 import org.axl.compiler.ast.SourceFile;
 
 public final class SourceParser {
+
+    // The escapes Java knows in strings and characters.
+    private static final Pattern ESCAPE = Pattern.compile(
+            "\\\\(?:[btnfrs\"'\\\\]|[0-3]?[0-7]{1,2}|u+[0-9a-fA-F]{4})");
 
     /** file is null when the source has syntax errors. */
     public record Result(SourceFile file, List<AxlDiagnostic> diagnostics) {}
@@ -64,6 +71,10 @@ public final class SourceParser {
                 message = "unclosed comment: add `*/`";
             } else if (t.getType() == AxolotlLexer.INT_LITERAL && t.getText().matches("0[0-9_]+[lL]?")) {
                 message = "a number cannot start with 0: Java would read `" + t.getText() + "` as octal";
+            } else if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
+                message = numberProblem(t, i > 0 ? all.get(i - 1) : null, i + 1 < all.size() ? all.get(i + 1) : null);
+            } else if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
+                message = textProblem(t);
             } else if (t.getType() == AxolotlLexer.IDENTIFIER && !isJavaName(t.getText())) {
                 message = "`" + t.getText() + "` is not a valid name: use letters, digits and `_`";
             }
@@ -73,6 +84,60 @@ public final class SourceParser {
             }
         }
         return errors;
+    }
+
+    private static String numberProblem(Token t, Token previous, Token next) {
+        String text = t.getText();
+        if (next != null && next.getStartIndex() == t.getStopIndex() + 1
+                && (next.getType() == AxolotlLexer.IDENTIFIER || next.getType() == AxolotlLexer.INT_LITERAL)) {
+            return "`" + text + next.getText() + "` is not a valid number";
+        }
+        boolean hex = text.startsWith("0x") || text.startsWith("0X");
+        boolean misplacedUnderscore = hex ? text.matches("0[xX]_.*|.*_[lL]?")
+                : text.matches(".*_([lLfFdD.eE]|$).*") || text.matches(".*[.eE+-]_.*");
+        if (misplacedUnderscore) {
+            return "`" + text + "`: an underscore in a number must stand between two digits";
+        }
+        if (!hex && text.matches(".*[0-9][fF]")) {
+            return "Axolotl has no `Float` type; write `" + text.substring(0, text.length() - 1) + "` for a `Double`";
+        }
+        if (t.getType() != AxolotlLexer.INT_LITERAL) {
+            return null;
+        }
+        boolean isLong = text.endsWith("l") || text.endsWith("L");
+        String digits = text.replace("_", "").replaceAll("[lL]$", "");
+        BigInteger value = new BigInteger(hex ? digits.substring(2) : digits, hex ? 16 : 10);
+        BigInteger max = BigInteger.valueOf(isLong ? Long.MAX_VALUE : Integer.MAX_VALUE);
+        // Hexadecimal numbers may use the sign bit; a decimal one may be the magnitude of the minimum after `-`.
+        BigInteger limit = hex ? max.shiftLeft(1).add(BigInteger.ONE)
+                : previous != null && previous.getText().equals("-") ? max.add(BigInteger.ONE) : max;
+        if (value.compareTo(limit) > 0) {
+            return "`" + text + "` is too large for " + (isLong ? "a `Long`" : "an `Int`; add `L` for a `Long`");
+        }
+        return null;
+    }
+
+    /** Escapes Java knows, and one character in a character literal. */
+    private static String textProblem(Token t) {
+        String text = t.getText();
+        String inner = text.substring(1, text.length() - 1);
+        int count = 0;
+        for (int i = 0; i < inner.length(); count++) {
+            if (inner.charAt(i) != '\\') {
+                i += Character.charCount(inner.codePointAt(i));
+                continue;
+            }
+            Matcher escape = ESCAPE.matcher(inner).region(i, inner.length());
+            if (!escape.lookingAt()) {
+                String shown = inner.substring(i, Math.min(inner.length(), inner.charAt(i + 1) == 'u' ? i + 6 : i + 2));
+                return "unknown escape `" + shown + "`; write `\\\\` for a backslash";
+            }
+            i = escape.end();
+        }
+        if (text.startsWith("'") && count != 1) {
+            return "a character literal holds one character; write text in double quotes";
+        }
+        return null;
     }
 
     private static boolean isJavaName(String name) {

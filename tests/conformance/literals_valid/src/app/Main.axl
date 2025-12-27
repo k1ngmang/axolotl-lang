@@ -1,0 +1,10 @@
+package app
+
+fn main() {
+    println(-2147483648)
+    println(0xFFFFFFFF)
+    println(-9223372036854775808L)
+    println('\u0041')
+    println("\\ \t \101 \u005c".length())
+    println(1_000_000 + 0x7f_ff)
+}
