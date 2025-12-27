@@ -1,0 +1,21 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn ok(v: Int) -> Result<Int, String> = Ok(v)
+fn two() -> Int = 2
+fn take(r: Result<Int, String>, n: Int) -> String = r.toString() + n
+fn size(xs: List<String>, n: Int) -> Int = xs.size() + n
+
+fn run() -> Result<String, String> {
+    val x = take(Ok(two()), try ok(3))
+    val y = take(Err("e" + two()), try ok(4))
+    val a = size(List.of(), try ok(1))
+    val b = size(ArrayList<>(), try ok(2))
+    return Ok(x + y + a + b)
+}
+
+fn main() {
+    println(run())
+}

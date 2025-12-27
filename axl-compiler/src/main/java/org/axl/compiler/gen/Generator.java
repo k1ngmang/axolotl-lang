@@ -690,8 +690,9 @@ public final class Generator {
         }
         List<Lifted> result = new ArrayList<>();
         for (int i = 0; i < exprs.size(); i++) {
-            Lifted operand = lifted(line, exprs.get(i));
-            if (i < last && !operand.pure() || Chains.hasSafeStep(exprs.get(i))) {
+            Expr e = exprs.get(i);
+            Lifted operand = i < last && takesTypeFromTarget(e) ? withArgumentsFirst(line, e) : lifted(line, e);
+            if (i < last && !operand.pure() || Chains.hasSafeStep(e)) {
                 String temp = "$t" + ++tempCount;
                 em.line(line, "final var " + temp + " = " + operand.code() + ";");
                 operand = new Lifted(temp, true);
@@ -699,6 +700,46 @@ public final class Generator {
             result.add(operand);
         }
         return result;
+    }
+
+    /**
+     * `Ok(x)`, `ArrayList<>()` and `List.of(...)` get their type arguments from where they are passed;
+     * in a temporary they would get `Object`.
+     */
+    private boolean takesTypeFromTarget(Expr e) {
+        return switch (e) {
+            case Expr.Call c when c.target() == null -> c.name().equals("Ok") || c.name().equals("Err");
+            case Expr.Call c -> c.target() instanceof Expr.Name n && analysis.staticNames().contains(n)
+                    && List.of("of", "copyOf", "emptyList", "emptySet", "emptyMap").contains(c.name());
+            case Expr.GenericNew g -> g.typeArgs().isEmpty();
+            default -> false;
+        };
+    }
+
+    /** Evaluates the arguments into temporaries and keeps the call itself inline, where Java infers its type. */
+    private Lifted withArgumentsFirst(int line, Expr e) {
+        List<Expr> args = switch (e) {
+            case Expr.Call c -> c.args();
+            case Expr.GenericNew g -> g.args();
+            default -> throw new IllegalStateException();
+        };
+        List<String> codes = new ArrayList<>();
+        for (Expr arg : args) {
+            Lifted operand = lifted(line, arg);
+            if (!operand.pure()) {
+                String temp = "$t" + ++tempCount;
+                em.line(line, "final var " + temp + " = " + operand.code() + ";");
+                operand = new Lifted(temp, true);
+            }
+            codes.add(operand.code());
+        }
+        String joined = String.join(", ", codes);
+        return new Lifted(switch (e) {
+            case Expr.Call c when c.target() == null -> call(c, joined);
+            case Expr.Call c -> expr(c.target()) + "." + c.name() + "(" + joined + ")";
+            case Expr.GenericNew g -> genericNew(g, joined);
+            default -> throw new IllegalStateException();
+        }, true);
     }
 
     private static String codes(List<Lifted> lifted) {
