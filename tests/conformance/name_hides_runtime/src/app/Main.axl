@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val System = "shadow"
+    println(System)
+}

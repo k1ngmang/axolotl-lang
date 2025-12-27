@@ -49,7 +49,11 @@ public final class Checker {
             "package", "import", "if", "else", "while", "return", "try");
 
     // Classes the generated code names: a file of the same name would hide them.
-    private static final Set<String> GENERATED_CODE_CLASSES = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable", "NullMarked");
+    private static final Set<String> GENERATED_CODE_CLASSES = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable",
+            "NullMarked", "String", "Integer", "Long", "Double", "Boolean", "Object", "Exception");
+
+    // Classes the generated code names in expressions, where a value of the same name would take their place.
+    private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
 
     // Names that would hide the `java` and `axl` packages the generated code qualifies names with.
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
@@ -118,6 +122,9 @@ public final class Checker {
         if (!isJavaIdentifier(file.className()) || RESERVED.contains(file.className())) {
             error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME,
                     "file name `" + file.className() + "` is not a valid class name");
+        } else if (PACKAGE_ROOTS.contains(file.className())) {
+            error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + file.className() + "` would hide the `"
+                    + file.className() + "` package that the generated code uses; rename the file");
         } else if (GENERATED_CODE_CLASSES.contains(file.className())) {
             error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + file.className()
                     + "` would hide the class `" + file.className() + "` that the generated code uses; rename the file");
@@ -507,6 +514,9 @@ public final class Checker {
         } else if (PACKAGE_ROOTS.contains(name)) {
             error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the `" + name
                     + "` package that the generated code uses; choose another name");
+        } else if (GENERATED_CODE_RECEIVERS.contains(name)) {
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the class `" + name
+                    + "` that the generated code uses; choose another name");
         } else if (name.equals("args") && function != null && isMain(function)) {
             error(pos, ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` method; choose another name");
         }

@@ -1,1 +1,4 @@
+AXL012 app/Integer.axl:1:1: error: file name `Integer` would hide the class `Integer` that the generated code uses; rename the file
+AXL011 app/Main.axl:4:9: error: `System` would hide the class `System` that the generated code uses; choose another name
 AXL012 app/Nulls.axl:1:1: error: file name `Nulls` would hide the class `Nulls` that the generated code uses; rename the file
+AXL012 app/java.axl:1:1: error: file name `java` would hide the `java` package that the generated code uses; rename the file
