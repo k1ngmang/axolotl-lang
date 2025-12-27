@@ -16,6 +16,7 @@ import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
+import org.axl.compiler.LargeStack;
 import org.axl.compiler.ast.SourceFile;
 
 public final class SourceParser {
@@ -209,6 +210,12 @@ public final class SourceParser {
     }
 
     public static Result parse(String path, String className, String source) {
+        return LargeStack.call(() -> parseHere(path, className, source), () -> new Result(null, List.of(
+                AxlDiagnostic.error(path, 1, 1, ErrorCode.SYNTAX, "the code is nested too deeply to translate; "
+                        + "split it into smaller expressions"))));
+    }
+
+    private static Result parseHere(String path, String className, String source) {
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         // A byte order mark is not code, and a lone \r ends a line in every editor.
         String text = source.replaceFirst("^\uFEFF", "").replace("\r\n", "\n").replace('\r', '\n');

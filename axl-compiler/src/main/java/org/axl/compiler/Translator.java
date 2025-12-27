@@ -46,6 +46,12 @@ public final class Translator {
     }
 
     public static Result translate(String sourcePath, String displayPath, String text, Options options) {
+        return LargeStack.call(() -> translateHere(sourcePath, displayPath, text, options),
+                () -> new Result(null, List.of(AxlDiagnostic.error(displayPath, 1, 1, ErrorCode.SYNTAX,
+                        "the code is nested too deeply to translate; split it into smaller expressions"))));
+    }
+
+    private static Result translateHere(String sourcePath, String displayPath, String text, Options options) {
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         SourceParser.Result parsed = SourceParser.parse(displayPath, className(sourcePath), text);
         diagnostics.addAll(parsed.diagnostics());

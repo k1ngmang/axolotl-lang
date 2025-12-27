@@ -15,6 +15,7 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 import com.sun.source.util.JavacTask;
 import java.util.stream.Stream;
+import org.axl.compiler.LargeStack;
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
@@ -81,7 +82,8 @@ public final class JavaCompilation {
             options.addAll(extraOptions);
             var units = files.getJavaFileObjectsFromPaths(sources);
             JavacTask task = (JavacTask) compiler.getTask(null, files, collector, options, null, units);
-            boolean success = task.call();
+            // javac recurses once per nesting level too.
+            boolean success = LargeStack.call(task::call, () -> false);
             return new Outcome(success, collector.getDiagnostics());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
