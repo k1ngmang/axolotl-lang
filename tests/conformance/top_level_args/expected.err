@@ -1,0 +1,1 @@
+AXL011 app/Main.axl:3:5: error: `args` is the parameter of the generated `main` method, which would read it instead of this value; choose another name

@@ -1,0 +1,11 @@
+package app
+
+val args = "configured"
+
+fn show(s: String) {
+    println(s)
+}
+
+fn main() {
+    show(args)
+}

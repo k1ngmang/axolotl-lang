@@ -153,6 +153,11 @@ public final class Checker {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos()));
             }
             checkReserved(decl.namePos(), decl.name());
+            if (decl instanceof Decl.Value value && value.name().equals("args")
+                    && file.decls().stream().anyMatch(d -> d instanceof Decl.Function fn && isMain(fn))) {
+                error(value.namePos(), ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` "
+                        + "method, which would read it instead of this value; choose another name");
+            }
         }
         for (Decl decl : file.decls()) {
             switch (decl) {
