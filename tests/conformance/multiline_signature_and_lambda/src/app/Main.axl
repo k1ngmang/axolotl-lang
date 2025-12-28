@@ -1,0 +1,22 @@
+package app
+
+import java.util.List
+
+fn parse(s: String) -> Result<Int, String> = Ok(1)
+
+fn f(
+    a: Int,
+    b: Intt
+) -> Int = a
+
+fn e(xs: List<String>) {
+    xs.forEach({ s ->
+        println(s.foo())
+    })
+}
+
+fn g(s: String) -> Result<Int, String> {
+    val n = 1 +
+        try parse(s.bar())
+    return Ok(n)
+}

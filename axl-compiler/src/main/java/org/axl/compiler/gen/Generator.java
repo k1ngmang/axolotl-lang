@@ -150,8 +150,7 @@ public final class Generator {
     }
 
     private void emitFunction(Decl.Function fn) {
-        String params = isMain(fn) ? "String[] args"
-                : fn.params().stream().map(p -> type(p.type()) + " " + p.name()).collect(Collectors.joining(", "));
+        String params = isMain(fn) ? "String[] args" : parameters(fn);
         String returnType = fn.returnType() == null ? "void" : type(fn.returnType());
         em.line(fn.pos().line(), visibility(fn) + " static " + returnType + " " + fn.name() + "(" + params + ") {");
         this.returnType = fn.returnType() == null ? null : nullableType(fn.returnType());
@@ -169,6 +168,23 @@ public final class Generator {
             em.dedent();
             em.line(fn.body().end().line(), "}");
         }
+    }
+
+    /** A parameter on a line of its own keeps that line, so that errors in its type are found there. */
+    private static String parameters(Decl.Function fn) {
+        StringBuilder sb = new StringBuilder();
+        int previous = fn.pos().line();
+        for (int i = 0; i < fn.params().size(); i++) {
+            Expr.Param p = fn.params().get(i);
+            String code = type(p.type()) + " " + p.name();
+            if (p.pos().line() > previous) {
+                sb.append(i > 0 ? "," : "").append(Emitter.continued(p.pos().line(), code));
+                previous = p.pos().line();
+            } else {
+                sb.append(i > 0 ? ", " : "").append(code);
+            }
+        }
+        return sb.toString();
     }
 
     private static boolean isMain(Decl.Function fn) {
@@ -422,7 +438,9 @@ public final class Generator {
     }
 
     /** Emits the check and early return of `try` and returns the expression that unwraps the value. */
-    private String unwrapTry(int line, Expr.Try t) {
+    private String unwrapTry(int statementLine, Expr.Try t) {
+        // A `try` on a continuation line runs, and fails, on that line.
+        int line = Math.max(statementLine, t.pos().line());
         String inner = lifted(line, t.inner()).code();
         String temp = "$t" + ++tempCount;
         em.line(line, "final var " + temp + " = " + inner + ";");
@@ -602,7 +620,10 @@ public final class Generator {
         }
         List<Stmt> body = lambda.body();
         if (body.size() == 1 && body.getFirst() instanceof Stmt.ExprStmt single) {
-            return params + " -> " + expr(single.expr(), inLambda);
+            int bodyLine = startLine(single.expr());
+            // A body on its own line keeps that line, for errors, stack traces and breakpoints.
+            return bodyLine > lambda.pos().line() ? params + " ->" + Emitter.continued(bodyLine, expr(single.expr(), inLambda))
+                    : params + " -> " + expr(single.expr(), inLambda);
         }
         Emitter outer = em;
         Map<String, String> outerCopies = copies;
@@ -696,10 +717,11 @@ public final class Generator {
         List<Lifted> result = new ArrayList<>();
         for (int i = 0; i < exprs.size(); i++) {
             Expr e = exprs.get(i);
-            Lifted operand = i < last && takesTypeFromTarget(e) ? withArgumentsFirst(line, e) : lifted(line, e);
+            int at = Math.max(line, startLine(e));
+            Lifted operand = i < last && takesTypeFromTarget(e) ? withArgumentsFirst(at, e) : lifted(at, e);
             if (i < last && !operand.pure() || Chains.hasSafeStep(e)) {
                 String temp = "$t" + ++tempCount;
-                em.line(line, "final var " + temp + " = " + operand.code() + ";");
+                em.line(at, "final var " + temp + " = " + operand.code() + ";");
                 operand = new Lifted(temp, true);
             }
             result.add(operand);
