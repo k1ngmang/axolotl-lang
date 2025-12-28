@@ -130,6 +130,10 @@ public final class Translator {
             return withImports(probed, file);
         }
         String type = withImports(probed.substring(JavaTypes.NULLABLE.length()), file);
+        if (type.endsWith("[]")) {
+            // On an array the annotation goes before its brackets: `@Nullable String[]` is an array of nullable strings.
+            return type.substring(0, type.length() - 2) + " " + JavaTypes.NULLABLE + "[]";
+        }
         // A type-use annotation on a qualified name goes before the simple name: java.util.@Nullable List.
         int rawEnd = type.indexOf('<') < 0 ? type.length() : type.indexOf('<');
         int dot = type.lastIndexOf('.', rawEnd);

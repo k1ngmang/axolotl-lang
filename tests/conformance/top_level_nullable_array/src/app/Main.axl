@@ -1,0 +1,9 @@
+package app
+
+val s: String? = System.getProperty("no.such.property")
+val parts = s?.split(",")
+
+fn main() {
+    println(parts?.length)
+    println(parts.length)
+}
