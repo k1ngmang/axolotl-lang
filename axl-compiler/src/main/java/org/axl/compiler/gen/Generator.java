@@ -717,12 +717,23 @@ public final class Generator {
             case Expr.Call c -> c.target() instanceof Expr.Name n && analysis.staticNames().contains(n)
                     && List.of("of", "copyOf", "emptyList", "emptySet", "emptyMap").contains(c.name());
             case Expr.GenericNew g -> g.typeArgs().isEmpty();
+            case Expr.MethodRef r -> true;
             default -> false;
         };
     }
 
     /** Evaluates the arguments into temporaries and keeps the call itself inline, where Java infers its type. */
     private Lifted withArgumentsFirst(int line, Expr e) {
+        if (e instanceof Expr.MethodRef r) {
+            // `make()::run` calls make() where it stands; a type name such as `String::valueOf` evaluates nothing.
+            Lifted target = lifted(line, r.target());
+            if (target.pure() || isPath(r.target())) {
+                return new Lifted(target.code() + "::" + r.name(), true);
+            }
+            String temp = "$t" + ++tempCount;
+            em.line(line, "final var " + temp + " = " + target.code() + ";");
+            return new Lifted(temp + "::" + r.name(), true);
+        }
         List<Expr> args = switch (e) {
             case Expr.Call c -> c.args();
             case Expr.GenericNew g -> g.args();
@@ -757,11 +768,20 @@ public final class Generator {
             case Expr.Literal l -> true;
             case Expr.Name n -> analysis.stableNames().contains(n) || analysis.staticNames().contains(n);
             case Expr.Lambda l -> true;
-            case Expr.MethodRef r -> true;
+            case Expr.MethodRef r -> isPure(r.target()) || isPath(r.target());
             case Expr.Paren p -> isPure(p.inner());
             // Kept inline so that Java can still infer their type arguments from the target.
             case Expr.Call c when c.target() == null && (c.name().equals("Ok") || c.name().equals("Err")) ->
                     c.args().stream().allMatch(this::isPure);
+            default -> false;
+        };
+    }
+
+    /** A class, or a static field reached through classes and packages, such as `System.out`. */
+    private boolean isPath(Expr e) {
+        return switch (e) {
+            case Expr.Name n -> analysis.staticNames().contains(n);
+            case Expr.Member m -> !m.safe() && isPath(m.target());
             default -> false;
         };
     }

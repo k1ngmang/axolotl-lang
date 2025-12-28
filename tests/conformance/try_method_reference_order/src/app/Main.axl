@@ -1,0 +1,27 @@
+package app
+
+import java.util.function.Supplier
+
+fn ok(label: String) -> Result<Int, String> {
+    println("try " + label)
+    return Ok(1)
+}
+
+fn make() -> StringBuilder {
+    println("make")
+    return StringBuilder("sb")
+}
+
+fn use(f: Supplier<String>, n: Int) -> String = f.get() + n
+fn apply(f: java.util.function.Function<Object, String>, n: Int) -> String = f.apply(n)
+
+fn run() -> Result<String, String> {
+    val a = use(make()::toString, try ok("a"))
+    val b = apply(String::valueOf, try ok("b"))
+    val c = apply(java.util.Objects::toString, try ok("c"))
+    return Ok(a + b + c)
+}
+
+fn main() {
+    println(run())
+}
