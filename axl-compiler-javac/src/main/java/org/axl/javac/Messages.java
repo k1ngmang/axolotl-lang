@@ -98,6 +98,10 @@ final class Messages {
         Matcher dereference = DEREFERENCE.matcher(message);
         if (dereference.find()) {
             String value = dereference.group(1);
+            if (GENERATED.matcher(value).find() && text.contains(value + ".isErr()")) {
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "the `Result` given to `try` may be null; "
+                        + "check it for null first or give a default with `?:`");
+            }
             if (GENERATED.matcher(value).find()) {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "this value may be null: use `?.`, `?:` or a null check");
             }
