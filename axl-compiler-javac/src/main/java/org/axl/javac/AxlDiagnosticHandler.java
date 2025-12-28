@@ -49,7 +49,9 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
             for (int i = 0; i < line - 1 && i < lines.size(); i++) {
                 offset = text.indexOf('\n', offset) + 1;
             }
-            return offset + column - 1;
+            int lineEnd = text.indexOf('\n', offset) < 0 ? text.length() : text.indexOf('\n', offset);
+            // Columns count code points; an offset counts chars.
+            return text.offsetByCodePoints(offset, Math.min(column - 1, text.codePointCount(offset, lineEnd)));
         }
     }
 
@@ -116,9 +118,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         String message = DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT));
         String translated = Messages.translate(message, mapping.javaLines(), javaLine).message();
         AxlFile axl = mapping.axl();
-        String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
-        int column = Columns.find(javaText, diagnostic.getColumnNumber(), axlText);
+        int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, diagnostic.getColumnNumber(), axlText);
         return factory.create(type, new DiagnosticSource(axl, log),
                 new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager", translated);
     }

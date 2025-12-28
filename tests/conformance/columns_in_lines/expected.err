@@ -1,0 +1,9 @@
+AXL100 app/Main.axl:3:10: error: unknown type `Foo`; check the spelling or add an import
+AXL100 app/Main.axl:3:18: error: unknown type `Foo`; check the spelling or add an import
+AXL100 app/Main.axl:3:24: error: unknown type `Foo`; check the spelling or add an import
+AXL100 app/Main.axl:6:23: error: unknown name `q`; check the spelling or add an import
+AXL100 app/Main.axl:6:28: error: unknown name `q`; check the spelling or add an import
+AXL100 app/Main.axl:10:27: error: unknown name `zz`; check the spelling or add an import
+AXL100 app/Main.axl:10:41: error: unknown name `zz`; check the spelling or add an import
+AXL100 app/Main.axl:15:17: error: `foo` of type `String` has no method `bar()`
+AXL100 app/Main.axl:16:29: error: `e` of type `String` has no method `lenght()`

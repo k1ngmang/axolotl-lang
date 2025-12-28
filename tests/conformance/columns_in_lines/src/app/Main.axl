@@ -1,0 +1,17 @@
+package app
+
+fn b1(x: Foo) -> Foo = Foo()
+fn parse(s: String) -> Result<Int, String> = Ok(1)
+fn b2() -> Result<Int, String> {
+    val n = try parse(q) + q.length()
+    return Ok(n)
+}
+fn b4(s: String) -> Result<Int, String> {
+    while (try parse(s) > zz) { println(zz) }
+    return Ok(1)
+}
+fn main() {
+    val foo = "foo"
+    println(foo.bar() + "bar") // bar
+    val e = "😀😀"; println(e.lenght())
+}

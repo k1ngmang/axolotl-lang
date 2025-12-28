@@ -6,12 +6,12 @@ AXL105 app/Types.axl:21:5: error: `try` needs a `Result`, found `Int`
 AXL101 app/Types.axl:26:5: error: `try`: the error is `Map<String, Int>`, but the function returns errors of type `String`; convert it with `mapErr`
 AXL101 app/Types.axl:32:5: error: `try`: the error is `String`, but the function returns errors of type `Map<String, Int>`; convert it with `mapErr`
 AXL100 app/Types.axl:37:5: error: the lambda returns `Int`, but `Boolean` is expected
-AXL100 app/Types.axl:38:5: error: the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`
+AXL100 app/Types.axl:38:21: error: the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`
 AXL100 app/Types.axl:42:15: error: `Int` is a primitive value and has no members
 AXL100 app/Types.axl:43:5: error: `<` cannot be applied to `String` and `Int`
 AXL100 app/Types.axl:44:9: error: `v` cannot hold the result of a function that returns nothing
-AXL100 app/Types.axl:45:5: error: this function returns nothing, so its result cannot be used as a value
-AXL100 app/Types.axl:48:49: error: type mismatch: expected `String`, found `Int`
+AXL100 app/Types.axl:45:13: error: this function returns nothing, so its result cannot be used as a value
+AXL100 app/Types.axl:48:41: error: type mismatch: expected `String`, found `Int`
 AXL100 app/Types.axl:52:28: error: a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; write it with a null check: `{ -> if (x != null) { x.m() } }`
 AXL100 app/Types.axl:53:39: error: a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; write it with a null check: `{ -> if (x != null) { x.m() } }`
-AXL100 app/Types.axl:57:5: error: this call can throw `InterruptedException`, which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`
+AXL100 app/Types.axl:57:12: error: this call can throw `InterruptedException`, which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`
