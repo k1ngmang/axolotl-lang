@@ -8,6 +8,7 @@ import com.sun.tools.javac.util.JCDiagnostic.SimpleDiagnosticPosition;
 import com.sun.tools.javac.util.Log;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,8 +34,9 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
 
         AxlFile(Path path, String text) {
             super(path.toUri(), Kind.OTHER);
-            this.text = text;
-            this.lines = text.lines().toList();
+            // Lines as the translator counts them: a lone \r ends a line too.
+            this.text = text.replaceFirst("^\uFEFF", "").replace("\r\n", "\n").replace('\r', '\n');
+            this.lines = this.text.lines().toList();
         }
 
         @Override
@@ -65,7 +67,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     }
 
     @Override
-    public void report(JCDiagnostic diagnostic) {
+    public void report(JCDiagnostic original) {
+        JCDiagnostic diagnostic = rewritten(original);
         JCDiagnostic moved = move(diagnostic);
         if (moved == null) {
             prev.report(diagnostic);
@@ -74,6 +77,27 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         } else if (reported.add(moved.getSource().toUri() + ":" + moved.getPosition() + ":" + moved.getMessage(Locale.ROOT))) {
             // One .axl line becomes several Java lines, which can repeat the same error.
             prev.report(moved);
+        }
+    }
+
+    /**
+     * javac's own handler first replaces some errors with simpler ones, such as a wrong lambda result
+     * for "no suitable method"; a handler installed before it has to do that itself. The methods are
+     * not public, and their absence only costs the simpler wording.
+     */
+    private static JCDiagnostic rewritten(JCDiagnostic diagnostic) {
+        try {
+            Method hasRewriter = JCDiagnostic.class.getDeclaredMethod("hasRewriter");
+            hasRewriter.setAccessible(true);
+            if (!(boolean) hasRewriter.invoke(diagnostic)) {
+                return diagnostic;
+            }
+            Method rewrite = JCDiagnostic.class.getDeclaredMethod("rewrite");
+            rewrite.setAccessible(true);
+            JCDiagnostic result = (JCDiagnostic) rewrite.invoke(diagnostic);
+            return result == null ? diagnostic : result;
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            return diagnostic;
         }
     }
 

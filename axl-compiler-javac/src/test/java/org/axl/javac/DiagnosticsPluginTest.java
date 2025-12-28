@@ -17,15 +17,42 @@ class DiagnosticsPluginTest {
 
     @Test
     void reportsJavacErrorsAtAxlPosition(@TempDir Path tmp) throws Exception {
-        Path sources = Files.createDirectories(tmp.resolve("my src/app"));
-        String text = """
+        Diagnostic<?> error = firstError(tmp, """
                 package app
 
                 fn main() {
                     val greeting = "hi"
                     println(greeting.lenght())
                 }
-                """;
+                """);
+        assertEquals(tmp.resolve("my src/app/Main.axl").toUri(), ((javax.tools.FileObject) error.getSource()).toUri());
+        assertEquals(5, error.getLineNumber());
+        assertEquals(22, error.getColumnNumber());
+        assertEquals("`greeting` of type `String` has no method `lenght()`", error.getMessage(Locale.ROOT));
+    }
+
+    @Test
+    void usesTheSimplerErrorJavacWouldShow(@TempDir Path tmp) throws Exception {
+        Diagnostic<?> error = firstError(tmp, """
+                package app
+
+                fn main() {
+                    val xs = java.util.List.of(1, 2)
+                    println(xs |> filter { it + 1 })
+                }
+                """);
+        assertEquals("the lambda returns `Int`, but `Boolean` is expected", error.getMessage(Locale.ROOT));
+    }
+
+    @Test
+    void countsLinesEndedByCarriageReturns(@TempDir Path tmp) throws Exception {
+        Diagnostic<?> error = firstError(tmp, "package app\r\rfn main() {\r    println(\"x\".lenght())\r}\r");
+        assertEquals(4, error.getLineNumber());
+        assertEquals(17, error.getColumnNumber());
+    }
+
+    private static Diagnostic<?> firstError(Path tmp, String text) throws Exception {
+        Path sources = Files.createDirectories(tmp.resolve("my src/app"));
         Files.writeString(sources.resolve("Main.axl"), text);
         GeneratedUnit unit = Translator.translate("app/Main.axl", "app/Main.axl", text).unit();
         Path generated = tmp.resolve("gen");
@@ -37,11 +64,6 @@ class DiagnosticsPluginTest {
                         DiagnosticsPlugin.option(List.of(root))), false);
 
         assertFalse(outcome.success());
-        Diagnostic<?> error = outcome.diagnostics().stream()
-                .filter(d -> d.getKind() == Diagnostic.Kind.ERROR).findFirst().orElseThrow();
-        assertEquals(sources.resolve("Main.axl").toUri(), ((javax.tools.FileObject) error.getSource()).toUri());
-        assertEquals(5, error.getLineNumber());
-        assertEquals(22, error.getColumnNumber());
-        assertEquals("`greeting` of type `String` has no method `lenght()`", error.getMessage(Locale.ROOT));
+        return outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR).findFirst().orElseThrow();
     }
 }
