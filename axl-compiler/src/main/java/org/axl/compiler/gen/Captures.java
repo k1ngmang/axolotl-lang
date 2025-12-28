@@ -70,7 +70,8 @@ final class Captures {
             }
             case Expr.Elvis e -> {
                 visit(e.left(), inLambda);
-                visit(e.right(), true);
+                // A right side that needs statements becomes an `if`, not a lambda.
+                visit(e.right(), inLambda || !Lifts.needed(e.right()));
             }
             case Expr.Paren p -> visit(p.inner(), inLambda);
             case Expr.Try t -> visit(t.inner(), inLambda);

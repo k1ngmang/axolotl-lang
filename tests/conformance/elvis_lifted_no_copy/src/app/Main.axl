@@ -1,0 +1,12 @@
+package app
+
+fn show(a: String?, n: Int) -> String = a + n
+
+fn main() {
+    var count = 0
+    count += 1
+    val s: String? = null
+    val t: String? = "t"
+    val g = s ?: show(t?.trim(), count)
+    println(g)
+}
