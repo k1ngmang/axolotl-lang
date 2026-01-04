@@ -25,6 +25,8 @@ final class Messages {
     private static final Pattern UNKNOWN_STATIC = Pattern.compile("^cannot find symbol; symbol: static (\\w+); location: \\w+ (.+)$");
     private static final Pattern NOT_APPLICABLE = Pattern.compile(
             "^method (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
+    private static final Pattern NO_SUITABLE = Pattern.compile("^no suitable (?:method|constructor) found for (\\w+)\\((.*?)\\);");
+    private static final Pattern CANDIDATE = Pattern.compile("(?:method|constructor) [\\w.$<>]+?\\.(?:<[^>]*>)?\\w+\\(([^)]*)\\) is not applicable");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -35,7 +37,7 @@ final class Messages {
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
     private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
     private static final Pattern NULLABLE_TYPE = Pattern.compile("@(?:org\\.jspecify\\.annotations\\.)?Nullable ([\\w.]+(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?)");
-    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|Integer)\\b");
+    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|float|short|byte|char|Integer|Character)\\b");
     private static final Pattern GENERATED = Pattern.compile("\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
 
@@ -187,6 +189,19 @@ final class Messages {
             return "wrong arguments for `" + notApplicable.group(1) + "`: expected (" + argumentList(notApplicable.group(2))
                     + "), got (" + argumentList(notApplicable.group(3)) + ")";
         }
+        Matcher noSuitable = NO_SUITABLE.matcher(message);
+        if (noSuitable.find()) {
+            List<String> candidates = new ArrayList<>();
+            Matcher candidate = CANDIDATE.matcher(message);
+            while (candidate.find()) {
+                candidates.add("(" + argumentList(candidate.group(1).isEmpty() ? "no arguments" : candidate.group(1)) + ")");
+            }
+            String got = noSuitable.group(2).isEmpty() ? "" : argumentList(noSuitable.group(2));
+            String takes = candidates.size() > 4
+                    ? String.join(", ", candidates.subList(0, 4)) + " and " + (candidates.size() - 4) + " more"
+                    : String.join(", ", candidates);
+            return "wrong arguments for `" + noSuitable.group(1) + "`: got (" + got + "); it takes " + takes;
+        }
         Matcher unknownStatic = UNKNOWN_STATIC.matcher(message);
         if (unknownStatic.find()) {
             return "`" + axlType(unknownStatic.group(2)) + "` has no static member `" + unknownStatic.group(1) + "`";
@@ -306,9 +321,10 @@ final class Messages {
 
     private static String axlType(String javaType) {
         String type = NULLABLE_TYPE.matcher(javaType.strip()).replaceAll("$1?");
-        type = QUALIFIED_TYPE.matcher(type).replaceAll("$1");
+        type = simpleNames(QUALIFIED_TYPE.matcher(type).replaceAll("$1"));
         return PRIMITIVE.matcher(type).replaceAll(m -> switch (m.group(1)) {
             case "int", "Integer" -> "Int";
+            case "char", "Character" -> "Char";
             default -> Character.toUpperCase(m.group(1).charAt(0)) + m.group(1).substring(1);
         }).replace(",", ", ").replace(",  ", ", ");
     }

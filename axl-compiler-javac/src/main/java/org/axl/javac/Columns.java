@@ -15,6 +15,7 @@ final class Columns {
 
     private static final Pattern NAME = Pattern.compile("[A-Za-z_$][\\w$]*");
     private static final Pattern LITERAL = Pattern.compile("\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'");
+    private static final Pattern NUMBER = Pattern.compile("(?<![\\w.])\\d[\\w.]*");
     private static final Pattern COMMENT = Pattern.compile("//.*|/\\*.*?(\\*/|$)");
     private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:public|private) static (.+?) ([\\w$]+)\\((.*)\\) \\{$");
     private static final Pattern AXL_SIGNATURE = Pattern.compile("^\\s*(?:private\\s+)?fn\\s+[\\w$]+\\s*\\(");
@@ -57,6 +58,18 @@ final class Columns {
     /** The index in the .axl line of the name at or after the index in the Java line, or null. */
     private static Integer column(String[] javaLines, LineMap lineMap, int javaLine, int index, String axlLine) {
         String javaText = javaLines[javaLine - 1];
+        Matcher literal = LITERAL.matcher(javaText).region(index, javaText.length());
+        if (literal.lookingAt() && axlLine.contains(literal.group())) {
+            // A string or character javac points at is written the same way in the .axl line.
+            return axlLine.indexOf(literal.group());
+        }
+        Matcher number = NUMBER.matcher(javaText).region(index, javaText.length());
+        if (number.lookingAt()) {
+            Matcher same = Pattern.compile("(?<![\\w.])" + Pattern.quote(number.group()) + "(?![\\w.])").matcher(axlLine);
+            if (same.find(bodyStart(axlLine))) {
+                return same.start();
+            }
+        }
         int start = index;
         while (start < javaText.length() && !Character.isJavaIdentifierPart(javaText.charAt(start))) {
             start++;
@@ -67,6 +80,10 @@ final class Columns {
             return null;
         }
         String word = javaText.substring(javaName.start(), javaName.end());
+        if (word.equals("new")) {
+            // `new StringBuilder(...)` is `StringBuilder(...)` in Axolotl.
+            return column(javaLines, lineMap, javaLine, javaName.end(), axlLine);
+        }
         if (word.startsWith("$")) {
             return null;
         }
@@ -118,14 +135,18 @@ final class Columns {
         }
         String javaText = javaLines[javaLine - 1];
         int occurrence = before + index(javaText, null, javaName, word);
-        int start = 0;
+        return nth(axlLine, new Region(bodyStart(axlLine), axlLine.length()), word, occurrence);
+    }
+
+    /** Where the code after a signature on the line starts, or 0. */
+    private static int bodyStart(String axlLine) {
         Matcher signature = AXL_SIGNATURE.matcher(axlLine);
-        if (signature.lookingAt()) {
-            int paramsEnd = closingParen(axlLine, signature.end() - 1);
-            int body = paramsEnd < 0 ? -1 : axlLine.indexOf('=', paramsEnd);
-            start = body < 0 ? axlLine.length() : body + 1;
+        if (!signature.lookingAt()) {
+            return 0;
         }
-        return nth(axlLine, new Region(start, axlLine.length()), word, occurrence);
+        int paramsEnd = closingParen(axlLine, signature.end() - 1);
+        int body = paramsEnd < 0 ? -1 : axlLine.indexOf('=', paramsEnd);
+        return body < 0 ? axlLine.length() : body + 1;
     }
 
     /** How many times the word occurs in the region before the name, or in all of it when name is null. */

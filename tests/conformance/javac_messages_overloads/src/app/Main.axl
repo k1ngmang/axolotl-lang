@@ -1,0 +1,10 @@
+package app
+
+import java.util.HashMap
+import java.util.Map
+import java.util.Optional
+
+fn a() -> StringBuilder = StringBuilder(1, 2)
+fn b() -> Int = Math.max(1, "a")
+fn c() -> Map<String, Int> = HashMap<String, String>()
+fn d(o: Optional<String>) -> String = o.orElse(5)

@@ -1,2 +1,2 @@
 AXL100 app/Main.axl:4:5: error: type mismatch: expected `String`, found `Int`
-AXL100 app/Main.axl:9:5: error: type mismatch: expected `Int`, found `String`
+AXL100 app/Main.axl:9:22: error: type mismatch: expected `Int`, found `String`
