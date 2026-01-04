@@ -1,1 +1,1 @@
-AXL009 app/Main.axl:6:1: error: cannot infer the type of `mixed`; write it: `val mixed: Type = ...`
+AXL009 app/Main.axl:6:5: error: cannot infer the type of `mixed`; write it: `val mixed: Type = ...`

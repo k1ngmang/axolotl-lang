@@ -14,7 +14,10 @@ public interface JavaTypes {
 
     String NULLABLE = "@Nullable ";
 
-    /** Starts the entry of a local whose type is unknown; the rest is the compiler's reason. */
+    /**
+     * Starts the entry of a local whose type is unknown. The rest is the line of the probe source and
+     * the name the compiler points at, each followed by `:`, and then its reason.
+     */
     String ERROR = "error: ";
 
     /**

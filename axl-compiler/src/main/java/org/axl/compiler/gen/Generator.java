@@ -80,13 +80,15 @@ public final class Generator {
 
     /**
      * Java source in which the values in {@code probed} are `var` locals of the method
-     * {@link JavaTypes#PROBE_METHOD}, so that a compiler can tell their types.
+     * {@link JavaTypes#PROBE_METHOD}, so that a compiler can tell their types; its line map tells
+     * where the compiler's errors are.
      */
-    public static String probe(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes,
-                               Set<String> probed) {
+    public static GeneratedUnit probe(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes,
+                                      Set<String> probed) {
         Generator generator = new Generator(file, analysis, options, valueTypes, probed);
         generator.emitFile();
-        return generator.em.text();
+        return new GeneratedUnit(file.className() + ".axl", file.packageName(), file.className(), generator.em.text(),
+                new LineMap(file.className() + ".axl", generator.em.lineMap()));
     }
 
     /** The Java form of a written type. */

@@ -1,0 +1,9 @@
+package app
+
+val b = System.getenv("X")
+    .lenght()
+val c = java.util.List.of(1).get(0).foo()
+
+fn main() {
+    println(b)
+}

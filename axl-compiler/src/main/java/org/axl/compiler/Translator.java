@@ -70,16 +70,15 @@ public final class Translator {
             return new Result(null, diagnostics);
         }
         Map<String, String> valueTypes = new HashMap<>();
-        Map<String, String> reasons = new HashMap<>();
-        Set<String> unknown = inferValueTypes(file, analysis, options, valueTypes, reasons);
+        Map<String, AxlDiagnostic> reasons = new HashMap<>();
+        Set<String> unknown = inferValueTypes(file, analysis, options, valueTypes, reasons, displayPath, text);
         if (!unknown.isEmpty() && !options.draft()) {
             for (Decl decl : file.decls()) {
                 if (decl instanceof Decl.Value value && unknown.contains(value.name())) {
                     // An error in the initializer is the real problem; the missing type follows from it.
-                    String reason = reasons.get(value.name());
-                    diagnostics.add(reason != null
-                            ? AxlDiagnostic.error(displayPath, value.pos().line(), value.pos().column(), ErrorCode.JAVAC, reason)
-                            : AxlDiagnostic.error(displayPath, value.pos().line(), value.pos().column(), ErrorCode.TYPE_REQUIRED,
+                    AxlDiagnostic reason = reasons.get(value.name());
+                    diagnostics.add(reason != null ? reason
+                            : AxlDiagnostic.error(displayPath, value.namePos().line(), value.namePos().column(), ErrorCode.TYPE_REQUIRED,
                                     "cannot infer the type of `" + value.name() + "`; write it: `val " + value.name() + ": Type = ...`"));
                 }
             }
@@ -94,7 +93,8 @@ public final class Translator {
      * then from the compiler if the options give access to one. Returns the names still unknown.
      */
     private static Set<String> inferValueTypes(SourceFile file, Analysis analysis, Options options,
-                                               Map<String, String> valueTypes, Map<String, String> reasons) {
+                                               Map<String, String> valueTypes, Map<String, AxlDiagnostic> reasons,
+                                               String displayPath, String text) {
         Map<String, TypeRef> inferred = new HashMap<>();
         TypeInference.inferAll(file, inferred);
         inferred.forEach((name, type) -> valueTypes.put(name, Generator.javaType(type)));
@@ -108,12 +108,13 @@ public final class Translator {
             return unknown;
         }
         String qualified = file.packageName().isEmpty() ? file.className() : file.packageName() + "." + file.className();
-        String probe = Generator.probe(file, analysis, options, valueTypes, unknown);
-        Map<String, String> found = options.javaTypes().localTypes(qualified, probe);
+        GeneratedUnit probe = Generator.probe(file, analysis, options, valueTypes, unknown);
+        Map<String, String> found = options.javaTypes().localTypes(qualified, probe.javaSource());
         for (String name : List.copyOf(unknown)) {
             String type = found.get(name);
             if (type != null && type.startsWith(JavaTypes.ERROR)) {
-                reasons.put(name, type.substring(JavaTypes.ERROR.length()));
+                reasons.put(name, reason(type.substring(JavaTypes.ERROR.length()), probe.lineMap(), valueNamed(file, name),
+                        displayPath, text));
             } else if (type != null && options.draft() && type.replace(JavaTypes.NULLABLE, "").equals("Object")) {
                 // The value may read a draft of another file, typed `Object` only until its own type is known.
                 continue;
@@ -123,6 +124,31 @@ public final class Translator {
             }
         }
         return unknown;
+    }
+
+    /** The compiler's reason at the .axl line and name it points at, or at the value when it cannot be placed. */
+    private static AxlDiagnostic reason(String entry, LineMap probeLines, Decl.Value value, String displayPath, String text) {
+        String[] parts = entry.split(":", 3);
+        int line = value.pos().line();
+        int column = value.pos().column();
+        if (parts.length == 3 && parts[0].matches("\\d+")) {
+            int mapped = probeLines.nearestAxlLine(Integer.parseInt(parts[0]));
+            List<String> lines = text.replace("\r\n", "\n").replace('\r', '\n').lines().toList();
+            if (mapped >= line && mapped <= lines.size()) {
+                line = mapped;
+                String axlLine = lines.get(line - 1);
+                int from = line == value.pos().line() ? Math.max(0, axlLine.indexOf('=')) : 0;
+                int index = parts[1].isEmpty() ? -1 : axlLine.indexOf(parts[1], from);
+                column = index >= 0 ? axlLine.codePointCount(0, index) + 1 : axlLine.length() - axlLine.stripLeading().length() + 1;
+            }
+            return AxlDiagnostic.error(displayPath, line, column, ErrorCode.JAVAC, parts[2]);
+        }
+        return AxlDiagnostic.error(displayPath, line, column, ErrorCode.JAVAC, entry);
+    }
+
+    private static Decl.Value valueNamed(SourceFile file, String name) {
+        return file.decls().stream().filter(d -> d instanceof Decl.Value v && v.name().equals(name))
+                .map(Decl.Value.class::cast).findFirst().orElseThrow();
     }
 
     private static String javaType(String probed, SourceFile file) {

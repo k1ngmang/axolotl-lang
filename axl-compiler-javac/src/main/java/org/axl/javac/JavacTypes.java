@@ -147,10 +147,40 @@ public final class JavacTypes implements JavaTypes {
         for (Diagnostic<? extends JavaFileObject> d : errors.getDiagnostics()) {
             if (d.getKind() == Diagnostic.Kind.ERROR && d.getPosition() >= start && d.getPosition() <= end) {
                 String message = DiagnosticTranslator.oneLine(d.getMessage(Locale.ROOT));
-                return Messages.translate(message, lines, (int) d.getLineNumber()).message();
+                int line = (int) d.getLineNumber();
+                return line + ":" + nameAt(lines[line - 1], (int) d.getColumnNumber() - 1) + ":"
+                        + Messages.translate(message, lines, line).message();
             }
         }
         return null;
+    }
+
+    /** The name at or right after the index, or before it when javac points at a call's parenthesis. */
+    private static String nameAt(String line, int index) {
+        int at = Math.max(0, Math.min(index, line.length()));
+        if (at < line.length() && line.charAt(at) == '(') {
+            int end = at;
+            while (at > 0 && Character.isJavaIdentifierPart(line.charAt(at - 1))) {
+                at--;
+            }
+            return line.substring(at, end);
+        }
+        if (at < line.length() && Character.isLetterOrDigit(line.charAt(at)) && !Character.isJavaIdentifierStart(line.charAt(at))) {
+            // A number literal.
+            int end = at;
+            while (end < line.length() && Character.isLetterOrDigit(line.charAt(end))) {
+                end++;
+            }
+            return line.substring(at, end);
+        }
+        while (at < line.length() && !Character.isJavaIdentifierStart(line.charAt(at))) {
+            at++;
+        }
+        int end = at;
+        while (end < line.length() && Character.isJavaIdentifierPart(line.charAt(end))) {
+            end++;
+        }
+        return line.substring(at, end);
     }
 
     /**
