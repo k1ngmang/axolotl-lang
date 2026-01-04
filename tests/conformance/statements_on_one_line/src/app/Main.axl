@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    println(1) println(2)
+    val x = 1 y
+    val a = 1; println(a)
+    if (a > 0) { println(a) } println(a)
+}

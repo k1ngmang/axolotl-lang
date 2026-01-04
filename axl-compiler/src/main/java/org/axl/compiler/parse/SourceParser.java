@@ -9,11 +9,13 @@ import org.antlr.v4.runtime.BailErrorStrategy;
 import org.antlr.v4.runtime.BaseErrorListener;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.atn.PredictionMode;
 import org.antlr.v4.runtime.misc.ParseCancellationException;
+import org.antlr.v4.runtime.tree.ParseTree;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
 import org.axl.compiler.LargeStack;
@@ -85,6 +87,30 @@ public final class SourceParser {
             }
         }
         return errors;
+    }
+
+    /** Statements end at the end of a line or at `;`; the grammar alone would take `f() g()` as two. */
+    private static void sharedLines(String path, ParseTree node, List<AxlDiagnostic> diagnostics) {
+        List<? extends ParserRuleContext> statements = switch (node) {
+            case AxolotlParser.CompilationUnitContext unit -> unit.topLevel();
+            case AxolotlParser.BlockContext block -> block.statement();
+            case AxolotlParser.LambdaContext lambda -> lambda.statement();
+            default -> List.of();
+        };
+        for (int i = 1; i < statements.size(); i++) {
+            Token end = statements.get(i - 1).getStop();
+            Token start = statements.get(i).getStart();
+            boolean blockStatement = statements.get(i - 1) instanceof AxolotlParser.IfStatementAltContext
+                    || statements.get(i - 1) instanceof AxolotlParser.WhileStatementContext;
+            if (end.getLine() == start.getLine() && end.getType() != AxolotlLexer.SEMI
+                    && start.getType() != AxolotlLexer.SEMI && !blockStatement) {
+                diagnostics.add(AxlDiagnostic.error(path, start.getLine(), start.getCharPositionInLine() + 1,
+                        ErrorCode.SYNTAX, "put this statement on its own line, or end the one before it with `;`"));
+            }
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            sharedLines(path, node.getChild(i), diagnostics);
+        }
     }
 
     private static String numberProblem(Token t, Token previous, Token next) {
@@ -261,6 +287,9 @@ public final class SourceParser {
             }
         };
         var tree = parseTree(tokens, parserErrors);
+        if (diagnostics.isEmpty()) {
+            sharedLines(path, tree, diagnostics);
+        }
         if (!diagnostics.isEmpty()) {
             return new Result(null, diagnostics);
         }
