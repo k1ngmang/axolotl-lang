@@ -172,6 +172,11 @@ public final class Generator {
         }
     }
 
+    /** `(f())` as a statement is the call: Java takes no parentheses there. */
+    private static Expr withoutParens(Expr e) {
+        return e instanceof Expr.Paren p ? withoutParens(p.inner()) : e;
+    }
+
     /** A parameter on a line of its own keeps that line, so that errors in its type are found there. */
     private static String parameters(Decl.Function fn) {
         StringBuilder sb = new StringBuilder();
@@ -241,7 +246,7 @@ public final class Generator {
             case Stmt.While loop -> emitWhile(loop);
             case Stmt.ExprStmt exprStmt -> {
                 int line = exprStmt.pos().line();
-                Expr e = exprStmt.expr();
+                Expr e = withoutParens(exprStmt.expr());
                 if (e instanceof Expr.Try t) {
                     withCopies(line, t.inner(), () -> unwrapTry(line, t));
                 } else if (Chains.hasSafeStep(e)) {

@@ -69,8 +69,7 @@ class TranslatorTest {
                         - 1
                 }
                 """);
-        assertFalse(result.hasErrors(), result.diagnostics().toString());
-        assertTrue(result.unit().javaSource().contains("        (a);\n"));
-        assertTrue(result.unit().javaSource().contains("        return a;\n        -1;\n"));
+        // `(a)` and `- 1` are statements of their own, which do nothing.
+        assertEquals(List.of(4, 6), result.diagnostics().stream().map(AxlDiagnostic::line).toList());
     }
 }

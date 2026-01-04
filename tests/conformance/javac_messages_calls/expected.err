@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:9:5: error: `main` starts the program and cannot be called; move its code into a function and call that
+AXL100 app/Main.axl:11:56: error: `String` has no method `lenght` for this reference
+AXL100 app/Main.axl:12:40: error: type mismatch: expected `Int`, found `String`
+AXL100 app/Main.axl:14:5: error: this function returns a value; give `return` one

@@ -1,0 +1,15 @@
+package app
+
+import java.util.function.Function
+
+fn m7(s: String?) = s
+fn m8(r: Result<Int, String>?) -> Result<Int, String>? {
+    val x = try r!!
+    return Ok(x)
+}
+fn m10(f: Function<String, Int>) -> Int = f("a")
+fn m11(n: Int) {
+    n + 1
+    (println(n))
+    -1
+}

@@ -197,6 +197,10 @@ public final class Checker {
                     expr(t.inner());
                 }
             } else {
+                if (fn.returnType() == null && !doesSomething(fn.exprBody())) {
+                    error(fn.exprBody().pos(), ErrorCode.SYNTAX, "a function without a result type runs its body as a "
+                            + "statement, where this expression does nothing; to return it, add the type: `-> Type`");
+                }
                 expr(fn.exprBody());
             }
         } else {
@@ -275,6 +279,9 @@ public final class Checker {
                 if (exprStmt.expr() instanceof Expr.Lambda lambda) {
                     error(lambda.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; "
                             + "to run these statements, remove the braces");
+                } else if (!doesSomething(exprStmt.expr())) {
+                    error(exprStmt.expr().pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; "
+                            + "use its value, for example in a `val`, or remove it");
                 }
                 if (exprStmt.expr() instanceof Expr.Try t) {
                     statementTry(t);
@@ -323,14 +330,39 @@ public final class Checker {
         } else if (safeTailDepth > 0) {
             error(pos, ErrorCode.TRY_IN_EXPRESSION, what.equals("`try`") ? TRY_AFTER_SAFE_CALL
                     : what + " after `?.` runs only for a non-null value; move it into a separate `val`");
+        } else if (function != null && function.returnType() != null && function.returnType().nullable()
+                && isResult(function.returnType())) {
+            error(pos, ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, what + " needs a function that returns `Result` without `?`; "
+                    + "this one may return null instead");
         } else if (!returnsResult(function)) {
             error(pos, ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, what + " can only be used in a function that returns `Result`");
         }
     }
 
+    /** Whether an expression can stand as a statement: it calls something or creates an object. */
+    private static boolean doesSomething(Expr expr) {
+        return switch (expr) {
+            case Expr.Paren p -> doesSomething(p.inner());
+            case Expr.Binary b -> (b.op().equals("&&") || b.op().equals("||")) && doesSomething(b.right());
+            case Expr.Member m -> hasSafeStep(m);
+            case Expr.Call c -> true;
+            case Expr.GenericNew g -> true;
+            case Expr.Try t -> true;
+            case Expr.Pipe p -> true;
+            case Expr.Elvis e -> true;
+            case Expr.Attempt a -> true;
+            case Expr.NotNull n -> true;
+            case Expr.Lambda l -> true;
+            default -> false;
+        };
+    }
+
     private static boolean returnsResult(Decl.Function fn) {
-        return fn != null && fn.returnType() != null && !fn.returnType().nullable()
-                && (fn.returnType().name().equals("Result") || fn.returnType().name().equals("axl.lang.Result"));
+        return fn != null && fn.returnType() != null && !fn.returnType().nullable() && isResult(fn.returnType());
+    }
+
+    private static boolean isResult(TypeRef type) {
+        return type.name().equals("Result") || type.name().equals("axl.lang.Result");
     }
 
     private void expr(Expr expr) {
@@ -354,6 +386,9 @@ public final class Checker {
             case Expr.Call call -> {
                 if (call.target() != null) {
                     expr(call.target());
+                } else if (localLookup(call.name()) != null) {
+                    error(call.pos(), ErrorCode.JAVAC, "`" + call.name() + "` is a value, not a function; "
+                            + "call its method, such as `" + call.name() + ".apply(...)` or `" + call.name() + ".get()`");
                 }
                 // Arguments after a `?.` are evaluated only when the receiver is not null.
                 boolean safeTail = call.safe() || call.target() != null && hasSafeStep(call.target());
@@ -471,7 +506,13 @@ public final class Checker {
             implicitIt.add(lambda);
             scope.names.put("it", new Symbol(Kind.PARAM, lambda.pos()));
         }
-        statements(lambda.body());
+        if (lambda.body().size() == 1 && lambda.body().getFirst() instanceof Stmt.ExprStmt single
+                && !(single.expr() instanceof Expr.Try)) {
+            // A lambda of one expression returns its value, so the expression need not do anything.
+            expr(single.expr());
+        } else {
+            statements(lambda.body());
+        }
         lambdaDepth--;
         scope = scope.parent;
     }

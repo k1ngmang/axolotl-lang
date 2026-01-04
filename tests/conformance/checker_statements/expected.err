@@ -1,0 +1,5 @@
+AXL001 app/Main.axl:5:21: error: a function without a result type runs its body as a statement, where this expression does nothing; to return it, add the type: `-> Type`
+AXL007 app/Main.axl:7:13: error: `try` needs a function that returns `Result` without `?`; this one may return null instead
+AXL100 app/Main.axl:10:43: error: `f` is a value, not a function; call its method, such as `f.apply(...)` or `f.get()`
+AXL001 app/Main.axl:12:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
+AXL001 app/Main.axl:14:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it

@@ -1,0 +1,15 @@
+package app
+
+import java.util.List
+
+fn main() {
+    println("hi")
+}
+fn m1() {
+    main()
+}
+fn m4(xs: List<String>) -> List<Int> = xs.stream().map(String::lenght).toList()
+fn m6(xs: List<String>) -> Int = xs |> first
+fn m9() -> Int {
+    return
+}

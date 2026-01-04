@@ -28,7 +28,6 @@ import java.util.List;
         }
         final var $t4 = act();
         if ($t4.isErr()) return Result.propagate($t4);
-        Result.unwrap($t4);
         return new Ok<>(xs.size());
     }
     public static void main(String[] args) {

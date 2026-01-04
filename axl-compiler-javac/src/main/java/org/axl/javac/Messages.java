@@ -27,6 +27,10 @@ final class Messages {
             "^method (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
     private static final Pattern NO_SUITABLE = Pattern.compile("^no suitable (?:method|constructor) found for (\\w+)\\((.*?)\\);");
     private static final Pattern CANDIDATE = Pattern.compile("(?:method|constructor) [\\w.$<>]+?\\.(?:<[^>]*>)?\\w+\\(([^)]*)\\) is not applicable");
+    private static final Pattern BAD_METHOD_REFERENCE = Pattern.compile(
+            "^invalid method reference; cannot find symbol; symbol: method (\\w+)\\(.*?\\); location: \\w+ (.+)$");
+    private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
+            "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -168,6 +172,12 @@ final class Messages {
         if (message.equals("incompatible types: incompatible parameter types in lambda expression")) {
             return "the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`";
         }
+        Matcher equalityAndUpper = EQUALITY_AND_UPPER.matcher(message);
+        if (equalityAndUpper.find()) {
+            String expected = splitTopLevel(equalityAndUpper.group(2)).stream().filter(t -> !t.equals("java.lang.Object"))
+                    .findFirst().orElse(equalityAndUpper.group(2));
+            return "type mismatch: expected `" + axlType(expected) + "`, found `" + axlType(equalityAndUpper.group(1)) + "`";
+        }
         Matcher bounds = BOUNDS.matcher(message);
         if (bounds.find()) {
             String expected = splitTopLevel(bounds.group(1)).stream().filter(t -> !t.equals("java.lang.Object"))
@@ -180,6 +190,16 @@ final class Messages {
         Matcher incompatible = INCOMPATIBLE.matcher(message);
         if (incompatible.find()) {
             return "type mismatch: expected `" + axlType(incompatible.group(2)) + "`, found `" + axlType(incompatible.group(1)) + "`";
+        }
+        if (message.equals("incompatible types: missing return value")) {
+            return "this function returns a value; give `return` one";
+        }
+        Matcher badReference = BAD_METHOD_REFERENCE.matcher(message);
+        if (badReference.find()) {
+            return "`" + axlType(badReference.group(2)) + "` has no method `" + badReference.group(1) + "` for this reference";
+        }
+        if (message.startsWith("method main in class") || message.matches("^method main in \\w+ .+ cannot be applied.*")) {
+            return "`main` starts the program and cannot be called; move its code into a function and call that";
         }
         if (message.equals("missing return statement")) {
             return "the function does not return a value on every path; add a `return` at the end";
