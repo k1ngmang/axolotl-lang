@@ -31,6 +31,8 @@ final class Messages {
             "^invalid method reference; cannot find symbol; symbol: method (\\w+)\\(.*?\\); location: \\w+ (.+)$");
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
+    // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
+    private static final Pattern UNUSED_GENERATED = Pattern.compile("'(?:it|\\$\\w+)'");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -49,7 +51,8 @@ final class Messages {
 
     /** Warnings about the shape of generated code, which the author cannot change. */
     static boolean ignored(String message) {
-        return message.startsWith("[UnnecessaryParentheses]");
+        return message.startsWith("[UnnecessaryParentheses]")
+                || message.startsWith("[UnusedVariable]") && UNUSED_GENERATED.matcher(message).find();
     }
 
     /**
@@ -80,6 +83,10 @@ final class Messages {
         }
         if (message.startsWith("[NullAway] ")) {
             return nullAway(message, text, javaLines);
+        }
+        if (message.startsWith("[ReturnValueIgnored] Return value of 'toList' must be used")) {
+            return new Translated(ErrorCode.JAVAC, "the list this pipe builds is not used; end the pipe with `forEach`, "
+                    + "or keep the list in a `val`");
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {

@@ -13,3 +13,6 @@ fn m6(xs: List<String>) -> Int = xs |> first
 fn m9() -> Int {
     return
 }
+fn m12(xs: List<String>) {
+    xs |> map { it.length() }
+}

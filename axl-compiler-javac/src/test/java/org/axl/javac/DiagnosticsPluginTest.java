@@ -2,6 +2,7 @@ package org.axl.javac;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,7 +52,27 @@ class DiagnosticsPluginTest {
         assertEquals(17, error.getColumnNumber());
     }
 
+    @Test
+    void namesTheAxlFileInNotes(@TempDir Path tmp) throws Exception {
+        JavaCompilation.Outcome outcome = compile(tmp, """
+                package app
+
+                import java.util.Date
+
+                fn year() -> Int = Date().getYear()
+                """);
+        assertTrue(outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.NOTE)
+                .anyMatch(d -> d.getMessage(Locale.ROOT).contains("Main.axl uses or overrides a deprecated API")),
+                outcome.diagnostics().toString());
+    }
+
     private static Diagnostic<?> firstError(Path tmp, String text) throws Exception {
+        JavaCompilation.Outcome outcome = compile(tmp, text);
+        assertFalse(outcome.success());
+        return outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR).findFirst().orElseThrow();
+    }
+
+    private static JavaCompilation.Outcome compile(Path tmp, String text) throws Exception {
         Path sources = Files.createDirectories(tmp.resolve("my src/app"));
         Files.writeString(sources.resolve("Main.axl"), text);
         GeneratedUnit unit = Translator.translate("app/Main.axl", "app/Main.axl", text).unit();
@@ -59,11 +80,8 @@ class DiagnosticsPluginTest {
         Path javaFile = unit.writeTo(generated);
 
         var root = new DiagnosticsPlugin.Root(generated, tmp.resolve("my src"));
-        JavaCompilation.Outcome outcome = JavaCompilation.compile(List.of(javaFile), RuntimeClasspath.entries(),
+        return JavaCompilation.compile(List.of(javaFile), RuntimeClasspath.entries(),
                 tmp.resolve("classes"), List.of("-processorpath", System.getProperty("java.class.path"),
                         DiagnosticsPlugin.option(List.of(root))), false);
-
-        assertFalse(outcome.success());
-        return outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR).findFirst().orElseThrow();
     }
 }

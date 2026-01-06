@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
 import org.axl.compiler.LineMap;
@@ -55,6 +57,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         }
     }
 
+    private static final Pattern JAVA_FILE = Pattern.compile("\\S+\\.java\\b");
+
     private final Log log;
     private final JCDiagnostic.Factory factory;
     private final List<DiagnosticsPlugin.Root> roots;
@@ -70,6 +74,10 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
 
     @Override
     public void report(JCDiagnostic original) {
+        if (original.getType() == DiagnosticType.NOTE) {
+            prev.report(withAxlPaths(original));
+            return;
+        }
         JCDiagnostic diagnostic = rewritten(original);
         JCDiagnostic moved = move(diagnostic);
         if (moved == null) {
@@ -101,6 +109,23 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         } catch (ReflectiveOperationException | RuntimeException e) {
             return diagnostic;
         }
+    }
+
+    /** Notes such as "X.java uses unchecked or unsafe operations" name the .axl file instead. */
+    private JCDiagnostic withAxlPaths(JCDiagnostic note) {
+        String text = note.getMessage(Locale.ROOT);
+        Matcher javaFile = JAVA_FILE.matcher(text);
+        StringBuilder result = new StringBuilder();
+        boolean changed = false;
+        while (javaFile.find()) {
+            Mapping mapping = mapping(Path.of(javaFile.group()).toAbsolutePath().normalize());
+            String replacement = mapping == null ? javaFile.group() : Path.of(mapping.axl().toUri()).toString();
+            changed |= mapping != null;
+            javaFile.appendReplacement(result, Matcher.quoteReplacement(replacement));
+        }
+        javaFile.appendTail(result);
+        return changed ? factory.create(DiagnosticType.NOTE, DiagnosticSource.NO_SOURCE, null, "proc.messager",
+                result.toString()) : note;
     }
 
     private JCDiagnostic move(JCDiagnostic diagnostic) {
