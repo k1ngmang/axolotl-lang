@@ -33,6 +33,8 @@ final class Messages {
             "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
     private static final Pattern UNUSED_GENERATED = Pattern.compile("'(?:it|\\$\\w+)'");
+    private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
+    private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -87,6 +89,16 @@ final class Messages {
         if (message.startsWith("[ReturnValueIgnored] Return value of 'toList' must be used")) {
             return new Translated(ErrorCode.JAVAC, "the list this pipe builds is not used; end the pipe with `forEach`, "
                     + "or keep the list in a `val`");
+        }
+        Matcher ignoredResult = IGNORED_RESULT.matcher(message);
+        if (ignoredResult.find()) {
+            return new Translated(ErrorCode.JAVAC, "the result of `" + ignoredResult.group(1)
+                    + "()` is not used; keep it in a `val` or remove the call");
+        }
+        if (message.startsWith("[")) {
+            String plain = SUGGESTION.matcher(ERROR_PRONE_LINK.matcher(message).replaceAll("")).replaceAll("");
+            return new Translated(ErrorCode.JAVAC, plain.replaceFirst("^\\[UnusedVariable] The local variable '(\\w+)' is never read",
+                    "`$1` is never read"));
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
