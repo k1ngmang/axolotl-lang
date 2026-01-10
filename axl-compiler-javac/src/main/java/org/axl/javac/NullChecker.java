@@ -89,12 +89,61 @@ final class NullChecker implements TaskListener {
     private static final Set<String> NULL_RESULT_ALLOWED = Set.of("java.util.Optional.map");
     private static final Set<String> NULL_VALUE_ALLOWED = Set.of("java.util.Map.computeIfAbsent",
             "java.util.Map.computeIfPresent", "java.util.Map.compute", "java.util.Map.merge");
+    // JDK methods that take null for a type argument without `?` and then return what they were given.
+    private static final Set<String> NULL_ARGUMENT_ALLOWED = Set.of("java.util.Optional.orElse",
+            "java.util.Map.getOrDefault");
+    // Factories that throw on null elements.
+    private static final Set<String> NULL_REJECTING_FACTORIES = Set.of("java.util.List.of", "java.util.List.copyOf",
+            "java.util.Set.of", "java.util.Set.copyOf", "java.util.Map.of", "java.util.Map.copyOf", "java.util.Map.entry");
 
     /**
      * Why a value may be null, ordered so that merging two paths keeps the larger one. NullAway sees
      * {@code DECLARED} values itself, so where it checks a use, only the other kinds are reported here.
      */
     private enum Origin { NONE, HIDDEN, PLATFORM, DECLARED }
+
+    /**
+     * Which parts of a value may be null: the value itself and, by position, its type arguments. javac
+     * drops the `?` of type arguments when it infers types, so they are followed by hand.
+     */
+    private record Shape(boolean nullable, List<Shape> args) {
+        static final Shape NONE = new Shape(false, List.of());
+
+        Shape arg(int index) {
+            return index < args.size() ? args.get(index) : NONE;
+        }
+
+        Shape nonNull() {
+            return new Shape(false, args);
+        }
+
+        Shape withArg(int index, Shape arg) {
+            List<Shape> changed = new ArrayList<>(args);
+            while (changed.size() <= index) {
+                changed.add(NONE);
+            }
+            changed.set(index, arg);
+            return new Shape(nullable, changed);
+        }
+
+        Shape or(Shape other) {
+            List<Shape> merged = new ArrayList<>();
+            for (int i = 0; i < Math.max(args.size(), other.args.size()); i++) {
+                merged.add(arg(i).or(other.arg(i)));
+            }
+            return new Shape(nullable || other.nullable, merged);
+        }
+
+        /** Whether a type argument that has no `?` in the declared shape may be null in this one. */
+        boolean losesQuestionMark(Shape declared) {
+            for (int i = 0; i < declared.args.size(); i++) {
+                if (!declared.arg(i).nullable && arg(i).nullable || arg(i).losesQuestionMark(declared.arg(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
 
     private final Trees trees;
     private final Types types;
@@ -150,8 +199,8 @@ final class NullChecker implements TaskListener {
         private Map<Element, Origin> state = new HashMap<>();
         // Locals declared with `var`, whose nullness follows their value.
         private final Set<Element> inferredLocals = new HashSet<>();
-        // Locals declared with `var` whose value has these type arguments written with `?`.
-        private final Map<Element, Set<Integer>> nullableTypeArgs = new HashMap<>();
+        // The type arguments of `var` locals, lambda parameters and loop variables; their own nullness is in `state`.
+        private final Map<Element, Shape> shapes = new HashMap<>();
         // Off while a loop body is scanned only to see which values it leaves nullable.
         private boolean reporting = true;
 
@@ -176,12 +225,10 @@ final class NullChecker implements TaskListener {
             if (element.getKind() == ElementKind.LOCAL_VARIABLE && isVar(variable)) {
                 inferredLocals.add(element);
                 state.put(element, origin(init));
-                Set<Integer> args = nullableTypeArgs(init);
-                if (!args.isEmpty()) {
-                    nullableTypeArgs.computeIfAbsent(element, e -> new HashSet<>()).addAll(args);
-                }
+                shapes.put(element, shape(init).nonNull());
             } else if (element.getKind() == ElementKind.LOCAL_VARIABLE) {
                 store(init, element, variable.getType());
+                checkTypeArguments(init, element.asType(), "`" + element.getSimpleName() + "`");
             } else if (element.getKind() == ElementKind.FIELD) {
                 checkValue(init, element.asType(), element, true, "`" + element.getSimpleName() + "` is not nullable");
             }
@@ -197,10 +244,7 @@ final class NullChecker implements TaskListener {
             }
             if (inferredLocals.contains(target)) {
                 state.put(target, origin(assignment.getExpression()));
-                Set<Integer> args = nullableTypeArgs(assignment.getExpression());
-                if (!args.isEmpty()) {
-                    nullableTypeArgs.computeIfAbsent(target, e -> new HashSet<>()).addAll(args);
-                }
+                shapes.merge(target, shape(assignment.getExpression()).nonNull(), Shape::or);
             } else if (target.getKind() == ElementKind.LOCAL_VARIABLE) {
                 store(assignment.getExpression(), target, null);
             } else if (isAxolotlCode(target)) {
@@ -256,9 +300,13 @@ final class NullChecker implements TaskListener {
                 checkArguments(method, call.getArguments());
             }
             if (call.getMethodSelect() instanceof MemberSelectTree select && !isTypeName(select.getExpression())) {
-                checkTypeArgumentParameters(select.getExpression(), method, call.getArguments());
+                ExpressionTree receiver = select.getExpression();
+                if (method.getEnclosingElement() instanceof TypeElement owner) {
+                    checkTypeArgumentParameters(receiverBindings(receiver, method), asSuper(typeOf(receiver), owner),
+                            method, call.getArguments());
+                }
                 if (method.getSimpleName().contentEquals("sorted") && call.getArguments().isEmpty()
-                        && isStream(select.getExpression()) && nullableTypeArgs(select.getExpression()).contains(0)) {
+                        && isStream(receiver) && shape(receiver).arg(0).nullable()) {
                     report(call, Origin.HIDDEN, false, "the elements may be null, and `sorted` compares them; "
                             + "drop the nulls first: `|> filter { it != null }`");
                 }
@@ -284,6 +332,11 @@ final class NullChecker implements TaskListener {
             if (isAxolotlCode(constructor)) {
                 checkArguments(constructor, newClass.getArguments());
             }
+            if (newClass.getIdentifier() instanceof ParameterizedTypeTree generic && !generic.getTypeArguments().isEmpty()
+                    && typeOf(newClass) instanceof DeclaredType created) {
+                checkTypeArgumentParameters(typeBindings((TypeElement) constructor.getEnclosingElement(),
+                        shapeOf(generic)), created, constructor, newClass.getArguments());
+            }
             String owner = ((TypeElement) constructor.getEnclosingElement()).getQualifiedName().toString();
             if ((owner.equals("axl.lang.Ok") || owner.equals("axl.lang.Err")) && newClass.getArguments().size() == 1) {
                 Boolean nullable = targetTypeArgNullable(getCurrentPath(), owner.equals("axl.lang.Ok") ? 0 : 1);
@@ -308,6 +361,7 @@ final class NullChecker implements TaskListener {
                 }
                 if (p.getLeaf() instanceof MethodTree && trees.getElement(p) instanceof ExecutableElement method) {
                     checkValue(ret.getExpression(), method.getReturnType(), method, true, "the function does not return null");
+                    checkTypeArguments(ret.getExpression(), method.getReturnType(), "the result type");
                     return null;
                 }
             }
@@ -360,10 +414,12 @@ final class NullChecker implements TaskListener {
         public Void visitEnhancedForLoop(EnhancedForLoopTree loop, Void unused) {
             scan(loop.getExpression(), null);
             Element variable = trees.getElement(new TreePath(getCurrentPath(), loop.getVariable()));
+            Shape elements = elementShape(loop.getExpression());
             if (variable != null) {
                 inferredLocals.add(variable);
+                shapes.put(variable, elements.nonNull());
             }
-            Origin elementOrigin = nullableTypeArgs(loop.getExpression()).contains(0) ? Origin.HIDDEN : Origin.NONE;
+            Origin elementOrigin = elements.nullable() ? Origin.HIDDEN : Origin.NONE;
             state = loopBody(null, loop.getStatement(), variable == null ? null : Map.entry(variable, elementOrigin));
             return null;
         }
@@ -450,13 +506,21 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
             Map<Element, Origin> before = new HashMap<>(state);
-            Origin params = parameterOrigin(getCurrentPath());
-            for (VariableTree param : lambda.getParameters()) {
-                Element element = trees.getElement(new TreePath(getCurrentPath(), param));
-                if (element != null) {
-                    inferredLocals.add(element);
-                    state.put(element, element.asType().getKind().isPrimitive() ? Origin.NONE : params);
+            List<Shape> passed = passedShapes(getCurrentPath());
+            List<Shape> declared = parameterShapes(trees.getTypeMirror(getCurrentPath()), Map.of());
+            boolean fromJava = strict && passedToJava(getCurrentPath());
+            for (int i = 0; i < lambda.getParameters().size(); i++) {
+                Element element = trees.getElement(new TreePath(getCurrentPath(), lambda.getParameters().get(i)));
+                if (element == null) {
+                    continue;
                 }
+                inferredLocals.add(element);
+                Shape fromCall = i < passed.size() ? passed.get(i) : Shape.NONE;
+                Shape fromType = i < declared.size() ? declared.get(i) : Shape.NONE;
+                shapes.put(element, fromCall.or(fromType).nonNull());
+                state.put(element, element.asType().getKind().isPrimitive() ? Origin.NONE
+                        : fromType.nullable() ? Origin.DECLARED : fromCall.nullable() ? Origin.HIDDEN
+                        : fromJava ? Origin.PLATFORM : Origin.NONE);
             }
             super.visitLambdaExpression(lambda, unused);
             if (lambda.getBody() instanceof ExpressionTree body) {
@@ -469,6 +533,9 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitMemberReference(MemberReferenceTree reference, Void unused) {
             super.visitMemberReference(reference, unused);
+            if (element(reference) instanceof ExecutableElement method && checkReference(reference, method)) {
+                return null;
+            }
             if (strict && passedToJava(getCurrentPath()) && element(reference) instanceof ExecutableElement method
                     && isAxolotlCode(method)) {
                 for (VariableElement param : method.getParameters()) {
@@ -484,20 +551,92 @@ final class NullChecker implements TaskListener {
         }
 
         /**
-         * Lambda parameters get the elements of the collection or stream whose method takes the lambda,
-         * and in strict mode whatever Java code without nullness annotations passes.
+         * A method reference gets what a lambda in its place would get as parameters, and must return
+         * what it would return. Returns whether anything is wrong.
          */
-        private Origin parameterOrigin(TreePath lambda) {
-            TreePath parent = lambda.getParentPath();
+        private boolean checkReference(MemberReferenceTree reference, ExecutableElement method) {
+            TypeMirror target = trees.getTypeMirror(getCurrentPath());
+            if (!(target instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement iface)
+                    || functionalMethod(iface) == null || method.getKind() == ElementKind.CONSTRUCTOR) {
+                return false;
+            }
+            ExecutableElement sam = functionalMethod(iface);
+            List<Shape> passed = passedShapes(getCurrentPath());
+            List<Shape> written = parameterShapes(target, Map.of());
+            boolean nullAwayChecks = isNullMarked(iface);
+            boolean unbound = !method.getModifiers().contains(Modifier.STATIC) && isTypeName(reference.getQualifierExpression());
+            String name = "`" + reference + "`";
+            for (int i = 0; i < sam.getParameters().size(); i++) {
+                Origin origin = i < passed.size() && passed.get(i).nullable() ? Origin.HIDDEN
+                        : i < written.size() && written.get(i).nullable() ? Origin.DECLARED : Origin.NONE;
+                int index = unbound ? i - 1 : i;
+                if (unbound && i == 0) {
+                    if (report(reference, origin, nullAwayChecks, name + " is called on values that may be null; "
+                            + "use a lambda with `?.`, or drop the nulls first")) {
+                        return true;
+                    }
+                } else if (isAxolotlCode(method) && index < method.getParameters().size()) {
+                    VariableElement param = method.getParameters().get(index);
+                    if (!param.asType().getKind().isPrimitive() && !PlatformValues.isNullable(param, param.asType())
+                            && report(reference, origin, nullAwayChecks, name + " may get null, but the parameter `"
+                            + param.getSimpleName() + "` does not accept null; pass a lambda that checks for null")) {
+                        return true;
+                    }
+                }
+            }
+            TypeMirror returned = ((ExecutableType) types.asMemberOf(declared, sam)).getReturnType();
+            if (returned.getKind() == TypeKind.VOID || returned.getKind().isPrimitive()
+                    || !PlatformValues.isNullable(method, method.getReturnType())
+                    || resultMayBeNull(getCurrentPath(), iface, sam, returned)) {
+                return false;
+            }
+            return report(reference, Origin.DECLARED, nullAwayChecks, name + " may return null, but `"
+                    + iface.getSimpleName() + "." + sam.getSimpleName() + "` returns `" + typeName(returned)
+                    + "` here; use a lambda with `?:`");
+        }
+
+        /** What may be null in the parameters that the call a lambda or method reference is passed to gives it. */
+        private List<Shape> passedShapes(TreePath function) {
+            TreePath parent = function.getParentPath();
             while (parent.getLeaf() instanceof ParenthesizedTree) {
                 parent = parent.getParentPath();
             }
-            if (parent.getLeaf() instanceof MethodInvocationTree call && call.getMethodSelect() instanceof MemberSelectTree select
-                    && !isTypeName(select.getExpression()) && hasOneTypeParameter(select.getExpression())
-                    && nullableTypeArgs(select.getExpression()).contains(0)) {
-                return Origin.HIDDEN;
+            List<? extends ExpressionTree> args;
+            Map<Element, Shape> fixed;
+            if (parent.getLeaf() instanceof MethodInvocationTree call) {
+                args = call.getArguments();
+                fixed = call.getMethodSelect() instanceof MemberSelectTree select && !isTypeName(select.getExpression())
+                        && trees.getElement(parent) instanceof ExecutableElement method
+                        ? receiverBindings(select.getExpression(), method) : Map.of();
+            } else if (parent.getLeaf() instanceof NewClassTree newClass) {
+                args = newClass.getArguments();
+                fixed = Map.of();
+            } else {
+                return List.of();
             }
-            return strict && passedToJava(lambda) ? Origin.PLATFORM : Origin.NONE;
+            if (!(trees.getElement(parent) instanceof ExecutableElement callee)) {
+                return List.of();
+            }
+            for (int i = 0; i < args.size(); i++) {
+                if (unwrap(args.get(i)) == function.getLeaf()) {
+                    return parameterShapes(parameterType(callee, i, args.size()), bindings(fixed, callee, args, false));
+                }
+            }
+            return List.of();
+        }
+
+        /** The parameters of the single method of a functional interface type. */
+        private List<Shape> parameterShapes(TypeMirror type, Map<Element, Shape> bindings) {
+            if (!(type instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement iface)
+                    || functionalMethod(iface) == null) {
+                return List.of();
+            }
+            Map<Element, Shape> own = new HashMap<>();
+            for (int i = 0; i < iface.getTypeParameters().size() && i < declared.getTypeArguments().size(); i++) {
+                own.put(iface.getTypeParameters().get(i), shapeOf(declared.getTypeArguments().get(i), bindings));
+            }
+            ExecutableType sam = (ExecutableType) types.asMemberOf((DeclaredType) iface.asType(), functionalMethod(iface));
+            return sam.getParameterTypes().stream().map(p -> shapeOf(p, own)).toList();
         }
 
         /**
@@ -576,7 +715,8 @@ final class NullChecker implements TaskListener {
             }
             if (isOneOf(callee, NULL_VALUE_ALLOWED)
                     && ((MethodInvocationTree) parent.getLeaf()).getMethodSelect() instanceof MemberSelectTree select) {
-                return nullableTypeArgs(select.getExpression()).contains(1);
+                ExpressionTree receiver = select.getExpression();
+                return shapeAs(shape(receiver), typeOf(receiver), elements.getTypeElement("java.util.Map")).arg(1).nullable();
             }
             int index = ((MethodInvocationTree) parent.getLeaf()).getArguments().indexOf(lambda.getLeaf());
             if (!isNullMarked(callee) || index < 0 || index >= callee.getParameters().size()) {
@@ -651,52 +791,76 @@ final class NullChecker implements TaskListener {
         /**
          * `xs.add(x)` on an `ArrayList<String>`: Java says nothing about null there, but the type argument
          * without `?` promises values that are not null.
+         *
+         * @param owner the type that declares the method, with the type arguments of the receiver
          */
-        private void checkTypeArgumentParameters(ExpressionTree receiver, ExecutableElement method,
+        private void checkTypeArgumentParameters(Map<Element, Shape> bindings, DeclaredType owner, ExecutableElement method,
                                                  List<? extends ExpressionTree> args) {
-            if (!(typeOf(receiver) instanceof DeclaredType receiverType) || receiverType.getTypeArguments().isEmpty()
-                    || !(receiverType.asElement() instanceof TypeElement owner) || isNullMarked(owner)) {
+            if (owner == null || !(owner.asElement() instanceof TypeElement type) || isNullMarked(type)
+                    || isOneOf(method, NULL_ARGUMENT_ALLOWED)) {
                 return;
             }
-            ExecutableType member;
-            try {
-                member = (ExecutableType) types.asMemberOf((DeclaredType) owner.asType(), method);
-            } catch (IllegalArgumentException e) {
-                return;
-            }
-            Set<Integer> nullable = nullableTypeArgs(receiver);
-            List<? extends TypeMirror> params = member.getParameterTypes();
+            List<? extends VariableElement> params = method.getParameters();
             int checkedCount = method.isVarArgs() ? params.size() - 1 : params.size();
             for (int i = 0; i < Math.min(checkedCount, args.size()); i++) {
-                int typeArg = typeParameterIndex(owner, params.get(i));
-                if (typeArg >= 0 && typeArg < receiverType.getTypeArguments().size()
-                        && receiverType.getTypeArguments().get(typeArg).getKind() == TypeKind.DECLARED
-                        && !nullable.contains(typeArg)) {
+                if (!(params.get(i).asType() instanceof TypeVariable variable) || nullableAnnotated(variable)) {
+                    continue;
+                }
+                int position = type.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
+                Shape bound = bindings.get(variable.asElement());
+                if (position >= 0 && position < owner.getTypeArguments().size()
+                        && owner.getTypeArguments().get(position).getKind() == TypeKind.DECLARED
+                        && bound != null && !bound.nullable()) {
                     ExpressionTree arg = args.get(i);
-                    report(arg, origin(arg), false, describe(arg) + ", but `" + method.getSimpleName()
+                    String name = method.getKind() == ElementKind.CONSTRUCTOR ? type.getSimpleName().toString()
+                            : method.getSimpleName().toString();
+                    report(arg, origin(arg), false, describe(arg) + ", but `" + name
                             + "` takes a type argument written without `?` here; add `?` to the type argument or " + FIX);
                 }
             }
         }
 
-        /** `List.of(a, null)`: the values become the elements of a type that has no `?`. */
+        /** `List.of(a, null)` throws. */
         private void checkFactoryArguments(ExecutableElement method, List<? extends ExpressionTree> args) {
-            if (isNullMarked(method) || method.getTypeParameters().isEmpty()
-                    || !(method.getReturnType() instanceof DeclaredType result)) {
+            if (!isOneOf(method, NULL_REJECTING_FACTORIES)) {
                 return;
             }
-            List<? extends VariableElement> params = method.getParameters();
-            for (int i = 0; i < args.size() && !params.isEmpty(); i++) {
-                TypeMirror param = params.get(Math.min(i, params.size() - 1)).asType();
-                if (method.isVarArgs() && i >= params.size() - 1 && param instanceof ArrayType array) {
-                    param = array.getComponentType();
+            for (int i = 0; i < args.size(); i++) {
+                ExpressionTree arg = args.get(i);
+                TypeMirror param = parameterType(method, i, args.size());
+                Map<Element, Shape> bound = new HashMap<>();
+                bind(param, valueShape(arg), typeOf(arg), bound);
+                if (method.getTypeParameters().stream().noneMatch(v -> bound.containsKey(v) && bound.get(v).nullable())) {
+                    continue;
                 }
-                if (param instanceof TypeVariable variable && result.getTypeArguments().stream()
-                        .anyMatch(t -> t instanceof TypeVariable v && v.asElement().equals(variable.asElement()))) {
-                    ExpressionTree arg = args.get(i);
+                if (param instanceof TypeVariable) {
                     report(arg, origin(arg), false, describe(arg) + ", but `" + method.getSimpleName()
-                            + "` makes it an element of a type without `?`; " + FIX);
+                            + "` does not take null; " + FIX);
+                } else {
+                    report(arg, Origin.HIDDEN, false, "the elements of the value may be null, but `" + method.getSimpleName()
+                            + "` does not take null elements; drop the nulls first: `|> filter { it != null }`");
                 }
+            }
+        }
+
+        /** `val ys: List<String> = xs` where the elements of `xs` may be null. */
+        private void checkTypeArguments(ExpressionTree value, TypeMirror declared, String target) {
+            if (!(declared instanceof DeclaredType type) || !(type.asElement() instanceof TypeElement element)) {
+                return;
+            }
+            // `Ok(x)` and `attempt` are checked against the type they go to.
+            if (element(value) != null && isRuntime(element(value))) {
+                return;
+            }
+            Shape wanted = shapeOf(declared, Map.of());
+            TypeMirror valueType = typeOf(value);
+            // NullAway compares the types javac knows itself.
+            if (shapeAs(shapeOf(valueType, Map.of()), valueType, element).losesQuestionMark(wanted)) {
+                return;
+            }
+            if (shapeAs(shape(value), valueType, element).losesQuestionMark(wanted)) {
+                report(value, Origin.HIDDEN, false, "a type argument of the value has `?`, but " + target
+                        + " has none there; add `?` to the type argument of " + target + " or drop the nulls first");
             }
         }
 
@@ -833,7 +997,7 @@ final class NullChecker implements TaskListener {
                 return callOrigin(call, method);
             }
             Origin declared = unknownOrigin(element);
-            return declared == Origin.NONE && nullableAnnotated(typeOf(e)) ? Origin.HIDDEN : declared;
+            return declared == Origin.NONE && (nullableAnnotated(typeOf(e)) || shape(e).nullable()) ? Origin.HIDDEN : declared;
         }
 
         private Origin callOrigin(MethodInvocationTree call, ExecutableElement method) {
@@ -846,69 +1010,206 @@ final class NullChecker implements TaskListener {
             if (declared != Origin.NONE) {
                 return declared;
             }
-            if (nullableAnnotated(typeOf(call))) {
-                return Origin.HIDDEN;
-            }
-            if (call.getMethodSelect() instanceof MemberSelectTree select && !isTypeName(select.getExpression())
-                    && typeOf(select.getExpression()) instanceof DeclaredType receiverType
-                    && receiverType.asElement() instanceof TypeElement owner) {
-                TypeMirror returned = memberReturnType(owner, method);
-                int typeArg = typeParameterIndex(owner, returned);
-                if (typeArg >= 0 && nullableTypeArgs(select.getExpression()).contains(typeArg)) {
-                    return Origin.HIDDEN;
+            if (isOneOf(method, NULL_ARGUMENT_ALLOWED) && !call.getArguments().isEmpty()) {
+                Origin given = origin(call.getArguments().getLast());
+                if (given != Origin.NONE) {
+                    return given;
                 }
             }
-            return Origin.NONE;
+            if (!shape(call).nullable()) {
+                return Origin.NONE;
+            }
+            return nullAwaySees(call, method) ? Origin.DECLARED : Origin.HIDDEN;
         }
 
-        /**
-         * Positions of the type arguments of the value's type that are written with `?`. javac drops
-         * the annotations when it infers types, so streams and `var` locals are followed by hand.
-         */
-        private Set<Integer> nullableTypeArgs(ExpressionTree expression) {
+        /** NullAway infers the type arguments of a null-marked method from the types javac knows. */
+        private boolean nullAwaySees(MethodInvocationTree call, ExecutableElement method) {
+            if (!isNullMarked(method)) {
+                return false;
+            }
+            Map<Element, Shape> bound = new HashMap<>();
+            List<? extends ExpressionTree> args = call.getArguments();
+            for (int i = 0; i < args.size(); i++) {
+                TypeMirror type = typeOf(args.get(i));
+                bind(parameterType(method, i, args.size()), shapeOf(type, Map.of()), type, bound);
+            }
+            return shapeOf(method.getReturnType(), bound).nullable();
+        }
+
+        /** What may be null in the type arguments of a value, and in the value itself where a type argument makes it so. */
+        private Shape shape(ExpressionTree expression) {
             ExpressionTree e = unwrap(expression);
-            Set<Integer> result = new HashSet<>();
-            if (typeOf(e) instanceof DeclaredType type) {
-                List<? extends TypeMirror> args = type.getTypeArguments();
-                for (int i = 0; i < args.size(); i++) {
-                    if (nullableAnnotated(args.get(i))) {
-                        result.add(i);
-                    }
-                }
-            }
-            if (e instanceof NewClassTree newClass && newClass.getIdentifier() instanceof ParameterizedTypeTree generic) {
-                for (int i = 0; i < generic.getTypeArguments().size(); i++) {
-                    if (annotatedNullable(generic.getTypeArguments().get(i))) {
-                        result.add(i);
-                    }
-                }
-            }
+            Shape known = shapeOf(typeOf(e), Map.of());
             Element element = element(e);
-            if (element != null && nullableTypeArgs.containsKey(element)) {
-                result.addAll(nullableTypeArgs.get(element));
+            if (e instanceof ConditionalExpressionTree c) {
+                return known.or(shape(c.getTrueExpression())).or(shape(c.getFalseExpression()));
             }
-            if (e instanceof MethodInvocationTree call && call.getMethodSelect() instanceof MemberSelectTree select
-                    && !isTypeName(select.getExpression()) && element instanceof ExecutableElement method
-                    && typeOf(select.getExpression()) instanceof DeclaredType receiverType
-                    && receiverType.asElement() instanceof TypeElement owner) {
-                Set<Integer> receiverArgs = nullableTypeArgs(select.getExpression());
-                if (!receiverArgs.isEmpty() && !filtersNulls(call, method)
-                        && memberReturnType(owner, method) instanceof DeclaredType returned) {
-                    List<? extends TypeMirror> args = returned.getTypeArguments();
-                    for (int i = 0; i < args.size(); i++) {
-                        if (receiverArgs.contains(typeParameterIndex(owner, args.get(i)))) {
-                            result.add(i);
-                        }
-                    }
-                }
+            if (e instanceof AssignmentTree assignment) {
+                return known.or(shape(assignment.getExpression()));
+            }
+            if (e instanceof NewClassTree newClass && element instanceof ExecutableElement constructor) {
+                return known.or(newShape(newClass, constructor));
+            }
+            if (e instanceof MethodInvocationTree call && element instanceof ExecutableElement method) {
+                return known.or(callShape(call, method));
+            }
+            if (e instanceof IdentifierTree) {
+                // The nullness of a variable itself depends on where it is read, as `origin` knows.
+                return shapes.containsKey(element) ? known.nonNull().or(shapes.get(element)) : known.nonNull();
+            }
+            if (e instanceof MemberSelectTree select && element instanceof VariableElement field && !isTypeName(select.getExpression())) {
+                return known.or(shapeOf(field.asType(), receiverBindings(select.getExpression(), field)));
+            }
+            return known;
+        }
+
+        /** The shape of a value with its own nullness as far as `?` goes. */
+        private Shape valueShape(ExpressionTree expression) {
+            Origin origin = origin(expression);
+            Shape shape = shape(expression);
+            return origin == Origin.HIDDEN || origin == Origin.DECLARED ? new Shape(true, shape.args()) : shape.nonNull();
+        }
+
+        private Shape callShape(MethodInvocationTree call, ExecutableElement method) {
+            ExpressionTree receiver = call.getMethodSelect() instanceof MemberSelectTree select
+                    && !isTypeName(select.getExpression()) ? select.getExpression() : null;
+            List<? extends ExpressionTree> args = call.getArguments();
+            if (isRequireNonNull(method) && !args.isEmpty()) {
+                return shape(args.getFirst()).nonNull();
+            }
+            if (receiver != null && isStream(receiver) && method.getSimpleName().contentEquals("collect")
+                    && args.size() == 1 && collectsElements(args.getFirst())) {
+                return new Shape(false, List.of(shape(receiver).arg(0)));
+            }
+            Map<Element, Shape> fixed = new HashMap<>(receiver == null ? Map.of() : receiverBindings(receiver, method));
+            List<? extends Tree> written = call.getTypeArguments();
+            for (int i = 0; i < written.size() && i < method.getTypeParameters().size(); i++) {
+                fixed.put(method.getTypeParameters().get(i), shapeOf(written.get(i)));
+            }
+            Shape result = shapeOf(method.getReturnType(), bindings(fixed, method, args, true));
+            if (method.getSimpleName().contentEquals("ofNullable") || receiver != null && filtersNulls(call, method)) {
+                result = result.withArg(0, result.arg(0).nonNull());
             }
             return result;
         }
 
-        /** `filter { it != null }` leaves only values that are not null. */
+        /** `Collectors.toList()` and the like keep the elements of the stream. */
+        private boolean collectsElements(ExpressionTree collector) {
+            return unwrap(collector) instanceof MethodInvocationTree call && element(call) instanceof ExecutableElement method
+                    && ((TypeElement) method.getEnclosingElement()).getQualifiedName().contentEquals("java.util.stream.Collectors")
+                    && Set.of("toList", "toSet", "toUnmodifiableList", "toUnmodifiableSet").contains(method.getSimpleName().toString());
+        }
+
+        /** `ArrayList<String?>()` says what its type arguments are; `ArrayList<>(xs)` takes them from the arguments. */
+        private Shape newShape(NewClassTree newClass, ExecutableElement constructor) {
+            if (newClass.getIdentifier() instanceof ParameterizedTypeTree generic && !generic.getTypeArguments().isEmpty()) {
+                return shapeOf(generic).nonNull();
+            }
+            TypeElement owner = (TypeElement) constructor.getEnclosingElement();
+            return shapeOf(owner.asType(), bindings(Map.of(), constructor, newClass.getArguments(), true)).nonNull();
+        }
+
+        /** The type arguments of the receiver as those of the type that declares the member. */
+        private Map<Element, Shape> receiverBindings(ExpressionTree receiver, Element member) {
+            if (!(member.getEnclosingElement() instanceof TypeElement owner)) {
+                return Map.of();
+            }
+            return typeBindings(owner, shapeAs(shape(receiver), typeOf(receiver), owner));
+        }
+
+        private static Map<Element, Shape> typeBindings(TypeElement type, Shape shape) {
+            Map<Element, Shape> bindings = new HashMap<>();
+            List<? extends TypeParameterElement> params = type.getTypeParameters();
+            for (int i = 0; i < params.size(); i++) {
+                bindings.put(params.get(i), shape.arg(i));
+            }
+            return bindings;
+        }
+
+        /**
+         * The type variables of a call: the fixed ones come from the receiver or the written type
+         * arguments, the others from the arguments. A lambda gives what it returns.
+         */
+        private Map<Element, Shape> bindings(Map<Element, Shape> fixed, ExecutableElement method,
+                                             List<? extends ExpressionTree> args, boolean withLambdas) {
+            Map<Element, Shape> bound = new HashMap<>();
+            for (int i = 0; i < args.size() && !method.getParameters().isEmpty(); i++) {
+                TypeMirror param = parameterType(method, i, args.size());
+                ExpressionTree arg = unwrap(args.get(i));
+                if (arg instanceof LambdaExpressionTree lambda) {
+                    if (withLambdas && lambda.getBody() instanceof ExpressionTree body) {
+                        bindResult(param, body, bound);
+                    }
+                } else if (!(arg instanceof MemberReferenceTree)) {
+                    bind(param, valueShape(arg), typeOf(arg), bound);
+                }
+            }
+            // Java code says nothing about null: `<T> T f(T)` may return anything, but what goes into a
+            // container comes out of it.
+            for (TypeParameterElement variable : method.getTypeParameters()) {
+                Shape shape = bound.get(variable);
+                if (shape != null && shape.nullable() && !isRuntime(method) && !isTypeArgumentOf(method.getReturnType(), variable)) {
+                    bound.put(variable, shape.nonNull());
+                }
+            }
+            bound.putAll(fixed);
+            return bound;
+        }
+
+        private void bindResult(TypeMirror param, ExpressionTree body, Map<Element, Shape> bound) {
+            if (!(param instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement iface)
+                    || functionalMethod(iface) == null
+                    || !(functionalMethod(iface).getReturnType() instanceof TypeVariable result)) {
+                return;
+            }
+            int position = iface.getTypeParameters().indexOf((TypeParameterElement) result.asElement());
+            if (position >= 0 && position < declared.getTypeArguments().size()) {
+                // Elsewhere the lambda must not return null, which `checkLambdaResult` reports.
+                TypeMirror target = declared.getTypeArguments().get(position);
+                boolean mayReturnNull = target instanceof TypeVariable variable && nullableBound(variable);
+                bind(target, mayReturnNull ? valueShape(body) : shape(body).nonNull(), typeOf(body), bound);
+            }
+        }
+
+        /** Matches a parameter type against the shape of an argument of the given type. */
+        private void bind(TypeMirror param, Shape arg, TypeMirror argType, Map<Element, Shape> bound) {
+            if (param instanceof TypeVariable variable) {
+                bound.merge(variable.asElement(), nullableAnnotated(param) ? arg.nonNull() : arg, Shape::or);
+            } else if (param instanceof WildcardType wildcard) {
+                TypeMirror limit = wildcard.getExtendsBound() != null ? wildcard.getExtendsBound() : wildcard.getSuperBound();
+                if (limit != null) {
+                    bind(limit, arg, argType, bound);
+                }
+            } else if (param instanceof DeclaredType declared && declared.asElement() instanceof TypeElement type) {
+                DeclaredType actual = asSuper(argType, type);
+                Shape seen = shapeAs(arg, argType, type);
+                List<? extends TypeMirror> params = declared.getTypeArguments();
+                for (int i = 0; i < params.size(); i++) {
+                    TypeMirror actualArg = actual != null && i < actual.getTypeArguments().size() ? actual.getTypeArguments().get(i) : null;
+                    bind(params.get(i), seen.arg(i), actualArg, bound);
+                }
+            } else if (param instanceof ArrayType array && argType instanceof ArrayType actual) {
+                bind(array.getComponentType(), arg.arg(0), actual.getComponentType(), bound);
+            }
+        }
+
+        private Shape elementShape(ExpressionTree iterable) {
+            if (typeOf(iterable) instanceof ArrayType) {
+                return shape(iterable).arg(0);
+            }
+            return shapeAs(shape(iterable), typeOf(iterable), elements.getTypeElement("java.lang.Iterable")).arg(0);
+        }
+
+        /** `filter { it != null }` and `filter(Objects::nonNull)` leave only values that are not null. */
         private boolean filtersNulls(MethodInvocationTree call, ExecutableElement method) {
-            if (!method.getSimpleName().contentEquals("filter") || call.getArguments().size() != 1
-                    || !(unwrap(call.getArguments().getFirst()) instanceof LambdaExpressionTree lambda)
+            if (!method.getSimpleName().contentEquals("filter") || call.getArguments().size() != 1) {
+                return false;
+            }
+            if (unwrap(call.getArguments().getFirst()) instanceof MemberReferenceTree reference) {
+                return element(reference) instanceof ExecutableElement predicate && isObjectsNonNull(predicate)
+                        && predicate.getSimpleName().contentEquals("nonNull");
+            }
+            if (!(unwrap(call.getArguments().getFirst()) instanceof LambdaExpressionTree lambda)
                     || lambda.getParameters().size() != 1 || !(lambda.getBody() instanceof ExpressionTree body)) {
                 return false;
             }
@@ -919,18 +1220,6 @@ final class NullChecker implements TaskListener {
             boolean checked = state.get(param) == Origin.NONE;
             state = before;
             return checked;
-        }
-
-        private TypeMirror memberReturnType(TypeElement owner, ExecutableElement method) {
-            try {
-                return ((ExecutableType) types.asMemberOf((DeclaredType) owner.asType(), method)).getReturnType();
-            } catch (IllegalArgumentException e) {
-                return method.getReturnType();
-            }
-        }
-
-        private boolean hasOneTypeParameter(ExpressionTree receiver) {
-            return typeOf(receiver) instanceof DeclaredType type && type.getTypeArguments().size() == 1;
         }
 
         private boolean isStream(ExpressionTree e) {
@@ -1045,12 +1334,92 @@ final class NullChecker implements TaskListener {
         return name.equals("equals") && params == 1 || (name.equals("hashCode") || name.equals("toString")) && params == 0;
     }
 
-    /** Which type parameter of the class a member type is, or -1. */
-    private static int typeParameterIndex(TypeElement owner, TypeMirror type) {
-        if (!(type instanceof TypeVariable variable)) {
-            return -1;
+    /** The type of the parameter an argument goes to; the extra arguments of varargs go to its elements. */
+    private static TypeMirror parameterType(ExecutableElement method, int index, int argCount) {
+        List<? extends VariableElement> params = method.getParameters();
+        TypeMirror type = params.get(Math.min(index, params.size() - 1)).asType();
+        if (method.isVarArgs() && index >= params.size() - 1 && argCount != params.size() && type instanceof ArrayType array) {
+            return array.getComponentType();
         }
-        return owner.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
+        return type;
+    }
+
+    /** `List<T>` but not `T` or `List<List<T>>`. */
+    private static boolean isTypeArgumentOf(TypeMirror type, TypeParameterElement variable) {
+        if (!(type instanceof DeclaredType declared)) {
+            return false;
+        }
+        for (TypeMirror arg : declared.getTypeArguments()) {
+            TypeMirror inner = arg instanceof WildcardType wildcard && wildcard.getExtendsBound() != null ? wildcard.getExtendsBound() : arg;
+            if (inner instanceof TypeVariable v && v.asElement().equals(variable)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The supertype of the type that the target class declares, with its type arguments, or null. */
+    private DeclaredType asSuper(TypeMirror type, TypeElement target) {
+        if (!(type instanceof DeclaredType declared)) {
+            return null;
+        }
+        if (declared.asElement().equals(target)) {
+            return declared;
+        }
+        for (TypeMirror parent : types.directSupertypes(type)) {
+            DeclaredType found = asSuper(parent, target);
+            if (found != null) {
+                return found;
+            }
+        }
+        return null;
+    }
+
+    /** The shape of a value of the type seen as its supertype that the target class declares. */
+    private Shape shapeAs(Shape shape, TypeMirror type, TypeElement target) {
+        if (!(type instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement element)) {
+            return Shape.NONE;
+        }
+        DeclaredType generic = asSuper(element.asType(), target);
+        if (generic == null) {
+            return Shape.NONE;
+        }
+        Map<Element, Shape> bindings = new HashMap<>();
+        List<? extends TypeParameterElement> params = element.getTypeParameters();
+        for (int i = 0; i < params.size(); i++) {
+            bindings.put(params.get(i), shape.arg(i));
+        }
+        return new Shape(shape.nullable(), shapeOf(generic, bindings).args());
+    }
+
+    /** The shape of a type, with the given shapes for its type variables. */
+    private static Shape shapeOf(TypeMirror type, Map<Element, Shape> bindings) {
+        if (type instanceof TypeVariable variable) {
+            Shape bound = bindings.getOrDefault(variable.asElement(), Shape.NONE);
+            return nullableAnnotated(type) ? new Shape(true, bound.args()) : bound;
+        }
+        if (type instanceof WildcardType wildcard) {
+            TypeMirror limit = wildcard.getExtendsBound() != null ? wildcard.getExtendsBound() : wildcard.getSuperBound();
+            Shape inner = limit == null ? Shape.NONE : shapeOf(limit, bindings);
+            return nullableAnnotated(type) ? new Shape(true, inner.args()) : inner;
+        }
+        List<Shape> args = new ArrayList<>();
+        if (type instanceof DeclaredType declared) {
+            declared.getTypeArguments().forEach(a -> args.add(shapeOf(a, bindings)));
+        } else if (type instanceof ArrayType array) {
+            args.add(shapeOf(array.getComponentType(), bindings));
+        }
+        return new Shape(nullableAnnotated(type), args);
+    }
+
+    /** The shape of a written type. */
+    private static Shape shapeOf(Tree typeTree) {
+        Tree tree = typeTree instanceof AnnotatedTypeTree annotated ? annotated.getUnderlyingType() : typeTree;
+        List<Shape> args = new ArrayList<>();
+        if (tree instanceof ParameterizedTypeTree generic) {
+            generic.getTypeArguments().forEach(a -> args.add(shapeOf(a)));
+        }
+        return new Shape(annotatedNullable(typeTree), args);
     }
 
     private static boolean nullableBound(TypeVariable variable) {

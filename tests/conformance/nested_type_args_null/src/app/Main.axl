@@ -1,0 +1,35 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.List
+import java.util.Map
+import java.util.function.Supplier
+import java.util.stream.Collectors
+
+fn maybe() -> String? = null
+
+fn len(s: String) -> Int = s.length()
+
+fn list() -> ArrayList<String?>? = ArrayList<String?>()
+
+fn main() {
+    val m: Map<String, String?> = HashMap<String, String?>()
+    m.forEach({ k, v -> println(v.length()) })
+    val entry = HashMap<String, String?>().entrySet().iterator().next()
+    println(entry.getValue().length())
+    val outer = ArrayList<List<String?>>()
+    println(outer.get(0).get(0).length())
+    val xs = ArrayList<String?>()
+    println(xs.stream().collect(Collectors.toList()).get(0).length())
+    println(ArrayList<>(xs).get(0).length())
+    println(list()?.get(0).length())
+    val strict = ArrayList<String>(List.of("a"))
+    strict.add(maybe())
+    val copy: List<String> = ArrayList<>(xs)
+    xs.forEach(Main::len)
+    println(xs.stream().map(String::length).toList())
+    val f: Supplier<String> = Main::maybe
+    println(copy)
+    println(f)
+}

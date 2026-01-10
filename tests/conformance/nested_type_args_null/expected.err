@@ -1,0 +1,11 @@
+AXL102 app/Main.axl:18:35: error: `v` may be null: it holds a value of a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:20:30: error: the result of `getValue()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:33: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:24:61: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:25:36: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:26:28: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:28:16: error: the result of `maybe()` may be null, but `add` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:29:30: error: a type argument of the value has `?`, but `copy` has none there; add `?` to the type argument of `copy` or drop the nulls first
+AXL102 app/Main.axl:30:16: error: `Main::len` may get null, but the parameter `s` does not accept null; pass a lambda that checks for null
+AXL102 app/Main.axl:31:29: error: `String::length` is called on values that may be null; use a lambda with `?.`, or drop the nulls first
+AXL102 app/Main.axl:32:31: error: `Main::maybe` may return null, but `Supplier.get` returns `String` here; use a lambda with `?:`

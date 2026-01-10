@@ -1,0 +1,30 @@
+package app
+
+import java.util.ArrayList
+import java.util.Arrays
+import java.util.Collections
+import java.util.HashMap
+import java.util.List
+import java.util.Objects
+import java.util.Optional
+
+fn maybe() -> String? = null
+
+fn main() {
+    val xs = ArrayList<String?>()
+    xs.add("ab")
+    xs.add(null)
+    println(xs.stream().filter(Objects::nonNull).map({ s -> s.length() }).toList())
+    val both: List<String?> = Arrays.asList("a", maybe())
+    val one: List<String?> = Collections.singletonList(maybe())
+    println(both)
+    println(one)
+    val o = Optional.ofNullable(maybe())
+    println(o.isPresent())
+    val m = HashMap<String, String>()
+    m.put("k", "v")
+    val v: String? = m.getOrDefault("x", null)
+    println(v)
+    val e = m.entrySet().iterator().next()
+    println(e.getValue().length())
+}
