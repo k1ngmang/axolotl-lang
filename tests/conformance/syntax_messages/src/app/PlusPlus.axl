@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    var x = 1
+    x++
+}

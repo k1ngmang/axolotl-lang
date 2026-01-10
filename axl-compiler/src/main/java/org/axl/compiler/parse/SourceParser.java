@@ -66,14 +66,25 @@ public final class SourceParser {
             if (t.getType() == AxolotlLexer.UNKNOWN_CHAR) {
                 message = switch (t.getText()) {
                     case "\"" -> "unclosed string: add `\"` before the end of the line";
-                    case "'" -> "unclosed character literal: add `'`";
-                    default -> "unexpected character `" + t.getText() + "`";
+                    case "'" -> adjacent(all, i) && all.get(i + 1).getText().equals("'")
+                            ? "a character literal holds one character; put one between the quotes"
+                            : "unclosed character literal: add `'`";
+                    default -> Character.isISOControl(t.getText().codePointAt(0))
+                            ? String.format("unexpected control character U+%04X", t.getText().codePointAt(0))
+                            : "unexpected character `" + t.getText() + "`";
                 };
             } else if (t.getType() == AxolotlLexer.SLASH && i + 1 < all.size() && all.get(i + 1).getType() == AxolotlLexer.STAR
                     && all.get(i + 1).getStartIndex() == t.getStopIndex() + 1) {
                 message = "unclosed comment: add `*/`";
             } else if (t.getType() == AxolotlLexer.INT_LITERAL && t.getText().matches("0[0-9_]+[lL]?")) {
                 message = "a number cannot start with 0: Java would read `" + t.getText() + "` as octal";
+            } else if ((t.getType() == AxolotlLexer.PLUS || t.getType() == AxolotlLexer.MINUS) && adjacent(all, i)
+                    && all.get(i + 1).getType() == t.getType()) {
+                message = "Axolotl has no `" + t.getText() + t.getText() + "`; write `" + t.getText() + "= 1`";
+            } else if (t.getType() == AxolotlLexer.INT_LITERAL && adjacent(all, i) && all.get(i + 1).getType() == AxolotlLexer.DOT
+                    && !(i + 2 < all.size() && all.get(i + 2).getType() == AxolotlLexer.IDENTIFIER
+                    && all.get(i + 2).getStartIndex() == all.get(i + 1).getStopIndex() + 1)) {
+                message = "`" + t.getText() + ".` is not a valid number; write `" + t.getText() + ".0`";
             } else if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
                 message = numberProblem(t, i > 0 ? all.get(i - 1) : null, i + 1 < all.size() ? all.get(i + 1) : null);
             } else if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
@@ -167,9 +178,24 @@ public final class SourceParser {
         return null;
     }
 
+    private static boolean adjacent(List<Token> tokens, int i) {
+        return i + 1 < tokens.size() && tokens.get(i + 1).getStartIndex() == tokens.get(i).getStopIndex() + 1;
+    }
+
     private static boolean isJavaName(String name) {
         return Character.isJavaIdentifierStart(name.codePointAt(0))
                 && name.codePoints().skip(1).allMatch(Character::isJavaIdentifierPart);
+    }
+
+    /** A token after which something must follow: a binary operator or a `.`. */
+    private static boolean unfinished(Token token) {
+        return switch (token.getType()) {
+            case AxolotlLexer.PLUS, AxolotlLexer.MINUS, AxolotlLexer.STAR, AxolotlLexer.SLASH, AxolotlLexer.PERCENT,
+                 AxolotlLexer.ANDAND, AxolotlLexer.OROR, AxolotlLexer.ELVIS, AxolotlLexer.EQ, AxolotlLexer.NEQ,
+                 AxolotlLexer.LE, AxolotlLexer.GE, AxolotlLexer.ASSIGN, AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT,
+                 AxolotlLexer.PIPE -> true;
+            default -> false;
+        };
     }
 
     private static String parserMessage(String msg, Token at, CommonTokenStream tokens) {
@@ -272,14 +298,21 @@ public final class SourceParser {
                 Token previous = at == null ? null : previousToken(tokens, at);
                 int reportLine = line;
                 int column = charPositionInLine + 1;
+                boolean closes = at == null || at.getType() == Token.EOF || at.getType() == AxolotlLexer.RBRACE
+                        || at.getType() == AxolotlLexer.RPAREN;
                 // Something missing at the end of a line is reported there, not where the next line starts.
-                if (previous != null && previous.getLine() < line && !msg.startsWith("extraneous input")) {
+                if (previous != null && previous.getLine() < line
+                        && (unfinished(previous) || !msg.startsWith("extraneous input")
+                        && (closes || msg.startsWith("missing ") || openParens(tokens, previous.getLine()) > 0))) {
                     reportLine = previous.getLine();
                     column = previous.getCharPositionInLine() + previous.getText().length() + 1;
                 }
                 int finalLine = reportLine;
                 String message = reportLine < line && openParens(tokens, reportLine) > 0
-                        ? "missing `)` at the end of the line" : parserMessage(msg, at, tokens);
+                        ? "missing `)` at the end of the line"
+                        : previous != null && unfinished(previous) ? "`" + previous.getText() + "` needs "
+                                + (previous.getType() == AxolotlLexer.DOT ? "a name" : "a value") + " after it"
+                        : parserMessage(msg, at, tokens);
                 // ANTLR recovery tends to report the same broken line several times.
                 if (diagnostics.stream().noneMatch(d -> d.line() == finalLine)) {
                     diagnostics.add(AxlDiagnostic.error(path, reportLine, column, ErrorCode.SYNTAX, message));
