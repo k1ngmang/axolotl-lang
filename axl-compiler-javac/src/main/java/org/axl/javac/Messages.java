@@ -220,6 +220,9 @@ final class Messages {
         if (message.startsWith("method main in class") || message.matches("^method main in \\w+ .+ cannot be applied.*")) {
             return "`main` starts the program and cannot be called; move its code into a function and call that";
         }
+        if (message.equals("not a statement")) {
+            return "this expression does nothing on its own; use its value, for example in a `val`, or remove it";
+        }
         if (message.equals("missing return statement")) {
             return "the function does not return a value on every path; add a `return` at the end";
         }

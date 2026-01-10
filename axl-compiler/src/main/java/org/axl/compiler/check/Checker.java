@@ -344,7 +344,8 @@ public final class Checker {
         return switch (expr) {
             case Expr.Paren p -> doesSomething(p.inner());
             case Expr.Binary b -> (b.op().equals("&&") || b.op().equals("||")) && doesSomething(b.right());
-            case Expr.Member m -> hasSafeStep(m);
+            // `s.le` while a name is being typed: javac reports it, so that the rest of the file still translates.
+            case Expr.Member m -> true;
             case Expr.Call c -> true;
             case Expr.GenericNew g -> true;
             case Expr.Try t -> true;

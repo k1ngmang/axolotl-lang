@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val s = "x"
+    s.length
+}
