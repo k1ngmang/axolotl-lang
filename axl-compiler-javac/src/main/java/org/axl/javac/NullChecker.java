@@ -258,7 +258,8 @@ final class NullChecker implements TaskListener {
             TypeMirror type = local.asType();
             boolean nullable = PlatformValues.isNullable(local, type) || typeTree != null && annotatedNullable(typeTree);
             if (type.getKind().isPrimitive()) {
-                checkUnboxing(value, false);
+                // NullAway checks unboxing, unlike stores.
+                checkUnboxing(value, true);
             } else if (!nullable && report(value, origin(value), false,
                     describe(value) + ", but `" + local.getSimpleName() + "` is not nullable; " + FIX)) {
                 state.put(local, Origin.NONE);

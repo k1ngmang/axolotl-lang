@@ -1,0 +1,22 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.function.Supplier
+
+val cache = HashMap<String, String>()
+val cached = cache.get("k")
+
+fn main() {
+    val m = HashMap<String, String>()
+    val l = ArrayList<String>()
+    l.add(m.get("k"))
+    val sup: Supplier<String> = { -> m.get("k") }
+    val s: String = m.get("k")
+    val counts = HashMap<String, Int>()
+    val n: Int = counts.get("k")
+    println(cached.length())
+    println(sup)
+    println(s)
+    println(n)
+}

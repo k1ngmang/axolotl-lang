@@ -1,0 +1,5 @@
+AXL102 app/Main.axl:13:13: error: the result of `get()` may be null, but `add` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:14:40: error: the result of `get()` may be null, but the lambda must not return null: `Supplier.get` returns `String` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:15:23: error: the result of `get()` may be null, but `s` is not nullable; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:17:25: error: a value that may be null is used as a number or boolean; give a default with `?:`
+AXL102 app/Main.axl:18:20: error: value `cached` may be null: use `?.`, `?:` or check `if (cached != null)`

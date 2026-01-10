@@ -1,5 +1,6 @@
 package org.axl.javac;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import javax.lang.model.element.AnnotationMirror;
@@ -10,6 +11,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
@@ -18,6 +20,9 @@ import javax.lang.model.type.TypeMirror;
  * they had the type `T?`.
  */
 final class PlatformValues {
+
+    // JDK methods that NullAway's library models treat as returning null, by name and parameter count.
+    private static final Set<String> MODELED_NULLABLE = Set.of("java.util.Map.get/1", "java.lang.ref.Reference.get/0");
 
     private PlatformValues() {}
 
@@ -72,9 +77,25 @@ final class PlatformValues {
         return false;
     }
 
-    /** Whether a declaration states that it accepts or returns null. */
+    /** Whether a declaration states that it accepts or returns null, or NullAway's models say it returns null. */
     static boolean isNullable(Element element, TypeMirror type) {
-        return annotated(element, type, List.of("Nullable"));
+        return annotated(element, type, List.of("Nullable"))
+                || element instanceof ExecutableElement method && method.getEnclosingElement() instanceof TypeElement owner
+                && modeledNullable(owner, method.getSimpleName() + "/" + method.getParameters().size());
+    }
+
+    private static boolean modeledNullable(TypeElement type, String method) {
+        if (MODELED_NULLABLE.contains(type.getQualifiedName() + "." + method)) {
+            return true;
+        }
+        List<TypeMirror> parents = new ArrayList<>(type.getInterfaces());
+        parents.add(type.getSuperclass());
+        for (TypeMirror parent : parents) {
+            if (parent instanceof DeclaredType declared && modeledNullable((TypeElement) declared.asElement(), method)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
