@@ -1,0 +1,6 @@
+package app
+
+fn bang() {
+    System.getenv("PATH")!!
+    println(System.getenv("AXL_SURELY_NOT_SET").length())
+}

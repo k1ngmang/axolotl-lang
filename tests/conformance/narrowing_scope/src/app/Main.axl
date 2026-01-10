@@ -1,0 +1,11 @@
+package app
+import java.util.ArrayList
+
+fn main() {
+    val xs = ArrayList<String?>()
+    xs.add("a")
+    xs.add(null)
+    if (xs.get(0) != null) {
+        println(xs.get(1).length())
+    }
+}

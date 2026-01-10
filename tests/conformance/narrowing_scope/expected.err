@@ -1,0 +1,3 @@
+AXL102 app/Config.axl:15:11: error: `cfg` may be null, but `add` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Lists.axl:12:46: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:9:27: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`

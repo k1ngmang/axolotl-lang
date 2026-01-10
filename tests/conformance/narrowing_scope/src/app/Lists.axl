@@ -1,0 +1,18 @@
+package app
+import java.util.ArrayList
+import java.util.List
+
+fn check(xs: List<String?>) {
+    if (xs.get(0) == null) {
+        return
+    }
+    println("ok")
+}
+
+fn use(ys: List<String?>) -> Int = ys.get(0).length()
+
+fn other() {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    println(use(xs))
+}

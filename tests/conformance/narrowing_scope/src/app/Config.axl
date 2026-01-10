@@ -1,0 +1,17 @@
+package app
+import java.util.ArrayList
+
+val cfg: String? = System.getProperty("axl.surely.not.set")
+
+fn check() {
+    if (cfg == null) {
+        return
+    }
+    println("set")
+}
+
+fn other() {
+    val l = ArrayList<String>()
+    l.add(cfg)
+    println(l.get(0).length())
+}

@@ -1,0 +1,11 @@
+package app
+import lib.P
+
+fn main() {
+    val a = P("x")
+    val b = P.empty()!!
+    if (a.getName() == null) {
+        return
+    }
+    println(b.getName().length())
+}

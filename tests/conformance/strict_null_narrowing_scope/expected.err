@@ -1,0 +1,3 @@
+AXL104 app/Bang.axl:5:49: error: the result of `getenv()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Env.axl:9:55: error: the result of `getenv()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:10:25: error: the result of `getName()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`

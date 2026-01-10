@@ -267,7 +267,7 @@ final class NullChecker implements TaskListener {
             }
             if (isRequireNonNull(method) && call.getArguments().size() == 1
                     && getCurrentPath().getParentPath().getLeaf() instanceof ExpressionStatementTree) {
-                Element checked = element(call.getArguments().getFirst());
+                Element checked = narrowable(call.getArguments().getFirst());
                 if (checked != null) {
                     state.put(checked, Origin.NONE);
                 }
@@ -720,20 +720,42 @@ final class NullChecker implements TaskListener {
             }
         }
 
+        /**
+         * A check narrows a variable named on its own: a local, a parameter or a field of this class.
+         * The element of `xs.get(0)` or `a.name` stands for every call or access, not for this one.
+         */
+        private Element narrowable(ExpressionTree expression) {
+            if (!(unwrap(expression) instanceof IdentifierTree)) {
+                return null;
+            }
+            Element element = element(expression);
+            return element instanceof VariableElement ? element : null;
+        }
+
+        @Override
+        public Void visitMethod(MethodTree method, Void unused) {
+            // What one function checked says nothing about another.
+            Map<Element, Origin> outer = state;
+            state = new HashMap<>();
+            super.visitMethod(method, unused);
+            state = outer;
+            return null;
+        }
+
         /** Marks the values known to be non-null where the condition has the given value. */
         private void narrow(ExpressionTree condition, boolean when) {
             ExpressionTree c = unwrap(condition);
             if (c instanceof BinaryTree b && (b.getKind() == Tree.Kind.NOT_EQUAL_TO || b.getKind() == Tree.Kind.EQUAL_TO)) {
                 ExpressionTree other = isNullLiteral(b.getLeftOperand()) ? b.getRightOperand()
                         : isNullLiteral(b.getRightOperand()) ? b.getLeftOperand() : null;
-                Element checked = other == null ? null : element(other);
+                Element checked = other == null ? null : narrowable(other);
                 boolean nonNullWhenTrue = b.getKind() == Tree.Kind.NOT_EQUAL_TO;
                 if (checked != null && nonNullWhenTrue == when) {
                     state.put(checked, Origin.NONE);
                 }
             } else if (c instanceof MethodInvocationTree call && call.getArguments().size() == 1
                     && element(call) instanceof ExecutableElement method && isObjectsNonNull(method)) {
-                Element checked = element(call.getArguments().getFirst());
+                Element checked = narrowable(call.getArguments().getFirst());
                 if (checked != null && when == method.getSimpleName().contentEquals("nonNull")) {
                     state.put(checked, Origin.NONE);
                 }
