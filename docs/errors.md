@@ -19,10 +19,10 @@ Every diagnostic is printed as `file.axl:line:column: error: message`.
 | AXL013 | An unknown pipe stage, wrong arguments of a stage, or an ending stage that is not last. |
 | AXL014 | Warning: the package does not match the file's directory. |
 | AXL015 | Two files declare the same class. |
-| AXL016 | A top-level value reads a value declared after it, directly or through a function of the file. |
+| AXL016 | A top-level value reads a value declared after it, directly or through a function, lambda or value of the file, or values of two files read each other. |
 | AXL100 | Any other javac error, moved to the `.axl` line. Unknown names, type mismatches, wrong arguments and missing returns are reworded in Axolotl terms (`Int`, not `int` or `java.lang.Integer`). |
 | AXL101 | `try` on a `Result` whose error type differs from the function's. |
-| AXL102 | A value that may be null is dereferenced or passed where null is not accepted (NullAway). |
+| AXL102 | A value that may be null is dereferenced, unboxed, stored, returned (also from a lambda) or passed where null is not accepted. |
 | AXL103 | A member imported without `fn`/`val`. |
 | AXL104 | Strict null mode: a value from Java code without nullness annotations is used without a check. |
 | AXL105 | `try` on a value that is not a `Result`. |

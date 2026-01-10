@@ -104,3 +104,14 @@ An audit of the whole toolchain found about 95 problems; all of them are fixed, 
 - Build tools: incremental builds retype values inferred from changed files; Maven state per output directory; Gradle `smap` is a compile input and the runtime is an `api` dependency of libraries; the CLI reports missing files and directories and lets programs' threads finish.
 - Editors: UTF-16 positions in IntelliJ and the language server, overloads in rename and find usages, parser parity with the grammar, and several language server fixes.
 - `Result.mapErr` was added; parsing is no longer quadratic on long expressions.
+
+## Second audit fixes for 0.1.0
+
+A second audit found about 75 more problems, mostly a layer deeper and a dozen caused by the first round of fixes; all of them are fixed, each with a conformance case or test.
+
+- Null safety: a javac checker that always runs covers what NullAway trusts in JDK generics: lambdas returning null or `Int?` into JDK interfaces, `?` in type arguments (`List<String?>.get`, pipe elements, `|> first`, `sorted`), nullable values stored in locals without `?`. Inferred top-level types keep the `?` of type arguments and of arrays, cross-file inference no longer depends on file order, AXL016 follows lambdas, references and other files, and `a.f += try g()` reads `a.f` first.
+- Strict null mode: fallbacks of `?:`, `attempt`, `Ok`, stream arguments, unboxing in conditions and `+=`, lambdas and references passed to or kept for Java, loops of any length; common JDK methods are trusted.
+- Code that did not compile or crashed: `?: 0` on `Number?`, `Object?`, primitives and after `?.`; `?:` with `try` on the right; `?.` arguments in lambdas, top-level values and `attempt`; `Thread.State`; null checks before `&& try`; copies in block lambdas; `Ok(x)`, `List.of()` and diamonds before a `try`; bad `\u` escapes, deep nesting, nested `it`, `a < b, c > (d)`.
+- Diagnostics: the Gradle and Maven plugin gives the CLI's messages; lines of multi-line lambdas, parameter lists and `try`; columns in code points, outside comments and across generated lines; literals, statements on one line, statements that do nothing and more javac, Error Prone and syntax messages are checked or reworded; warnings and notes about generated code are hidden or name the `.axl` file.
+- Build tools: duplicate classes in incremental builds, generated Java source directories and custom source sets in Gradle, sibling modules and removed source directories in Maven, `axl run` options after the file, `-d` at or above the sources, non-UTF-8 files.
+- Editors: overload resolution in IntelliJ rename and the language server, the "move `try`" quick fix, duplicate classes, cross-file inference and edited lines in the language server, the Java converter's output.
