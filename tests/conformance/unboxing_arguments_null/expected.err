@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:8:27: error: the result of `get()` may be null: its type is a type argument written with `?`, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:10:14: error: the result of `get()` may be null: its type is a type argument written with `?`, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`

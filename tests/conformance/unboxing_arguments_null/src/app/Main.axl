@@ -1,0 +1,12 @@
+package app
+
+import java.util.ArrayList
+
+fn main() {
+    val ints = ArrayList<Int?>()
+    ints.add(null)
+    println(Math.abs(ints.get(0)))
+    var n = 0
+    n = ints.get(0)
+    println(n)
+}

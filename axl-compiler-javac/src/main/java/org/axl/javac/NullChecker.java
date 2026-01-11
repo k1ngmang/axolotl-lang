@@ -242,7 +242,9 @@ final class NullChecker implements TaskListener {
             if (target == null) {
                 return null;
             }
-            if (inferredLocals.contains(target)) {
+            if (inferredLocals.contains(target) && target.asType().getKind().isPrimitive()) {
+                checkUnboxing(assignment.getExpression(), true);
+            } else if (inferredLocals.contains(target)) {
                 state.put(target, origin(assignment.getExpression()));
                 shapes.merge(target, shape(assignment.getExpression()).nonNull(), Shape::or);
             } else if (target.getKind() == ElementKind.LOCAL_VARIABLE) {
@@ -299,6 +301,8 @@ final class NullChecker implements TaskListener {
             }
             if (isAxolotlCode(method)) {
                 checkArguments(method, call.getArguments());
+            } else {
+                checkPrimitiveArguments(method, call.getArguments());
             }
             if (call.getMethodSelect() instanceof MemberSelectTree select && !isTypeName(select.getExpression())) {
                 ExpressionTree receiver = select.getExpression();
@@ -332,6 +336,8 @@ final class NullChecker implements TaskListener {
             }
             if (isAxolotlCode(constructor)) {
                 checkArguments(constructor, newClass.getArguments());
+            } else {
+                checkPrimitiveArguments(constructor, newClass.getArguments());
             }
             if (newClass.getIdentifier() instanceof ParameterizedTypeTree generic && !generic.getTypeArguments().isEmpty()
                     && typeOf(newClass) instanceof DeclaredType created) {
@@ -786,6 +792,15 @@ final class NullChecker implements TaskListener {
             for (int i = 0; i < Math.min(checkedCount, args.size()); i++) {
                 VariableElement param = params.get(i);
                 checkValue(args.get(i), param.asType(), param, true, "the parameter `" + param.getSimpleName() + "` does not accept null");
+            }
+        }
+
+        /** `Math.abs(x)` unboxes `x`. */
+        private void checkPrimitiveArguments(ExecutableElement method, List<? extends ExpressionTree> args) {
+            for (int i = 0; i < args.size() && !method.getParameters().isEmpty(); i++) {
+                if (parameterType(method, i, args.size()).getKind().isPrimitive()) {
+                    checkUnboxing(args.get(i), true);
+                }
             }
         }
 
