@@ -52,7 +52,7 @@ class GenerateMojoTest {
         mojo(base).execute();
         assertEquals("Translated 2 of 2 .axl file(s)", messages.getLast());
         assertTrue(Files.exists(generated.resolve("A.java")));
-        assertTrue(Files.exists(base.resolve("target/axl/generated-sources_axl.state.json")));
+        assertTrue(Files.exists(base.resolve("target/axl/generated-sources_axl-from-src_main_axl.state.json")));
         assertEquals(List.of("app"), fileNames(base.resolve("target/generated-sources/axl")));
 
         mojo(base).execute();
@@ -68,6 +68,23 @@ class GenerateMojoTest {
         assertEquals(List.of(base.resolve("target/generated-sources/axl").toString()), mojo.project.getCompileSourceRoots());
         assertTrue(mojo.project.getProperties().getProperty("axl.javacPlugin").startsWith("-Xplugin:AxlDiagnostics file:"));
         assertEquals("21", mojo.project.getProperties().getProperty("maven.compiler.release"));
+    }
+
+    @Test
+    void executionsSharingAnOutputDirectoryKeepEachOthersFiles(@TempDir Path base) throws Exception {
+        Files.writeString(Files.createDirectories(base.resolve("src/main/axl/app")).resolve("A.axl"),
+                "package app\n\nfn a() -> Int = 1\n");
+        Files.writeString(Files.createDirectories(base.resolve("src/extra/axl/extra")).resolve("E.axl"),
+                "package extra\n\nfn e() -> Int = 2\n");
+        for (int build = 0; build < 2; build++) {
+            mojo(base).execute();
+            GenerateMojo extra = mojo(base);
+            extra.sourceDirectory = base.resolve("src/extra/axl").toFile();
+            extra.execute();
+        }
+        assertEquals("Translated 0 of 1 .axl file(s)", messages.getLast());
+        assertTrue(Files.exists(base.resolve("target/generated-sources/axl/app/A.java")));
+        assertTrue(Files.exists(base.resolve("target/generated-sources/axl/extra/E.java")));
     }
 
     private static List<String> fileNames(Path dir) throws IOException {
@@ -134,7 +151,7 @@ class GenerateMojoTest {
         mojo(base).execute();
         assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/A.java")));
         assertTrue(Files.notExists(base.resolve("target/generated-sources/axl/app/A.axlmap")));
-        assertTrue(Files.notExists(base.resolve("target/axl/generated-sources_axl.state.json")));
+        assertTrue(Files.notExists(base.resolve("target/axl/generated-sources_axl-from-src_main_axl.state.json")));
     }
 
     @Test

@@ -18,8 +18,9 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 | `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
 
-Generation is incremental: a state file in `target/axl`, named after the output directory
-(`generated-sources_axl.state.json`, `generated-test-sources_axl.state.json`), stores a SHA-256 of every
+Generation is incremental: a state file in `target/axl`, named after the output and the source
+directory (`generated-sources_axl-from-src_main_axl.state.json`,
+`generated-test-sources_axl-from-src_test_axl.state.json`), stores a SHA-256 of every
 `.axl` file and the files generated from it, and only changed files are translated again, together
 with files whose top-level values have inferred types, which may depend on the changed or removed
 ones. A change of the options, the plugin version, the classpath or the Java sources makes every file
@@ -27,7 +28,8 @@ translated again; for a classpath directory, such as `target/classes` of another
 reactor, every class file in it counts, while the module's own `target/classes` and
 `target/test-classes` do not. Outputs of removed files are deleted, all of them when the source
 directory itself is removed. Two files that declare the same class are reported as an error even
-when only one of them changed.
+when only one of them changed. Several executions may write to the same output directory from
+different source directories; the duplicate check then covers each source directory on its own.
 
 The `.axlmap` line maps stay next to the generated `.java` files, where the javac plugin and
 `axl:check` read them, so a sources jar made by `maven-source-plugin` contains them as well.
