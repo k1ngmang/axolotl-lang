@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import com.sun.source.util.JavacTask;
 import java.util.stream.Stream;
@@ -96,10 +97,21 @@ public final class JavaCompilation {
      */
     private static String processorPath() {
         if (JavaCompilation.class.getClassLoader() instanceof URLClassLoader loader) {
-            return Arrays.stream(loader.getURLs()).map(JavaCompilation::toPath)
+            // Maven keeps the jars it provides itself out of a plugin's class loader; Error Prone needs javax.inject.
+            Stream<String> provided = jarOf("javax.inject.Inject", loader).stream();
+            return Stream.concat(Arrays.stream(loader.getURLs()).map(JavaCompilation::toPath), provided).distinct()
                     .collect(Collectors.joining(java.io.File.pathSeparator));
         }
         return System.getProperty("java.class.path");
+    }
+
+    private static Optional<String> jarOf(String className, ClassLoader loader) {
+        try {
+            URL location = Class.forName(className, false, loader).getProtectionDomain().getCodeSource().getLocation();
+            return Optional.of(toPath(location));
+        } catch (ClassNotFoundException e) {
+            return Optional.empty();
+        }
     }
 
     private static String toPath(URL url) {
