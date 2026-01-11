@@ -85,7 +85,9 @@ public final class JavaCompilation {
             JavacTask task = (JavacTask) compiler.getTask(null, files, collector, options, null, units);
             // javac recurses once per nesting level too.
             boolean success = LargeStack.call(task::call, () -> false);
-            return new Outcome(success, collector.getDiagnostics());
+            // The file manager reports a source that is not UTF-8 as an error, but the task still succeeds.
+            boolean errors = collector.getDiagnostics().stream().anyMatch(d -> d.getKind() == Diagnostic.Kind.ERROR);
+            return new Outcome(success && !errors, collector.getDiagnostics());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

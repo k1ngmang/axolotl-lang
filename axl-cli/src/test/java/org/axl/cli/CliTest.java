@@ -158,6 +158,16 @@ class CliTest {
     }
 
     @Test
+    void failsOnJavaSourcesThatAreNotUtf8(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        byte[] text = "package app;\nclass L { String s = \"\u00e9\"; }\n".getBytes(StandardCharsets.ISO_8859_1);
+        Files.write(app.resolve("L.java"), text);
+        assertEquals(1, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("out").toString(), "--no-null-checks"));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("unmappable character"), err.toString());
+        assertEquals(1, axl("check", tmp.resolve("src").toString(), "--no-null-checks"));
+    }
+
+    @Test
     void runReportsAMissingMainAndInitializerFailures(@TempDir Path tmp) throws Exception {
         Path app = Files.createDirectories(tmp.resolve("app"));
         Files.writeString(app.resolve("Lib.axl"), "package app\n\nfn f() = println(1)\n");
