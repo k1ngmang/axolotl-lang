@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -101,12 +102,12 @@ public abstract class GenerateAxlTask extends DefaultTask {
                 changed.add(sourcePath);
             }
         }
-        Map<String, Translation.Input> sources = readSources();
+        List<Translation.Input> sources = readSources();
         Map<String, String> duplicates = duplicateClasses(sources);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         List<Translation.Input> inputs = new ArrayList<>();
         boolean anyChange = removed || !changed.isEmpty();
-        for (Translation.Input source : sources.values()) {
+        for (Translation.Input source : sources) {
             String sourcePath = source.sourcePath();
             if (duplicates.containsKey(sourcePath)) {
                 deleteOutputs(outputsBySource.remove(sourcePath));
@@ -152,9 +153,9 @@ public abstract class GenerateAxlTask extends DefaultTask {
         }
     }
 
-    /** Every .axl file by its path relative to its source root. */
-    private Map<String, Translation.Input> readSources() {
-        Map<String, Translation.Input> result = new TreeMap<>();
+    /** Every .axl file, sorted by its path relative to its source root; two roots may hold the same path. */
+    private List<Translation.Input> readSources() {
+        List<Translation.Input> result = new ArrayList<>();
         getSources().getAsFileTree().visit(details -> {
             if (details.isDirectory()) {
                 return;
@@ -162,11 +163,12 @@ public abstract class GenerateAxlTask extends DefaultTask {
             String sourcePath = details.getRelativePath().getPathString();
             try {
                 String text = Files.readString(details.getFile().toPath(), StandardCharsets.UTF_8);
-                result.put(sourcePath, new Translation.Input(sourcePath, details.getFile().getAbsolutePath(), text));
+                result.add(new Translation.Input(sourcePath, details.getFile().getAbsolutePath(), text));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         });
+        result.sort(Comparator.comparing(Translation.Input::sourcePath));
         return result;
     }
 
@@ -174,9 +176,9 @@ public abstract class GenerateAxlTask extends DefaultTask {
      * Files that declare the same class, with the error for each. Two such files overwrite each
      * other's Java, and only all files together show it, not just the changed ones.
      */
-    private static Map<String, String> duplicateClasses(Map<String, Translation.Input> sources) {
+    private static Map<String, String> duplicateClasses(List<Translation.Input> sources) {
         Map<String, List<Translation.Input>> byClass = new TreeMap<>();
-        for (Translation.Input source : sources.values()) {
+        for (Translation.Input source : sources) {
             SourceFile file = SourceParser.parse(source.sourcePath(), Translator.className(source.sourcePath()),
                     source.text()).file();
             if (file != null) {

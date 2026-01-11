@@ -117,6 +117,19 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void rejectsTheSamePathInTwoSourceDirectories() throws IOException {
+        Path build = project.resolve("core/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + "\nsourceSets.main { axl.srcDir(\"src/extra/axl\") }\n");
+        Path main = Files.createDirectories(project.resolve("core/src/main/axl/lib")).resolve("Lib.axl");
+        Path extra = Files.createDirectories(project.resolve("core/src/extra/axl/lib")).resolve("Lib.axl");
+        Files.writeString(main, "package lib\n\nfn twice(x: Int) -> Int = x * 3\n");
+        Files.writeString(extra, "package lib\n\nfn twice(x: Int) -> Int = x * 2\n");
+        BuildResult result = gradle(":core:generateAxl").buildAndFail();
+        assertTrue(result.getOutput().contains("the class `lib.Lib` is declared by several files: "
+                + main.toAbsolutePath() + ", " + extra.toAbsolutePath()), result.getOutput());
+    }
+
+    @Test
     void readsJavaSourcesGeneratedByAnotherTask() throws IOException {
         Path build = project.resolve("core/build.gradle.kts");
         Files.writeString(build, Files.readString(build) + """
