@@ -59,7 +59,7 @@ final class RunCommand implements Callable<Integer> {
         String className = Translator.className(file.getFileName().toString());
         String packageName = packageOf(className, text);
         Path root = sourceRoot(file.toAbsolutePath().normalize(), packageName);
-        Path work = RunDirectories.create();
+        Path work = WorkDirectories.create(WorkDirectories.RUN);
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
                 .display(Paths::display)
                 .skip(Paths::isInWorkDirectory)

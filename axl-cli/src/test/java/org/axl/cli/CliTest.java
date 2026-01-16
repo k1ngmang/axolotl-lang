@@ -58,12 +58,21 @@ class CliTest {
 
     @Test
     void runKeepsItsClassesUntilALaterRunFindsThemUnused() throws Exception {
-        Path finished = Files.createTempDirectory(RunDirectories.PREFIX);
+        Path finished = Files.createTempDirectory(WorkDirectories.RUN);
         Files.createFile(finished.resolve(".lock"));
-        Path running = RunDirectories.create();
+        Path running = WorkDirectories.create(WorkDirectories.RUN);
         assertTrue(Files.notExists(finished));
-        RunDirectories.create();
+        WorkDirectories.create(WorkDirectories.RUN);
         assertTrue(Files.exists(running));
+    }
+
+    @Test
+    void checkDeletesDirectoriesLeftByAKilledCheck(@TempDir Path tmp) throws Exception {
+        Path killed = Files.createTempDirectory(WorkDirectories.CHECK);
+        Files.createFile(killed.resolve(".lock"));
+        Files.writeString(tmp.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        assertEquals(0, axl("check", tmp.toString(), "--no-null-checks"), out.toString());
+        assertTrue(Files.notExists(killed));
     }
 
     @Test

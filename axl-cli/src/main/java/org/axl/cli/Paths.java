@@ -46,6 +46,6 @@ final class Paths {
             return false;
         }
         String top = TEMP.relativize(absolute).getName(0).toString();
-        return top.startsWith(RunDirectories.PREFIX) || top.startsWith(CheckCommand.PREFIX);
+        return top.startsWith(WorkDirectories.RUN) || top.startsWith(WorkDirectories.CHECK);
     }
 }

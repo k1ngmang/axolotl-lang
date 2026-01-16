@@ -8,34 +8,42 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Temporary directories of `axl run`. The program may load classes from its directory until the JVM
- * ends, in its own shutdown hooks too, so the directory is not deleted on exit: it stays locked while
- * the JVM runs, and a later `axl run` deletes the directories whose lock is free.
+ * Temporary directories of `axl run` and `axl check`. Each stays locked while its JVM runs, and a later
+ * command deletes the directories whose lock is free, such as those of a killed `axl check`. `axl run`
+ * never deletes its own directory: the program may load classes from it until the JVM ends, in its own
+ * shutdown hooks too.
  */
-final class RunDirectories {
+final class WorkDirectories {
 
-    static final String PREFIX = "axl-run";
+    static final String RUN = "axl-run";
+    static final String CHECK = "axl-check";
     private static final String LOCK = ".lock";
-    // Referenced so that the locks are held until the JVM ends.
-    private static final List<FileChannel> HELD = new ArrayList<>();
+    // Referenced so that the locks are held until the JVM ends or the directory is deleted.
+    private static final Map<Path, FileChannel> HELD = new HashMap<>();
 
-    private RunDirectories() {}
+    private WorkDirectories() {}
 
-    static synchronized Path create() throws IOException {
-        deleteFinished();
-        Path dir = Files.createTempDirectory(PREFIX);
+    static synchronized Path create(String prefix) throws IOException {
+        deleteFinished(prefix);
+        Path dir = Files.createTempDirectory(prefix);
         FileChannel lock = FileChannel.open(dir.resolve(LOCK), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         lock.lock();
-        HELD.add(lock);
+        HELD.put(dir, lock);
         return dir;
     }
 
-    private static void deleteFinished() {
-        try (DirectoryStream<Path> dirs = Files.newDirectoryStream(Paths.TEMP, PREFIX + "*")) {
+    /** Releases the lock of a directory made by this JVM and deletes the directory. */
+    static synchronized void delete(Path dir) throws IOException {
+        HELD.remove(dir).close();
+        Paths.deleteRecursively(dir);
+    }
+
+    private static void deleteFinished(String prefix) {
+        try (DirectoryStream<Path> dirs = Files.newDirectoryStream(Paths.TEMP, prefix + "*")) {
             for (Path dir : dirs) {
                 if (isFinished(dir)) {
                     Paths.deleteRecursively(dir);

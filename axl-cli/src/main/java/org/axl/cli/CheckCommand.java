@@ -1,6 +1,5 @@
 package org.axl.cli;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -15,8 +14,6 @@ import picocli.CommandLine.Parameters;
         "Translate and compile source directories without keeping any output; print the errors.",
         "Used by editors: every source directory may hold .axl and .java files."})
 final class CheckCommand implements Callable<Integer> {
-
-    static final String PREFIX = "axl-check";
 
     @Parameters(arity = "1..*", description = "Source directories.")
     List<Path> sourceDirs = new ArrayList<>();
@@ -38,7 +35,7 @@ final class CheckCommand implements Callable<Integer> {
         if (!sourceDirs.stream().allMatch(Paths::isDirectory)) {
             return 2;
         }
-        Path work = Files.createTempDirectory(PREFIX);
+        Path work = WorkDirectories.create(WorkDirectories.CHECK);
         try {
             AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
                     .classpath(classpath)
@@ -51,7 +48,7 @@ final class CheckCommand implements Callable<Integer> {
             result.diagnostics().forEach(d -> System.out.println(d.format()));
             return result.success() ? 0 : 1;
         } finally {
-            Paths.deleteRecursively(work);
+            WorkDirectories.delete(work);
         }
     }
 }
