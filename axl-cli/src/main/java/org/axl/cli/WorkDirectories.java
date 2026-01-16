@@ -27,6 +27,17 @@ final class WorkDirectories {
 
     private WorkDirectories() {}
 
+    /** A directory made by {@link #create}: its name ends in a number, and it has a lock file. */
+    static boolean isWorkDirectory(Path dir) {
+        return (isNamed(dir, RUN) || isNamed(dir, CHECK)) && Files.exists(dir.resolve(LOCK));
+    }
+
+    private static boolean isNamed(Path dir, String prefix) {
+        String name = dir.getFileName().toString();
+        return name.startsWith(prefix) && name.length() > prefix.length()
+                && name.substring(prefix.length()).chars().allMatch(Character::isDigit);
+    }
+
     static synchronized Path create(String prefix) throws IOException {
         deleteFinished(prefix);
         Path dir = Files.createTempDirectory(prefix);
@@ -43,7 +54,7 @@ final class WorkDirectories {
     }
 
     private static void deleteFinished(String prefix) {
-        try (DirectoryStream<Path> dirs = Files.newDirectoryStream(Paths.TEMP, prefix + "*")) {
+        try (DirectoryStream<Path> dirs = Files.newDirectoryStream(Paths.TEMP, dir -> isNamed(dir, prefix))) {
             for (Path dir : dirs) {
                 if (isFinished(dir)) {
                     Paths.deleteRecursively(dir);

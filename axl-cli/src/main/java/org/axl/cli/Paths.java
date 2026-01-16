@@ -45,7 +45,6 @@ final class Paths {
         if (!absolute.startsWith(TEMP) || absolute.equals(TEMP)) {
             return false;
         }
-        String top = TEMP.relativize(absolute).getName(0).toString();
-        return top.startsWith(WorkDirectories.RUN) || top.startsWith(WorkDirectories.CHECK);
+        return WorkDirectories.isWorkDirectory(TEMP.resolve(TEMP.relativize(absolute).getName(0)));
     }
 }

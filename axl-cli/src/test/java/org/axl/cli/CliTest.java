@@ -76,11 +76,27 @@ class CliTest {
     }
 
     @Test
-    void workDirectoriesOfOtherRunsAreNotSources() {
-        assertTrue(Paths.isInWorkDirectory(Paths.TEMP.resolve("axl-run123/generated/app/Main.java")));
-        assertTrue(Paths.isInWorkDirectory(Paths.TEMP.resolve("axl-check7/generated/Main.java")));
+    void workDirectoriesOfOtherRunsAreNotSources() throws Exception {
+        Path run = WorkDirectories.create(WorkDirectories.RUN);
+        Path check = WorkDirectories.create(WorkDirectories.CHECK);
+        assertTrue(Paths.isInWorkDirectory(run.resolve("generated/app/Main.java")));
+        assertTrue(Paths.isInWorkDirectory(check.resolve("generated/Main.java")));
+        WorkDirectories.delete(check);
+        assertTrue(!Paths.isInWorkDirectory(Paths.TEMP.resolve("axl-check7/generated/Main.java")));
         assertTrue(!Paths.isInWorkDirectory(Paths.TEMP.resolve("app/Main.axl")));
         assertTrue(!Paths.isInWorkDirectory(Path.of("src/axl-run1/Main.axl")));
+    }
+
+    @Test
+    void checksSourcesInATemporaryDirectoryNamedLikeAWorkDirectory() throws Exception {
+        Path dir = Files.createTempDirectory(WorkDirectories.CHECK + "s-");
+        Files.writeString(dir.resolve("Bad.axl"), "package app\n\nfn f() -> Int = \"x\"\n");
+        try {
+            assertEquals(1, axl("check", dir.toString(), "--no-null-checks"));
+            assertTrue(out.toString(StandardCharsets.UTF_8).contains("Bad.axl:3:"), out.toString());
+        } finally {
+            Paths.deleteRecursively(dir);
+        }
     }
 
     @Test
