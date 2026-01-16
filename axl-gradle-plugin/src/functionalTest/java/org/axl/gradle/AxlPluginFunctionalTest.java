@@ -273,6 +273,16 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void writesLanguageServerConfigWithoutCompiling() throws IOException {
+        Path titles = project.resolve("core/src/main/axl/core/Titles.axl");
+        Files.writeString(titles, Files.readString(titles) + "\nfn broken() -> Int = \"x\"\n");
+        BuildResult result = gradle(":core:axlLspConfig", ":app:axlLspConfig", "--configuration-cache").build();
+        assertEquals(null, result.task(":core:generateAxl"));
+        assertEquals(null, result.task(":core:compileJava"));
+        assertTrue(Files.exists(project.resolve("app/build/axl/axl.json")));
+    }
+
+    @Test
     void reusesConfigurationCache() {
         gradle("build", "--configuration-cache").build();
         BuildResult again = gradle("build", "--configuration-cache").build();

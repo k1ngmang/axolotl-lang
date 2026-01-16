@@ -71,7 +71,8 @@ public class AxlPlugin implements Plugin<Project> {
                 task.getJavaSourceRoots().from(sourceSet.getJava().getSrcDirs().stream()
                         .filter(dir -> !dir.toPath().startsWith(project.getLayout().getBuildDirectory().get().getAsFile().toPath()))
                         .toList());
-                task.getClasspath().from(sourceSet.getCompileClasspath());
+                // Only the paths are written; depending on the classpath would compile code that may not compile while it is edited.
+                task.getClasspath().from(project.provider(() -> sourceSet.getCompileClasspath().getFiles()));
             }
             task.getStrictNull().set(axl.getStrictNull());
             task.getOutputFile().set(project.getLayout().getBuildDirectory().file("axl/axl.json"));
