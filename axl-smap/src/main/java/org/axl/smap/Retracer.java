@@ -30,8 +30,9 @@ public final class Retracer {
         Smap find(String className) throws IOException;
     }
 
-    // `at app.Main.lambda$main$0(Main.java:12)`, optionally with a module or loader prefix.
-    private static final Pattern FRAME = Pattern.compile("(\\bat\\s+(?:[\\w.$]*(?:@[^/]*)?/)*)([\\w.$]+)\\.([\\w$<>]+)\\(([\\w$-]+\\.java):(\\d+)\\)");
+    // `at app.Main.lambda$main$0(Main.java:12)`, optionally with a module or loader prefix; names may be non-ASCII.
+    private static final Pattern FRAME = Pattern.compile("(\\bat\\s+(?:[\\w.$]*(?:@[^/]*)?/)*)([\\w.$]+)\\.([\\w$<>]+)\\(([\\w$-]+\\.java):(\\d+)\\)",
+            Pattern.UNICODE_CHARACTER_CLASS);
 
     private final List<Lookup> lookups;
     private final Map<String, Optional<Smap>> cache = new HashMap<>();

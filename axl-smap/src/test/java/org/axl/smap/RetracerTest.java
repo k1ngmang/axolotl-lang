@@ -9,6 +9,7 @@ import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import org.axl.compiler.LineMap;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -54,6 +55,14 @@ class RetracerTest {
     void leavesUnknownFramesAlone() {
         String trace = "\tat org.example.Other.run(Other.java:10)\n";
         assertEquals(trace, Retracer.of(List.of(), List.of()).retrace(trace));
+    }
+
+    @Test
+    void retracesClassesWithNonAsciiNames() {
+        Smap smap = Smap.of(new LineMap("app/Gr\u00f6\u00dfe.axl", new int[] {0, 0, 5}), "Gr\u00f6\u00dfe.java");
+        Retracer retracer = new Retracer(List.of(className -> className.equals("app.Gr\u00f6\u00dfe") ? smap : null));
+        assertEquals("\tat app.Gr\u00f6\u00dfe.m\u00e4h(Gr\u00f6\u00dfe.axl:5)\n",
+                retracer.retrace("\tat app.Gr\u00f6\u00dfe.m\u00e4h(Gr\u00f6\u00dfe.java:3)\n"));
     }
 
     private static int javaLine(Fixture fixture, String text) throws Exception {
