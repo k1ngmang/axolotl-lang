@@ -1,0 +1,10 @@
+package app
+
+val first: Int = util.Other.size()
+val greeting: String = util.Other.greet()
+val name: String = "abc".trim()
+
+fn main() {
+    println(first)
+    println(greeting)
+}

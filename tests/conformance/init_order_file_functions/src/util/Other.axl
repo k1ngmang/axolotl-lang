@@ -1,0 +1,5 @@
+package util
+
+fn size() -> Int = app.Main.name.length()
+
+fn greet() -> String = "Hello " + app.Main.greeting
