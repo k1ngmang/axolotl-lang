@@ -1,7 +1,9 @@
 package org.axl.gradle;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
+import org.axl.javac.DiagnosticsPlugin;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.provider.Property;
@@ -28,9 +30,9 @@ public abstract class DiagnosticsArguments implements CommandLineArgumentProvide
     @Override
     public Iterable<String> asArguments() {
         StringBuilder option = new StringBuilder("-Xplugin:AxlDiagnostics");
-        String generated = getGeneratedDir().get().getAsFile().toURI().toString();
+        Path generated = getGeneratedDir().get().getAsFile().toPath();
         for (File sources : getSourceDirs()) {
-            option.append(' ').append(generated).append('=').append(sources.toURI());
+            option.append(' ').append(new DiagnosticsPlugin.Root(generated, sources.toPath()).argument());
         }
         if (getStrictNull().get()) {
             option.append(" strict");

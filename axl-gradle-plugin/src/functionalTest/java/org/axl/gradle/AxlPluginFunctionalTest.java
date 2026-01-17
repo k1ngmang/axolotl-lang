@@ -227,6 +227,22 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void reportsJavacErrorsWithAxlPathWhenThePathHasAnEqualsSign() throws IOException {
+        Path moved = project.resolve("eq=1");
+        List<Path> sampleFiles;
+        try (Stream<Path> files = Files.walk(project)) {
+            sampleFiles = files.filter(Files::isRegularFile).toList();
+        }
+        for (Path file : sampleFiles) {
+            Path target = moved.resolve(project.relativize(file).toString());
+            Files.createDirectories(target.getParent());
+            Files.copy(file, target);
+        }
+        project = moved;
+        reportsJavacErrorsWithAxlPath();
+    }
+
+    @Test
     void strictNullFlagsUncheckedJavaValues() throws IOException {
         Path build = project.resolve("app/build.gradle.kts");
         Files.writeString(build, Files.readString(build) + "\naxl {\n    strictNull = true\n}\n");

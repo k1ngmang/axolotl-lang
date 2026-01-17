@@ -26,6 +26,7 @@ import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.SourceParser;
+import org.axl.javac.DiagnosticsPlugin;
 import org.axl.javac.Translation;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 
@@ -290,7 +291,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
 
     /** Collects every root as `generated=sources` in one javac plugin argument. */
     private void addDiagnosticsRoot(Path output, Path sources) {
-        String root = output.toUri() + "=" + sources.toUri();
+        String root = new DiagnosticsPlugin.Root(output, sources).argument();
         String option = project.getProperties().getProperty(DIAGNOSTICS_PROPERTY, "-Xplugin:AxlDiagnostics");
         if (!option.contains(root)) {
             option += " " + root;

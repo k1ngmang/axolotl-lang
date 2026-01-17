@@ -58,7 +58,8 @@ The `.axlmap` line maps stay next to the generated `.java` files, where the java
    <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
    <arg>${axl.javacPlugin}</arg>
    ```
-   `axl:generate` sets the property `axl.javacPlugin` to `-Xplugin:AxlDiagnostics <generated>=<sources>`.
+   `axl:generate` sets the property `axl.javacPlugin` to `-Xplugin:AxlDiagnostics <generated>=<sources>`,
+   with both directories as file URIs in which `=` is written `%3D`.
    That javac plugin reports every error in generated code at the `.axl` file and line:
    ```
    [ERROR] /work/demo/src/main/axl/app/Main.axl:[5,5] value `trimmed` may be null: use `?.`, `?:` or check `if (trimmed != null)`

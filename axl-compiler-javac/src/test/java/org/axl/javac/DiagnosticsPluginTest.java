@@ -66,6 +66,12 @@ class DiagnosticsPluginTest {
                 outcome.diagnostics().toString());
     }
 
+    @Test
+    void keepsDirectoriesWithAnEqualsSign(@TempDir Path tmp) {
+        var root = new DiagnosticsPlugin.Root(tmp.resolve("a=1/gen"), tmp.resolve("a=1/src"));
+        assertEquals(root, DiagnosticsPlugin.Root.parse(root.argument()));
+    }
+
     private static Diagnostic<?> firstError(Path tmp, String text) throws Exception {
         JavaCompilation.Outcome outcome = compile(tmp, text);
         assertFalse(outcome.success());

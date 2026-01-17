@@ -87,6 +87,17 @@ class GenerateMojoTest {
         assertTrue(Files.exists(base.resolve("target/generated-sources/axl/extra/E.java")));
     }
 
+    @Test
+    void escapesEqualsSignsInTheJavacPluginArgument(@TempDir Path tmp) throws Exception {
+        Path base = tmp.resolve("eq=1");
+        Files.writeString(Files.createDirectories(base.resolve("src/main/axl/app")).resolve("A.axl"),
+                "package app\n\nfn a() -> Int = 1\n");
+        GenerateMojo mojo = mojo(base);
+        mojo.execute();
+        String option = mojo.project.getProperties().getProperty("axl.javacPlugin");
+        assertTrue(option.contains("eq%3D1/target/generated-sources/axl") && !option.contains("eq=1"), option);
+    }
+
     private static List<String> fileNames(Path dir) throws IOException {
         try (Stream<Path> files = Files.list(dir)) {
             return files.map(p -> p.getFileName().toString()).toList();

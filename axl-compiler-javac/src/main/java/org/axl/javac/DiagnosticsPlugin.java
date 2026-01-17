@@ -23,8 +23,13 @@ public final class DiagnosticsPlugin implements Plugin {
     /** A directory of generated Java and the .axl source directory it was generated from. */
     public record Root(Path generated, Path sources) {
 
+        /** File URIs do not escape `=`, which separates the two directories. */
         public String argument() {
-            return generated.toUri() + "=" + sources.toUri();
+            return uri(generated) + "=" + uri(sources);
+        }
+
+        private static String uri(Path dir) {
+            return dir.toUri().toString().replace("=", "%3D");
         }
 
         static Root parse(String argument) {
