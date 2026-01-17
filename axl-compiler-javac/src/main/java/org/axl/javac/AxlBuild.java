@@ -7,7 +7,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
@@ -135,11 +137,13 @@ public final class AxlBuild {
     }
 
     /**
-     * Source files. Output directories inside a source directory, as with `-d out` there, are skipped;
-     * with the output in the source directory itself, as with `-d .`, the translated .java files are.
+     * Source files, each once even when source directories overlap. Output directories inside a source
+     * directory, as with `-d out` there, are skipped; with the output in the source directory itself,
+     * as with `-d .`, the translated .java files are.
      */
     private List<Path> files(String extension) throws IOException {
         List<Path> result = new ArrayList<>();
+        Set<Path> seen = new HashSet<>();
         for (Path dir : sourceDirs) {
             if (Files.isDirectory(dir)) {
                 List<Path> outputs = outputsInside(dir);
@@ -147,6 +151,7 @@ public final class AxlBuild {
                     walk.filter(p -> p.toString().endsWith(extension) && Files.isRegularFile(p))
                             .filter(p -> outputs.stream().noneMatch(p.toAbsolutePath().normalize()::startsWith))
                             .filter(p -> !isTranslated(p) && !skipped.test(p))
+                            .filter(p -> seen.add(p.toAbsolutePath().normalize()))
                             .sorted().forEach(result::add);
                 }
             }

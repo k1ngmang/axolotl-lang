@@ -149,6 +149,15 @@ class CliTest {
     }
 
     @Test
+    void checkReadsEachFileOnceWhenSourceDirectoriesOverlap(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        Path src = tmp.resolve("src");
+        assertEquals(0, axl("check", src.toString(), app.toString(), "--no-null-checks"), out.toString());
+        assertEquals(0, axl("check", src.toString(), src.resolve(".").toString(), "--no-null-checks"), out.toString());
+    }
+
+    @Test
     void strictNullIsOffUnlessAsked(@TempDir Path tmp) {
         String src = CASES.resolve("strict_null_errors/src").toString();
         assertEquals(0, axl("build", src, "-d", tmp.resolve("lenient").toString()), err.toString());
