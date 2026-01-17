@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugin.logging.SystemStreamLog;
 import org.apache.maven.model.Build;
@@ -96,6 +97,14 @@ class GenerateMojoTest {
         mojo.execute();
         String option = mojo.project.getProperties().getProperty("axl.javacPlugin");
         assertTrue(option.contains("eq%3D1/target/generated-sources/axl") && !option.contains("eq=1"), option);
+    }
+
+    @Test
+    void namesAFileThatIsNotUtf8(@TempDir Path base) throws Exception {
+        Path file = Files.createDirectories(base.resolve("src/main/axl/app")).resolve("A.axl");
+        Files.write(file, new byte[] {'f', 'n', ' ', (byte) 0xff});
+        MojoExecutionException e = assertThrows(MojoExecutionException.class, () -> mojo(base).execute());
+        assertEquals(file + " is not UTF-8 text", e.getCause().getMessage());
     }
 
     private static List<String> fileNames(Path dir) throws IOException {

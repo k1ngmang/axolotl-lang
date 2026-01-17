@@ -3,6 +3,7 @@ package org.axl.gradle;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -164,6 +165,8 @@ public abstract class GenerateAxlTask extends DefaultTask {
             try {
                 String text = Files.readString(details.getFile().toPath(), StandardCharsets.UTF_8);
                 result.add(new Translation.Input(sourcePath, details.getFile().getAbsolutePath(), text));
+            } catch (CharacterCodingException e) {
+                throw new GradleException(details.getFile().getAbsolutePath() + " is not UTF-8 text", e);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

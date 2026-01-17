@@ -1,6 +1,7 @@
 package org.axl.maven;
 
 import java.io.IOException;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -203,7 +204,11 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     private static Map<String, String> readAll(Map<String, Path> files) throws IOException {
         Map<String, String> texts = new TreeMap<>();
         for (Map.Entry<String, Path> file : files.entrySet()) {
-            texts.put(file.getKey(), Files.readString(file.getValue(), StandardCharsets.UTF_8));
+            try {
+                texts.put(file.getKey(), Files.readString(file.getValue(), StandardCharsets.UTF_8));
+            } catch (CharacterCodingException e) {
+                throw new IOException(file.getValue() + " is not UTF-8 text", e);
+            }
         }
         return texts;
     }

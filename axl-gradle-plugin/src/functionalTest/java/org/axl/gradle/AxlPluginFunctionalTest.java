@@ -217,6 +217,14 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void namesAFileThatIsNotUtf8() throws IOException {
+        Path file = project.resolve("core/src/main/axl/core/Latin.axl");
+        Files.write(file, new byte[] {'f', 'n', ' ', (byte) 0xff});
+        BuildResult result = gradle(":core:generateAxl").buildAndFail();
+        assertTrue(result.getOutput().contains(file.toAbsolutePath() + " is not UTF-8 text"), result.getOutput());
+    }
+
+    @Test
     void reportsJavacErrorsWithAxlPath() throws IOException {
         Path main = project.resolve("app/src/main/axl/app/Main.axl");
         Files.writeString(main, Files.readString(main).replace("println(title(\" Hello Axolotl \"))",
