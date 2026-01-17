@@ -18,6 +18,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import org.axl.compiler.LineMap;
 
@@ -163,6 +164,8 @@ public final class Retracer {
             try (InputStream in = zip.getInputStream(zipEntry)) {
                 return parse(SmapInjector.read(in));
             }
+        } catch (ZipException e) {
+            throw new ZipException(entry + ": " + e.getMessage());
         }
     }
 

@@ -138,6 +138,14 @@ class CliTest {
     }
 
     @Test
+    void retraceNamesAJarItCannotRead(@TempDir Path tmp) throws Exception {
+        Path jar = Files.writeString(tmp.resolve("bad.jar"), "not a jar");
+        Path trace = Files.writeString(tmp.resolve("trace.txt"), "\tat app.Main.main(Main.java:3)\n");
+        assertEquals(2, axl("retrace", "-cp", jar.toString(), trace.toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).startsWith("axl: " + jar + ": "), err.toString());
+    }
+
+    @Test
     void checkReportsErrorsOfSeveralSourceDirectories(@TempDir Path tmp) throws Exception {
         Path axl = Files.createDirectories(tmp.resolve("axl/app"));
         Path java = Files.createDirectories(tmp.resolve("java/app"));
