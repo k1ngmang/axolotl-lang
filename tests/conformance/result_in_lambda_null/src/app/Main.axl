@@ -1,0 +1,16 @@
+package app
+
+import java.util.function.Supplier
+
+fn maybe() -> String? = null
+
+fn main() {
+    val ok: Supplier<Result<String, String>> = { -> Ok(maybe()) }
+    val err: Supplier<Result<Int, String>> = { -> Err(maybe()) }
+    val attempted: Supplier<Result<String, String>> = { -> attempt maybe() else "x" }
+    val fine: Supplier<Result<String?, String>> = { -> Ok(maybe()) }
+    println(ok)
+    println(err)
+    println(attempted)
+    println(fine)
+}

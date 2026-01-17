@@ -349,7 +349,8 @@ final class NullChecker implements TaskListener {
                 Boolean nullable = targetTypeArgNullable(getCurrentPath(), owner.equals("axl.lang.Ok") ? 0 : 1);
                 ExpressionTree value = newClass.getArguments().getFirst();
                 if (Boolean.FALSE.equals(nullable)) {
-                    report(value, origin(value), true, describe(value) + ", but the result type has no `?` there; " + FIX);
+                    report(value, origin(value), !resultOfLambda(getCurrentPath()),
+                            describe(value) + ", but the result type has no `?` there; " + FIX);
                 }
             }
             return null;
@@ -688,8 +689,18 @@ final class NullChecker implements TaskListener {
             if (origin == Origin.NONE || resultMayBeNull(lambda, iface, method, returned)) {
                 return;
             }
-            boolean nullAwayChecks = isNullMarked(iface);
-            report(result, origin, nullAwayChecks, describe(result) + ", but the lambda must not return null: " + name
+            TreePath parent = lambda.getParentPath();
+            while (parent.getLeaf() instanceof ParenthesizedTree) {
+                parent = parent.getParentPath();
+            }
+            boolean attemptInLambda = parent.getLeaf() instanceof MethodInvocationTree
+                    && trees.getElement(parent) instanceof ExecutableElement callee
+                    && callee.getSimpleName().contentEquals("attempt") && isRuntime(callee) && resultOfLambda(parent);
+            if (attemptInLambda) {
+                report(result, origin, false, describe(result) + ", but the result type has no `?` there; " + FIX);
+                return;
+            }
+            report(result, origin, isNullMarked(iface), describe(result) + ", but the lambda must not return null: " + name
                     + " returns `" + typeName(returned) + "` here; " + FIX);
         }
 
@@ -770,12 +781,16 @@ final class NullChecker implements TaskListener {
             if (parent.getLeaf() instanceof ReturnTree) {
                 for (TreePath p = parent.getParentPath(); p != null && target == null; p = p.getParentPath()) {
                     if (p.getLeaf() instanceof LambdaExpressionTree) {
-                        return null;
-                    }
-                    if (p.getLeaf() instanceof MethodTree && trees.getElement(p) instanceof ExecutableElement method) {
+                        target = lambdaResultType(p);
+                        if (target == null) {
+                            return null;
+                        }
+                    } else if (p.getLeaf() instanceof MethodTree && trees.getElement(p) instanceof ExecutableElement method) {
                         target = method.getReturnType();
                     }
                 }
+            } else if (parent.getLeaf() instanceof LambdaExpressionTree) {
+                target = lambdaResultType(parent);
             } else if (parent.getLeaf() instanceof VariableTree variable && !isVar(variable)) {
                 Element element = trees.getElement(parent);
                 target = element == null ? null : element.asType();
@@ -784,6 +799,44 @@ final class NullChecker implements TaskListener {
                 return nullableAnnotated(declared.getTypeArguments().get(index));
             }
             return null;
+        }
+
+        /** NullAway checks `Ok(x)` against the result type of a function, but not of a lambda. */
+        private boolean resultOfLambda(TreePath expression) {
+            TreePath parent = expression.getParentPath();
+            while (parent.getLeaf() instanceof ParenthesizedTree) {
+                parent = parent.getParentPath();
+            }
+            if (parent.getLeaf() instanceof LambdaExpressionTree) {
+                return true;
+            }
+            for (TreePath p = parent; parent.getLeaf() instanceof ReturnTree && p != null; p = p.getParentPath()) {
+                if (p.getLeaf() instanceof LambdaExpressionTree) {
+                    return true;
+                }
+                if (p.getLeaf() instanceof MethodTree) {
+                    return false;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * What a lambda kept in a local of a written type returns. javac infers the types of other
+         * lambdas and drops the `?` of their type arguments, so those are unknown: null.
+         */
+        private TypeMirror lambdaResultType(TreePath lambda) {
+            TreePath parent = lambda.getParentPath();
+            while (parent.getLeaf() instanceof ParenthesizedTree) {
+                parent = parent.getParentPath();
+            }
+            if (!(parent.getLeaf() instanceof VariableTree variable) || isVar(variable)
+                    || !(trees.getElement(parent) instanceof VariableElement local)
+                    || !(local.asType() instanceof DeclaredType type) || !(type.asElement() instanceof TypeElement iface)
+                    || functionalMethod(iface) == null) {
+                return null;
+            }
+            return ((ExecutableType) types.asMemberOf(type, functionalMethod(iface))).getReturnType();
         }
 
         private void checkArguments(ExecutableElement method, List<? extends ExpressionTree> args) {
