@@ -141,8 +141,7 @@ final class InitOrder {
         if (lambda.params().isEmpty()) {
             scope.add("it");
         }
-        scope.addAll(locals(lambda.body()));
-        lambda.body().forEach(s -> statement(s, scope, out));
+        statements(lambda.body(), scope, out);
     }
 
     private void function(String name, Set<String> out) {
@@ -156,8 +155,7 @@ final class InitOrder {
                 if (fn.exprBody() != null) {
                     names(fn.exprBody(), scope, out);
                 } else {
-                    scope.addAll(locals(fn.body().statements()));
-                    statement(fn.body(), scope, out);
+                    statements(fn.body().statements(), scope, out);
                 }
             }
         }
@@ -181,9 +179,28 @@ final class InitOrder {
         return null;
     }
 
+    /** A local hides the value of the same name from its declaration to the end of its block. */
+    private void statements(List<Stmt> statements, Set<String> hidden, Set<String> out) {
+        Set<String> scope = new HashSet<>(hidden);
+        for (Stmt stmt : statements) {
+            statement(stmt, scope, out);
+            if (stmt instanceof Stmt.Local local) {
+                scope.add(local.name());
+            }
+        }
+    }
+
     private void statement(Stmt stmt, Set<String> hidden, Set<String> out) {
         switch (stmt) {
-            case Stmt.Local l -> names(l.init(), hidden, out);
+            case Stmt.Local l -> {
+                Expr init = l.init() instanceof Expr.Paren p ? p.inner() : l.init();
+                // A lambda kept in a local is there to be called.
+                if (init instanceof Expr.Lambda lambda) {
+                    lambdaBody(lambda, hidden, out);
+                } else {
+                    names(l.init(), hidden, out);
+                }
+            }
             case Stmt.Assign a -> {
                 names(a.target(), hidden, out);
                 names(a.value(), hidden, out);
@@ -205,32 +222,13 @@ final class InitOrder {
                 statement(w.body(), hidden, out);
             }
             case Stmt.ExprStmt e -> names(e.expr(), hidden, out);
-            case Stmt.Block b -> b.statements().forEach(s -> statement(s, hidden, out));
+            case Stmt.Block b -> statements(b.statements(), hidden, out);
         }
     }
 
     private static Set<String> with(Set<String> names, Set<String> more) {
         Set<String> result = new HashSet<>(names);
         result.addAll(more);
-        return result;
-    }
-
-    private static Set<String> locals(List<Stmt> statements) {
-        Set<String> result = new HashSet<>();
-        for (Stmt stmt : statements) {
-            switch (stmt) {
-                case Stmt.Local l -> result.add(l.name());
-                case Stmt.If i -> {
-                    result.addAll(locals(i.then().statements()));
-                    if (i.elseBranch() != null) {
-                        result.addAll(locals(List.of(i.elseBranch())));
-                    }
-                }
-                case Stmt.While w -> result.addAll(locals(w.body().statements()));
-                case Stmt.Block b -> result.addAll(locals(b.statements()));
-                default -> { }
-            }
-        }
         return result;
     }
 }

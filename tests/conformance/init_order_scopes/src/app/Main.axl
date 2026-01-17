@@ -1,0 +1,25 @@
+package app
+
+import java.util.function.Supplier
+
+val a = later(0)
+val b = kept()
+val c: String = "hello".trim()
+
+fn later(n: Int) -> Int {
+    var i = n
+    while (i < 1) {
+        val c = "local"
+        i += c.length()
+    }
+    return i + c.length()
+}
+
+fn kept() -> Int {
+    val g: Supplier<Int> = { c.length() }
+    return g.get()
+}
+
+fn main() {
+    println(a + b)
+}
