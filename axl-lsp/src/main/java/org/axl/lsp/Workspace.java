@@ -57,6 +57,8 @@ final class Workspace {
     private final Map<Module, Map<String, Compiled>> compileErrors = new HashMap<>();
     private final Map<Module, JavaModel> javaModels = new HashMap<>();
     private final Map<Module, Path> drafts = new HashMap<>();
+    // The Java file in the drafts directory of each .axl file, deleted when its class or package changes.
+    private final Map<Path, Path> draftFiles = new HashMap<>();
     private ModuleCompiler compiler;
 
     <T> CompletableFuture<T> submit(Callable<T> work) {
@@ -77,6 +79,7 @@ final class Workspace {
         project = ProjectModel.discover(roots);
         compiler = new ModuleCompiler();
         drafts.clear();
+        draftFiles.clear();
     }
 
     void close() {
@@ -94,11 +97,44 @@ final class Workspace {
         publish(document);
     }
 
+    /** The draft goes back to the text on disk, which may differ when the document was not saved. */
     void closeDocument(String uri) {
-        open.remove(uri);
+        Document closed = open.remove(uri);
         lastParsed.remove(uri);
         if (client != null) {
             client.publishDiagnostics(new PublishDiagnosticsParams(uri, List.of()));
+        }
+        if (closed != null) {
+            refreshDraft(closed.path);
+            javaModels.remove(closed.module);
+        }
+    }
+
+    /**
+     * Files changed outside the editor, such as by a checkout. Open documents keep their text, but
+     * are translated again against the new drafts and Java sources.
+     */
+    void filesChanged(List<Path> files) {
+        for (Path file : files) {
+            if (file.toString().endsWith(".axl") && findOpen(file) == null) {
+                refreshDraft(file);
+            }
+        }
+        javaModels.clear();
+        for (Document document : List.copyOf(open.values())) {
+            update(document.uri, document.text);
+        }
+    }
+
+    /** Writes the draft of a closed file from disk, or deletes it when the file is gone. */
+    private void refreshDraft(Path file) {
+        if (Files.exists(file)) {
+            writeDraft(load(file));
+            return;
+        }
+        Path old = draftFiles.remove(file);
+        if (old != null && !draftFiles.containsValue(old)) {
+            deleteDraft(old);
         }
     }
 
@@ -168,18 +204,21 @@ final class Workspace {
         try {
             dir = Files.createTempDirectory("axl-lsp-drafts");
             List<Translation.Input> inputs = new ArrayList<>();
+            List<Path> files = new ArrayList<>();
             for (Path root : module.axlRoots()) {
                 for (Path file : filesOf(module, root)) {
                     Document doc = findOpen(file);
                     String text = doc != null ? doc.text : Files.readString(file, StandardCharsets.UTF_8);
                     String sourcePath = root.relativize(file).toString().replace('\\', '/');
                     inputs.add(new Translation.Input(sourcePath, file.toString(), text));
+                    files.add(file);
                 }
             }
-            for (Translator.Result result : Translation.run(inputs, new Options(false), module.classpath(),
-                    module.javaRoots(), dir, module.strictNull())) {
-                if (result.unit() != null) {
-                    result.unit().writeTo(dir);
+            List<Translator.Result> results = Translation.run(inputs, new Options(false), module.classpath(),
+                    module.javaRoots(), dir, module.strictNull());
+            for (int i = 0; i < results.size(); i++) {
+                if (results.get(i).unit() != null) {
+                    draftFiles.put(files.get(i), results.get(i).unit().writeTo(dir));
                 }
             }
         } catch (IOException e) {
@@ -190,12 +229,25 @@ final class Workspace {
     }
 
     private void writeDraft(Document document) {
-        if (document.translation.unit() != null) {
-            try {
-                document.translation.unit().writeTo(draftsOf(document.module));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+        if (document.translation.unit() == null) {
+            return;
+        }
+        try {
+            Path written = document.translation.unit().writeTo(draftsOf(document.module));
+            Path old = draftFiles.put(document.path, written);
+            if (old != null && !draftFiles.containsValue(old)) {
+                deleteDraft(old);
             }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private static void deleteDraft(Path javaFile) {
+        try {
+            Files.deleteIfExists(javaFile);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

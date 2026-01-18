@@ -261,6 +261,43 @@ class WorkspaceTest {
         assertEquals(List.of(), published.get(other));
     }
 
+    private static final String USES_GREETING = "package app\n\nval g = Names.greeting()\n\nfn main() {\n"
+            + "    println(g.length())\n}\n";
+
+    @Test
+    void infersFromTheSavedTextOfAFileClosedWithoutSaving() throws Exception {
+        String names = open("Names.axl", "package app\n\nfn greeting() -> String = \"hi\"\n");
+        workspace.update(names, "package app\n\nfn greeting() -> Int = 1\n");
+        workspace.closeDocument(names);
+
+        String main = open("Main.axl", USES_GREETING);
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+    }
+
+    @Test
+    void infersFromFilesChangedOutsideTheEditor() throws Exception {
+        Path names = project.resolve("src/main/axl/app/Names.axl");
+        Files.writeString(names, "package app\n\nfn greeting() -> Long = 1L\n");
+        String main = open("Main.axl", USES_GREETING);
+
+        Files.writeString(names, "package app\n\nfn greeting() -> String = \"hi\"\n");
+        workspace.filesChanged(List.of(names));
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+    }
+
+    @Test
+    void forgetsTheClassOfAFileWhosePackageChanged() throws Exception {
+        String names = open("Names.axl", "package app\n\nfn greeting() -> String = \"hi\"\n");
+        String main = open("Main.axl", USES_GREETING);
+        assertEquals(List.of(), published.get(main));
+
+        workspace.update(names, "package other\n\nfn greeting() -> String = \"hi\"\n");
+        workspace.update(main, USES_GREETING);
+        assertFalse(published.get(main).isEmpty());
+    }
+
     @Test
     void clearsDiagnosticsOfAClosedDocument() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");

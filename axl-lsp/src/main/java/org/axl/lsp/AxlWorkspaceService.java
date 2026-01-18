@@ -1,5 +1,8 @@
 package org.axl.lsp;
 
+import java.net.URI;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import org.axl.compiler.GeneratedUnit;
 import org.eclipse.lsp4j.DidChangeConfigurationParams;
@@ -39,5 +42,10 @@ final class AxlWorkspaceService implements WorkspaceService {
 
     @Override
     public void didChangeWatchedFiles(DidChangeWatchedFilesParams params) {
+        List<Path> files = params.getChanges().stream().map(change -> Path.of(URI.create(change.getUri()))).toList();
+        workspace.submit(() -> {
+            workspace.filesChanged(files);
+            return null;
+        });
     }
 }
