@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:8:47: error: a lambda uses a `var` that changes; copy it to a `val` first
+AXL100 app/Main.axl:12:79: error: a lambda uses a `var` that changes; copy it to a `val` first
+AXL100 app/Main.axl:23:23: error: a lambda uses a `var` that changes; copy it to a `val` first

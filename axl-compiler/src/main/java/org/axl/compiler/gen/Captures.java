@@ -79,14 +79,12 @@ final class Captures {
                 visit(a.body(), true);
                 visit(a.handler(), true);
             }
-            // The statements of a block lambda copy its own locals themselves.
+            // The statements of a block lambda copy its own locals themselves. A `var` from outside is
+            // captured by the lambda itself, which javac rejects; a copy would hide that behind a stale value.
             case Expr.Lambda l -> {
                 Set<String> before = new LinkedHashSet<>(names);
                 l.body().forEach(s -> statement(s, inLambda));
-                Set<String> declared = new LinkedHashSet<>();
-                l.params().forEach(p -> declared.add(p.name()));
-                l.body().forEach(s -> declared(s, declared));
-                names.removeIf(n -> !before.contains(n) && declared.contains(n));
+                names.retainAll(before);
             }
             case Expr.Pipe p -> {
                 visit(p.source(), inLambda);
@@ -122,21 +120,6 @@ final class Captures {
             }
             case Stmt.ExprStmt e -> visit(e.expr(), inLambda);
             case Stmt.Block b -> b.statements().forEach(s -> statement(s, inLambda));
-        }
-    }
-
-    private static void declared(Stmt stmt, Set<String> out) {
-        switch (stmt) {
-            case Stmt.Local l -> out.add(l.name());
-            case Stmt.If i -> {
-                declared(i.then(), out);
-                if (i.elseBranch() != null) {
-                    declared(i.elseBranch(), out);
-                }
-            }
-            case Stmt.While w -> declared(w.body(), out);
-            case Stmt.Block b -> b.statements().forEach(s -> declared(s, out));
-            default -> { }
         }
     }
 

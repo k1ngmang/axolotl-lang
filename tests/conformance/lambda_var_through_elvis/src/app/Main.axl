@@ -1,0 +1,26 @@
+package app
+
+import java.util.function.Supplier
+
+fn main() {
+    val s: String? = null
+    var acc = 1
+    val g: Supplier<String> = { s ?: "acc=" + acc }
+    acc = 2
+    println(g.get())
+    var n = 0
+    val k: Supplier<Result<Int, Exception>> = { attempt Integer.parseInt("" + n) else e -> e }
+    n = 42
+    println(k.get())
+}
+
+fn given() -> Supplier<String>? = null
+
+fn nested() -> Supplier<String> {
+    var n = 1
+    n += 1
+    return given() ?: { ->
+        val k = "v" + n
+        return k
+    }
+}

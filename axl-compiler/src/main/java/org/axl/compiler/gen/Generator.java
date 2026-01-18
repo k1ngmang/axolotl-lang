@@ -45,8 +45,6 @@ public final class Generator {
     private final Map<String, String> valueTypes;
     // Values declared as locals of a probe method instead of fields, for JavaTypes.
     private final Set<String> probed;
-    // Inside a block lambda nested in a lambda of `?:`, `?.` or `attempt`, whose captured vars are copies.
-    private boolean inCopyingLambda;
     private final Set<String> declaredFunctions = new LinkedHashSet<>();
     private Emitter em = new Emitter();
 
@@ -544,7 +542,7 @@ public final class Generator {
     private String expr(Expr expr, boolean inLambda) {
         return switch (expr) {
             case Expr.Literal l -> literal(l.text());
-            case Expr.Name n -> (inLambda || inCopyingLambda) && analysis.mutableRefs().contains(n)
+            case Expr.Name n -> inLambda && analysis.mutableRefs().contains(n)
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
             case Expr.Call c when c.target() != null -> chain(Chains.flatten(c), inLambda);
@@ -563,7 +561,7 @@ public final class Generator {
                 String error = a.errorName() != null ? a.errorName() : "$ex" + ++exceptionCount;
                 yield "Result.attempt(() -> " + expr(a.body(), true) + ", " + error + " -> " + expr(a.handler(), true) + ")";
             }
-            case Expr.Lambda l -> lambda(l, inLambda);
+            case Expr.Lambda l -> lambda(l);
             case Expr.Pipe p -> pipe(expr(p.source(), inLambda), p.source(), p.stages(), a -> expr(a, inLambda), inLambda);
             case Expr.Try t -> throw new IllegalStateException("try at " + t.pos() + " should have been lifted");
         };
@@ -670,7 +668,8 @@ public final class Generator {
         };
     }
 
-    private String lambda(Expr.Lambda lambda, boolean inLambda) {
+    /** A `var` from outside stays itself in a lambda of the code, so that javac rejects it, not a stale copy. */
+    private String lambda(Expr.Lambda lambda) {
         String params;
         if (analysis.implicitIt().contains(lambda)) {
             params = "it";
@@ -682,25 +681,24 @@ public final class Generator {
                     .collect(Collectors.joining(", ")) + ")";
         }
         List<Stmt> body = lambda.body();
+        Map<String, String> outerCopies = copies;
+        copies = Map.of();
         if (body.size() == 1 && body.getFirst() instanceof Stmt.ExprStmt single) {
             int bodyLine = startLine(single.expr());
+            String code = expr(single.expr());
+            copies = outerCopies;
             // A body on its own line keeps that line, for errors, stack traces and breakpoints.
-            return bodyLine > lambda.pos().line() ? params + " ->" + Emitter.continued(bodyLine, expr(single.expr(), inLambda))
-                    : params + " -> " + expr(single.expr(), inLambda);
+            return bodyLine > lambda.pos().line() ? params + " ->" + Emitter.continued(bodyLine, code) : params + " -> " + code;
         }
         Emitter outer = em;
-        Map<String, String> outerCopies = copies;
-        boolean outerCopying = inCopyingLambda;
         String outerReturnType = returnType;
         returnType = null;
-        inCopyingLambda = inLambda || inCopyingLambda;
         em = new Emitter();
         em.indent();
         body.forEach(this::statement);
         String block = em.embedded();
         em = outer;
         copies = outerCopies;
-        inCopyingLambda = outerCopying;
         returnType = outerReturnType;
         return params + " -> {" + block + Emitter.continuation(lambda.end().line(), "}");
     }
@@ -1007,7 +1005,7 @@ public final class Generator {
         boolean terminal = false;
         int previousLine = startLine(sourceExpr);
         for (Expr.Stage stage : stages) {
-            String lambda = stage.lambda() == null ? "" : lambda(stage.lambda(), inLambda);
+            String lambda = stage.lambda() == null ? "" : lambda(stage.lambda());
             if (stage.pos().line() > previousLine) {
                 sb.append(Emitter.continued(stage.pos().line(), ""));
                 previousLine = stage.pos().line();
