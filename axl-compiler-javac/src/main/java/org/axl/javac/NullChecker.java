@@ -1089,6 +1089,10 @@ final class NullChecker implements TaskListener {
                 return origin(body);
             }
             Origin declared = unknownOrigin(method);
+            if (declared == Origin.PLATFORM && returnsWrittenTypeArgument(call, method)) {
+                // `List<String>.get` returns what went in, and a type argument without `?` holds no nulls.
+                declared = Origin.NONE;
+            }
             if (declared != Origin.NONE) {
                 return declared;
             }
@@ -1102,6 +1106,18 @@ final class NullChecker implements TaskListener {
                 return Origin.NONE;
             }
             return nullAwaySees(call, method) ? Origin.DECLARED : Origin.HIDDEN;
+        }
+
+        private boolean returnsWrittenTypeArgument(MethodInvocationTree call, ExecutableElement method) {
+            if (!(method.getReturnType() instanceof TypeVariable variable)
+                    || !(method.getEnclosingElement() instanceof TypeElement owner)
+                    || !(call.getMethodSelect() instanceof MemberSelectTree select) || isTypeName(select.getExpression())) {
+                return false;
+            }
+            int position = owner.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
+            DeclaredType seen = asSuper(typeOf(select.getExpression()), owner);
+            return position >= 0 && seen != null && position < seen.getTypeArguments().size()
+                    && seen.getTypeArguments().get(position).getKind() == TypeKind.DECLARED;
         }
 
         /** NullAway infers the type arguments of a null-marked method from the types javac knows. */

@@ -1,6 +1,7 @@
 package app;
 import axl.lang.*;
 import org.jspecify.annotations.*;
+import java.util.ArrayList;
 
 @NullMarked public final class Main {
     private Main() {}
@@ -16,5 +17,8 @@ import org.jspecify.annotations.*;
         System.out.println("" + Nulls.map(missing, $n1 -> $n1.length()));
         final var n = Integer.parseInt("5");
         System.out.println(n + 1);
+        final var names = new ArrayList<String>();
+        names.add("a");
+        System.out.println(names.get(0).length());
     }
 }
