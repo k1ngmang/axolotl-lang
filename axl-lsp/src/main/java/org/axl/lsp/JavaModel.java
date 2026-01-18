@@ -246,6 +246,11 @@ final class JavaModel {
         return simple(type.toString());
     }
 
+    /** A type as hovers show it; `?` when it is unknown. */
+    static String display(TypeMirror type) {
+        return type == null ? "?" : simple(type.toString());
+    }
+
     static String simple(String type) {
         return type.replace("java.lang.", "");
     }

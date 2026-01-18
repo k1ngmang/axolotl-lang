@@ -3,6 +3,7 @@ package org.axl.lsp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.GeneratedUnit;
@@ -57,7 +58,7 @@ final class Hovers {
     private String describe(Document document, Symbols.Symbol symbol) {
         return switch (symbol.kind()) {
             case FUNCTION -> signature(symbol.function());
-            case VALUE -> "val " + symbol.name() + ": " + typeText(symbol.type());
+            case VALUE -> "val " + symbol.name() + ": " + valueType(document, symbol);
             case IMPORTED_FUNCTION -> "import fn " + symbol.imported().name();
             case IMPORTED_VALUE -> "import val " + symbol.imported().name();
             case TYPE -> "import " + symbol.imported().name();
@@ -68,6 +69,15 @@ final class Hovers {
         };
     }
 
+    private String valueType(Document document, Symbols.Symbol symbol) {
+        if (symbol.type() != null) {
+            return typeText(symbol.type());
+        }
+        JavaModel java = workspace.javaModel(document.module);
+        TypeElement owner = java.resolveType(document.ast, document.ast.className());
+        return JavaModel.display(owner == null ? null : java.memberType(owner, symbol.name(), -1));
+    }
+
     private String localType(Document document, Symbols.Symbol symbol) {
         if (symbol.type() != null) {
             return typeText(symbol.type());
@@ -75,7 +85,7 @@ final class Hovers {
         Decl.Function fn = symbol.function();
         TypeMirror type = workspace.javaModel(document.module).localType(document.ast, fn.name(), fn.params().size(), symbol.name(),
                 symbol.pos().line());
-        return type == null ? "?" : JavaModel.simple(type.toString());
+        return JavaModel.display(type);
     }
 
     static String signature(Decl.Function fn) {

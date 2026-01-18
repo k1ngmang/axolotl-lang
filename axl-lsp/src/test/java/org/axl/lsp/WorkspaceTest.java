@@ -143,6 +143,14 @@ class WorkspaceTest {
     }
 
     @Test
+    void hoverShowsTheInferredTypeOfATopLevelValue() throws Exception {
+        String uri = open("Main.axl", "package app\n\nval greeting = \"hi\"\n\nfn main() {\n    println(greeting)\n}\n");
+        assertTrue(hover(uri, 5, 13).contains("val greeting: String"), hover(uri, 5, 13));
+        assertTrue(hover(uri, 2, 5).contains("val greeting: String"), hover(uri, 2, 5));
+        assertTrue(hover(uri, 2, 5).contains("Generated Java"), hover(uri, 2, 5));
+    }
+
+    @Test
     void findsTheErrorNameOfAttempt() throws Exception {
         String line = "fn p(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> e.getMessage()";
         String uri = open("Main.axl", "package app\n\n" + line + "\n");
