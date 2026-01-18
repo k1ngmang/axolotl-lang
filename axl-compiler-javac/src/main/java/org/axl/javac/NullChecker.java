@@ -457,6 +457,11 @@ final class NullChecker implements TaskListener {
                 entry = next;
             }
             reporting = wasReporting;
+            if (!reporting) {
+                // The last pass started from the final entry state; scanning again would only take
+                // time, which grows with each level of nested loops.
+                return merged(entry, state);
+            }
             state = new HashMap<>(entry);
             enterIteration(condition, variable);
             scan(body, null);
