@@ -30,6 +30,7 @@ fn main() {
     xs.forEach(Main::len)
     println(xs.stream().map(String::length).toList())
     val f: Supplier<String> = Main::maybe
+    java.util.Collections.sort(xs)
     println(copy)
     println(f)
 }

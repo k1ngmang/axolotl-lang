@@ -317,6 +317,12 @@ final class NullChecker implements TaskListener {
                 }
             } else if (method.getModifiers().contains(Modifier.STATIC)) {
                 checkFactoryArguments(method, call.getArguments());
+                if (method.getSimpleName().contentEquals("sort") && call.getArguments().size() == 1
+                        && erasedName(method.getEnclosingElement().asType()).equals("java.util.Collections")
+                        && elementShape(call.getArguments().getFirst()).nullable()) {
+                    report(call, Origin.HIDDEN, false, "the elements may be null, and `sort` compares them; "
+                            + "drop the nulls first: `|> filter { it != null }`");
+                }
             }
             if (isRequireNonNull(method) && call.getArguments().size() == 1
                     && getCurrentPath().getParentPath().getLeaf() instanceof ExpressionStatementTree) {
@@ -656,12 +662,14 @@ final class NullChecker implements TaskListener {
             while (parent.getLeaf() instanceof ParenthesizedTree) {
                 parent = parent.getParentPath();
             }
+            TypeMirror type = trees.getTypeMirror(function);
+            boolean javaType = type instanceof DeclaredType declared && !PlatformValues.trusted(declared.asElement());
             if (parent.getLeaf() instanceof MethodInvocationTree || parent.getLeaf() instanceof NewClassTree) {
                 Element method = trees.getElement(parent);
-                return method != null && !PlatformValues.trusted(method);
+                // An Axolotl function may hand a parameter of a JDK interface type on to Java code.
+                return method != null && (!PlatformValues.trusted(method) || isAxolotlCode(method) && javaType);
             }
-            TypeMirror type = trees.getTypeMirror(function);
-            return type instanceof DeclaredType declared && !PlatformValues.trusted(declared.asElement());
+            return javaType;
         }
 
         /** What a lambda returns must fit the result of its functional interface. */

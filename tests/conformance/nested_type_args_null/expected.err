@@ -9,3 +9,4 @@ AXL102 app/Main.axl:29:30: error: a type argument of the value has `?`, but `cop
 AXL102 app/Main.axl:30:16: error: `Main::len` may get null, but the parameter `s` does not accept null; pass a lambda that checks for null
 AXL102 app/Main.axl:31:29: error: `String::length` is called on values that may be null; use a lambda with `?.`, or drop the nulls first
 AXL102 app/Main.axl:32:31: error: `Main::maybe` may return null, but `Supplier.get` returns `String` here; use a lambda with `?:`
+AXL102 app/Main.axl:33:27: error: the elements may be null, and `sort` compares them; drop the nulls first: `|> filter { it != null }`

@@ -9,3 +9,4 @@ AXL104 app/Main.axl:22:39: error: `x` may be null: it holds a value from Java co
 AXL104 app/Main.axl:23:67: error: `x` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
 AXL104 app/Main.axl:24:30: error: the value of `CONST` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
 AXL104 app/Main.axl:29:5: error: the value of `?:` may be null, since its fallback comes from Java code without nullness annotations, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:30:30: error: `x` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`

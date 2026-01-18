@@ -27,4 +27,9 @@ fn main() {
     println(home.length())
     println(" a ".trim().length() + String.valueOf(4).length())
     val m: Int = maybeInt() ?: Integer.getInteger("axl.surely.not.set")
+    forward({ x -> println(x.length()) })
+}
+
+fn forward(c: java.util.function.Consumer<String>) {
+    lib.Legacy.call(c)
 }
