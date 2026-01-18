@@ -86,6 +86,11 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         myFixture.checkHighlighting(false, false, false);
     }
 
+    public void testInfersTopLevelValuesFromJava() {
+        myFixture.configureByText("Main.axl", "package app\n\nval n = Integer.parseInt(\"1\")\n");
+        myFixture.checkHighlighting(false, false, false);
+    }
+
     public void testCompletesPipeStages() {
         myFixture.configureByText("Main.axl", "package app\n\nfn f(xs: java.util.List<Int>) = xs |> fil<caret>\n");
         myFixture.completeBasic();
