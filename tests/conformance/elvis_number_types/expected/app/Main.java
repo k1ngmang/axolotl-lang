@@ -14,9 +14,9 @@ import org.jspecify.annotations.*;
         return null;
     }
     public static void main(String[] args) {
-        final Number n = Nulls.or(number(), 0);
+        final Number n = Nulls.or(number(), () -> 0);
         System.out.println(n);
-        System.out.println(Nulls.or(anything(), 1.5));
+        System.out.println(Nulls.or(anything(), () -> 1.5));
         final var $t1 = Nulls.map(text(), $n1 -> Nulls.map($n1.chars(), $n2 -> $n2.count()));
         final var count = Nulls.or($t1, 0);
         System.out.println(count + 1);

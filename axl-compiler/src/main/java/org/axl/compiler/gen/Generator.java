@@ -30,6 +30,14 @@ public final class Generator {
             "Boolean", new String[] {"boolean", "Boolean"},
             "Double", new String[] {"double", "Double"});
 
+    // Types whose values Java unboxes in a conditional, as Axolotl or Java names them.
+    private static final Set<String> NUMBERS = Set.of("Int", "Long", "Double", "Float", "Short", "Byte",
+            "Integer", "Character");
+
+    // `s ?: 0` with `s: Short?`: the number is converted, so that both sides have the type on the left.
+    private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte",
+            "Character", "char", "Float", "float");
+
     private final SourceFile file;
     private final Analysis analysis;
     private final Options options;
@@ -51,6 +59,8 @@ public final class Generator {
     private Map<String, String> copies = Map.of();
     // The Java result type of the function whose body is being emitted; null inside a lambda.
     private String returnType;
+    // Types of the parameters and locals of the function so far; null where the code does not say.
+    private final Map<String, TypeRef> localTypes = new HashMap<>();
 
     private Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
         this.file = file;
@@ -156,6 +166,8 @@ public final class Generator {
         String returnType = fn.returnType() == null ? "void" : type(fn.returnType());
         em.line(fn.pos().line(), visibility(fn) + " static " + returnType + " " + fn.name() + "(" + params + ") {");
         this.returnType = fn.returnType() == null ? null : nullableType(fn.returnType());
+        localTypes.clear();
+        fn.params().forEach(p -> localTypes.put(p.name(), p.type()));
         em.indent();
         if (fn.exprBody() != null) {
             int line = fn.exprBody().pos().line();
@@ -207,15 +219,18 @@ public final class Generator {
             case Stmt.Local local -> {
                 int line = local.pos().line();
                 Expr init = local.init();
-                withCopies(line, init, () -> {
+                TypeRef localType = local.type() != null ? local.type() : typeOf(init);
+                withCopies(line, Captures.in(init, analysis, inlinesElvis(init)), () -> {
                     String value = init instanceof Expr.Try t ? unwrapTry(line, t)
                             : value(line, init, local.type() == null ? null : nullableType(local.type()));
                     String modifiers = local.mutable() ? "" : "final ";
                     String type = local.type() == null ? "var" : type(local.type());
                     em.line(line, modifiers + type + " " + local.name() + " = " + value + ";");
                 });
+                localTypes.put(local.name(), localType);
             }
-            case Stmt.Assign assign -> withCopies(assign.pos().line(), assign.value(), () -> {
+            case Stmt.Assign assign -> withCopies(assign.pos().line(),
+                    Captures.in(assign.value(), analysis, inlinesElvis(assign.value())), () -> {
                 int line = assign.pos().line();
                 boolean valueLifts = Lifts.needed(assign.value());
                 String target = assignTarget(line, assign.target(), valueLifts);
@@ -235,7 +250,7 @@ public final class Generator {
                 if (ret.value() == null) {
                     em.line(ret.pos().line(), "return;");
                 } else {
-                    withCopies(ret.pos().line(), ret.value(), () ->
+                    withCopies(ret.pos().line(), Captures.in(ret.value(), analysis, inlinesElvis(ret.value())), () ->
                             em.line(ret.pos().line(), "return " + value(ret.pos().line(), ret.value(), returnType) + ";"));
                 }
             }
@@ -388,7 +403,7 @@ public final class Generator {
         if (Lifts.needed(expr)) {
             return lifted(line, expr).code();
         }
-        if (!options.inlineElvis() || !(expr instanceof Expr.Elvis elvis) || mixesBoxedNumbers(elvis)) {
+        if (!inlinesElvis(expr) || !(expr instanceof Expr.Elvis elvis)) {
             return expr(expr);
         }
         String temp = "$t" + ++tempCount;
@@ -398,14 +413,52 @@ public final class Generator {
     }
 
     /**
-     * `Int? ?: Long?`: Java unboxes both sides of such a conditional, and fails on a null right side.
-     * Nulls.or keeps them boxed.
+     * Whether Java widens the number to the type on the left without boxing. Otherwise the overloads
+     * of Nulls.or for numbers and for any type both apply, and Java cannot pick one.
      */
-    private boolean mixesBoxedNumbers(Expr.Elvis elvis) {
-        TypeRef left = TypeInference.typeOf(file, elvis.left());
-        TypeRef right = TypeInference.typeOf(file, elvis.right());
-        return left != null && right != null && right.nullable() && !left.name().equals(right.name())
-                && PRIMITIVES.containsKey(left.name()) && PRIMITIVES.containsKey(right.name());
+    private boolean widens(Expr number, TypeRef left) {
+        if (left == null) {
+            return true;
+        }
+        TypeRef type = TypeInference.typeOf(file, number);
+        List<String> widening = List.of("Int", "Long", "Double");
+        return type != null && widening.contains(type.name()) && widening.indexOf(type.name()) <= widening.indexOf(left.name());
+    }
+
+    /** Whether `value` emits a root `?:` as a conditional rather than Nulls.or. */
+    private boolean inlinesElvis(Expr expr) {
+        return options.inlineElvis() && expr instanceof Expr.Elvis elvis && !Lifts.needed(elvis.right())
+                && !Lifts.needed(expr) && !mayMixNumbers(elvis);
+    }
+
+    /**
+     * `Int? ?: Long?` or `Int? ?: 1.5`: Java unboxes both sides of such a conditional, which fails on a
+     * null right side, and widens the result. Nulls.or keeps them as they are. A side whose type the
+     * code does not state may be a number.
+     */
+    private boolean mayMixNumbers(Expr.Elvis elvis) {
+        TypeRef left = typeOf(elvis.left());
+        TypeRef right = typeOf(elvis.right());
+        if (left != null && right != null && left.name().equals(right.name())) {
+            return false;
+        }
+        return !(left != null && !NUMBERS.contains(left.name()) || right != null && !NUMBERS.contains(right.name()));
+    }
+
+    private static String converted(String number, String javaType) {
+        return javaType.equals("float") && number.matches("-?[\\d.]+") ? number + "F" : "(" + javaType + ") " + number;
+    }
+
+    private static String name(TypeRef type) {
+        return type == null ? "" : type.name();
+    }
+
+    private TypeRef typeOf(Expr expr) {
+        Expr e = withoutParens(expr);
+        if (e instanceof Expr.Name name && localTypes.containsKey(name.name())) {
+            return localTypes.get(name.name());
+        }
+        return TypeInference.typeOf(file, e);
     }
 
     /**
@@ -414,14 +467,17 @@ public final class Generator {
      */
     private String elvis(Expr.Elvis elvis, String left) {
         Expr right = elvis.right();
-        boolean number = Lifts.isNumber(right) && (!Chains.hasSafeStep(elvis.left()) || left.matches("\\$t\\d+"));
-        String fallback = number ? expr(right) : "() -> " + expr(right, true);
+        boolean number = Lifts.isNumber(right) && widens(right, typeOf(elvis.left()))
+                && (!Chains.hasSafeStep(elvis.left()) || left.matches("\\$t\\d+"));
+        String narrow = Lifts.isNumber(right) ? NARROW_NUMBERS.get(name(typeOf(elvis.left()))) : null;
+        String fallback = number ? expr(right) : narrow != null ? "() -> " + converted(expr(right), narrow)
+                : "() -> " + expr(right, true);
         return joined("Nulls.or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")";
     }
 
     /** Copies `var`s that lambdas of this statement capture into fresh finals, then emits it. */
     private void withCopies(int line, Expr expr, Runnable emit) {
-        withCopies(line, Captures.in(expr, analysis, options.inlineElvis()), emit);
+        withCopies(line, Captures.in(expr, analysis), emit);
     }
 
     private void withCopies(int line, List<String> captured, Runnable emit) {

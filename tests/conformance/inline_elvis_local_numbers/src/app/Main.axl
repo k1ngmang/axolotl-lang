@@ -1,0 +1,36 @@
+package app
+
+fn pick(a: Int?, b: Long?) -> Object? {
+    val c = a ?: b
+    return c
+}
+
+fn main() {
+    println(pick(null, null))
+    val a: Int? = 5
+    val x = a ?: 1.5
+    println(x)
+    var k = true
+    k = !k
+    val flag: Boolean? = null
+    if (flag ?: k) {
+        println("yes")
+    }
+    val name: String? = null
+    val shown = name ?: "k=" + k
+    println(shown)
+    numbers()
+}
+
+fn numbers() {
+    val x: Int? = null
+    println(x ?: 1L)
+    println(x ?: 1.5)
+    val s: Short? = null
+    val y: Int = s ?: 0
+    println(y)
+    val f: Float? = null
+    println(f ?: 0)
+    val l: Long? = null
+    println(l ?: 1.5)
+}
