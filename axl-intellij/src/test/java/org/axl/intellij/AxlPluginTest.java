@@ -14,6 +14,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import org.axl.compiler.Options;
+import org.axl.compiler.Translator;
+import org.axl.intellij.java.PsiJavaTypes;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlVariable;
@@ -89,6 +92,28 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
     public void testInfersTopLevelValuesFromJava() {
         myFixture.configureByText("Main.axl", "package app\n\nval n = Integer.parseInt(\"1\")\n");
         myFixture.checkHighlighting(false, false, false);
+    }
+
+    public void testInfersWildcardAndNullableTypesOfTopLevelValues() {
+        myFixture.addFileToProject("app/Lookup.java", """
+                package app;
+
+                import org.jspecify.annotations.Nullable;
+
+                public class Lookup {
+                    public static @Nullable String find() {
+                        return null;
+                    }
+                }
+                """);
+        PsiFile file = myFixture.addFileToProject("app/Main.axl", "package app\n\nval cls = \"a\".getClass()\nval found = Lookup.find()\n");
+        myFixture.configureFromExistingVirtualFile(file.getVirtualFile());
+        myFixture.checkHighlighting(false, false, false);
+        AxlFile axl = (AxlFile) file;
+        String java = Translator.translate(axl.sourcePath(), axl.getName(), axl.getText(),
+                new Options(false).withJavaTypes(new PsiJavaTypes(axl))).unit().javaSource();
+        assertTrue(java, java.contains("Class<? extends String> cls"));
+        assertTrue(java, java.contains("@Nullable String found"));
     }
 
     public void testCompletesPipeStages() {
