@@ -10,6 +10,7 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiParameter;
+import com.intellij.psi.PsiType;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.impl.light.LightFieldBuilder;
 import com.intellij.psi.impl.light.LightMethodBuilder;
@@ -18,6 +19,7 @@ import com.intellij.psi.impl.source.resolve.FileContextUtil;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
+import com.intellij.psi.util.TypeConversionUtil;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
@@ -122,8 +124,9 @@ public final class AxlLightClasses {
         PsiParameter[] parameters = method.getParameterList().getParameters();
         for (int i = 0; i < parameters.length; i++) {
             AxlType type = function.parameters().get(i).type();
-            String name = type == null ? null : type.name().substring(type.name().lastIndexOf('.') + 1);
-            if (name != null && !name.equals(AxlResolver.simpleName(parameters[i].getType()))) {
+            PsiType expected = type == null ? null : AxlResolver.javaType(type);
+            if (expected != null
+                    && !expected.getCanonicalText().equals(TypeConversionUtil.erasure(parameters[i].getType()).getCanonicalText())) {
                 return false;
             }
         }

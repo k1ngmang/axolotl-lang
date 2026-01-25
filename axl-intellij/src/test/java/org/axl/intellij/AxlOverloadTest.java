@@ -152,6 +152,51 @@ public class AxlOverloadTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals("k(int a, int b)", resolvedSignature("k(1, 2)"));
     }
 
+    public void testPrefersAnOverloadWithoutUnboxing() {
+        myFixture.addFileToProject("app/Util.java", """
+                package app;
+
+                public final class Util {
+                    public static String f(int x) { return ""; }
+                    public static String f(Object x) { return ""; }
+                }
+                """);
+        myFixture.configureByText("M.axl", """
+                package app
+
+                fn main() {
+                    val n: Int? = 5
+                    println(Util.f(n))
+                    println(Util.f(5))
+                }
+                """);
+        assertEquals("f(Object x)", resolvedSignature("f(n)"));
+        assertEquals("f(int x)", resolvedSignature("f(5)"));
+    }
+
+    public void testTellsIntAndNullableIntOverloadsApartForJava() {
+        myFixture.addFileToProject("app/O.axl", """
+                package app
+
+                fn f(a: Int) -> Int = a
+
+                fn f(a: Int?) -> Int = 0
+                """);
+        myFixture.addFileToProject("app/Caller.java", """
+                package app;
+
+                class Caller {
+                    Object call() {
+                        return O.f(Integer.valueOf(1)) + O.f(1) + O.f(2);
+                    }
+                }
+                """);
+        myFixture.configureFromTempProjectFile("app/O.axl");
+        List<AxlFunction> functions = ((AxlFile) myFixture.getFile()).functions();
+        assertEquals(2, myFixture.findUsages(functions.get(0)).size());
+        assertEquals(1, myFixture.findUsages(functions.get(1)).size());
+    }
+
     private String resolvedSignature(String call) {
         int offset = myFixture.getFile().getText().indexOf(call);
         PsiElement target = myFixture.getFile().findReferenceAt(offset).resolve();

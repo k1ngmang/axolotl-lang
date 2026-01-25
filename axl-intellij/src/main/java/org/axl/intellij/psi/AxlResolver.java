@@ -35,8 +35,6 @@ public final class AxlResolver {
 
     private static final Map<String, String> BUILTIN_TYPES = Map.of(
             "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Double", "java.lang.Double");
-    private static final Map<String, String> JAVA_TYPES = Map.of("int", "Int", "Integer", "Int", "long", "Long",
-            "boolean", "Boolean", "double", "Double");
     private static final Map<String, PsiPrimitiveType> PRIMITIVES = Map.of("Int", PsiTypes.intType(),
             "Long", PsiTypes.longType(), "Boolean", PsiTypes.booleanType(), "Double", PsiTypes.doubleType());
 
@@ -125,6 +123,12 @@ public final class AxlResolver {
     }
 
     /**
+     * javac's phases of overload resolution: without boxing or varargs first, then with boxing, then
+     * with varargs. The first phase with an applicable method decides.
+     */
+    private enum Phase { STRICT, LOOSE, VARARGS }
+
+    /**
      * Of several functions or methods with a name, the one a call's arguments fit best, as javac
      * picks it; all that fit when that cannot be told. For a name that is not called, its fields.
      * Arguments whose type takes inference fit any parameter.
@@ -139,13 +143,16 @@ public final class AxlResolver {
             return new ArrayList<>(candidates);
         }
         List<PsiType> types = arguments.stream().map(AxlResolver::argumentType).toList();
-        List<PsiElement> applicable = new ArrayList<>(candidates.stream().filter(c -> isApplicable(c, types)).toList());
-        if (applicable.stream().anyMatch(c -> !isVarArgs(c))) {
-            applicable.removeIf(AxlResolver::isVarArgs);
+        for (Phase phase : Phase.values()) {
+            List<PsiElement> applicable = candidates.stream().filter(c -> isApplicable(c, types, phase))
+                    .map(c -> (PsiElement) c).toList();
+            if (!applicable.isEmpty()) {
+                List<PsiElement> best = applicable.stream()
+                        .filter(a -> applicable.stream().allMatch(b -> a == b || isMoreSpecific(a, b))).toList();
+                return new ArrayList<>(best.size() == 1 ? best : applicable);
+            }
         }
-        List<PsiElement> best = applicable.stream()
-                .filter(a -> applicable.stream().allMatch(b -> a == b || isMoreSpecific(a, b))).toList();
-        return best.size() == 1 ? best : applicable.isEmpty() ? new ArrayList<>(candidates) : applicable;
+        return new ArrayList<>(candidates);
     }
 
     /** The arguments when the place is the callee of a call, otherwise null. */
@@ -176,32 +183,36 @@ public final class AxlResolver {
         return callable instanceof PsiMethod method && method.isVarArgs();
     }
 
-    private static boolean isApplicable(PsiElement callable, List<PsiType> arguments) {
+    private static boolean isApplicable(PsiElement callable, List<PsiType> arguments, Phase phase) {
         List<PsiType> parameters = parameterTypes(callable);
         if (parameters == null) {
             return false;
         }
-        int fixed = isVarArgs(callable) ? parameters.size() - 1 : parameters.size();
-        if (arguments.size() < fixed || !isVarArgs(callable) && arguments.size() > fixed) {
-            return false;
-        }
-        for (int i = 0; i < fixed; i++) {
-            if (!accepts(parameters.get(i), arguments.get(i))) {
+        if (phase != Phase.VARARGS) {
+            if (arguments.size() != parameters.size()) {
                 return false;
             }
-        }
-        if (isVarArgs(callable) && arguments.size() == parameters.size() && accepts(parameters.getLast(), arguments.getLast())) {
+            for (int i = 0; i < parameters.size(); i++) {
+                if (!accepts(parameters.get(i), arguments.get(i), phase == Phase.STRICT)) {
+                    return false;
+                }
+            }
             return true;
         }
-        for (int i = fixed; i < arguments.size(); i++) {
-            if (!accepts(((PsiArrayType) parameters.getLast()).getComponentType(), arguments.get(i))) {
+        int fixed = parameters.size() - 1;
+        if (!isVarArgs(callable) || arguments.size() < fixed) {
+            return false;
+        }
+        for (int i = 0; i < arguments.size(); i++) {
+            PsiType parameter = i < fixed ? parameters.get(i) : ((PsiArrayType) parameters.getLast()).getComponentType();
+            if (!accepts(parameter, arguments.get(i), false)) {
                 return false;
             }
         }
         return true;
     }
 
-    /** Whether every parameter of a fits the same parameter of b, as javac's most specific method. */
+    /** Whether every parameter of a is a subtype of the same parameter of b, as javac's most specific method. */
     private static boolean isMoreSpecific(PsiElement a, PsiElement b) {
         List<PsiType> mine = parameterTypes(a);
         List<PsiType> theirs = parameterTypes(b);
@@ -209,23 +220,30 @@ public final class AxlResolver {
             return false;
         }
         for (int i = 0; i < mine.size(); i++) {
-            if (!accepts(theirs.get(i), mine.get(i))) {
+            if (!accepts(theirs.get(i), mine.get(i), true)) {
                 return false;
             }
         }
         return true;
     }
 
-    /** Unknown types fit anything; generic types are compared without their type arguments. */
-    private static boolean accepts(@Nullable PsiType parameter, @Nullable PsiType argument) {
-        return parameter == null || argument == null
-                || TypeConversionUtil.isAssignable(TypeConversionUtil.erasure(parameter), TypeConversionUtil.erasure(argument));
+    /**
+     * Unknown types fit anything; generic types are compared without their type arguments. strict:
+     * without boxing or unboxing.
+     */
+    private static boolean accepts(@Nullable PsiType parameter, @Nullable PsiType argument, boolean strict) {
+        if (parameter == null || argument == null) {
+            return true;
+        }
+        if (strict && isPrimitive(parameter) != isPrimitive(argument)) {
+            return false;
+        }
+        return TypeConversionUtil.isAssignable(TypeConversionUtil.erasure(parameter), TypeConversionUtil.erasure(argument));
     }
 
-    /** The simple name of a Java type's class as Axolotl writes it: `Int` for `int` and `Integer`. */
-    public static String simpleName(PsiType type) {
-        String simple = TypeConversionUtil.erasure(type).getPresentableText();
-        return JAVA_TYPES.getOrDefault(simple, simple);
+    /** The null type counts as a primitive type in IntelliJ, but takes no boxing. */
+    private static boolean isPrimitive(PsiType type) {
+        return type instanceof PsiPrimitiveType && type != PsiTypes.nullType();
     }
 
     /**
@@ -277,7 +295,7 @@ public final class AxlResolver {
     }
 
     /** The Java type of a written type, without its type arguments; null when it does not resolve. */
-    private static @Nullable PsiType javaType(AxlType type) {
+    public static @Nullable PsiType javaType(AxlType type) {
         boolean nullable = type.getText().endsWith("?");
         PsiPrimitiveType primitive = PRIMITIVES.get(type.name());
         if (primitive != null && !nullable) {
