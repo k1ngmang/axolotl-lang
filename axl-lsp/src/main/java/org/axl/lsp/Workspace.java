@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.lang.model.SourceVersion;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
@@ -170,7 +171,7 @@ final class Workspace {
     JavaModel javaModel(Module module) {
         return javaModels.computeIfAbsent(module, m -> JavaModel.build(m, documentsOf(m).stream()
                 .map(d -> parsed(d.uri) != null ? parsed(d.uri) : d)
-                .map(d -> d.translation.unit()).filter(u -> u != null).toList()));
+                .map(Document::javaUnit).filter(u -> u != null).toList()));
     }
 
     /** Every .axl file of a module, open ones with their unsaved text. */
@@ -216,9 +217,14 @@ final class Workspace {
             }
             List<Translator.Result> results = Translation.run(inputs, new Options(false), module.classpath(),
                     module.javaRoots(), dir, module.strictNull());
+            Options options = Document.options(module, dir);
             for (int i = 0; i < results.size(); i++) {
-                if (results.get(i).unit() != null) {
-                    draftFiles.put(files.get(i), results.get(i).unit().writeTo(dir));
+                Translator.Result result = results.get(i);
+                Translation.Input input = inputs.get(i);
+                GeneratedUnit unit = result.unit() != null || isDuplicate(result) ? result.unit()
+                        : Document.partialUnit(input.sourcePath(), input.displayPath(), input.text(), options, result.diagnostics());
+                if (unit != null) {
+                    draftFiles.put(files.get(i), unit.writeTo(dir));
                 }
             }
         } catch (IOException e) {
@@ -228,12 +234,17 @@ final class Workspace {
         return dir;
     }
 
+    private static boolean isDuplicate(Translator.Result result) {
+        return result.diagnostics().stream().anyMatch(d -> d.code() == ErrorCode.DUPLICATE_CLASS);
+    }
+
     private void writeDraft(Document document) {
-        if (document.translation.unit() == null) {
+        GeneratedUnit unit = document.javaUnit();
+        if (unit == null) {
             return;
         }
         try {
-            Path written = document.translation.unit().writeTo(draftsOf(document.module));
+            Path written = unit.writeTo(draftsOf(document.module));
             Path old = draftFiles.put(document.path, written);
             if (old != null && !draftFiles.containsValue(old)) {
                 deleteDraft(old);

@@ -248,7 +248,7 @@ final class JavaModel {
 
     /** A type as hovers show it; `?` when it is unknown. */
     static String display(TypeMirror type) {
-        return type == null ? "?" : simple(type.toString());
+        return type == null || type.getKind() == TypeKind.ERROR ? "?" : simple(type.toString());
     }
 
     static String simple(String type) {

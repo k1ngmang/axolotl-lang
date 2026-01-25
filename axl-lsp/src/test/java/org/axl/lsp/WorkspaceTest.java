@@ -151,6 +151,23 @@ class WorkspaceTest {
     }
 
     @Test
+    void infersTypesWhileAnotherLineHasAnError() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val s = \"abc\"\n    val n = s.le\n"
+                + "    val k = 1\n    k = 2\n}\n");
+        assertTrue(memberNames(uri, 4, 16).contains("length"), memberNames(uri, 4, 16).toString());
+        assertTrue(hover(uri, 3, 8).contains("val s: String"), hover(uri, 3, 8));
+    }
+
+    @Test
+    void infersTypesFromAnotherFileWithAnError() throws Exception {
+        Files.writeString(project.resolve("src/main/axl/app/Other.axl"),
+                "package app\n\nval x = \"a\"\n\nfn bad() {\n    val k = 1\n    k = 2\n}\n");
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val s = Other.x\n    val t = Other.missing\n}\n");
+        assertTrue(hover(uri, 3, 8).contains("val s: String"), hover(uri, 3, 8));
+        assertTrue(hover(uri, 4, 8).contains("val t: ?"), hover(uri, 4, 8));
+    }
+
+    @Test
     void findsTheErrorNameOfAttempt() throws Exception {
         String line = "fn p(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> e.getMessage()";
         String uri = open("Main.axl", "package app\n\n" + line + "\n");

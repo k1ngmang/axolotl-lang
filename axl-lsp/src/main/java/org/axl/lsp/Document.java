@@ -10,6 +10,7 @@ import java.util.function.Function;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.compiler.ast.Pos;
@@ -32,6 +33,8 @@ final class Document {
     final Translator.Result translation;
     final Module module;
     final String sourcePath;
+    private final Options options;
+    private GeneratedUnit partial;
 
     /** drafts: the directory with the Java of the other .axl files of a module. */
     Document(String uri, String text, ProjectModel project, Function<Module, Path> drafts) {
@@ -46,11 +49,48 @@ final class Document {
         this.module = project.moduleOf(path, packageName);
         Path root = module.axlRootOf(path);
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
-        // Types of top-level values that depend on Java code or other files come from javac, only when needed.
-        List<Path> sourcepath = new ArrayList<>(List.of(drafts.apply(module)));
-        sourcepath.addAll(module.javaRoots());
-        Options options = new Options(false).withJavaTypes(new JavacTypes(module.classpath(), sourcepath, module.strictNull()));
+        this.options = options(module, drafts.apply(module));
         this.translation = Translator.translate(sourcePath, uri, text, options);
+    }
+
+    /** Types of top-level values that depend on Java code or other files come from javac, only when needed. */
+    static Options options(Module module, Path drafts) {
+        List<Path> sourcepath = new ArrayList<>(List.of(drafts));
+        sourcepath.addAll(module.javaRoots());
+        return new Options(false).withJavaTypes(new JavacTypes(module.classpath(), sourcepath, module.strictNull()));
+    }
+
+    /**
+     * The Java that javac reads for types: the translation, or while it has errors, the translation of
+     * the text without the lines that have them. Null when even that fails.
+     */
+    GeneratedUnit javaUnit() {
+        if (translation.unit() != null || ast == null) {
+            return translation.unit();
+        }
+        if (partial == null) {
+            partial = partialUnit(sourcePath, uri, text, options, translation.diagnostics());
+        }
+        return partial;
+    }
+
+    /** The lines with errors become empty, so that the other lines keep their positions. */
+    static GeneratedUnit partialUnit(String sourcePath, String displayPath, String text, Options options,
+                                     List<AxlDiagnostic> diagnostics) {
+        List<String> lines = new ArrayList<>(lines(text));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            for (AxlDiagnostic d : diagnostics) {
+                if (d.isError() && d.line() >= 1 && d.line() <= lines.size()) {
+                    lines.set(d.line() - 1, "");
+                }
+            }
+            Translator.Result result = Translator.translate(sourcePath, displayPath, String.join("\n", lines), options.asDraft());
+            if (result.unit() != null) {
+                return result.unit();
+            }
+            diagnostics = result.diagnostics();
+        }
+        return null;
     }
 
     /** Lines as the lexer counts them, including the empty line after a final newline. */
