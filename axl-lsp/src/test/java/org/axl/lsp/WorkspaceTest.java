@@ -81,6 +81,18 @@ class WorkspaceTest {
         assertTrue(memberNames(uri, 11, 28).contains("of"), memberNames(uri, 11, 28).toString());
     }
 
+    @Test
+    void completesNamesWhereNoMemberIsTyped() throws Exception {
+        String line = "    val t = s.length ";
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val s = \"abc\"\n" + line + "\n\n}\n");
+        for (int[] at : List.of(new int[] {5, 0}, new int[] {4, line.length()})) {
+            List<String> labels = new Completions(workspace).complete(uri, at[0], at[1]).stream()
+                    .map(CompletionItem::getLabel).toList();
+            assertTrue(labels.contains("val") && labels.contains("s") && !labels.contains("length()"), labels.toString());
+        }
+        assertTrue(memberNames(uri, 4, line.length() - 1).contains("length"), memberNames(uri, 4, line.length() - 1).toString());
+    }
+
     private List<String> memberNames(String uri, int line, int character) {
         return new Completions(workspace).complete(uri, line, character).stream().map(CompletionItem::getInsertText).toList();
     }

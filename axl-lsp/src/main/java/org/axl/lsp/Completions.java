@@ -90,7 +90,10 @@ final class Completions {
         return same >= 0 ? parsed.pos(same, character) : new Pos(current.sharedLeadingLines(parsed) + 1, 1);
     }
 
-    /** The `.` or `?.` before the member being typed, which may be on an earlier line; or null. */
+    /**
+     * The `.` or `?.` before the member being typed, or null. The member's name ends at the cursor
+     * and may start a line after the dot; without a name, the dot is on the cursor's line.
+     */
     private static Token memberDot(Document document, int line, int character) {
         int column = document.codePointColumn(line, character);
         Token last = null;
@@ -104,7 +107,11 @@ final class Completions {
             }
         }
         if (last != null && last.getType() == AxolotlLexer.IDENTIFIER) {
-            last = document.previous(last);
+            boolean typed = last.getLine() - 1 == line
+                    && last.getCharPositionInLine() + last.getStopIndex() - last.getStartIndex() + 1 == column;
+            last = typed ? document.previous(last) : null;
+        } else if (last != null && last.getLine() - 1 != line) {
+            return null;
         }
         return last != null && (last.getType() == AxolotlLexer.DOT || last.getType() == AxolotlLexer.SAFE_DOT) ? last : null;
     }
