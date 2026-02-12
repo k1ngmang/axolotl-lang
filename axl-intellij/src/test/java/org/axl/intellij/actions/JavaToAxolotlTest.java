@@ -25,6 +25,8 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Generic.java", inClass("public static <T> T id(T x) { return x; }"));
         assertRefused("Init.java", inClass("static { System.out.println(\"loaded\"); }"));
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
+        assertRefused("Read.java", inClass("public static String read(java.nio.file.Path p) throws java.io.IOException "
+                + "{ return java.nio.file.Files.readString(p); }"));
     }
 
     public void testRefusesWhatTheTranslatorRejects() {
@@ -73,6 +75,12 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         String axl = convert("Static.java", "package util;\nimport static java.lang.Math.max;\n"
                 + "public final class Static {\n    public static int f(int a) { return max(a, 1); }\n}\n");
         assertTrue(axl, axl.contains("import fn java.lang.Math.max\n"));
+    }
+
+    public void testKeepsUncheckedThrowsOut() {
+        String axl = convert("Check.java",
+                inClass("public static int f(int a) throws IllegalArgumentException { return a; }"));
+        assertTrue(axl, axl.contains("fn f(a: Int) -> Int {"));
     }
 
     public void testImportsQualifiedAndNestedTypes() {

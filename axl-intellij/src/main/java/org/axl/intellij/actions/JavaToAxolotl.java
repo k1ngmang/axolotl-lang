@@ -1,5 +1,6 @@
 package org.axl.intellij.actions;
 
+import com.intellij.codeInsight.ExceptionUtil;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiBlockStatement;
 import com.intellij.psi.PsiClass;
@@ -37,6 +38,7 @@ import com.intellij.psi.JavaRecursiveElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -159,6 +161,10 @@ final class JavaToAxolotl {
             }
             if (method.hasTypeParameters()) {
                 throw new Unsupported("generic methods have no Axolotl form");
+            }
+            PsiClassType[] thrown = method.getThrowsList().getReferencedTypes();
+            if (Arrays.stream(thrown).anyMatch(t -> !ExceptionUtil.isUncheckedException(t))) {
+                throw new Unsupported("functions cannot throw checked exceptions; return a Result instead");
             }
             function(method);
         }
