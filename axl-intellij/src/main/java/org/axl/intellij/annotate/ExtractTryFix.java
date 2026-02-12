@@ -23,9 +23,13 @@ final class ExtractTryFix extends PsiUpdateModCommandAction<PsiElement> {
         super(tryExpression);
     }
 
-    /** Only for a `try` that runs whenever its statement does: not in a lambda or an `attempt`. */
+    /**
+     * Only for a `try` that runs once whenever its statement does: not in a lambda, an `attempt`, a
+     * loop condition or an `else if` condition.
+     */
     static boolean isApplicable(PsiElement tryExpression) {
-        for (PsiElement parent = tryExpression.getParent(); parent != null; parent = parent.getParent()) {
+        PsiElement child = tryExpression;
+        for (PsiElement parent = tryExpression.getParent(); parent != null; child = parent, parent = parent.getParent()) {
             IElementType type = parent.getNode().getElementType();
             if (type == AxlElementTypes.BLOCK) {
                 return true;
@@ -33,8 +37,19 @@ final class ExtractTryFix extends PsiUpdateModCommandAction<PsiElement> {
             if (type == AxlElementTypes.LAMBDA || type == AxlElementTypes.ATTEMPT) {
                 return false;
             }
+            boolean elseIf = parent.getParent().getNode().getElementType() == AxlElementTypes.IF;
+            if (isCondition(parent, child) && (type == AxlElementTypes.WHILE || elseIf)) {
+                return false;
+            }
         }
         return false;
+    }
+
+    private static boolean isCondition(PsiElement statement, PsiElement child) {
+        IElementType type = statement.getNode().getElementType();
+        IElementType childType = child.getNode().getElementType();
+        return (type == AxlElementTypes.WHILE || type == AxlElementTypes.IF)
+                && childType != AxlElementTypes.BLOCK && childType != AxlElementTypes.IF;
     }
 
     @Override

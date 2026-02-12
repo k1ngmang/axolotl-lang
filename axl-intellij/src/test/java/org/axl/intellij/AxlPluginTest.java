@@ -218,6 +218,31 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of(), myFixture.filterAvailableIntentions("Move `try` into a separate `val`"));
     }
 
+    public void testOffersNoMoveOfTryOutOfALoopOrElseIfCondition() {
+        String text = """
+                package app
+
+                fn parse(s: String) -> Result<Int, String> = Ok(1)
+
+                fn f(s: String?) -> Result<Int, String> {
+                    while (s?.startsWith(try parse("1").toString()) == true) {
+                        println(1)
+                    }
+                    if (s == null) {
+                        println(2)
+                    } else if (s?.startsWith(try parse("2").toString()) == true) {
+                        println(3)
+                    }
+                    return Ok(1)
+                }
+                """;
+        for (String at : List.of("try parse(\"1\")", "try parse(\"2\")")) {
+            myFixture.configureByText("Main.axl", text);
+            myFixture.getEditor().getCaretModel().moveToOffset(text.indexOf(at) + 1);
+            assertEquals(at, List.of(), myFixture.filterAvailableIntentions("Move `try` into a separate `val`"));
+        }
+    }
+
     public void testResolvesLocalsAndImportedFunctions() {
         myFixture.addFileToProject("util/Parse.axl", PARSE);
         myFixture.configureByText("Main.axl", """
