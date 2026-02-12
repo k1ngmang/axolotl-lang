@@ -3,6 +3,7 @@ package org.axl.intellij.actions;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiBlockStatement;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiDeclarationStatement;
 import com.intellij.psi.PsiElement;
@@ -35,10 +36,13 @@ import com.intellij.psi.PsiWhileStatement;
 import com.intellij.psi.JavaRecursiveElementVisitor;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.Translator;
 
@@ -66,6 +70,10 @@ final class JavaToAxolotl {
     private static final Set<String> ASSIGNMENTS = Set.of("=", "+=", "-=", "*=", "/=", "%=");
 
     private final StringBuilder out = new StringBuilder();
+    private String packageName;
+    // Imported types by simple name: the file's imports and those the converted types need.
+    private final Map<String, String> importedTypes = new HashMap<>();
+    private final List<String> addedImports = new ArrayList<>();
 
     static String convert(PsiJavaFile file) {
         PsiClass[] classes = file.getClasses();
@@ -109,13 +117,16 @@ final class JavaToAxolotl {
         if (cls.getInitializers().length > 0) {
             throw new Unsupported("initializer blocks have no Axolotl form");
         }
-        out.append("package ").append(qualifiedName(file.getPackageName())).append("\n");
+        packageName = file.getPackageName();
+        out.append("package ").append(qualifiedName(packageName)).append("\n");
         if (file.getImportList() != null) {
             for (PsiImportStatement imp : file.getImportList().getImportStatements()) {
                 if (imp.isOnDemand()) {
                     throw new Unsupported("on-demand imports have no Axolotl form");
                 }
                 out.append("import ").append(qualifiedName(imp.getQualifiedName())).append("\n");
+                importedTypes.put(imp.getQualifiedName().substring(imp.getQualifiedName().lastIndexOf('.') + 1),
+                        imp.getQualifiedName());
             }
             for (PsiImportStaticStatement imp : file.getImportList().getImportStaticStatements()) {
                 PsiClass target = imp.resolveTargetClass();
@@ -128,6 +139,7 @@ final class JavaToAxolotl {
                         .append(".").append(name(imp.getReferenceName())).append("\n");
             }
         }
+        int importsEnd = out.length();
         for (var field : cls.getFields()) {
             if (!field.hasModifierProperty(PsiModifier.STATIC) || !field.hasModifierProperty(PsiModifier.FINAL)
                     || field.getInitializer() == null) {
@@ -150,6 +162,8 @@ final class JavaToAxolotl {
             }
             function(method);
         }
+        out.insert(importsEnd, addedImports.stream().map(name -> "import " + qualifiedName(name) + "\n")
+                .collect(Collectors.joining()));
         return out.toString();
     }
 
@@ -350,13 +364,13 @@ final class JavaToAxolotl {
     }
 
     /** The type of a variable, nullable when it holds `null`. */
-    private static String type(PsiVariable variable, PsiElement scope) {
+    private String type(PsiVariable variable, PsiElement scope) {
         String type = type(variable.getType());
         boolean nullable = !type.endsWith("?") && !(variable.getType() instanceof PsiPrimitiveType) && holdsNull(variable, scope);
         return nullable ? type + "?" : type;
     }
 
-    private static String type(PsiType type) {
+    private String type(PsiType type) {
         if (type == null) {
             return "";
         }
@@ -374,10 +388,33 @@ final class JavaToAxolotl {
         if (type instanceof com.intellij.psi.PsiArrayType) {
             throw new Unsupported("arrays have no Axolotl form");
         }
-        if (type.getCanonicalText().contains("?")) {
+        if (!(type instanceof PsiClassType classType)) {
             throw new Unsupported("wildcard types have no Axolotl form");
         }
-        return type.getPresentableText();
+        return classType(classType);
+    }
+
+    /** A class by its simple name; one that is not visible without an import gets one. */
+    private String classType(PsiClassType type) {
+        PsiClass cls = type.resolve();
+        if (cls == null || cls.getQualifiedName() == null) {
+            throw new Unsupported("unknown type: " + type.getPresentableText());
+        }
+        String qualified = cls.getQualifiedName();
+        String pkg = PsiUtil.getPackageName(cls);
+        boolean visible = cls.getContainingClass() == null && ("java.lang".equals(pkg) || packageName.equals(pkg));
+        String known = importedTypes.putIfAbsent(cls.getName(), qualified);
+        if (known == null && !visible) {
+            addedImports.add(qualified);
+        } else if (known != null && !known.equals(qualified)) {
+            throw new Unsupported("two types are named " + cls.getName());
+        }
+        List<String> arguments = new ArrayList<>();
+        for (PsiType argument : type.getParameters()) {
+            // A type argument keeps its class name: `Int?` there would declare nullable elements.
+            arguments.add(argument instanceof PsiClassType c ? classType(c) : type(argument));
+        }
+        return cls.getName() + (arguments.isEmpty() ? "" : "<" + String.join(", ", arguments) + ">");
     }
 
     private static String name(String name) {

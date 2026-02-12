@@ -75,6 +75,20 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("import fn java.lang.Math.max\n"));
     }
 
+    public void testImportsQualifiedAndNestedTypes() {
+        String axl = convert("Sizes.java", inClass("""
+                public static int size(java.util.List<String> xs) {
+                    return xs.size();
+                }
+                public static int value(java.util.Map.Entry<String, Integer> e) {
+                    return e.getValue();
+                }"""));
+        assertTrue(axl, axl.startsWith("package util\nimport java.util.List\nimport java.util.Map.Entry\n"));
+        assertTrue(axl, axl.contains("fn size(xs: List<String>) -> Int {"));
+        assertTrue(axl, axl.contains("fn value(e: Entry<String, Integer>) -> Int {"));
+        assertRefused("Lists.java", inClass("public static int f(java.util.List<String> a, java.awt.List b) { return 1; }"));
+    }
+
     /** A class named after its file, which the helpers below fill in for `CLASS`. */
     private static String inClass(String member) {
         return "package util;\npublic final class CLASS {\n" + member + "\n}\n";
