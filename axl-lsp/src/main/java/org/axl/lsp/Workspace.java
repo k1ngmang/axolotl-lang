@@ -62,6 +62,8 @@ final class Workspace {
     // The Java file in the drafts directory of each .axl file, deleted when its class or package changes.
     private final Map<Path, Path> draftFiles = new HashMap<>();
     private ModuleCompiler compiler;
+    // Off for a client that shows the translator's diagnostics itself, as the IntelliJ plugin does.
+    private boolean translatorDiagnostics = true;
 
     <T> CompletableFuture<T> submit(Callable<T> work) {
         return CompletableFuture.supplyAsync(() -> {
@@ -82,6 +84,10 @@ final class Workspace {
         compiler = new ModuleCompiler();
         drafts.clear();
         draftFiles.clear();
+    }
+
+    void publishTranslatorDiagnostics(boolean enabled) {
+        translatorDiagnostics = enabled;
     }
 
     void close() {
@@ -367,7 +373,7 @@ final class Workspace {
         if (client == null) {
             return;
         }
-        List<AxlDiagnostic> all = new ArrayList<>(document.diagnostics());
+        List<AxlDiagnostic> all = new ArrayList<>(translatorDiagnostics ? document.diagnostics() : List.of());
         Compiled compiled = compileErrors.getOrDefault(document.module, Map.of()).get(document.uri);
         if (!document.translation.hasErrors() && compiled != null) {
             all.addAll(movedTo(document, compiled));

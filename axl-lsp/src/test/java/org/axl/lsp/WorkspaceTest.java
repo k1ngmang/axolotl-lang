@@ -350,6 +350,17 @@ class WorkspaceTest {
     }
 
     @Test
+    void sendsOnlyJavacErrorsToAClientThatShowsTheTranslatorErrors() throws Exception {
+        workspace.publishTranslatorDiagnostics(false);
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");
+        assertEquals(List.of(), published.get(uri));
+
+        workspace.update(uri, "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n");
+        workspace.saved(uri);
+        assertEquals(List.of("AXL100"), published.get(uri).stream().map(d -> d.getCode().getLeft()).toList());
+    }
+
+    @Test
     void clearsDiagnosticsOfAClosedDocument() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val y = 1\n    y = 2\n}\n");
         assertFalse(published.get(uri).isEmpty());

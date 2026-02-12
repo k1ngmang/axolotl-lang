@@ -7,13 +7,14 @@ import com.intellij.platform.lsp.api.LspServerSupportProvider;
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor;
 import com.intellij.platform.lsp.api.customization.LspCompletionSupport;
 import com.intellij.platform.lsp.api.customization.LspSemanticTokensSupport;
+import java.util.Map;
 import org.axl.intellij.annotate.AxlServer;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * In IntelliJ IDEA Ultimate the Axolotl language server supplies module-wide javac, Error Prone and
- * NullAway diagnostics and hover. Completion, navigation and highlighting stay with the plugin's
- * own PSI, which also works in Community.
+ * NullAway diagnostics on save, and hover. Completion, navigation, highlighting and the translator's
+ * errors stay with the plugin's own PSI, which also works in Community.
  */
 public final class AxlLspServerSupportProvider implements LspServerSupportProvider {
 
@@ -40,6 +41,12 @@ public final class AxlLspServerSupportProvider implements LspServerSupportProvid
         public @NotNull GeneralCommandLine createCommandLine() {
             GeneralCommandLine command = new GeneralCommandLine(AxlServer.command(null, "org.axl.lsp.Main"));
             return getProject().getBasePath() == null ? command : command.withWorkDirectory(getProject().getBasePath());
+        }
+
+        /** The annotator already reports the translator's errors while typing; the server adds javac's on save. */
+        @Override
+        public Object createInitializationOptions() {
+            return Map.of("translatorDiagnostics", false);
         }
 
         @Override

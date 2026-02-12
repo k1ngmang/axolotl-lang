@@ -1,5 +1,6 @@
 package org.axl.lsp;
 
+import com.google.gson.JsonObject;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -32,6 +33,8 @@ import org.eclipse.lsp4j.services.WorkspaceService;
 public final class AxlLanguageServer implements LanguageServer, LanguageClientAware {
 
     public static final String SHOW_GENERATED_JAVA = "axl.showGeneratedJava";
+    /** Initialization option: false when the client reports the translator's errors itself, so only javac's are sent. */
+    public static final String TRANSLATOR_DIAGNOSTICS = "translatorDiagnostics";
 
     private final Workspace workspace = new Workspace();
     private final AxlTextDocumentService documents = new AxlTextDocumentService(workspace);
@@ -54,8 +57,11 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
         var workspaceCapabilities = params.getCapabilities() == null ? null : params.getCapabilities().getWorkspace();
         var watching = workspaceCapabilities == null ? null : workspaceCapabilities.getDidChangeWatchedFiles();
         watchesFiles = watching != null && Boolean.TRUE.equals(watching.getDynamicRegistration());
+        boolean translatorDiagnostics = !(params.getInitializationOptions() instanceof JsonObject options)
+                || !options.has(TRANSLATOR_DIAGNOSTICS) || options.get(TRANSLATOR_DIAGNOSTICS).getAsBoolean();
         return workspace.submit(() -> {
             workspace.open(roots);
+            workspace.publishTranslatorDiagnostics(translatorDiagnostics);
             return new InitializeResult(capabilities(), new ServerInfo("axl-lsp", "0.1.0"));
         });
     }
