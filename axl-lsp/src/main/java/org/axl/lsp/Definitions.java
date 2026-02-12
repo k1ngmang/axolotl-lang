@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.antlr.v4.runtime.Token;
@@ -43,7 +44,7 @@ final class Definitions {
             return List.of();
         }
         String name = token.getText();
-        List<String> argumentTypes = document.argumentTypes(token);
+        Supplier<List<String>> argumentTypes = () -> workspace.argumentTypes(document, token);
         Token previous = document.previous(token);
         if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
             Token receiver = document.previous(previous);
@@ -53,7 +54,7 @@ final class Definitions {
             String type = typeName(document, receiver);
             return type == null ? List.of() : member(type, name, argumentTypes);
         }
-        Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), name, argumentTypes);
+        Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), name, argumentTypes);
         if (symbol == null) {
             String type = typeName(document, token);
             return type == null ? List.of() : classLocation(type);
@@ -93,7 +94,7 @@ final class Definitions {
         return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
-    private List<Location> member(String className, String name, List<String> argumentTypes) {
+    private List<Location> member(String className, String name, Supplier<List<String>> argumentTypes) {
         Path source = workspace.sourceOf(className);
         if (source == null) {
             return List.of();

@@ -200,6 +200,28 @@ class WorkspaceTest {
     }
 
     @Test
+    void picksTheDeclaredOverloadAndTheOneThatFitsANamedArgument() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn f(s: String) -> String = s
+
+                fn f(n: Int) -> Int = n
+
+                fn main() {
+                    val k = 2
+                    val t: String = "t"
+                    println(f(k))
+                    println(f(t))
+                }
+                """);
+        assertTrue(hover(uri, 4, 3).contains("fn f(n: Int) -> Int"), hover(uri, 4, 3));
+        assertEquals(List.of(4), definitionLines(uri, 4, 3));
+        assertEquals(List.of(4), definitionLines(uri, 9, 12));
+        assertEquals(List.of(2), definitionLines(uri, 10, 12));
+    }
+
+    @Test
     void compilesTheModuleAroundAFileThatDoesNotTranslate() throws Exception {
         Path broken = project.resolve("src/main/axl/app/Broken.axl");
         Files.writeString(broken, "package app\n\nfn broken( {\n");

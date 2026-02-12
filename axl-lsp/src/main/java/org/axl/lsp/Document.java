@@ -192,11 +192,21 @@ final class Document {
         return count;
     }
 
-    /**
-     * When a name is called, the types of the arguments that are literals, null for the others;
-     * null when it is not called.
-     */
+    /** The compiler position where a token starts. */
+    static Pos start(Token token) {
+        return new Pos(token.getLine(), token.getCharPositionInLine() + 1);
+    }
+
+    /** When a name is called, its arguments; null when it is not called. */
     List<String> argumentTypes(Token name) {
+        return argumentTypes(name, t -> null);
+    }
+
+    /**
+     * When a name is called, the types of the arguments that are literals or names, null for the
+     * others; null when it is not called. nameType: the type of a name argument, or null.
+     */
+    List<String> argumentTypes(Token name, Function<Token, String> nameType) {
         Token open = next(name);
         if (open == null || open.getType() != AxolotlLexer.LPAREN || open.getLine() != name.getLine()) {
             return null;
@@ -211,7 +221,7 @@ final class Document {
             int type = token.getType();
             if (depth == 0 && (type == AxolotlLexer.COMMA || type == AxolotlLexer.RPAREN)) {
                 if (!argument.isEmpty()) {
-                    types.add(literalType(argument));
+                    types.add(argumentType(argument, nameType));
                 }
                 argument.clear();
                 if (type == AxolotlLexer.RPAREN) {
@@ -229,12 +239,13 @@ final class Document {
         return types;
     }
 
-    private static String literalType(List<Token> argument) {
+    private static String argumentType(List<Token> argument, Function<Token, String> nameType) {
         if (argument.size() != 1) {
             return null;
         }
         Token token = argument.getFirst();
         return switch (token.getType()) {
+            case AxolotlLexer.IDENTIFIER -> nameType.apply(token);
             case AxolotlLexer.STRING_LITERAL -> "String";
             case AxolotlLexer.INT_LITERAL -> token.getText().toLowerCase(Locale.ROOT).endsWith("l") ? "Long" : "Int";
             case AxolotlLexer.FLOAT_LITERAL -> "Double";

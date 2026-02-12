@@ -3,8 +3,6 @@ package org.axl.lsp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.ast.Decl;
@@ -37,8 +35,8 @@ final class Hovers {
         List<String> parts = new ArrayList<>();
         Token token = document.tokenAt(line, character);
         if (token != null && token.getType() == AxolotlLexer.IDENTIFIER && !isMember(document, token)) {
-            Symbols.Symbol symbol = Symbols.lookup(document.ast, document.pos(line, character), token.getText(),
-                    document.argumentTypes(token));
+            Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), token.getText(),
+                    () -> workspace.argumentTypes(document, token));
             if (symbol != null) {
                 parts.add("```axl\n" + describe(document, symbol) + "\n```");
             }
@@ -58,34 +56,22 @@ final class Hovers {
     private String describe(Document document, Symbols.Symbol symbol) {
         return switch (symbol.kind()) {
             case FUNCTION -> signature(symbol.function());
-            case VALUE -> "val " + symbol.name() + ": " + valueType(document, symbol);
+            case VALUE -> "val " + symbol.name() + ": " + type(document, symbol);
             case IMPORTED_FUNCTION -> "import fn " + symbol.imported().name();
             case IMPORTED_VALUE -> "import val " + symbol.imported().name();
             case TYPE -> "import " + symbol.imported().name();
             case PARAMETER, LOCAL, VARIABLE -> {
                 String keyword = symbol.kind() == Symbols.Kind.VARIABLE ? "var " : symbol.kind() == Symbols.Kind.LOCAL ? "val " : "";
-                yield keyword + symbol.name() + ": " + localType(document, symbol);
+                yield keyword + symbol.name() + ": " + type(document, symbol);
             }
         };
     }
 
-    private String valueType(Document document, Symbols.Symbol symbol) {
+    private String type(Document document, Symbols.Symbol symbol) {
         if (symbol.type() != null) {
             return typeText(symbol.type());
         }
-        JavaModel java = workspace.javaModel(document.module);
-        TypeElement owner = java.resolveType(document.ast, document.ast.className());
-        return JavaModel.display(owner == null ? null : java.memberType(owner, symbol.name(), -1));
-    }
-
-    private String localType(Document document, Symbols.Symbol symbol) {
-        if (symbol.type() != null) {
-            return typeText(symbol.type());
-        }
-        Decl.Function fn = symbol.function();
-        TypeMirror type = workspace.javaModel(document.module).localType(document.ast, fn.name(), fn.params().size(), symbol.name(),
-                symbol.pos().line());
-        return JavaModel.display(type);
+        return JavaModel.display(workspace.javaModel(document.module).typeOf(document.ast, symbol));
     }
 
     static String signature(Decl.Function fn) {

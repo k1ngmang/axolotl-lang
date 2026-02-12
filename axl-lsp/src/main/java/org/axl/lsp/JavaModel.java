@@ -37,6 +37,7 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.axl.compiler.GeneratedUnit;
+import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.TypeRef;
@@ -50,6 +51,9 @@ final class JavaModel {
 
     private static final Map<String, String> PRIMITIVES = Map.of(
             "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Double", "java.lang.Double");
+
+    private static final Map<String, String> AXL_NAMES = Map.of("int", "Int", "Integer", "Int", "long", "Long",
+            "boolean", "Boolean", "double", "Double");
 
     private static final class Source extends SimpleJavaFileObject {
         private final String text;
@@ -195,6 +199,16 @@ final class JavaModel {
         return scanner.onLine != null ? scanner.onLine : scanner.first;
     }
 
+    /** The type javac gives a value, parameter or local whose type is not written; null if unknown. */
+    TypeMirror typeOf(SourceFile file, Symbols.Symbol symbol) {
+        if (symbol.kind() == Symbols.Kind.VALUE) {
+            TypeElement owner = resolveType(file, file.className());
+            return owner == null ? null : memberType(owner, symbol.name(), -1);
+        }
+        Decl.Function fn = symbol.function();
+        return fn == null ? null : localType(file, fn.name(), fn.params().size(), symbol.name(), symbol.pos().line());
+    }
+
     /** The class of a type, or null for primitives and type variables. */
     static TypeElement elementOf(TypeMirror type) {
         return type != null && type.getKind() == TypeKind.DECLARED ? (TypeElement) ((DeclaredType) type).asElement() : null;
@@ -244,6 +258,16 @@ final class JavaModel {
     static String typeOf(Element member) {
         TypeMirror type = member instanceof ExecutableElement method ? method.getReturnType() : member.asType();
         return simple(type.toString());
+    }
+
+    /** The name Axolotl writes a type with, without type arguments: `Int` for `int` and `Integer`; null if unknown. */
+    static String axlName(TypeMirror type) {
+        if (type == null || type.getKind() == TypeKind.ERROR) {
+            return null;
+        }
+        String name = type.getKind().isPrimitive() ? type.toString() : elementOf(type) != null
+                ? elementOf(type).getSimpleName().toString() : type.toString();
+        return AXL_NAMES.getOrDefault(name, name);
     }
 
     /** A type as hovers show it; `?` when it is unknown. */

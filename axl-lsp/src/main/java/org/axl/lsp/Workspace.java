@@ -20,6 +20,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.lang.model.SourceVersion;
+import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
@@ -172,6 +173,17 @@ final class Workspace {
         return javaModels.computeIfAbsent(module, m -> JavaModel.build(m, documentsOf(m).stream()
                 .map(d -> parsed(d.uri) != null ? parsed(d.uri) : d)
                 .map(Document::javaUnit).filter(u -> u != null).toList()));
+    }
+
+    /** The arguments of a call for choosing an overload, with the types of names that are known. */
+    List<String> argumentTypes(Document document, Token name) {
+        return document.argumentTypes(name, argument -> {
+            Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(argument), argument.getText());
+            if (symbol == null || symbol.type() != null) {
+                return symbol == null ? null : symbol.type().name();
+            }
+            return JavaModel.axlName(javaModel(document.module).typeOf(document.ast, symbol));
+        });
     }
 
     /** Every .axl file of a module, open ones with their unsaved text. */

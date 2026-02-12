@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Import;
@@ -52,40 +53,49 @@ final class Symbols {
     }
 
     static Symbol lookup(SourceFile file, Pos pos, String name) {
-        return lookup(file, pos, name, null);
+        return lookup(file, pos, name, () -> null);
     }
 
     /**
-     * The symbol a name refers to; of overloaded functions the one that fits the arguments best.
-     * argumentTypes: see {@link Document#argumentTypes}.
+     * The symbol a name at pos refers to: the one it declares, or of overloaded functions the one
+     * that fits the arguments best. argumentTypes: see {@link Document#argumentTypes}; only asked
+     * for when there are overloads.
      */
-    static Symbol lookup(SourceFile file, Pos pos, String name, List<String> argumentTypes) {
+    static Symbol lookup(SourceFile file, Pos pos, String name, Supplier<List<String>> argumentTypes) {
         List<Symbol> found = visibleAt(file, pos).stream().filter(s -> s.name().equals(name)).toList();
         if (found.isEmpty()) {
             return null;
         }
+        Symbol declared = found.stream().filter(s -> s.pos().equals(pos)).findFirst().orElse(null);
+        if (declared != null) {
+            return declared;
+        }
         Symbol last = found.getLast();
-        if (last.kind() != Kind.FUNCTION || argumentTypes == null) {
+        List<Decl.Function> functions = found.stream().filter(s -> s.kind() == Kind.FUNCTION).map(Symbol::function).toList();
+        if (last.kind() != Kind.FUNCTION || functions.size() < 2) {
             return last;
         }
-        List<Decl.Function> functions = found.stream().filter(s -> s.kind() == Kind.FUNCTION).map(Symbol::function).toList();
-        Decl.Function best = bestOverload(functions, argumentTypes);
+        Decl.Function best = bestOverload(functions, argumentTypes.get());
         return found.stream().filter(s -> s.function() == best).findFirst().orElse(last);
     }
 
     /** A top-level declaration by name; of overloaded functions the one that fits the arguments best. */
-    static Decl topLevel(SourceFile file, String name, List<String> argumentTypes) {
+    static Decl topLevel(SourceFile file, String name, Supplier<List<String>> argumentTypes) {
         List<Decl> found = file.decls().stream().filter(d -> d.name().equals(name)).toList();
         List<Decl.Function> functions = found.stream().filter(d -> d instanceof Decl.Function)
                 .map(d -> (Decl.Function) d).toList();
-        if (functions.size() > 1 && argumentTypes != null) {
-            return bestOverload(functions, argumentTypes);
+        if (functions.size() > 1) {
+            return bestOverload(functions, argumentTypes.get());
         }
         return found.isEmpty() ? null : found.getFirst();
     }
 
+    /** Of overloads that fit equally well, the first declared one. */
     private static Decl.Function bestOverload(List<Decl.Function> functions, List<String> argumentTypes) {
         Decl.Function best = functions.getFirst();
+        if (argumentTypes == null) {
+            return best;
+        }
         int bestScore = Integer.MIN_VALUE;
         for (Decl.Function fn : functions) {
             int score = fit(fn, argumentTypes);
@@ -97,7 +107,7 @@ final class Symbols {
         return best;
     }
 
-    /** Higher for a better fit: the number of arguments first, then the types of literal arguments. */
+    /** Higher for a better fit: the number of arguments first, then the types of the arguments that are known. */
     private static int fit(Decl.Function fn, List<String> argumentTypes) {
         if (fn.params().size() != argumentTypes.size()) {
             return Integer.MIN_VALUE + 1;
