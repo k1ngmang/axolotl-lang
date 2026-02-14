@@ -185,6 +185,12 @@ final class Completions {
             }
         }
         for (Step step : receiver.subList(used, receiver.size())) {
+            TypeElement nested = statics && step.arguments() == null
+                    ? java.nestedType(JavaModel.elementOf(type), step.name()) : null;
+            if (nested != null) {
+                type = nested.asType();
+                continue;
+            }
             type = java.memberType(type, step.name(), step.arguments());
             statics = false;
         }
@@ -195,7 +201,8 @@ final class Completions {
         List<CompletionItem> items = new ArrayList<>();
         for (Element member : java.members(element, statics)) {
             CompletionItem item = new CompletionItem(member.getSimpleName().toString());
-            item.setKind(member.getKind() == ElementKind.METHOD ? CompletionItemKind.Method : CompletionItemKind.Field);
+            item.setKind(member.getKind() == ElementKind.METHOD ? CompletionItemKind.Method
+                    : member instanceof TypeElement ? CompletionItemKind.Class : CompletionItemKind.Field);
             item.setLabel(JavaModel.signature(member));
             item.setInsertText(member.getSimpleName().toString());
             item.setFilterText(member.getSimpleName().toString());

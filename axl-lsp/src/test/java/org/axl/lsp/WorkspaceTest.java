@@ -125,6 +125,13 @@ class WorkspaceTest {
         assertTrue(memberNames(uri, 8, 29).contains("length"), memberNames(uri, 8, 29).toString());
     }
 
+    @Test
+    void completesNestedClassesAndTheirMembers() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val s = Thread.State.N\n    val t = Thread.S\n}\n");
+        assertTrue(memberNames(uri, 3, 26).contains("NEW"), memberNames(uri, 3, 26).toString());
+        assertTrue(memberNames(uri, 4, 20).contains("State"), memberNames(uri, 4, 20).toString());
+    }
+
     private List<String> memberNames(String uri, int line, int character) {
         return new Completions(workspace).complete(uri, line, character).stream().map(CompletionItem::getInsertText).toList();
     }

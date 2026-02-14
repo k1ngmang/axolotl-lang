@@ -32,6 +32,7 @@ import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.WildcardType;
+import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.DiagnosticCollector;
@@ -238,14 +239,14 @@ final class JavaModel {
         };
     }
 
-    /** Public fields and methods of a type, static or instance ones. */
+    /** Public fields, methods and nested classes of a type, static or instance ones. */
     List<Element> members(TypeElement type, boolean statics) {
         Map<String, Element> result = new LinkedHashMap<>();
         for (Element member : elements.getAllMembers(type)) {
             boolean isStatic = member.getModifiers().contains(Modifier.STATIC);
             boolean usable = member.getModifiers().contains(Modifier.PUBLIC)
                     && (member.getKind() == ElementKind.METHOD || member.getKind() == ElementKind.FIELD
-                    || member.getKind() == ElementKind.ENUM_CONSTANT);
+                    || member.getKind() == ElementKind.ENUM_CONSTANT || member instanceof TypeElement);
             if (usable && isStatic == statics) {
                 result.putIfAbsent(signature(member), member);
             }
@@ -282,6 +283,16 @@ final class JavaModel {
             }
         }
         return best == null ? null : ((ExecutableType) asMemberOf(receiver, best)).getReturnType();
+    }
+
+    /** A public class declared in another, such as `State` in `Thread`; null if none. */
+    TypeElement nestedType(TypeElement owner, String name) {
+        if (owner == null) {
+            return null;
+        }
+        return ElementFilter.typesIn(owner.getEnclosedElements()).stream()
+                .filter(t -> t.getSimpleName().contentEquals(name) && t.getModifiers().contains(Modifier.PUBLIC))
+                .findFirst().orElse(null);
     }
 
     private TypeMirror asMemberOf(TypeMirror receiver, Element member) {
