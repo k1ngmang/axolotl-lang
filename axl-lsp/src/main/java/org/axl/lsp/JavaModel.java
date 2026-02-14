@@ -28,8 +28,12 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
+import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
@@ -70,12 +74,14 @@ final class JavaModel {
     }
 
     private final Elements elements;
+    private final Types types;
     private final Trees trees;
     private final Map<String, CompilationUnitTree> generated = new LinkedHashMap<>();
     private final Map<String, GeneratedUnit> translations = new LinkedHashMap<>();
 
     private JavaModel(JavacTask task, Iterable<? extends CompilationUnitTree> units, List<GeneratedUnit> generatedUnits) {
         this.elements = task.getElements();
+        this.types = task.getTypes();
         this.trees = Trees.instance(task);
         for (CompilationUnitTree unit : units) {
             for (GeneratedUnit g : generatedUnits) {
@@ -152,6 +158,19 @@ final class JavaModel {
         return resolveType(file, boxed != null ? boxed : type.name());
     }
 
+    /** A written type with its type arguments, such as `List<String>`; raw when they do not resolve. */
+    TypeMirror typeOf(SourceFile file, TypeRef type) {
+        TypeElement element = resolveType(file, type);
+        if (element == null) {
+            return null;
+        }
+        List<TypeMirror> arguments = type.args().stream().map(a -> typeOf(file, a)).toList();
+        if (arguments.isEmpty() || arguments.contains(null) || arguments.size() != element.getTypeParameters().size()) {
+            return types.erasure(element.asType());
+        }
+        return types.getDeclaredType(element, arguments.toArray(TypeMirror[]::new));
+    }
+
     /**
      * The type javac gives a local or lambda parameter in the generated method of a function. Of
      * several with the name, the one generated from the declaration's line wins.
@@ -203,15 +222,20 @@ final class JavaModel {
     TypeMirror typeOf(SourceFile file, Symbols.Symbol symbol) {
         if (symbol.kind() == Symbols.Kind.VALUE) {
             TypeElement owner = resolveType(file, file.className());
-            return owner == null ? null : memberType(owner, symbol.name(), -1);
+            return owner == null ? null : memberType(owner.asType(), symbol.name(), null);
         }
         Decl.Function fn = symbol.function();
         return fn == null ? null : localType(file, fn.name(), fn.params().size(), symbol.name(), symbol.pos().line());
     }
 
-    /** The class of a type, or null for primitives and type variables. */
+    /** The class of a type, of the bound of a type variable or wildcard; null for primitives. */
     static TypeElement elementOf(TypeMirror type) {
-        return type != null && type.getKind() == TypeKind.DECLARED ? (TypeElement) ((DeclaredType) type).asElement() : null;
+        return switch (type) {
+            case DeclaredType declared -> (TypeElement) declared.asElement();
+            case TypeVariable variable -> elementOf(variable.getUpperBound());
+            case WildcardType wildcard -> elementOf(wildcard.getExtendsBound());
+            case null, default -> null;
+        };
     }
 
     /** Public fields and methods of a type, static or instance ones. */
@@ -229,21 +253,49 @@ final class JavaModel {
         return new ArrayList<>(result.values());
     }
 
-    /** The type of a field (arguments -1) or the result of a method with that many parameters; null if none. */
-    TypeMirror memberType(TypeElement type, String name, int arguments) {
+    /**
+     * The type of a field (arguments null) or the result of the method that fits the arguments best,
+     * with the receiver's type arguments filled in: `get` of a `List<String>` gives `String`.
+     * arguments: see {@link Document#argumentTypes}.
+     */
+    TypeMirror memberType(TypeMirror receiver, String name, List<String> arguments) {
+        TypeElement type = elementOf(receiver);
+        if (type == null) {
+            return null;
+        }
+        ExecutableElement best = null;
+        int bestScore = -1;
         for (Element member : elements.getAllMembers(type)) {
             if (!member.getSimpleName().contentEquals(name)) {
                 continue;
             }
-            if (arguments < 0 && member.getKind().isField()) {
-                return member.asType();
+            if (arguments == null && member.getKind().isField()) {
+                return asMemberOf(receiver, member);
             }
-            if (arguments >= 0 && member instanceof ExecutableElement method && method.getKind() == ElementKind.METHOD
-                    && method.getParameters().size() == arguments) {
-                return method.getReturnType();
+            if (arguments != null && member instanceof ExecutableElement method && method.getKind() == ElementKind.METHOD
+                    && method.getParameters().size() == arguments.size()) {
+                int score = fit(method, arguments);
+                if (score > bestScore) {
+                    best = method;
+                    bestScore = score;
+                }
             }
         }
-        return null;
+        return best == null ? null : ((ExecutableType) asMemberOf(receiver, best)).getReturnType();
+    }
+
+    private TypeMirror asMemberOf(TypeMirror receiver, Element member) {
+        return receiver instanceof DeclaredType declared ? types.asMemberOf(declared, member) : member.asType();
+    }
+
+    /** Higher for a better fit: arguments of the parameter's type count most, unknown ones next. */
+    private static int fit(ExecutableElement method, List<String> arguments) {
+        int score = 0;
+        for (int i = 0; i < arguments.size(); i++) {
+            String argument = arguments.get(i);
+            score += argument == null ? 1 : argument.equals(axlName(method.getParameters().get(i).asType())) ? 2 : 0;
+        }
+        return score;
     }
 
     static String signature(Element member) {
@@ -265,8 +317,8 @@ final class JavaModel {
         if (type == null || type.getKind() == TypeKind.ERROR) {
             return null;
         }
-        String name = type.getKind().isPrimitive() ? type.toString() : elementOf(type) != null
-                ? elementOf(type).getSimpleName().toString() : type.toString();
+        String name = type instanceof DeclaredType declared ? declared.asElement().getSimpleName().toString()
+                : type.toString();
         return AXL_NAMES.getOrDefault(name, name);
     }
 

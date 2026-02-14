@@ -95,6 +95,36 @@ class WorkspaceTest {
         assertTrue(memberNames(uri, 4, line.length() - 1).contains("length"), memberNames(uri, 4, line.length() - 1).toString());
     }
 
+    @Test
+    void completesMembersOfGenericResultsAndOfTheFittingOverload() throws Exception {
+        Files.createDirectories(project.resolve("src/main/java/app"));
+        Files.writeString(project.resolve("src/main/java/app/Pick.java"), """
+                package app;
+
+                public final class Pick {
+                    public static String pick(String s) { return s; }
+                    public static Integer pick(int n) { return n; }
+                }
+                """);
+        workspace.open(List.of(project));
+        String uri = open("Main.axl", """
+                package app
+
+                fn main() {
+                    val l: java.util.List<String> = java.util.List.of("a")
+                    val m = java.util.Map.of("k", 1)
+                    val a = l.get(0).le
+                    val b = m.get("k").intV
+                    val c = Pick.pick(1).intV
+                    val d = Pick.pick("s").le
+                }
+                """);
+        assertTrue(memberNames(uri, 5, 23).contains("length"), memberNames(uri, 5, 23).toString());
+        assertTrue(memberNames(uri, 6, 27).contains("intValue"), memberNames(uri, 6, 27).toString());
+        assertTrue(memberNames(uri, 7, 29).contains("intValue"), memberNames(uri, 7, 29).toString());
+        assertTrue(memberNames(uri, 8, 29).contains("length"), memberNames(uri, 8, 29).toString());
+    }
+
     private List<String> memberNames(String uri, int line, int character) {
         return new Completions(workspace).complete(uri, line, character).stream().map(CompletionItem::getInsertText).toList();
     }

@@ -9,6 +9,7 @@ import java.util.regex.Pattern;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
@@ -26,8 +27,8 @@ final class Completions {
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
     private static final Pattern PIPE_STAGE = Pattern.compile("\\|>\\s*\\w*$");
 
-    /** A name or a call in a receiver such as `a.b().c`; arguments is -1 for a name. */
-    private record Step(String name, int arguments) {}
+    /** A name or a call in a receiver such as `a.b().c`; arguments as {@link Document#argumentTypes} gives them. */
+    private record Step(String name, List<String> arguments) {}
 
     private final Workspace workspace;
 
@@ -125,15 +126,14 @@ final class Completions {
             if (token != null && token.getType() == AxolotlLexer.BANGBANG) {
                 token = document.previous(token);
             }
-            int arguments = -1;
+            List<String> arguments = null;
             if (token != null && token.getType() == AxolotlLexer.RPAREN) {
                 Token open = openingParenthesis(document, token);
                 token = open == null ? null : document.previous(open);
-                List<String> argumentTypes = token == null ? null : document.argumentTypes(token);
-                if (argumentTypes == null) {
+                arguments = token == null ? null : document.argumentTypes(token);
+                if (arguments == null) {
                     return null;
                 }
-                arguments = argumentTypes.size();
             }
             if (token == null || token.getType() != AxolotlLexer.IDENTIFIER) {
                 return null;
@@ -167,31 +167,33 @@ final class Completions {
     private List<CompletionItem> members(Document document, Pos pos, List<Step> receiver) {
         SourceFile ast = document.ast;
         JavaModel java = workspace.javaModel(document.module);
-        TypeElement type = null;
+        TypeMirror type = null;
         boolean statics = false;
         int used = 1;
         Step first = receiver.getFirst();
         Symbols.Symbol symbol = Symbols.lookup(ast, pos, first.name());
         if (symbol != null && symbol.kind() != Symbols.Kind.TYPE) {
-            boolean member = first.arguments() >= 0 || symbol.function() == null && symbol.type() == null;
+            boolean member = first.arguments() != null || symbol.function() == null && symbol.type() == null;
             type = member ? memberOfOwner(java, ast, symbol, first) : valueType(java, ast, symbol);
         } else {
             // A class, maybe written with its package: `java.util.List`.
             statics = true;
-            for (used = 0; type == null && used < receiver.size() && receiver.get(used).arguments() < 0; used++) {
+            for (used = 0; type == null && used < receiver.size() && receiver.get(used).arguments() == null; used++) {
                 String name = receiver.subList(0, used + 1).stream().map(Step::name).collect(Collectors.joining("."));
-                type = java.resolveType(ast, name);
+                TypeElement cls = java.resolveType(ast, name);
+                type = cls == null ? null : cls.asType();
             }
         }
         for (Step step : receiver.subList(used, receiver.size())) {
-            type = type == null ? null : JavaModel.elementOf(java.memberType(type, step.name(), step.arguments()));
+            type = java.memberType(type, step.name(), step.arguments());
             statics = false;
         }
-        if (type == null) {
+        TypeElement element = JavaModel.elementOf(type);
+        if (element == null) {
             return List.of();
         }
         List<CompletionItem> items = new ArrayList<>();
-        for (Element member : java.members(type, statics)) {
+        for (Element member : java.members(element, statics)) {
             CompletionItem item = new CompletionItem(member.getSimpleName().toString());
             item.setKind(member.getKind() == ElementKind.METHOD ? CompletionItemKind.Method : CompletionItemKind.Field);
             item.setLabel(JavaModel.signature(member));
@@ -204,22 +206,18 @@ final class Completions {
     }
 
     /** The type of a local, a parameter or a value with a written type. */
-    private static TypeElement valueType(JavaModel java, SourceFile ast, Symbols.Symbol symbol) {
-        if (symbol.type() != null) {
-            return java.resolveType(ast, symbol.type());
-        }
-        return JavaModel.elementOf(java.localType(ast, symbol.function().name(), symbol.function().params().size(),
-                symbol.name(), symbol.pos().line()));
+    private static TypeMirror valueType(JavaModel java, SourceFile ast, Symbols.Symbol symbol) {
+        return symbol.type() != null ? java.typeOf(ast, symbol.type()) : java.typeOf(ast, symbol);
     }
 
     /** The type of a top-level value or of a function's result, of this file or imported. */
-    private static TypeElement memberOfOwner(JavaModel java, SourceFile ast, Symbols.Symbol symbol, Step step) {
+    private static TypeMirror memberOfOwner(JavaModel java, SourceFile ast, Symbols.Symbol symbol, Step step) {
         String owner = ast.className();
         if (symbol.imported() != null) {
             owner = symbol.imported().name().substring(0, symbol.imported().name().lastIndexOf('.'));
         }
         TypeElement type = java.resolveType(ast, owner);
-        return type == null ? null : JavaModel.elementOf(java.memberType(type, step.name(), step.arguments()));
+        return type == null ? null : java.memberType(type.asType(), step.name(), step.arguments());
     }
 
     private static CompletionItemKind kind(Symbols.Kind kind) {
