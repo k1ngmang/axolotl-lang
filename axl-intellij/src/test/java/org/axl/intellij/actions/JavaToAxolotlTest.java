@@ -110,6 +110,51 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("\nfn open() -> Int {"));
     }
 
+    public void testKeepsComments() {
+        String axl = convert("Notes.java", """
+                // License header.
+                package util;
+
+                /** Notes about the class. */
+                public final class Notes {
+                    /** No instances. */
+                    private Notes() {}
+
+                    /** The limit. */
+                    static final int LIMIT = 3;
+
+                    // Before f.
+                    public static int f(int a) {
+                        // Start.
+                        int b = a + LIMIT; // Trailing.
+                        /* Block. */
+                        return b;
+                    }
+
+                    // At the end.
+                }
+                """);
+        assertEquals("""
+                // License header.
+                /** Notes about the class. */
+                package util
+
+                /** The limit. */
+                private val LIMIT: Int = 3
+
+                // Before f.
+                fn f(a: Int) -> Int {
+                    // Start.
+                    val b: Int = a + LIMIT // Trailing.
+                    /* Block. */
+                    return b
+                }
+
+                // At the end.
+                """, axl);
+        assertRefused("Inside.java", inClass("public static int f(int a) { return a + /* one */ 1; }"));
+    }
+
     public void testConvertsLiteralsToTheirAxolotlForm() {
         String axl = convert("Lits.java", inClass("""
                 public static double f() {

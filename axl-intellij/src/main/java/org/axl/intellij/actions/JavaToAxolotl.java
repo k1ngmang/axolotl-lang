@@ -7,11 +7,13 @@ import com.intellij.psi.PsiBlockStatement;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiCodeBlock;
+import com.intellij.psi.PsiComment;
 import com.intellij.psi.PsiDeclarationStatement;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiExpression;
 import com.intellij.psi.PsiExpressionList;
 import com.intellij.psi.PsiExpressionStatement;
+import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiIfStatement;
 import com.intellij.psi.PsiJavaCodeReferenceElement;
 import com.intellij.psi.PsiImportStatement;
@@ -37,6 +39,7 @@ import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiTypes;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.PsiWhileStatement;
+import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.JavaRecursiveElementVisitor;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.searches.ReferencesSearch;
@@ -45,6 +48,7 @@ import com.intellij.psi.util.PsiUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,15 +87,27 @@ final class JavaToAxolotl {
     // Imported types by simple name: the file's imports and those the converted types need.
     private final Map<String, String> importedTypes = new HashMap<>();
     private final List<String> addedImports = new ArrayList<>();
+    private final Set<PsiComment> keptComments = new HashSet<>();
 
     static String convert(PsiJavaFile file) {
         PsiClass[] classes = file.getClasses();
         if (classes.length != 1) {
             throw new Unsupported("the file must contain exactly one class");
         }
-        String axl = new JavaToAxolotl().file(file, classes[0]);
+        JavaToAxolotl converter = new JavaToAxolotl();
+        String axl = converter.file(file, classes[0]);
+        converter.rejectLostComments(file);
         rejectErrors(file, axl);
         return axl;
+    }
+
+    /** Comments in places Axolotl has no counterpart for, such as inside an expression. */
+    private void rejectLostComments(PsiJavaFile file) {
+        for (PsiComment comment : PsiTreeUtil.findChildrenOfType(file, PsiComment.class)) {
+            if (!keptComments.contains(comment)) {
+                throw new Unsupported("a comment cannot be kept: " + comment.getText().lines().findFirst().orElse(""));
+            }
+        }
     }
 
     /** What the conversion cannot see, such as reserved names and the order of values, the translator checks. */
@@ -128,6 +144,19 @@ final class JavaToAxolotl {
         }
         nullable(cls);
         packageName = file.getPackageName();
+        // Comments of the file and of the class describe the .axl file, so they go first.
+        for (PsiElement child : file.getChildren()) {
+            if (child instanceof PsiComment comment) {
+                keep(comment);
+                out.append(comment.getText()).append("\n");
+            }
+        }
+        for (PsiElement child = cls.getFirstChild(); child != cls.getLBrace(); child = child.getNextSibling()) {
+            if (child instanceof PsiComment comment) {
+                keep(comment);
+                out.append(comment.getText()).append("\n");
+            }
+        }
         out.append("package ").append(qualifiedName(packageName)).append("\n");
         if (file.getImportList() != null) {
             for (PsiImportStatement imp : file.getImportList().getImportStatements()) {
@@ -154,45 +183,59 @@ final class JavaToAxolotl {
             }
         }
         int importsEnd = out.length();
-        for (var field : cls.getFields()) {
-            if (!field.hasModifierProperty(PsiModifier.STATIC) || !field.hasModifierProperty(PsiModifier.FINAL)
-                    || field.getInitializer() == null) {
-                throw new Unsupported("only static final fields are converted");
+        for (PsiElement member = cls.getLBrace(); member != null; member = member.getNextSibling()) {
+            switch (member) {
+                case PsiField field -> field(field, cls);
+                case PsiMethod method -> function(method);
+                case PsiComment comment -> {
+                    keep(comment);
+                    out.append("\n").append(comment.getText()).append("\n");
+                }
+                default -> { }
             }
-            out.append("\n").append(visibility(field)).append("val ")
-                    .append(name(field.getName())).append(": ").append(type(field, cls)).append(" = ")
-                    .append(expression(field.getInitializer())).append("\n");
-        }
-        for (PsiMethod method : cls.getMethods()) {
-            if (method.isConstructor() && method.getParameterList().isEmpty() && method.getBody() != null
-                    && method.getBody().isEmpty()) {
-                continue;
-            }
-            if (!method.hasModifierProperty(PsiModifier.STATIC) || method.getBody() == null) {
-                throw new Unsupported("only static methods are converted");
-            }
-            if (method.hasTypeParameters()) {
-                throw new Unsupported("generic methods have no Axolotl form");
-            }
-            PsiClassType[] thrown = method.getThrowsList().getReferencedTypes();
-            if (Arrays.stream(thrown).anyMatch(t -> !ExceptionUtil.isUncheckedException(t))) {
-                throw new Unsupported("functions cannot throw checked exceptions; return a Result instead");
-            }
-            function(method);
         }
         out.insert(importsEnd, addedImports.stream().map(name -> "import " + qualifiedName(name) + "\n")
                 .collect(Collectors.joining()));
         return out.toString();
     }
 
+    private void field(PsiField field, PsiClass cls) {
+        if (!field.hasModifierProperty(PsiModifier.STATIC) || !field.hasModifierProperty(PsiModifier.FINAL)
+                || field.getInitializer() == null) {
+            throw new Unsupported("only static final fields are converted");
+        }
+        out.append("\n");
+        leadingComments(field);
+        out.append(visibility(field)).append("val ")
+                .append(name(field.getName())).append(": ").append(type(field, cls)).append(" = ")
+                .append(expression(field.getInitializer())).append("\n");
+    }
+
     private void function(PsiMethod method) {
+        if (method.isConstructor() && method.getParameterList().isEmpty() && method.getBody() != null
+                && method.getBody().isEmpty()) {
+            // A constructor that only prevents instances goes away, and with it what its comments say.
+            PsiTreeUtil.findChildrenOfType(method, PsiComment.class).forEach(this::keep);
+            return;
+        }
+        if (!method.hasModifierProperty(PsiModifier.STATIC) || method.getBody() == null) {
+            throw new Unsupported("only static methods are converted");
+        }
+        if (method.hasTypeParameters()) {
+            throw new Unsupported("generic methods have no Axolotl form");
+        }
+        PsiClassType[] thrown = method.getThrowsList().getReferencedTypes();
+        if (Arrays.stream(thrown).anyMatch(t -> !ExceptionUtil.isUncheckedException(t))) {
+            throw new Unsupported("functions cannot throw checked exceptions; return a Result instead");
+        }
         boolean main = method.getName().equals("main") && method.getParameterList().getParametersCount() == 1
                 && method.getParameterList().getParameters()[0].getType().getCanonicalText().equals("java.lang.String[]");
         if (main && isUsed(method.getParameterList().getParameters()[0], method.getBody())) {
             throw new Unsupported("`fn main()` has no command-line arguments");
         }
-        out.append("\n").append(visibility(method)).append("fn ")
-                .append(name(method.getName())).append("(");
+        out.append("\n");
+        leadingComments(method);
+        out.append(visibility(method)).append("fn ").append(name(method.getName())).append("(");
         if (!main) {
             PsiParameter[] params = method.getParameterList().getParameters();
             for (int i = 0; i < params.length; i++) {
@@ -214,12 +257,56 @@ final class JavaToAxolotl {
         out.append("\n");
     }
 
+    /** Javadoc and the comments right before a declaration, which Java's PSI places inside it. */
+    private void leadingComments(PsiMember member) {
+        for (PsiElement child : member.getChildren()) {
+            if (child instanceof PsiComment comment) {
+                keep(comment);
+                out.append(comment.getText()).append("\n");
+            }
+        }
+    }
+
     private void block(PsiCodeBlock block, int depth) {
         out.append("{\n");
-        for (PsiStatement statement : block.getStatements()) {
-            statement(statement, depth + 1);
+        for (PsiElement child = block.getFirstChild(); child != null; child = child.getNextSibling()) {
+            if (child instanceof PsiStatement statement) {
+                statement(statement, depth + 1);
+                trailingComments(statement, depth + 1);
+            } else if (child instanceof PsiComment comment) {
+                comment(comment, depth + 1);
+            }
         }
         out.append("    ".repeat(depth)).append("}");
+    }
+
+    /** A comment on its own line, or at the end of the line before it. */
+    private void comment(PsiComment comment, int depth) {
+        keep(comment);
+        boolean trailing = !(comment.getPrevSibling() instanceof PsiWhiteSpace space) || !space.getText().contains("\n");
+        if (trailing) {
+            out.setLength(out.length() - 1);
+            out.append(" ").append(comment.getText()).append("\n");
+        } else {
+            out.append("    ".repeat(depth)).append(comment.getText()).append("\n");
+        }
+    }
+
+    /** A comment at the end of a statement's line, which Java's PSI may place inside the statement. */
+    private void trailingComments(PsiStatement statement, int depth) {
+        List<PsiComment> comments = new ArrayList<>();
+        PsiElement leaf = PsiTreeUtil.getDeepestLast(statement);
+        while (leaf instanceof PsiComment || leaf instanceof PsiWhiteSpace) {
+            if (leaf instanceof PsiComment comment) {
+                comments.addFirst(comment);
+            }
+            leaf = PsiTreeUtil.prevLeaf(leaf);
+        }
+        comments.forEach(comment -> comment(comment, depth));
+    }
+
+    private void keep(PsiComment comment) {
+        keptComments.add(comment);
     }
 
     private void statement(PsiStatement statement, int depth) {
