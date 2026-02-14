@@ -300,6 +300,22 @@ class WorkspaceTest {
     }
 
     @Test
+    void goesToDefinitionsInOtherFilesOfALooseModule(@TempDir Path loose) throws Exception {
+        Files.createDirectories(loose.resolve("app"));
+        Files.createDirectories(loose.resolve("util"));
+        Path parse = loose.resolve("util/Parse.axl");
+        Files.writeString(parse, "package util\n\nfn parse(s: String) -> Int = 1\n");
+        Path main = loose.resolve("app/Main.axl");
+        String text = "package app\nimport fn util.Parse.parse\n\nfn main() {\n    println(parse(\"1\"))\n}\n";
+        Files.writeString(main, text);
+        workspace.update(main.toUri().toString(), text);
+
+        List<Location> found = new Definitions(workspace).definition(main.toUri().toString(), 4, 13);
+        assertEquals(List.of(parse.toUri().toString()), found.stream().map(Location::getUri).toList());
+        assertEquals(new Position(2, 3), found.getFirst().getRange().getStart());
+    }
+
+    @Test
     void infersValuesFromOtherFilesOfTheModule() throws Exception {
         Files.writeString(project.resolve("src/main/axl/app/Names.axl"),
                 "package app\n\nfn greeting() -> String = \"hi\"\nval words = java.util.List.of(\"a\")\n");

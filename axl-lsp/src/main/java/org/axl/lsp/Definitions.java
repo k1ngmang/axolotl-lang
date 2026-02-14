@@ -52,19 +52,20 @@ final class Definitions {
                 return List.of();
             }
             String type = typeName(document, receiver);
-            return type == null ? List.of() : member(type, name, argumentTypes);
+            return type == null ? List.of() : member(document.module, type, name, argumentTypes);
         }
         Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), name, argumentTypes);
         if (symbol == null) {
             String type = typeName(document, token);
-            return type == null ? List.of() : classLocation(type);
+            return type == null ? List.of() : classLocation(document.module, type);
         }
         return switch (symbol.kind()) {
             case IMPORTED_FUNCTION, IMPORTED_VALUE -> {
                 String imported = symbol.imported().name();
-                yield member(imported.substring(0, imported.lastIndexOf('.')), symbol.name(), argumentTypes);
+                String owner = imported.substring(0, imported.lastIndexOf('.'));
+                yield member(document.module, owner, symbol.name(), argumentTypes);
             }
-            case TYPE -> classLocation(symbol.imported().name());
+            case TYPE -> classLocation(document.module, symbol.imported().name());
             default -> local(current, document, symbol.pos());
         };
     }
@@ -86,16 +87,16 @@ final class Definitions {
         }
         String pkg = ast.packageName() == null ? "" : ast.packageName();
         String sibling = pkg.isEmpty() ? token.getText() : pkg + "." + token.getText();
-        return workspace.sourceOf(sibling) != null ? sibling : null;
+        return workspace.sourceOf(document.module, sibling) != null ? sibling : null;
     }
 
-    private List<Location> classLocation(String qualifiedName) {
-        Path source = workspace.sourceOf(qualifiedName);
+    private List<Location> classLocation(Module module, String qualifiedName) {
+        Path source = workspace.sourceOf(module, qualifiedName);
         return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
-    private List<Location> member(String className, String name, Supplier<List<String>> argumentTypes) {
-        Path source = workspace.sourceOf(className);
+    private List<Location> member(Module module, String className, String name, Supplier<List<String>> argumentTypes) {
+        Path source = workspace.sourceOf(module, className);
         if (source == null) {
             return List.of();
         }

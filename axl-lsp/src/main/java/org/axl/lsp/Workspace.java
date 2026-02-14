@@ -331,10 +331,15 @@ final class Workspace {
         return open.values().stream().filter(d -> d.path.equals(file)).findFirst().orElse(null);
     }
 
-    /** The source of a class: an .axl file in any module, or a .java file in a Java source root. */
-    Path sourceOf(String qualifiedName) {
+    /**
+     * The source of a class: an .axl file or a .java file in a Java source root, of the module of the
+     * file asking first, which may be a loose module, then of any module.
+     */
+    Path sourceOf(Module from, String qualifiedName) {
         String relative = qualifiedName.replace('.', '/');
-        for (Module module : project.modules()) {
+        List<Module> modules = new ArrayList<>(List.of(from));
+        modules.addAll(project.modules());
+        for (Module module : modules) {
             for (Path root : module.axlRoots()) {
                 Path axl = root.resolve(relative + ".axl");
                 if (Files.exists(axl)) {
