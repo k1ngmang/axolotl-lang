@@ -43,6 +43,11 @@ final class Definitions {
         if (token == null || token.getType() != AxolotlLexer.IDENTIFIER) {
             return List.of();
         }
+        Import imp = document.ast.imports().stream().filter(i -> i.pos().line() == token.getLine())
+                .findFirst().orElse(null);
+        if (imp != null) {
+            return imported(document, imp, line, token);
+        }
         String name = token.getText();
         Supplier<List<String>> argumentTypes = () -> workspace.argumentTypes(document, token);
         Token previous = document.previous(token);
@@ -68,6 +73,26 @@ final class Definitions {
             case TYPE -> classLocation(document.module, symbol.imported().name());
             default -> local(current, document, symbol.pos());
         };
+    }
+
+    /** A segment of an import: the imported class or member for the last one, a class for the others. */
+    private List<Location> imported(Document document, Import imp, int line, Token token) {
+        String text = document.lines.get(line);
+        int start = text.indexOf(imp.name());
+        int tokenEnd = token.getCharPositionInLine() + token.getStopIndex() - token.getStartIndex() + 1;
+        int end = document.utf16Column(line, tokenEnd);
+        if (start < 0 || end <= start) {
+            return List.of();
+        }
+        String prefix = text.substring(start, end);
+        if (!prefix.equals(imp.name())) {
+            return classLocation(document.module, prefix);
+        }
+        if (imp.kind() == Import.Kind.TYPE) {
+            return classLocation(document.module, imp.name());
+        }
+        String owner = imp.name().substring(0, imp.name().lastIndexOf('.'));
+        return member(document.module, owner, imp.simpleName(), () -> null);
     }
 
     /** A declaration in the document, moved to the current text; none when its line was edited. */

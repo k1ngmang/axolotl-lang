@@ -367,6 +367,20 @@ class WorkspaceTest {
     }
 
     @Test
+    void goesToDefinitionsFromTheSegmentsOfAnImport() throws Exception {
+        Path parse = project.resolve("src/main/axl/util/Parse.axl");
+        Files.createDirectories(parse.getParent());
+        Files.writeString(parse, "package util\n\nfn parse(s: String) -> Int = 1\n");
+        String uri = open("Main.axl", "package app\nimport fn util.Parse.parse\n\nfn main() {\n    println(parse(\"1\"))\n}\n");
+
+        List<Location> function = new Definitions(workspace).definition(uri, 1, 22);
+        assertEquals(List.of(parse.toUri().toString()), function.stream().map(Location::getUri).toList());
+        assertEquals(new Position(2, 3), function.getFirst().getRange().getStart());
+        List<Location> file = new Definitions(workspace).definition(uri, 1, 16);
+        assertEquals(List.of(new Position(0, 0)), file.stream().map(l -> l.getRange().getStart()).toList());
+    }
+
+    @Test
     void infersValuesFromOtherFilesOfTheModule() throws Exception {
         Files.writeString(project.resolve("src/main/axl/app/Names.axl"),
                 "package app\n\nfn greeting() -> String = \"hi\"\nval words = java.util.List.of(\"a\")\n");
