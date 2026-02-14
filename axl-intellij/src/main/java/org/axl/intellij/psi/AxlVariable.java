@@ -2,6 +2,7 @@ package org.axl.intellij.psi;
 
 import com.intellij.lang.ASTNode;
 import com.intellij.navigation.ItemPresentation;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.search.LocalSearchScope;
 import com.intellij.psi.search.SearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -20,6 +21,12 @@ public final class AxlVariable extends AxlNamedElement {
 
     public @Nullable AxlType type() {
         return findChildByClass(AxlType.class);
+    }
+
+    /** The expression after `=`; null for parameters. */
+    public @Nullable AxlPsiElement initializer() {
+        PsiElement last = getLastChild();
+        return last instanceof AxlPsiElement expression && !(last instanceof AxlType) ? expression : null;
     }
 
     public boolean isTopLevel() {

@@ -13,6 +13,7 @@ import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiPackage;
 import com.intellij.psi.PsiPolyVariantReferenceBase;
 import com.intellij.psi.ResolveResult;
+import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.util.IncorrectOperationException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -69,6 +70,9 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             return variants.values().toArray();
         }
         PsiElement owner = qualifier instanceof AxlReferenceExpression q && q.getReference() != null ? q.getReference().resolve() : null;
+        if (owner instanceof PsiPackage pkg) {
+            return packageVariants(pkg, ref.getResolveScope());
+        }
         boolean statics = owner instanceof PsiClass;
         PsiClass cls = owner instanceof PsiClass c ? c : AxlResolver.typeOf(qualifier);
         if (cls == null) {
@@ -88,6 +92,18 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             }
         }
         return members.toArray();
+    }
+
+    /** Subpackages and classes after a package, as in `import java.util.Li`. */
+    private static Object[] packageVariants(PsiPackage pkg, GlobalSearchScope scope) {
+        List<LookupElement> result = new ArrayList<>();
+        for (PsiPackage sub : pkg.getSubPackages(scope)) {
+            result.add(LookupElementBuilder.create(sub, String.valueOf(sub.getName())));
+        }
+        for (PsiClass cls : pkg.getClasses(scope)) {
+            result.add(LookupElementBuilder.create(cls, String.valueOf(cls.getName())));
+        }
+        return result.toArray();
     }
 
     private static javax.swing.Icon icon(AxlNamedElement element) {

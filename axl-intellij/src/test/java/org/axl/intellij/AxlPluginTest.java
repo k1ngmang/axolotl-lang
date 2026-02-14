@@ -370,6 +370,30 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertCompletes("parseInt");
     }
 
+    public void testCompletesAfterPackagesAndOnValuesWithoutWrittenTypes() {
+        myFixture.configureByText("Imports.axl", "package app\nimport java.util.Li<caret>\n");
+        assertCompletes("List");
+
+        myFixture.configureByText("Locals.axl", """
+                package app
+
+                fn shout() -> String {
+                    val text = "hi"
+                    return text.toUp<caret>
+                }
+                """);
+        assertCompletes("toUpperCase");
+
+        myFixture.configureByText("Values.axl", """
+                package app
+
+                val builder = StringBuilder("x")
+
+                fn reversed() = builder.rever<caret>
+                """);
+        assertCompletes("reverse");
+    }
+
     public void testFindsUsagesInAxolotlAndJava() {
         myFixture.addFileToProject("util/Parse.axl", PARSE);
         myFixture.addFileToProject("app/Caller.java", """

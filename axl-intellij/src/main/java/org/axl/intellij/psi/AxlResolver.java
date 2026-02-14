@@ -1,5 +1,6 @@
 package org.axl.intellij.psi;
 
+import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
@@ -333,12 +334,19 @@ public final class AxlResolver {
             }
         }
         return switch (target) {
-            case AxlVariable variable -> variable.type() == null ? null : classOf(variable.type());
+            case AxlVariable variable -> variable.type() != null ? classOf(variable.type()) : initializerType(variable);
             case AxlFunction function -> function.returnType() == null ? null : classOf(function.returnType());
             case PsiField field -> classOf(field.getType());
             case PsiMethod method -> classOf(method.getReturnType());
             case null, default -> null;
         };
+    }
+
+    /** The class of a value without a written type, from its initializer; `val a = a` refers to itself. */
+    private static @Nullable PsiClass initializerType(AxlVariable variable) {
+        PsiElement initializer = variable.initializer();
+        return initializer == null ? null
+                : RecursionManager.doPreventingRecursion(variable, false, () -> typeOf(initializer));
     }
 
     static @Nullable PsiClass classOf(AxlType type) {
