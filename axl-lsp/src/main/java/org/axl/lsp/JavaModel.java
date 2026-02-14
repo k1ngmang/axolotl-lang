@@ -173,8 +173,9 @@ final class JavaModel {
     }
 
     /**
-     * The type javac gives a local or lambda parameter in the generated method of a function. Of
-     * several with the name, the one generated from the declaration's line wins.
+     * The type javac gives a local or lambda parameter in the generated method of a function, or with
+     * function null, in the initializers of top-level values. Of several with the name, the one
+     * generated from the declaration's line wins.
      */
     TypeMirror localType(SourceFile file, String function, int paramCount, String local, int axlLine) {
         String qualified = file.packageName() == null || file.packageName().isEmpty()
@@ -184,19 +185,18 @@ final class JavaModel {
             return null;
         }
         GeneratedUnit translation = translations.get(qualified);
-        boolean main = function.equals("main") && paramCount == 0;
+        boolean main = "main".equals(function) && paramCount == 0;
         var scanner = new TreePathScanner<Void, Void>() {
-            private boolean inFunction;
+            private boolean inFunction = function == null;
             private TypeMirror first;
             private TypeMirror onLine;
 
             @Override
             public Void visitMethod(MethodTree method, Void unused) {
-                boolean match = method.getName().contentEquals(function)
+                inFunction = function != null && method.getName().contentEquals(function)
                         && (method.getParameters().size() == paramCount || main);
-                inFunction = match;
                 super.visitMethod(method, unused);
-                inFunction = false;
+                inFunction = function == null;
                 return null;
             }
 
@@ -225,8 +225,12 @@ final class JavaModel {
             TypeElement owner = resolveType(file, file.className());
             return owner == null ? null : memberType(owner.asType(), symbol.name(), null);
         }
+        if (!List.of(Symbols.Kind.PARAMETER, Symbols.Kind.LOCAL, Symbols.Kind.VARIABLE).contains(symbol.kind())) {
+            return null;
+        }
         Decl.Function fn = symbol.function();
-        return fn == null ? null : localType(file, fn.name(), fn.params().size(), symbol.name(), symbol.pos().line());
+        return fn == null ? localType(file, null, 0, symbol.name(), symbol.pos().line())
+                : localType(file, fn.name(), fn.params().size(), symbol.name(), symbol.pos().line());
     }
 
     /** The class of a type, of the bound of a type variable or wildcard; null for primitives. */

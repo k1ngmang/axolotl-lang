@@ -173,7 +173,8 @@ final class Completions {
         Step first = receiver.getFirst();
         Symbols.Symbol symbol = Symbols.lookup(ast, pos, first.name());
         if (symbol != null && symbol.kind() != Symbols.Kind.TYPE) {
-            boolean member = first.arguments() != null || symbol.function() == null && symbol.type() == null;
+            boolean value = symbol.kind() == Symbols.Kind.VALUE || symbol.kind() == Symbols.Kind.IMPORTED_VALUE;
+            boolean member = first.arguments() != null || value && symbol.type() == null;
             type = member ? memberOfOwner(java, ast, symbol, first) : valueType(java, ast, symbol);
         } else {
             // A class, maybe written with its package: `java.util.List`.

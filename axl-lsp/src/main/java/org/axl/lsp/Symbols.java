@@ -16,7 +16,10 @@ final class Symbols {
 
     enum Kind { FUNCTION, VALUE, IMPORTED_FUNCTION, IMPORTED_VALUE, TYPE, PARAMETER, LOCAL, VARIABLE }
 
-    /** type is null when it is not written in the source; function is set for functions and their locals. */
+    /**
+     * type is null when it is not written in the source; function is set for functions and their
+     * locals, and null for the lambda parameters of a top-level value.
+     */
     record Symbol(String name, Kind kind, Pos pos, TypeRef type, Decl.Function function, Import imported) {}
 
     private Symbols() {}
@@ -38,8 +41,8 @@ final class Symbols {
                 case Decl.Value value -> result.add(new Symbol(value.name(), Kind.VALUE, value.namePos(), value.type(), null, null));
             }
         }
-        Decl.Function fn = enclosingFunction(file, pos);
-        if (fn != null) {
+        Decl enclosing = enclosingDecl(file, pos);
+        if (enclosing instanceof Decl.Function fn) {
             for (Expr.Param p : fn.params()) {
                 result.add(new Symbol(p.name(), Kind.PARAMETER, p.pos(), p.type(), fn, null));
             }
@@ -48,6 +51,9 @@ final class Symbols {
             } else {
                 expr(fn.exprBody(), pos, fn, result);
             }
+        } else if (enclosing instanceof Decl.Value value) {
+            // Lambda parameters in the initializer.
+            expr(value.init(), pos, null, result);
         }
         return result;
     }
@@ -127,14 +133,14 @@ final class Symbols {
         return score;
     }
 
-    /** A function covers its declaration up to the next declaration. */
-    static Decl.Function enclosingFunction(SourceFile file, Pos pos) {
+    /** A declaration covers its text up to the next declaration. */
+    private static Decl enclosingDecl(SourceFile file, Pos pos) {
         List<Decl> decls = file.decls();
         for (int i = 0; i < decls.size(); i++) {
             Pos start = decls.get(i).pos();
             Pos end = i + 1 < decls.size() ? decls.get(i + 1).pos() : new Pos(Integer.MAX_VALUE, 0);
-            if (decls.get(i) instanceof Decl.Function fn && before(start, pos) && before(pos, end)) {
-                return fn;
+            if (before(start, pos) && before(pos, end)) {
+                return decls.get(i);
             }
         }
         return null;

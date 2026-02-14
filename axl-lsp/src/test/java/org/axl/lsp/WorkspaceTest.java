@@ -219,6 +219,18 @@ class WorkspaceTest {
     }
 
     @Test
+    void knowsLambdaParametersOfTopLevelValues() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                val lengths = java.util.List.of("a") |> map { it.length() }
+                val f: java.util.function.Function<String, Int> = { s -> s.le }
+                """);
+        assertTrue(hover(uri, 2, 47).contains("it: String"), hover(uri, 2, 47));
+        assertTrue(memberNames(uri, 3, 61).contains("length"), memberNames(uri, 3, 61).toString());
+    }
+
+    @Test
     void findsTheErrorNameOfAttempt() throws Exception {
         String line = "fn p(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> e.getMessage()";
         String uri = open("Main.axl", "package app\n\n" + line + "\n");
