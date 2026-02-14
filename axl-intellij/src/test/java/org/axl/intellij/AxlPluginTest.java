@@ -122,6 +122,13 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(myFixture.getEditor().getDocument().getText().contains("xs |> filter"));
     }
 
+    public void testOffersToRunOnlyAPublicMain() {
+        myFixture.configureByText("Main.axl", "package app\n\nfn ma<caret>in() {\n    println(1)\n}\n");
+        assertEquals(1, myFixture.findGuttersAtCaret().size());
+        myFixture.configureByText("Hidden.axl", "package app\n\nprivate fn ma<caret>in() {\n    println(1)\n}\n");
+        assertEquals(List.of(), myFixture.findGuttersAtCaret());
+    }
+
     public void testReportsSyntaxErrors() {
         PsiFile file = myFixture.configureByText("Broken.axl", "package app\n\nfn main( {\n}\n");
         assertNotNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));

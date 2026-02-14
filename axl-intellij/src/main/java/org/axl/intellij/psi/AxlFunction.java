@@ -36,8 +36,9 @@ public final class AxlFunction extends AxlNamedElement {
         return getNode().findChildByType(AxlTokenTypes.of(AxolotlLexer.PRIVATE)) != null;
     }
 
+    /** `fn main()`, which becomes Java's entry point; a private one stays a private method and cannot run. */
     public boolean isMain() {
-        return "main".equals(getName()) && parameters().isEmpty() && returnType() == null;
+        return "main".equals(getName()) && parameters().isEmpty() && returnType() == null && !isPrivate();
     }
 
     @Override
