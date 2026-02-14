@@ -54,6 +54,29 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("val s: String = \"y\"\n"));
     }
 
+    public void testDeclaresMethodsThatReturnNullNullable() {
+        String axl = convert("Find.java", inClass("""
+                public static String find(int x) {
+                    if (x > 0) {
+                        return "positive";
+                    }
+                    return null;
+                }
+                public static String later(int x) {
+                    String found = null;
+                    if (x > 0) {
+                        found = "positive";
+                    }
+                    return found;
+                }
+                public static String never(int x) {
+                    return "x";
+                }"""));
+        assertTrue(axl, axl.contains("fn find(x: Int) -> String? {"));
+        assertTrue(axl, axl.contains("fn later(x: Int) -> String? {"));
+        assertTrue(axl, axl.contains("fn never(x: Int) -> String {"));
+    }
+
     public void testConvertsLiteralsToTheirAxolotlForm() {
         String axl = convert("Lits.java", inClass("""
                 public static double f() {

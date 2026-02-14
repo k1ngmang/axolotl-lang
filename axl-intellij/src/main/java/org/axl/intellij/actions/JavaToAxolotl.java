@@ -190,6 +190,10 @@ final class JavaToAxolotl {
         }
         out.append(")");
         String returns = type(method.getReturnType());
+        if (!returns.isEmpty() && !returns.endsWith("?") && !(method.getReturnType() instanceof PsiPrimitiveType)
+                && returnsNull(method)) {
+            returns += "?";
+        }
         if (!returns.isEmpty()) {
             out.append(" -> ").append(returns);
         }
@@ -281,6 +285,15 @@ final class JavaToAxolotl {
                 || PsiTreeUtil.findChildrenOfType(scope, PsiAssignmentExpression.class).stream().anyMatch(assignment ->
                         assignment.getLExpression() instanceof PsiReferenceExpression ref && ref.isReferenceTo(variable)
                                 && isNull(assignment.getRExpression()));
+    }
+
+    /** Whether a method returns `null` or a variable that may hold it. */
+    private static boolean returnsNull(PsiMethod method) {
+        return PsiTreeUtil.findChildrenOfType(method.getBody(), PsiReturnStatement.class).stream().anyMatch(ret -> {
+            PsiExpression value = PsiUtil.skipParenthesizedExprDown(ret.getReturnValue());
+            return isNull(value) || value instanceof PsiReferenceExpression ref && ref.resolve() instanceof PsiVariable variable
+                    && holdsNull(variable, method.getContainingClass());
+        });
     }
 
     private static boolean isNull(PsiExpression expression) {
