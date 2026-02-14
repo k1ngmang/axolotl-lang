@@ -381,6 +381,20 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsThePackageOfLooseFilesWithTheLexer(@TempDir Path loose) throws Exception {
+        Files.createDirectories(loose.resolve("app"));
+        Files.createDirectories(loose.resolve("other"));
+        Files.writeString(loose.resolve("other/Old.axl"), "/*\npackage other\n*/\npackage app\n\nfn old() {\n}\n");
+        Path main = loose.resolve("app/Main.axl");
+        Files.writeString(main, "package app\n\nfn main() {\n}\n");
+        workspace.update(main.toUri().toString(), Files.readString(main));
+
+        Module module = workspace.document(main.toUri().toString()).module;
+        assertEquals(List.of(main), workspace.documentsOf(module).stream().map(d -> d.path).toList());
+        assertEquals("\u00fctil.t\u00e9xt", Workspace.packageName("// package x\npackage \u00fctil.t\u00e9xt\n"));
+    }
+
+    @Test
     void infersValuesFromOtherFilesOfTheModule() throws Exception {
         Files.writeString(project.resolve("src/main/axl/app/Names.axl"),
                 "package app\n\nfn greeting() -> String = \"hi\"\nval words = java.util.List.of(\"a\")\n");

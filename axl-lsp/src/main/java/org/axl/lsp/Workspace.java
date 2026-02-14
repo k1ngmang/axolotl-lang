@@ -16,16 +16,16 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import javax.lang.model.SourceVersion;
+import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.javac.Translation;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
@@ -39,8 +39,6 @@ import org.eclipse.lsp4j.services.LanguageClient;
  * All state of the server. Every request runs on one thread, so the state needs no locking.
  */
 final class Workspace {
-
-    private static final Pattern PACKAGE = Pattern.compile("^\\s*package\\s+([\\w.]+)", Pattern.MULTILINE);
 
     /** The errors the compiler found in a document, and the version of its text they are about. */
     private record Compiled(Document version, List<AxlDiagnostic> errors) {}
@@ -338,8 +336,33 @@ final class Workspace {
 
     /** The directory of a file's package relative to its source root, from its package declaration. */
     private static Path packageDirectory(Path file) throws IOException {
-        Matcher matcher = PACKAGE.matcher(Files.readString(file, StandardCharsets.UTF_8));
-        return matcher.find() ? Path.of("", matcher.group(1).split("\\.")) : Path.of("");
+        String name = packageName(Files.readString(file, StandardCharsets.UTF_8));
+        return name.isEmpty() ? Path.of("") : Path.of("", name.split("\\."));
+    }
+
+    /** The package a file declares, read with the Axolotl lexer, which skips comments; empty if none. */
+    static String packageName(String text) {
+        AxolotlLexer lexer = new AxolotlLexer(CharStreams.fromString(text));
+        if (nextToken(lexer).getType() != AxolotlLexer.PACKAGE) {
+            return "";
+        }
+        StringBuilder name = new StringBuilder();
+        for (Token token = nextToken(lexer); token.getType() == AxolotlLexer.IDENTIFIER; token = nextToken(lexer)) {
+            name.append(token.getText());
+            if (nextToken(lexer).getType() != AxolotlLexer.DOT) {
+                break;
+            }
+            name.append('.');
+        }
+        return name.toString();
+    }
+
+    private static Token nextToken(AxolotlLexer lexer) {
+        Token token = lexer.nextToken();
+        while (token.getChannel() != Token.DEFAULT_CHANNEL) {
+            token = lexer.nextToken();
+        }
+        return token;
     }
 
     private Document findOpen(Path file) {
