@@ -19,6 +19,7 @@ import com.intellij.psi.PsiImportStaticStatement;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiLiteralExpression;
 import com.intellij.psi.PsiLocalVariable;
+import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiModifier;
@@ -37,6 +38,8 @@ import com.intellij.psi.PsiTypes;
 import com.intellij.psi.PsiVariable;
 import com.intellij.psi.PsiWhileStatement;
 import com.intellij.psi.JavaRecursiveElementVisitor;
+import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.search.searches.ReferencesSearch;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import java.util.ArrayList;
@@ -156,7 +159,7 @@ final class JavaToAxolotl {
                     || field.getInitializer() == null) {
                 throw new Unsupported("only static final fields are converted");
             }
-            out.append("\n").append(visibility(field.hasModifierProperty(PsiModifier.PRIVATE))).append("val ")
+            out.append("\n").append(visibility(field)).append("val ")
                     .append(name(field.getName())).append(": ").append(type(field, cls)).append(" = ")
                     .append(expression(field.getInitializer())).append("\n");
         }
@@ -188,7 +191,7 @@ final class JavaToAxolotl {
         if (main && isUsed(method.getParameterList().getParameters()[0], method.getBody())) {
             throw new Unsupported("`fn main()` has no command-line arguments");
         }
-        out.append("\n").append(visibility(method.hasModifierProperty(PsiModifier.PRIVATE))).append("fn ")
+        out.append("\n").append(visibility(method)).append("fn ")
                 .append(name(method.getName())).append("(");
         if (!main) {
             PsiParameter[] params = method.getParameterList().getParameters();
@@ -482,7 +485,18 @@ final class JavaToAxolotl {
         return name;
     }
 
-    private static String visibility(boolean isPrivate) {
-        return isPrivate ? "private " : "";
+    /**
+     * Axolotl has only public and private: package-private and protected members become private
+     * unless other files use them.
+     */
+    private static String visibility(PsiMember member) {
+        if (member.hasModifierProperty(PsiModifier.PUBLIC)) {
+            return "";
+        }
+        if (member.hasModifierProperty(PsiModifier.PRIVATE)) {
+            return "private ";
+        }
+        var elsewhere = GlobalSearchScope.notScope(GlobalSearchScope.fileScope(member.getContainingFile()));
+        return ReferencesSearch.search(member, elsewhere).findFirst() == null ? "private " : "";
     }
 }

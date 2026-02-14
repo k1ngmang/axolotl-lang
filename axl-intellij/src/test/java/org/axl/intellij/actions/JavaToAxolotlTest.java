@@ -95,6 +95,21 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("fn find(key: String?, xs: List<String?>) -> String? {"));
     }
 
+    public void testKeepsMembersPrivateThatNoOtherFileUses() {
+        myFixture.addFileToProject("util/User.java", "package util;\nclass User {\n    int use() { return Access.shared(); }\n}\n");
+        String axl = convert("Access.java", inClass("""
+                static final int LIMIT = 3;
+                private static int hidden() { return LIMIT; }
+                static int helper() { return hidden(); }
+                protected static int shared() { return helper(); }
+                public static int open() { return shared(); }"""));
+        assertTrue(axl, axl.contains("private val LIMIT: Int = 3\n"));
+        assertTrue(axl, axl.contains("private fn hidden() -> Int {"));
+        assertTrue(axl, axl.contains("private fn helper() -> Int {"));
+        assertTrue(axl, axl.contains("\nfn shared() -> Int {"));
+        assertTrue(axl, axl.contains("\nfn open() -> Int {"));
+    }
+
     public void testConvertsLiteralsToTheirAxolotlForm() {
         String axl = convert("Lits.java", inClass("""
                 public static double f() {
