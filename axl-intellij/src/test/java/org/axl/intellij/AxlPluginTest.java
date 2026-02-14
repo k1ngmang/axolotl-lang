@@ -20,6 +20,7 @@ import org.axl.intellij.java.PsiJavaTypes;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlVariable;
+import org.axl.intellij.refactor.AxlNamesValidator;
 import org.jetbrains.annotations.NotNull;
 
 public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
@@ -392,6 +393,16 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
                 fn reversed() = builder.rever<caret>
                 """);
         assertCompletes("reverse");
+    }
+
+    public void testAcceptsOnlyAxolotlNamesForRenaming() {
+        AxlNamesValidator validator = new AxlNamesValidator();
+        for (String name : List.of("x1", "gr\u00f6\u00dfe", "_count")) {
+            assertTrue(name, validator.isIdentifier(name, getProject()));
+        }
+        for (String name : List.of("record", "yield", "sealed", "permits", "fn", "class", "a\u20ac", "a$b", "1a", "a b")) {
+            assertFalse(name, validator.isIdentifier(name, getProject()));
+        }
     }
 
     public void testFindsUsagesInAxolotlAndJava() {
