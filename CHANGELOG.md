@@ -61,7 +61,7 @@ Known limitations: Error Prone needs `.mvn/jvm.config`; the plugin version in th
 - VS Code extension in `editors/vscode`, packaged with `./gradlew :axl-lsp:vsix`.
 - Gradle task `axlLspConfig` and Maven goal `axl:lsp-config` write the module description the server reads.
 
-Known limitations: no incremental document sync; completion does not follow call chains.
+Known limitations: no incremental document sync.
 
 ## Stage 7: IntelliJ IDEA plugin
 
