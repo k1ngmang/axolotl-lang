@@ -45,8 +45,11 @@ final class Workspace {
     /** The errors the compiler found in a document, and the version of its text they are about. */
     private record Compiled(Document version, List<AxlDiagnostic> errors) {}
 
+    // javac and the scanners of its trees recurse once per nesting level of an expression, like the translator.
+    private static final long STACK_SIZE = 512L * 1024 * 1024;
+
     private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(r, "axl-lsp");
+        Thread thread = new Thread(null, r, "axl-lsp", STACK_SIZE);
         thread.setDaemon(true);
         return thread;
     });

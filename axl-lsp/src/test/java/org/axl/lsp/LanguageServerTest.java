@@ -209,6 +209,17 @@ class LanguageServerTest {
     }
 
     @Test
+    void hoverInfersTypesInDeeplyNestedCode() throws Exception {
+        String nested = "(".repeat(3000) + "1" + ")".repeat(3000);
+        String text = "package app\n\nfn main() {\n    val x = " + nested + "\n    println(x)\n}\n";
+        open(text);
+        diagnosticsWhere(d -> true);
+        String hover = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(uri()),
+                new Position(4, 12))).get(60, TimeUnit.SECONDS).getContents().getRight().getValue();
+        assertTrue(hover.contains("val x: int"), hover);
+    }
+
+    @Test
     void showsGeneratedJava() throws Exception {
         open(MAIN);
         diagnosticsWhere(List::isEmpty);
