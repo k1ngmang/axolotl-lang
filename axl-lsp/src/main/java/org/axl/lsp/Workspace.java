@@ -45,6 +45,9 @@ final class Workspace {
     /** The errors the compiler found in a document, and the version of its text they are about. */
     private record Compiled(Document version, List<AxlDiagnostic> errors) {}
 
+    /** A Java model and the generated Java it was built from. */
+    private record CachedModel(List<String> sources, JavaModel model) {}
+
     // javac and the scanners of its trees recurse once per nesting level of an expression, like the translator.
     private static final long STACK_SIZE = 512L * 1024 * 1024;
 
@@ -60,7 +63,9 @@ final class Workspace {
     private final Map<String, Document> lastParsed = new HashMap<>();
     // By module, then by document URI; replaced as a whole by each compilation of a module.
     private final Map<Module, Map<String, Compiled>> compileErrors = new HashMap<>();
-    private final Map<Module, JavaModel> javaModels = new HashMap<>();
+    private final Map<Module, CachedModel> javaModels = new HashMap<>();
+    // Files that are not open, by path, translated once for each text they have on disk.
+    private final Map<Path, Document> closedDocuments = new HashMap<>();
     private final Map<Module, Path> drafts = new HashMap<>();
     // The Java file in the drafts directory of each .axl file, deleted when its class or package changes.
     private final Map<Path, Path> draftFiles = new HashMap<>();
@@ -87,6 +92,7 @@ final class Workspace {
         compiler = new ModuleCompiler();
         drafts.clear();
         draftFiles.clear();
+        closedDocuments.clear();
     }
 
     void publishTranslatorDiagnostics(boolean enabled) {
@@ -104,7 +110,6 @@ final class Workspace {
         if (document.ast != null) {
             lastParsed.put(uri, document);
         }
-        javaModels.remove(document.module);
         publish(document);
     }
 
@@ -117,7 +122,6 @@ final class Workspace {
         }
         if (closed != null) {
             refreshDraft(closed.path);
-            javaModels.remove(closed.module);
         }
     }
 
@@ -178,10 +182,17 @@ final class Workspace {
         return current != null && current.ast != null ? current : lastParsed.get(uri);
     }
 
+    /** Built again only when the generated Java changed, which editing a comment or an unfinished line does not. */
     JavaModel javaModel(Module module) {
-        return javaModels.computeIfAbsent(module, m -> JavaModel.build(m, documentsOf(m).stream()
-                .map(d -> parsed(d.uri) != null ? parsed(d.uri) : d)
-                .map(Document::javaUnit).filter(u -> u != null).toList()));
+        List<GeneratedUnit> units = documentsOf(module).stream().map(d -> parsed(d.uri) != null ? parsed(d.uri) : d)
+                .map(Document::javaUnit).filter(u -> u != null).toList();
+        List<String> sources = units.stream().map(GeneratedUnit::javaSource).toList();
+        CachedModel cached = javaModels.get(module);
+        if (cached == null || !cached.sources().equals(sources)) {
+            cached = new CachedModel(sources, JavaModel.build(module, units));
+            javaModels.put(module, cached);
+        }
+        return cached.model();
     }
 
     /** The arguments of a call for choosing an overload, with the types of names that are known. */
@@ -202,8 +213,7 @@ final class Workspace {
             for (Path root : module.axlRoots()) {
                 for (Path file : filesOf(module, root)) {
                     Document doc = findOpen(file);
-                    result.add(doc != null ? doc : new Document(file.toUri().toString(),
-                            Files.readString(file, StandardCharsets.UTF_8), project, this::draftsOf));
+                    result.add(doc != null ? doc : closedDocument(file));
                 }
             }
         } catch (IOException e) {
@@ -266,6 +276,8 @@ final class Workspace {
         }
         try {
             Path written = unit.writeTo(draftsOf(document.module));
+            // The types of values inferred from the drafts may have changed.
+            closedDocuments.values().removeIf(Document::infersValueTypes);
             Path old = draftFiles.put(document.path, written);
             if (old != null && !draftFiles.containsValue(old)) {
                 deleteDraft(old);
@@ -366,10 +378,20 @@ final class Workspace {
             return doc;
         }
         try {
-            return new Document(file.toUri().toString(), Files.readString(file, StandardCharsets.UTF_8), project, this::draftsOf);
+            return closedDocument(file);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private Document closedDocument(Path file) throws IOException {
+        String text = Files.readString(file, StandardCharsets.UTF_8);
+        Document cached = closedDocuments.get(file);
+        if (cached == null || !cached.text.equals(text)) {
+            cached = new Document(file.toUri().toString(), text, project, this::draftsOf);
+            closedDocuments.put(file, cached);
+        }
+        return cached;
     }
 
     GeneratedUnit generated(String uri) {

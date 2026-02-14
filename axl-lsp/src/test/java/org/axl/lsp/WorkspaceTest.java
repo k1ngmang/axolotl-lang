@@ -2,7 +2,9 @@ package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
@@ -374,6 +376,22 @@ class WorkspaceTest {
         workspace.update(uri, "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n");
         workspace.saved(uri);
         assertEquals(List.of("AXL100"), published.get(uri).stream().map(d -> d.getCode().getLeft()).toList());
+    }
+
+    @Test
+    void reusesTranslationsAndTheJavaModelWhileTheirInputIsUnchanged() throws Exception {
+        Files.writeString(project.resolve("src/main/axl/app/Names.axl"), "package app\n\nfn greeting() -> String = \"hi\"\n");
+        String text = "package app\n\nfn main() {\n    val s = Names.greeting()\n}\n";
+        String uri = open("Main.axl", text);
+        Module module = workspace.document(uri).module;
+        Document names = workspace.documentsOf(module).getLast();
+        JavaModel model = workspace.javaModel(module);
+
+        workspace.update(uri, text + "// note\n");
+        assertSame(names, workspace.documentsOf(module).getLast());
+        assertSame(model, workspace.javaModel(module));
+        workspace.update(uri, text.replace("val s", "val t"));
+        assertNotSame(model, workspace.javaModel(module));
     }
 
     @Test

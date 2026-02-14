@@ -13,6 +13,7 @@ import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
@@ -190,6 +191,11 @@ final class Document {
             count++;
         }
         return count;
+    }
+
+    /** Whether the file has top-level values without a written type, which javac types from other files. */
+    boolean infersValueTypes() {
+        return ast != null && ast.decls().stream().anyMatch(d -> d instanceof Decl.Value value && value.type() == null);
     }
 
     /** The compiler position where a token starts. */
