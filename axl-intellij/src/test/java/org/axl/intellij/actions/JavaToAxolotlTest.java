@@ -25,6 +25,7 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Generic.java", inClass("public static <T> T id(T x) { return x; }"));
         assertRefused("Init.java", inClass("static { System.out.println(\"loaded\"); }"));
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
+        assertRefused("Old.java", inClass("@Deprecated public static int f() { return 1; }"));
         assertRefused("Read.java", inClass("public static String read(java.nio.file.Path p) throws java.io.IOException "
                 + "{ return java.nio.file.Files.readString(p); }"));
     }
@@ -75,6 +76,23 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("fn find(x: Int) -> String? {"));
         assertTrue(axl, axl.contains("fn later(x: Int) -> String? {"));
         assertTrue(axl, axl.contains("fn never(x: Int) -> String {"));
+    }
+
+    public void testTurnsNullableAnnotationsIntoNullableTypes() {
+        myFixture.addFileToProject("org/jspecify/annotations/Nullable.java",
+                "package org.jspecify.annotations;\n@java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE)\n"
+                        + "public @interface Nullable {}\n");
+        String axl = convert("Keys.java", """
+                package util;
+                import org.jspecify.annotations.Nullable;
+                public final class Keys {
+                    public static @Nullable String find(@Nullable String key, java.util.List<@Nullable String> xs) {
+                        return key;
+                    }
+                }
+                """);
+        assertTrue(axl, axl.startsWith("package util\nimport java.util.List\n\n"));
+        assertTrue(axl, axl.contains("fn find(key: String?, xs: List<String?>) -> String? {"));
     }
 
     public void testConvertsLiteralsToTheirAxolotlForm() {

@@ -1,6 +1,7 @@
 package org.axl.intellij.actions;
 
 import com.intellij.codeInsight.ExceptionUtil;
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiBlockStatement;
 import com.intellij.psi.PsiClass;
@@ -21,6 +22,7 @@ import com.intellij.psi.PsiLocalVariable;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiModifier;
+import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.psi.PsiNewExpression;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiParenthesizedExpression;
@@ -70,6 +72,8 @@ final class JavaToAxolotl {
     private static final Set<String> OPERATORS = Set.of("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=",
             "&&", "||");
     private static final Set<String> ASSIGNMENTS = Set.of("=", "+=", "-=", "*=", "/=", "%=");
+    // Nullness annotations other than `Nullable` say what Axolotl code says anyway.
+    private static final Set<String> NULLNESS = Set.of("Nullable", "NonNull", "NotNull", "Nonnull", "NullMarked");
 
     private final StringBuilder out = new StringBuilder();
     private String packageName;
@@ -119,12 +123,17 @@ final class JavaToAxolotl {
         if (cls.getInitializers().length > 0) {
             throw new Unsupported("initializer blocks have no Axolotl form");
         }
+        nullable(cls);
         packageName = file.getPackageName();
         out.append("package ").append(qualifiedName(packageName)).append("\n");
         if (file.getImportList() != null) {
             for (PsiImportStatement imp : file.getImportList().getImportStatements()) {
                 if (imp.isOnDemand()) {
                     throw new Unsupported("on-demand imports have no Axolotl form");
+                }
+                if (NULLNESS.contains(imp.getQualifiedName().substring(imp.getQualifiedName().lastIndexOf('.') + 1))) {
+                    // The generated Java has its own: another `Nullable` would replace JSpecify's.
+                    continue;
                 }
                 out.append("import ").append(qualifiedName(imp.getQualifiedName())).append("\n");
                 importedTypes.put(imp.getQualifiedName().substring(imp.getQualifiedName().lastIndexOf('.') + 1),
@@ -185,14 +194,14 @@ final class JavaToAxolotl {
             PsiParameter[] params = method.getParameterList().getParameters();
             for (int i = 0; i < params.length; i++) {
                 out.append(i == 0 ? "" : ", ").append(name(params[i].getName())).append(": ")
-                        .append(type(params[i].getType()));
+                        .append(withNullable(type(params[i].getType()), nullable(params[i])));
             }
         }
         out.append(")");
+        boolean nullable = nullable(method) || returnsNull(method);
         String returns = type(method.getReturnType());
-        if (!returns.isEmpty() && !returns.endsWith("?") && !(method.getReturnType() instanceof PsiPrimitiveType)
-                && returnsNull(method)) {
-            returns += "?";
+        if (!returns.isEmpty() && !(method.getReturnType() instanceof PsiPrimitiveType)) {
+            returns = withNullable(returns, nullable);
         }
         if (!returns.isEmpty()) {
             out.append(" -> ").append(returns);
@@ -382,11 +391,33 @@ final class JavaToAxolotl {
                 .collect(java.util.stream.Collectors.joining(", ", "(", ")"));
     }
 
-    /** The type of a variable, nullable when it holds `null`. */
+    /** The type of a variable, nullable when it is annotated so or holds `null`. */
     private String type(PsiVariable variable, PsiElement scope) {
         String type = type(variable.getType());
-        boolean nullable = !type.endsWith("?") && !(variable.getType() instanceof PsiPrimitiveType) && holdsNull(variable, scope);
-        return nullable ? type + "?" : type;
+        boolean nullable = nullable(variable) || holdsNull(variable, scope);
+        return withNullable(type, nullable && !(variable.getType() instanceof PsiPrimitiveType));
+    }
+
+    private static String withNullable(String type, boolean nullable) {
+        return nullable && !type.endsWith("?") ? type + "?" : type;
+    }
+
+    private static boolean nullable(PsiModifierListOwner owner) {
+        return owner.getModifierList() != null && nullable(owner.getModifierList().getAnnotations());
+    }
+
+    /** Whether annotations say a value may be null; other annotations have no Axolotl form. */
+    private static boolean nullable(PsiAnnotation[] annotations) {
+        boolean nullable = false;
+        for (PsiAnnotation annotation : annotations) {
+            String name = String.valueOf(annotation.getQualifiedName());
+            name = name.substring(name.lastIndexOf('.') + 1);
+            if (!NULLNESS.contains(name)) {
+                throw new Unsupported("annotations have no Axolotl form: @" + name);
+            }
+            nullable |= name.equals("Nullable");
+        }
+        return nullable;
     }
 
     private String type(PsiType type) {
@@ -431,7 +462,8 @@ final class JavaToAxolotl {
         List<String> arguments = new ArrayList<>();
         for (PsiType argument : type.getParameters()) {
             // A type argument keeps its class name: `Int?` there would declare nullable elements.
-            arguments.add(argument instanceof PsiClassType c ? classType(c) : type(argument));
+            String text = argument instanceof PsiClassType c ? classType(c) : type(argument);
+            arguments.add(withNullable(text, nullable(argument.getAnnotations())));
         }
         return cls.getName() + (arguments.isEmpty() ? "" : "<" + String.join(", ", arguments) + ">");
     }
