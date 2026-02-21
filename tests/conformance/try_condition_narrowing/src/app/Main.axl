@@ -1,0 +1,55 @@
+package app
+
+fn ok(s: String) -> Result<Boolean, String> = Ok(s.length() > 1)
+
+fn more(s: String) -> Result<Boolean, String> = Ok(s.length() < 4)
+
+fn bad(s: String) -> Result<Boolean, String> = Ok(s.isEmpty())
+
+fn both(s: String?) -> Result<Int, String> {
+    if (s != null && try ok(s)) {
+        return Ok(s.length())
+    } else {
+        return Ok(-1)
+    }
+}
+
+fn grow(start: String?) -> Result<String, String> {
+    var s = start
+    while (s != null && try more(s)) {
+        s = s + "x"
+    }
+    return Ok(s ?: "none")
+}
+
+fn guard(s: String?) -> Result<Int, String> {
+    if (s == null || try bad(s)) {
+        return Ok(0)
+    }
+    return Ok(s.length())
+}
+
+fn either(s: String?) -> Result<String, String> {
+    if (s == null || try bad(s)) {
+        println("empty")
+    } else if (s.length() > 2) {
+        println("long " + s.length())
+    } else {
+        println("short " + s.length())
+    }
+    return Ok("done")
+}
+
+fn main() {
+    println(both("abc"))
+    println(both("a"))
+    println(both(null))
+    println(grow("a"))
+    println(grow(null))
+    println(guard(null))
+    println(guard(""))
+    println(guard("ab"))
+    println(either(null))
+    println(either("abcd"))
+    println(either("ab"))
+}

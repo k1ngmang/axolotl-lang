@@ -14,6 +14,7 @@ import org.axl.compiler.Options;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Import;
+import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.Stmt;
 import org.axl.compiler.ast.TypeRef;
@@ -265,6 +266,7 @@ public final class Generator {
                             em.line(ret.pos().line(), "return " + value(ret.pos().line(), ret.value(), returnType) + ";"));
                 }
             }
+            case Stmt.If ifStmt when splitsCondition(ifStmt) -> shortCircuitIf(ifStmt, (Expr.Binary) ifStmt.condition());
             case Stmt.If ifStmt -> {
                 emitIf(ifStmt, "");
                 em.line(blockEnd(ifStmt), "}");
@@ -340,6 +342,65 @@ public final class Generator {
         }
     }
 
+    private boolean splitsCondition(Stmt.If ifStmt) {
+        boolean simpleAnd = ifStmt.elseBranch() == null && ifStmt.condition() instanceof Expr.Binary b && b.op().equals("&&");
+        return !simpleAnd && Captures.in(ifStmt.condition(), analysis).isEmpty()
+                && ifStmt.condition() instanceof Expr.Binary b && (b.op().equals("&&") || b.op().equals("||"))
+                && Lifts.needed(b.right());
+    }
+
+    /**
+     * `if (s != null && try ok(s)) {...} else {...}`, or `||`: nested ifs keep what the left side
+     * checks known where it holds, which a boolean temporary would hide from NullAway. The branch
+     * taken inside them leaves a loop that runs once, so that the other one is written only once.
+     */
+    private void shortCircuitIf(Stmt.If ifStmt, Expr.Binary b) {
+        int line = ifStmt.pos().line();
+        boolean and = b.op().equals("&&");
+        Stmt.Block otherwise = switch (ifStmt.elseBranch()) {
+            case null -> null;
+            case Stmt.Block block -> block;
+            case Stmt.If elseIf -> new Stmt.Block(elseIf.pos(), List.of(elseIf), new Pos(blockEnd(elseIf), 1));
+            default -> throw new IllegalStateException();
+        };
+        Stmt.Block inside = and ? ifStmt.then() : otherwise;
+        Stmt.Block after = and ? otherwise : ifStmt.then();
+        em.line(line, "do {");
+        em.indent();
+        String left = lifted(line, b.left()).code();
+        em.line(line, "if (" + (and ? left : negated(left)) + ") {");
+        em.indent();
+        String right = lifted(line, b.right()).code();
+        em.line(line, "if (" + (and ? right : negated(right)) + ") {");
+        if (inside != null) {
+            block(inside);
+        }
+        if (inside == null || !exits(inside)) {
+            em.indent();
+            em.line(inside == null ? line : inside.end().line(), "break;");
+            em.dedent();
+        }
+        em.line(inside == null ? line : inside.end().line(), "}");
+        em.dedent();
+        em.line(line, "}");
+        if (after != null) {
+            after.statements().forEach(this::statement);
+        }
+        em.dedent();
+        em.line(blockEnd(ifStmt), "} while (false);");
+    }
+
+    /** Java rejects a statement after one that never completes. */
+    private static boolean exits(Stmt stmt) {
+        return switch (stmt) {
+            case Stmt.Return r -> true;
+            case Stmt.Block block -> !block.statements().isEmpty() && exits(block.statements().getLast());
+            case Stmt.If i -> i.elseBranch() != null && exits(i.then()) && exits(i.elseBranch());
+            case Stmt.While w -> w.condition() instanceof Expr.Literal l && l.text().equals("true");
+            default -> false;
+        };
+    }
+
     private static int blockEnd(Stmt.If ifStmt) {
         return switch (ifStmt.elseBranch()) {
             case null -> ifStmt.then().end().line();
@@ -358,8 +419,24 @@ public final class Generator {
             // Copies and lifted `try`s must run on every iteration, before the condition.
             em.line(line, "while (true) {");
             em.indent();
-            withCopies(line, loop.condition(), () ->
-                    em.line(line, "if (" + negated(lifted(line, loop.condition()).code()) + ") break;"));
+            if (Captures.in(loop.condition(), analysis).isEmpty() && loop.condition() instanceof Expr.Binary b
+                    && (b.op().equals("&&") || b.op().equals("||")) && Lifts.needed(b.right())) {
+                // Separate checks keep what the left side checks known in the body, as in shortCircuitIf.
+                String left = lifted(line, b.left()).code();
+                boolean and = b.op().equals("&&");
+                em.line(line, "if (" + negated(left) + ") " + (and ? "break;" : "{"));
+                if (!and) {
+                    em.indent();
+                }
+                em.line(line, "if (" + negated(lifted(line, b.right()).code()) + ") break;");
+                if (!and) {
+                    em.dedent();
+                    em.line(line, "}");
+                }
+            } else {
+                withCopies(line, loop.condition(), () ->
+                        em.line(line, "if (" + negated(lifted(line, loop.condition()).code()) + ") break;"));
+            }
             loop.body().statements().forEach(this::statement);
             em.dedent();
         }
