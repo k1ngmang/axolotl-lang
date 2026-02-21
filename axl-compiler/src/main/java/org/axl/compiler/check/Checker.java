@@ -52,6 +52,13 @@ public final class Checker {
     private static final Set<String> GENERATED_CODE_CLASSES = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable",
             "NullMarked", "String", "Integer", "Long", "Double", "Boolean", "Object", "Exception");
 
+    // Methods of java.lang.Object by name and parameter count, which the static method of a function would clash with.
+    private static final Set<String> OBJECT_METHODS = Set.of("toString/0", "hashCode/0", "equals/1", "getClass/0",
+            "notify/0", "notifyAll/0", "wait/0", "wait/1", "wait/2", "clone/0", "finalize/0");
+
+    // Where the classes above come from; importing them from there changes nothing.
+    private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
+
     // Classes the generated code names in expressions, where a value of the same name would take their place.
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
 
@@ -139,6 +146,10 @@ public final class Checker {
         for (Import imp : file.imports()) {
             if (imp.kind() != Import.Kind.TYPE) {
                 scope.names.putIfAbsent(imp.simpleName(), new Symbol(Kind.IMPORTED, imp.pos()));
+            } else if (GENERATED_CODE_CLASSES.contains(imp.simpleName()) && !GENERATED_CODE_PACKAGES.contains(
+                    imp.name().substring(0, Math.max(imp.name().lastIndexOf('.'), 0)))) {
+                error(imp.pos(), ErrorCode.RESERVED_NAME, "`" + imp.simpleName() + "` would hide the class `"
+                        + imp.simpleName() + "` that the generated code uses; write `" + imp.name() + "` in full instead");
             }
         }
         for (Decl decl : file.decls()) {
@@ -153,6 +164,9 @@ public final class Checker {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos()));
             }
             checkReserved(decl.namePos(), decl.name());
+            if (decl instanceof Decl.Function fn) {
+                checkFunctionName(fn);
+            }
             if (decl instanceof Decl.Value value && value.name().equals("args")
                     && file.decls().stream().anyMatch(d -> d instanceof Decl.Function fn && isMain(fn))) {
                 error(value.namePos(), ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` "
@@ -553,6 +567,17 @@ public final class Checker {
             break;
         }
         scope.names.put(name, new Symbol(kind, pos, type));
+    }
+
+    private void checkFunctionName(Decl.Function fn) {
+        String signature = fn.name() + "/" + fn.params().size();
+        if (fn.name().equals("Ok") || fn.name().equals("Err")) {
+            error(fn.namePos(), ErrorCode.RESERVED_NAME, "`" + fn.name() + "(...)` makes a `Result`, so a function of "
+                    + "this name would never be called; choose another name");
+        } else if (OBJECT_METHODS.contains(signature)) {
+            error(fn.namePos(), ErrorCode.RESERVED_NAME, "every Java object has a method `" + fn.name()
+                    + "` with as many parameters, which a function cannot replace; choose another name");
+        }
     }
 
     private void checkReserved(Pos pos, String name) {

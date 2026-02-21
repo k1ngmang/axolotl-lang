@@ -1,0 +1,15 @@
+package app
+
+import javax.xml.transform.Result
+import java.lang.Integer
+
+fn main() {
+    val r = attempt Integer.parseInt("1") else 0
+    println(r)
+}
+
+fn Ok(x: Int) -> Int = x
+
+fn toString() -> String = "main"
+
+fn hashCode(seed: Int) -> Int = seed
