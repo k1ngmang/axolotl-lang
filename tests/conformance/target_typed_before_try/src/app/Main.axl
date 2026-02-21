@@ -1,0 +1,28 @@
+package app
+
+import java.util.ArrayList
+import java.util.Comparator
+import java.util.List
+import java.util.Optional
+
+fn g() -> Result<Int, String> = Ok(1)
+
+fn take(o: Optional<String>, n: Int) -> Int = n
+
+fn sortBy(c: Comparator<String>, n: Int) -> Int = n
+
+fn wrapped(r: Result<List<String>, String>, n: Int) -> Int = n
+
+fn copied(xs: List<String>, n: Int) -> Int = n
+
+fn sum() -> Result<Int, String> {
+    val a = take(Optional.empty(), try g())
+    val b = sortBy(Comparator.naturalOrder(), try g())
+    val c = wrapped(Ok(List.of()), try g())
+    val d = copied(ArrayList<>(List.of()), try g())
+    return Ok(a + b + c + d)
+}
+
+fn main() {
+    println(sum())
+}

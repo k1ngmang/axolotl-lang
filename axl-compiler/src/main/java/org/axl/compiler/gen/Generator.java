@@ -38,6 +38,9 @@ public final class Generator {
     private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte",
             "Character", "char", "Float", "float");
 
+    private static final Set<String> TARGET_TYPED_FACTORIES = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
+            "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity");
+
     private final SourceFile file;
     private final Analysis analysis;
     private final Options options;
@@ -812,13 +815,14 @@ public final class Generator {
 
     /**
      * `Ok(x)`, `ArrayList<>()` and `List.of(...)` get their type arguments from where they are passed;
-     * in a temporary they would get `Object`.
+     * in a temporary they would get `Object`. Factories like these are kept where they stand, which
+     * would change the order of calls with side effects.
      */
     private boolean takesTypeFromTarget(Expr e) {
         return switch (e) {
             case Expr.Call c when c.target() == null -> c.name().equals("Ok") || c.name().equals("Err");
             case Expr.Call c -> c.target() instanceof Expr.Name n && analysis.staticNames().contains(n)
-                    && List.of("of", "copyOf", "emptyList", "emptySet", "emptyMap").contains(c.name());
+                    && TARGET_TYPED_FACTORIES.contains(c.name());
             case Expr.GenericNew g -> g.typeArgs().isEmpty();
             case Expr.MethodRef r -> true;
             default -> false;
@@ -844,7 +848,7 @@ public final class Generator {
         };
         List<String> codes = new ArrayList<>();
         for (Expr arg : args) {
-            Lifted operand = lifted(line, arg);
+            Lifted operand = takesTypeFromTarget(arg) ? withArgumentsFirst(line, arg) : lifted(line, arg);
             if (!operand.pure()) {
                 String temp = "$t" + ++tempCount;
                 em.line(line, "final var " + temp + " = " + operand.code() + ";");
