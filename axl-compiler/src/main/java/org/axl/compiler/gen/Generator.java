@@ -720,12 +720,14 @@ public final class Generator {
         return joinedArgs(args, codes, line);
     }
 
-    /** Where a `?.` argument cannot be moved into a temporary, Nulls.typed gives it its type. */
+    /** Where a `?.` argument, also on the left of `?:`, cannot be moved into a temporary, Nulls.typed gives it its type. */
     private String argument(Expr arg, boolean inLambda) {
         return switch (arg) {
             case Expr.Paren p -> "(" + argument(p.inner(), inLambda) + ")";
             case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + argument(n.target(), inLambda) + ")";
-            default -> Chains.hasSafeStep(arg) ? "Nulls.typed(" + expr(arg, inLambda) + ").value()" : expr(arg, inLambda);
+            // As the receiver of `.value()`, the expansion gets its type without the overloads of the call.
+            default -> Chains.hasSafeStep(arg) || arg instanceof Expr.Elvis e && Chains.hasSafeStep(e.left())
+                    ? "Nulls.typed(" + expr(arg, inLambda) + ").value()" : expr(arg, inLambda);
         };
     }
 

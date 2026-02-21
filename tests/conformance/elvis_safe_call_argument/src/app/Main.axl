@@ -1,0 +1,11 @@
+package app
+
+fn main() {
+    val x: String? = null
+    println(x?.length() ?: "none")
+    val sb = StringBuilder()
+    sb.append(x?.trim() ?: x?.length())
+    println(sb)
+    val y: String? = " ab "
+    println(y?.length() ?: "none")
+}
