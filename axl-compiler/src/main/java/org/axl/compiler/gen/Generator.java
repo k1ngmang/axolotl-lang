@@ -988,6 +988,17 @@ public final class Generator {
     /** `a ?: try b` evaluates `b` and its `try` only when `a` is null. */
     private Lifted elvisChain(int line, Expr.Elvis elvis, String javaType) {
         String left = lifted(line, elvis.left()).code();
+        if (javaType == null && elvis.right() instanceof Expr.Try t && !Lifts.needed(t.inner())) {
+            // A temporary of the type on the left could not hold the value on the right: `xs ?: try load()`
+            // with an ArrayList on the left and a List on the right. A conditional lets Java find the type.
+            String value = "$t" + ++tempCount;
+            em.line(line, "final var " + value + " = " + left + ";");
+            String result = "$t" + ++tempCount;
+            em.line(line, "final var " + result + " = java.util.Objects.isNull(" + value + ") ? " + expr(t.inner()) + " : null;");
+            em.line(line, "if (" + result + " != null && " + result + ".isErr()) return Result.propagate(" + result + ");");
+            return new Lifted("java.util.Objects.nonNull(" + value + ") ? " + value
+                    + " : Result.unwrap(java.util.Objects.requireNonNull(" + result + "))", false);
+        }
         String temp = "$t" + ++tempCount;
         em.line(line, (javaType == null ? "var" : javaType) + " " + temp + " = " + left + ";");
         // Objects.isNull also compiles when the left side is a primitive.

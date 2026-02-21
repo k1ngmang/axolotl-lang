@@ -38,13 +38,10 @@ import org.jspecify.annotations.*;
         return new Ok<>($t1);
     }
     public static Result<Integer, String> fallback(@Nullable Integer value, boolean ok) {
-        var $t1 = value;
-        if (java.util.Objects.isNull($t1)) {
-            final var $t2 = number("elvis", ok);
-            if ($t2.isErr()) return Result.propagate($t2);
-            $t1 = Result.unwrap($t2);
-        }
-        final var result = $t1;
+        final var $t1 = value;
+        final var $t2 = java.util.Objects.isNull($t1) ? number("elvis", ok) : null;
+        if ($t2 != null && $t2.isErr()) return Result.propagate($t2);
+        final var result = java.util.Objects.nonNull($t1) ? $t1 : Result.unwrap(java.util.Objects.requireNonNull($t2));
         return new Ok<>(result + 1);
     }
     public static void main(String[] args) {

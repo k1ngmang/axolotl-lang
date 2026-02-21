@@ -1,0 +1,25 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn load() -> Result<List<String>, String> = Ok(List.of("a"))
+
+fn fail() -> Result<List<String>, String> = Err("no list")
+
+fn loaded(xs: ArrayList<String>?) -> Result<Int, String> {
+    val zs = xs ?: try load()
+    println(zs)
+    return Ok(zs.size())
+}
+
+fn failed(xs: ArrayList<String>?) -> Result<Int, String> {
+    val zs = xs ?: try fail()
+    return Ok(zs.size())
+}
+
+fn main() {
+    println(loaded(null))
+    println(failed(null))
+    println(failed(ArrayList<String>()))
+}
