@@ -692,9 +692,12 @@ public final class Generator {
             params = "it";
         } else if (lambda.params().size() == 1 && lambda.params().getFirst().type() == null) {
             params = lambda.params().getFirst().name();
+        } else if (lambda.params().stream().allMatch(p -> p.type() == null || type(p.type()).equals(primitive(p.type())))) {
+            // `x: Int` fits Function<Integer, ...> and IntUnaryOperator alike only when Java infers it.
+            params = "(" + lambda.params().stream().map(Expr.Param::name).collect(Collectors.joining(", ")) + ")";
         } else {
             params = "(" + lambda.params().stream()
-                    .map(p -> p.type() == null ? p.name() : type(p.type()) + " " + p.name())
+                    .map(p -> p.type() == null ? p.name() : type(p.type(), true) + " " + p.name())
                     .collect(Collectors.joining(", ")) + ")";
         }
         List<Stmt> body = lambda.body();
@@ -1101,6 +1104,11 @@ public final class Generator {
     /** The type as a temporary that may hold null before it gets its value. */
     private static String nullableType(TypeRef type) {
         return type(new TypeRef(type.pos(), type.name(), type.args(), true), true);
+    }
+
+    private static String primitive(TypeRef type) {
+        String[] primitive = PRIMITIVES.get(type.name());
+        return primitive == null || type.nullable() ? null : primitive[0];
     }
 
     private static String type(TypeRef type) {
