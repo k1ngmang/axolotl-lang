@@ -350,7 +350,7 @@ public final class Checker {
             case Expr.GenericNew g -> true;
             case Expr.Try t -> true;
             case Expr.Pipe p -> true;
-            case Expr.Elvis e -> true;
+            case Expr.Elvis e -> doesSomething(e.right());
             case Expr.Attempt a -> true;
             case Expr.NotNull n -> true;
             case Expr.Lambda l -> true;

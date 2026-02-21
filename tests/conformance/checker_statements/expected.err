@@ -3,3 +3,4 @@ AXL007 app/Main.axl:7:13: error: `try` needs a function that returns `Result` wi
 AXL100 app/Main.axl:10:43: error: `f` is a value, not a function; call its method, such as `f.apply(...)` or `f.get()`
 AXL001 app/Main.axl:12:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
 AXL001 app/Main.axl:14:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
+AXL001 app/Main.axl:16:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it

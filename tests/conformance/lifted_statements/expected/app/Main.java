@@ -20,14 +20,12 @@ import java.util.List;
             if ($t1.isErr()) return Result.propagate($t1);
             $p1.add(Result.<String>unwrap($t1));
         }
-        boolean $t2 = false;
         if (go) {
-            final var $t3 = act();
-            if ($t3.isErr()) return Result.propagate($t3);
-            $t2 = Result.unwrap($t3);
+            final var $t2 = act();
+            if ($t2.isErr()) return Result.propagate($t2);
         }
-        final var $t4 = act();
-        if ($t4.isErr()) return Result.propagate($t4);
+        final var $t3 = act();
+        if ($t3.isErr()) return Result.propagate($t3);
         return new Ok<>(xs.size());
     }
     public static void main(String[] args) {

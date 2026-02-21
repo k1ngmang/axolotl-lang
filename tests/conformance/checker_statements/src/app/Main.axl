@@ -12,4 +12,6 @@ fn m11(n: Int) {
     n + 1
     (println(n))
     -1
+    val s: String? = null
+    s ?: "y"
 }

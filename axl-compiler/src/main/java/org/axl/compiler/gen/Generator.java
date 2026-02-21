@@ -182,6 +182,16 @@ public final class Generator {
         }
     }
 
+    /** The condition under which a statement `c && f()`, `c || f()` or `a ?: f()` runs its right side, or null. */
+    private static Expr runsWhen(Expr statement) {
+        return switch (statement) {
+            case Expr.Binary b when b.op().equals("&&") -> b.left();
+            case Expr.Binary b when b.op().equals("||") -> new Expr.Unary(b.pos(), "!", new Expr.Paren(b.pos(), b.left()));
+            case Expr.Elvis e -> new Expr.Binary(e.pos(), "==", e.left(), new Expr.Literal(e.pos(), "null"));
+            default -> null;
+        };
+    }
+
     /** `(f())` as a statement is the call: Java takes no parentheses there. */
     private static Expr withoutParens(Expr e) {
         return e instanceof Expr.Paren p ? withoutParens(p.inner()) : e;
@@ -260,7 +270,13 @@ public final class Generator {
             case Stmt.ExprStmt exprStmt -> {
                 int line = exprStmt.pos().line();
                 Expr e = withoutParens(exprStmt.expr());
-                if (e instanceof Expr.Try t) {
+                Expr condition = runsWhen(e);
+                if (condition != null) {
+                    // Java takes no `c && f()` or `a ?: f()` as a statement.
+                    Expr action = e instanceof Expr.Binary b ? b.right() : ((Expr.Elvis) e).right();
+                    Stmt.Block then = new Stmt.Block(action.pos(), List.of(new Stmt.ExprStmt(action.pos(), action)), action.pos());
+                    statement(new Stmt.If(exprStmt.pos(), condition, then, null));
+                } else if (e instanceof Expr.Try t) {
                     withCopies(line, t.inner(), () -> unwrapTry(line, t));
                 } else if (Chains.hasSafeStep(e)) {
                     Chains.Chain chain = Chains.flatten(e);
@@ -367,7 +383,8 @@ public final class Generator {
             e = p.inner();
         }
         // A call stays a statement: it may return nothing, which a temporary cannot hold.
-        boolean call = (e instanceof Expr.Call || e instanceof Expr.GenericNew || e instanceof Expr.Try) && code.endsWith(")");
+        boolean call = (e instanceof Expr.Call || e instanceof Expr.GenericNew || e instanceof Expr.Try
+                || e instanceof Expr.Pipe) && code.endsWith(")");
         em.line(line, call ? code + ";" : "final var $t" + ++tempCount + " = " + code + ";");
     }
 

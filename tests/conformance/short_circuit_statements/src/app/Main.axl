@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+
+fn doIt(s: String) -> Boolean {
+    println("did " + s)
+    return true
+}
+
+fn p(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "bad " + s
+
+fn run(xs: List<String>) -> Result<Int, String> {
+    xs |> mapResult { p(it) } |> forEach { println(it) }
+    return Ok(0)
+}
+
+fn main() {
+    val x = 3
+    x > 0 && doIt("and")
+    x < 0 || doIt("or")
+    x < 0 && doIt("never")
+    val name: String? = null
+    name ?: println("no name")
+    println(run(List.of("1", "2")))
+}
