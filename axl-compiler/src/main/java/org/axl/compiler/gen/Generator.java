@@ -616,7 +616,9 @@ public final class Generator {
             Chains.Step step = steps.get(i);
             if (step.safe()) {
                 String temp = "$n" + ++nullCount;
-                em.line(line, "final var " + temp + " = " + current + ";");
+                // A call before `?.` may return a primitive, which cannot be compared with null: box it.
+                String value = opened > 0 ? "Nulls.typed(" + current + ").value()" : current;
+                em.line(line, "final var " + temp + " = " + value + ";");
                 em.line(line, "if (" + temp + " != null) {");
                 em.indent();
                 opened++;

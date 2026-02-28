@@ -1,0 +1,11 @@
+package app
+
+fn f(s: String?) {
+    s?.length()?.toString()
+    val x = s?.length()?.toString()
+    println(x)
+}
+
+fn main() {
+    f(null)
+}

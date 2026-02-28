@@ -21,7 +21,7 @@ import org.jspecify.annotations.*;
         if ($t2.isErr()) return Result.propagate($t2);
         final var $n2 = find(Result.unwrap($t2));
         if ($n2 != null) {
-            final var $n3 = $n2.append("!");
+            final var $n3 = Nulls.typed($n2.append("!")).value();
             if ($n3 != null) {
                 $n3.setLength(2);
             }
