@@ -159,16 +159,16 @@ final class NullChecker implements TaskListener {
 
     private record Report(String message, Tree tree, CompilationUnitTree unit) {}
 
-    // Error Prone skips its analysis once the compilation has errors, so these wait until the end.
+    // Error Prone skips its analysis once the compilation has errors, so these wait until every class is analyzed.
     private final List<Report> reports = new ArrayList<>();
+
+    void report() {
+        reports.forEach(r -> trees.printMessage(Diagnostic.Kind.ERROR, r.message(), r.tree(), r.unit()));
+        reports.clear();
+    }
 
     @Override
     public void finished(TaskEvent event) {
-        if (event.getKind() == TaskEvent.Kind.COMPILATION) {
-            reports.forEach(r -> trees.printMessage(Diagnostic.Kind.ERROR, r.message(), r.tree(), r.unit()));
-            reports.clear();
-            return;
-        }
         if (event.getKind() != TaskEvent.Kind.ANALYZE || event.getCompilationUnit() == null
                 || !isGenerated(event.getCompilationUnit()) || event.getTypeElement() == null) {
             return;

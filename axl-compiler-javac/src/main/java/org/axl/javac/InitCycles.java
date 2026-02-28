@@ -65,12 +65,15 @@ final class InitCycles implements TaskListener {
         if (event.getKind() == TaskEvent.Kind.ANALYZE && event.getTypeElement() != null
                 && NullChecker.isGenerated(event.getCompilationUnit())) {
             collect(event.getTypeElement(), event.getCompilationUnit());
-        } else if (event.getKind() == TaskEvent.Kind.COMPILATION) {
-            inits.forEach(this::follow);
-            report();
-            inits.clear();
-            functions.clear();
         }
+    }
+
+    /** Called once every class is analyzed. */
+    void report() {
+        inits.forEach(this::follow);
+        reportCycles();
+        inits.clear();
+        functions.clear();
     }
 
     private void collect(TypeElement type, CompilationUnitTree unit) {
@@ -173,7 +176,7 @@ final class InitCycles implements TaskListener {
         return members.indexOf(field) < members.indexOf(value);
     }
 
-    private void report() {
+    private void reportCycles() {
         for (List<Read> list : reads.values()) {
             for (Read read : list) {
                 TypeElement other = (TypeElement) read.read().getEnclosingElement();

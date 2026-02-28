@@ -58,8 +58,14 @@ public final class DiagnosticsPlugin implements Plugin {
                 roots.add(Root.parse(arg));
             }
         }
-        task.addTaskListener(new NullChecker(task, strict));
-        task.addTaskListener(new InitCycles(task));
+        NullChecker nullChecker = new NullChecker(task, strict);
+        InitCycles initCycles = new InitCycles(task);
+        task.addTaskListener(nullChecker);
+        task.addTaskListener(initCycles);
+        task.addTaskListener(new AnalysisEnd(task, () -> {
+            initCycles.report();
+            nullChecker.report();
+        }));
         if (!roots.isEmpty()) {
             new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
         }

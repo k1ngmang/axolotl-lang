@@ -83,6 +83,20 @@ class DiagnosticsPluginTest {
     }
 
     @Test
+    void reportsNullErrorsBeforeClassFilesAreWritten(@TempDir Path tmp) throws Exception {
+        Diagnostic<?> error = firstError(tmp, """
+                package app
+
+                fn f(t: String?) {
+                    val w: String = t
+                    println(w)
+                }
+                """);
+        assertTrue(error.getMessage(Locale.ROOT).contains("`w` is not nullable"), error.getMessage(Locale.ROOT));
+        assertFalse(Files.exists(tmp.resolve("classes/app/Main.class")));
+    }
+
+    @Test
     void keepsDirectoriesWithAnEqualsSign(@TempDir Path tmp) {
         var root = new DiagnosticsPlugin.Root(tmp.resolve("a=1/gen"), tmp.resolve("a=1/src"));
         assertEquals(root, DiagnosticsPlugin.Root.parse(root.argument()));
