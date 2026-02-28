@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn f(xs: List<String>, ys: List<Int>) {
+    val a = xs |> filter { it }
+    val b = ys |> filter { it > 0 } |> map { it.foo() }
+    val c = xs |> map { it } |> filter { it.size() > 0 }
+    println(a)
+}
+
+fn main() {
+}

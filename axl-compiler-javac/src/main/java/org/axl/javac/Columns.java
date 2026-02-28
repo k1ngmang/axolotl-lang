@@ -17,6 +17,7 @@ final class Columns {
     private static final Pattern NAME = Pattern.compile("[A-Za-z_$][\\w$]*");
     private static final Pattern LITERAL = Pattern.compile("\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'");
     private static final Pattern NUMBER = Pattern.compile("(?<![\\w.])\\d[\\w.]*");
+    private static final Pattern IMPLICIT_IT = Pattern.compile("it\\s*->");
     private static final Pattern COMMENT = Pattern.compile("//.*|/\\*.*?(\\*/|$)");
     private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:public|private) static (.+?) ([\\w$]+)\\((.*)\\) \\{$");
     private static final Pattern AXL_SIGNATURE = Pattern.compile("^\\s*(?:private\\s+)?fn\\s+[\\w$]+\\s*\\(");
@@ -154,6 +155,10 @@ final class Columns {
     private static int index(String line, Region region, Region name, String word) {
         int count = 0;
         for (Region n : names(line)) {
+            // `{ it.length() }` becomes `it -> it.length()`: the parameter is not in the .axl line.
+            if (IMPLICIT_IT.matcher(line).region(n.start(), line.length()).lookingAt()) {
+                continue;
+            }
             boolean inside = region == null || region.contains(n.start());
             if (name != null && n.start() >= name.start()) {
                 break;
