@@ -145,8 +145,11 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
         int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, diagnostic.getColumnNumber(), axlText);
-        return factory.create(type, new DiagnosticSource(axl, log),
+        JCDiagnostic moved = factory.create(type, new DiagnosticSource(axl, log),
                 new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager", translated);
+        // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.
+        moved.setFlag(JCDiagnostic.DiagnosticFlag.API);
+        return moved;
     }
 
     private Mapping mapping(Path javaFile) {

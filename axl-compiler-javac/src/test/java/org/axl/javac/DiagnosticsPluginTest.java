@@ -67,6 +67,22 @@ class DiagnosticsPluginTest {
     }
 
     @Test
+    void keepsDifferentErrorsAtOnePosition(@TempDir Path tmp) throws Exception {
+        JavaCompilation.Outcome outcome = compile(tmp, """
+                package app
+
+                fn p(s: String) -> Result<Int, Exception> = Ok(1)
+
+                fn f(s: String) -> Result<Int, String> {
+                    val a = try p(s) + try 5
+                    return Ok(a)
+                }
+                """);
+        assertEquals(2, outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR).count(),
+                outcome.diagnostics().toString());
+    }
+
+    @Test
     void keepsDirectoriesWithAnEqualsSign(@TempDir Path tmp) {
         var root = new DiagnosticsPlugin.Root(tmp.resolve("a=1/gen"), tmp.resolve("a=1/src"));
         assertEquals(root, DiagnosticsPlugin.Root.parse(root.argument()));
