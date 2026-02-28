@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val t = java.sql.Timestamp(1000L)
+    val sb = java.lang.StringBuilder("x")
+    sb.append(t.getTime())
+    println(sb)
+}

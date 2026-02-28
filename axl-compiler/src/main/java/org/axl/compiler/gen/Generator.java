@@ -645,6 +645,8 @@ public final class Generator {
             case Expr.Name n -> inLambda && analysis.mutableRefs().contains(n)
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
+            case Expr.Call c when packagePath(c.target()) != null && isTypeName(c.name()) ->
+                    "new " + packagePath(c.target()) + "." + c.name() + "(" + args(c.args(), inLambda, c.pos().line()) + ")";
             case Expr.Call c when c.target() != null -> chain(Chains.flatten(c), inLambda);
             case Expr.Call c -> call(c, args(c.args(), inLambda, c.pos().line()));
             case Expr.GenericNew g -> genericNew(g, args(g.args(), inLambda, g.pos().line()));
@@ -1028,6 +1030,18 @@ public final class Generator {
             index++;
         }
         return index;
+    }
+
+    /** `java.sql` in `java.sql.Timestamp(1L)`, which creates an object as `Timestamp(1L)` would; else null. */
+    private String packagePath(Expr target) {
+        if (target instanceof Expr.Name n && analysis.staticNames().contains(n) && Character.isLowerCase(n.name().charAt(0))) {
+            return n.name();
+        }
+        if (target instanceof Expr.Member m && !m.safe() && Character.isLowerCase(m.name().charAt(0))) {
+            String path = packagePath(m.target());
+            return path == null ? null : path + "." + m.name();
+        }
+        return null;
     }
 
     private static boolean isTypeName(String name) {
