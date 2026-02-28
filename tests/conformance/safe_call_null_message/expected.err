@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:7:17: error: the value of `?.` may be null, but `of` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:11:44: error: the value of `?.` may be null, but `add` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`

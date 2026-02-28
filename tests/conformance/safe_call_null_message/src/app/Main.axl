@@ -1,0 +1,13 @@
+package app
+import java.util.List
+import java.util.ArrayList
+import java.util.function.Supplier
+
+val x: String? = null
+val l = List.of(x?.trim())
+
+fn main() {
+    val xs = ArrayList<String>()
+    val f: Supplier<Boolean> = { -> xs.add(x?.trim()) }
+    println(l)
+}

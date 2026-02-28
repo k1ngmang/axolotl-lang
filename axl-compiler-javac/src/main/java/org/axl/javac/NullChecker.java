@@ -1340,6 +1340,10 @@ final class NullChecker implements TaskListener {
                 };
             }
             if (e instanceof MethodInvocationTree call && element(call) instanceof ExecutableElement method
+                    && method.getSimpleName().contentEquals("map") && isRuntime(method)) {
+                return "the value of `?.` may be null";
+            }
+            if (e instanceof MethodInvocationTree call && element(call) instanceof ExecutableElement method
                     && method.getSimpleName().contentEquals("or") && isRuntime(method)) {
                 return origin == Origin.PLATFORM ? "the value of `?:` may be null, since its fallback comes from Java "
                         + "code without nullness annotations" : "the value of `?:` may be null, since its fallback may be null";
@@ -1364,11 +1368,24 @@ final class NullChecker implements TaskListener {
             }
             if (reporting) {
                 String prefix = origin == Origin.PLATFORM ? STRICT_PREFIX : PREFIX;
-                // javac places a call at its parenthesis, where the .axl column cannot be found.
-                Tree at = tree instanceof MethodInvocationTree call ? call.getMethodSelect() : tree;
+                Tree at = position(tree);
                 reports.add(new Report(prefix + message, at, unit));
             }
             return true;
+        }
+
+        /**
+         * Where the .axl column can be found: javac places a call at its parenthesis, and `a?.b` and
+         * `a ?: b` become calls of Nulls named nowhere in the .axl line, so they are placed at `a`.
+         */
+        private Tree position(Tree tree) {
+            Tree at = tree instanceof ExpressionTree e ? unwrap(e) : tree;
+            while (at instanceof MethodInvocationTree call && call.getMethodSelect() instanceof MemberSelectTree select
+                    && select.getExpression() instanceof IdentifierTree owner && owner.getName().contentEquals("Nulls")
+                    && !call.getArguments().isEmpty()) {
+                at = unwrap(call.getArguments().getFirst());
+            }
+            return at instanceof MethodInvocationTree call ? call.getMethodSelect() : at;
         }
 
         /** `var x = ...`: javac keeps the declared type tree, so look at the source. */
@@ -1589,10 +1606,25 @@ final class NullChecker implements TaskListener {
                 e = p.getExpression();
             } else if (e instanceof TypeCastTree cast) {
                 e = cast.getExpression();
+            } else if (typedValue(e) != null) {
+                e = typedValue(e);
             } else {
                 return e;
             }
         }
+    }
+
+    /** `x` of `Nulls.typed(x).value()`, which only gives `x` a type of its own, or null. */
+    private static ExpressionTree typedValue(ExpressionTree e) {
+        if (e instanceof MethodInvocationTree value && value.getArguments().isEmpty()
+                && value.getMethodSelect() instanceof MemberSelectTree select && select.getIdentifier().contentEquals("value")
+                && select.getExpression() instanceof MethodInvocationTree typed && typed.getArguments().size() == 1
+                && typed.getMethodSelect() instanceof MemberSelectTree typedSelect
+                && typedSelect.getIdentifier().contentEquals("typed")
+                && typedSelect.getExpression() instanceof IdentifierTree nulls && nulls.getName().contentEquals("Nulls")) {
+            return typed.getArguments().getFirst();
+        }
+        return null;
     }
 
     private static boolean isNullLiteral(ExpressionTree expression) {
