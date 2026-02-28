@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import javax.tools.Diagnostic;
 import org.axl.compiler.LineMap;
 
 /**
@@ -196,6 +197,19 @@ final class Columns {
             result.add(new Region(matcher.start(), matcher.end()));
         }
         return result;
+    }
+
+    /** The 1-based column in the Java line, counting a tab as one character as the line text does; javac widens tabs. */
+    static long javaColumn(String[] javaLines, int javaLine, Diagnostic<?> diagnostic) {
+        long position = diagnostic.getPosition();
+        if (position == Diagnostic.NOPOS || javaLine < 1 || javaLine > javaLines.length) {
+            return diagnostic.getColumnNumber();
+        }
+        long lineStart = 0;
+        for (int i = 0; i < javaLine - 1; i++) {
+            lineStart += javaLines[i].length() + 1;
+        }
+        return position - lineStart + 1;
     }
 
     static int firstNonBlank(String text) {

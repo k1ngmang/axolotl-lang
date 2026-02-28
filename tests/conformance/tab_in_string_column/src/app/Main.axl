@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val s = "a	b" + qq + rr
+    val t = 1 /*	*/ + Math.mux(1)
+    println(s)
+}
