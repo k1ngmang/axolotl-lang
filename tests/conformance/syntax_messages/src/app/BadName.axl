@@ -3,3 +3,5 @@ package app
 fn main() {
     val x² = 1
 }
+
+fn grüße() -> Int = 1

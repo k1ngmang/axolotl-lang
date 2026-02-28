@@ -91,7 +91,7 @@ public final class SourceParser {
             } else if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
                 message = textProblem(t);
             } else if (t.getType() == AxolotlLexer.IDENTIFIER && !isJavaName(t.getText())) {
-                message = "`" + t.getText() + "` is not a valid name: use letters, digits and `_`";
+                message = "`" + t.getText() + "` is not a valid name: use the letters A to Z and a to z, digits and `_`";
             }
             int line = t.getLine();
             if (message != null && errors.stream().noneMatch(d -> d.line() == line)) {
@@ -207,9 +207,9 @@ public final class SourceParser {
         return i + 1 < tokens.size() && tokens.get(i + 1).getStartIndex() == tokens.get(i).getStopIndex() + 1;
     }
 
+    /** Error Prone rejects other letters in code. */
     private static boolean isJavaName(String name) {
-        return Character.isJavaIdentifierStart(name.codePointAt(0))
-                && name.codePoints().skip(1).allMatch(Character::isJavaIdentifierPart);
+        return name.matches("[A-Za-z_$][A-Za-z0-9_$]*");
     }
 
     /** A token after which something must follow: a binary operator or a `.`. */

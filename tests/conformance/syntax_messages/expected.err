@@ -1,5 +1,6 @@
 AXL001 app/BadChar.axl:4:15: error: unexpected character `#`
-AXL001 app/BadName.axl:4:9: error: `x²` is not a valid name: use letters, digits and `_`
+AXL001 app/BadName.axl:4:9: error: `x²` is not a valid name: use the letters A to Z and a to z, digits and `_`
+AXL001 app/BadName.axl:7:4: error: `grüße` is not a valid name: use the letters A to Z and a to z, digits and `_`
 AXL001 app/ClassKeyword.axl:3:1: error: unexpected `class`
 AXL001 app/ControlChar.axl:4:15: error: unexpected control character U+0000
 AXL001 app/DotNumber.axl:4:13: error: `3.` is not a valid number; write `3.0`
