@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:4:21: error: unknown name `s`; check the spelling or add an import
+AXL100 app/Main.axl:5:36: error: wrong arguments for `StringBuilder`: got (Boolean, Int); it takes (), (Int), (String), (CharSequence)

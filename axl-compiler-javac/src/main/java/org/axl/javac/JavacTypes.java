@@ -180,7 +180,8 @@ public final class JavacTypes implements JavaTypes {
         while (end < line.length() && Character.isJavaIdentifierPart(line.charAt(end))) {
             end++;
         }
-        return line.substring(at, end);
+        // `new StringBuilder(...)` is `StringBuilder(...)` in Axolotl.
+        return line.substring(at, end).equals("new") ? nameAt(line, end) : line.substring(at, end);
     }
 
     /**

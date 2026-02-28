@@ -1,0 +1,10 @@
+package app
+
+val xs = java.util.List.of(1)
+val r = xs.size() + s
+val x = java.util.List.of("renew", StringBuilder(true, 1))
+
+fn main() {
+    println(r)
+    println(x)
+}

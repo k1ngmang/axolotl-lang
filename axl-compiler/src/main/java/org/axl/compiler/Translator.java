@@ -6,6 +6,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Import;
@@ -34,6 +35,8 @@ public final class Translator {
             return diagnostics.stream().anyMatch(AxlDiagnostic::isError);
         }
     }
+
+    private static final Pattern LITERAL = Pattern.compile("\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'");
 
     private Translator() {}
 
@@ -138,12 +141,19 @@ public final class Translator {
                 line = mapped;
                 String axlLine = lines.get(line - 1);
                 int from = line == value.pos().line() ? Math.max(0, axlLine.indexOf('=')) : 0;
-                int index = parts[1].isEmpty() ? -1 : axlLine.indexOf(parts[1], from);
+                int index = parts[1].isEmpty() ? -1 : wordIndex(axlLine, parts[1], from);
                 column = index >= 0 ? axlLine.codePointCount(0, index) + 1 : axlLine.length() - axlLine.stripLeading().length() + 1;
             }
             return AxlDiagnostic.error(displayPath, line, column, ErrorCode.JAVAC, parts[2]);
         }
         return AxlDiagnostic.error(displayPath, line, column, ErrorCode.JAVAC, entry);
+    }
+
+    /** Where the word stands on its own in the line, outside string and character literals, or -1. */
+    private static int wordIndex(String line, String word, int from) {
+        String code = LITERAL.matcher(line).replaceAll(m -> " ".repeat(m.group().length()));
+        Matcher matcher = Pattern.compile("(?<![\\w$])" + Pattern.quote(word) + "(?![\\w$])").matcher(code);
+        return matcher.find(from) ? matcher.start() : -1;
     }
 
     private static Decl.Value valueNamed(SourceFile file, String name) {
