@@ -1,2 +1,3 @@
 AXL001 app/Main.axl:4:16: error: put this statement on its own line, or end the one before it with `;`
 AXL001 app/Main.axl:5:15: error: put this statement on its own line, or end the one before it with `;`
+AXL001 app/Main.axl:7:31: error: put this statement on its own line, or end the one before it with `;`

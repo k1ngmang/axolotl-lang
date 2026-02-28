@@ -112,10 +112,8 @@ public final class SourceParser {
         for (int i = 1; i < statements.size(); i++) {
             Token end = statements.get(i - 1).getStop();
             Token start = statements.get(i).getStart();
-            boolean blockStatement = statements.get(i - 1) instanceof AxolotlParser.IfStatementAltContext
-                    || statements.get(i - 1) instanceof AxolotlParser.WhileStatementContext;
             if (end.getLine() == start.getLine() && end.getType() != AxolotlLexer.SEMI
-                    && start.getType() != AxolotlLexer.SEMI && !blockStatement) {
+                    && start.getType() != AxolotlLexer.SEMI) {
                 diagnostics.add(AxlDiagnostic.error(path, start.getLine(), start.getCharPositionInLine() + 1,
                         ErrorCode.SYNTAX, "put this statement on its own line, or end the one before it with `;`"));
             }
