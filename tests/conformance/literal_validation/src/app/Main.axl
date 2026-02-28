@@ -10,6 +10,12 @@ fn main() {
     val g = "a\u12G4b"
     val h = '\u005c\u005c'
     val i = 9223372036854775808L
+    val l = 3.f
+    val m = 1.e5
+    val n = 5.toString()
+    val o = 1e400
+    val q = 1e-400
+    val r = 0.0e-400
     val k = "a\sb"
     val j = '𝐀'
 }

@@ -82,10 +82,18 @@ public final class SourceParser {
             } else if ((t.getType() == AxolotlLexer.PLUS || t.getType() == AxolotlLexer.MINUS) && adjacent(all, i)
                     && all.get(i + 1).getType() == t.getType()) {
                 message = "Axolotl has no `" + t.getText() + t.getText() + "`; write `" + t.getText() + "= 1`";
-            } else if (t.getType() == AxolotlLexer.INT_LITERAL && adjacent(all, i) && all.get(i + 1).getType() == AxolotlLexer.DOT
-                    && !(i + 2 < all.size() && all.get(i + 2).getType() == AxolotlLexer.IDENTIFIER
-                    && all.get(i + 2).getStartIndex() == all.get(i + 1).getStopIndex() + 1)) {
-                message = "`" + t.getText() + ".` is not a valid number; write `" + t.getText() + ".0`";
+            } else if (t.getType() == AxolotlLexer.INT_LITERAL && adjacent(all, i) && all.get(i + 1).getType() == AxolotlLexer.DOT) {
+                Token after = adjacent(all, i + 1) ? all.get(i + 2) : null;
+                if (after == null || after.getType() != AxolotlLexer.IDENTIFIER) {
+                    message = "`" + t.getText() + ".` is not a valid number; write `" + t.getText() + ".0`";
+                } else if (after.getText().matches("[fFdD]|[eE]\\d*")) {
+                    // Java reads `3.f` as a float and `1.e5` as a double.
+                    String fixed = t.getText() + ".0" + (after.getText().matches("[eE].*") ? after.getText() : "");
+                    message = "`" + t.getText() + "." + after.getText() + "` is not a valid number; write `" + fixed + "`";
+                } else {
+                    message = "a number has no members; for `" + t.getText() + "." + after.getText()
+                            + "`, call a method of its class, such as `Integer.toString(" + t.getText() + ")`";
+                }
             } else if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
                 message = numberProblem(t, afterUnaryMinus(all, i), i + 1 < all.size() ? all.get(i + 1) : null);
             } else if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
@@ -121,6 +129,15 @@ public final class SourceParser {
         for (int i = 0; i < node.getChildCount(); i++) {
             sharedLines(path, node.getChild(i), diagnostics);
         }
+    }
+
+    private static String doubleProblem(String text) {
+        double value = Double.parseDouble(text.replace("_", "").replaceAll("[dD]$", ""));
+        if (Double.isInfinite(value)) {
+            return "`" + text + "` is too large for a `Double`";
+        }
+        boolean nonZeroDigits = !text.replace("_", "").matches("[0.]*([eE].*)?[dD]?");
+        return value == 0 && nonZeroDigits ? "`" + text + "` is too small for a `Double` and would be 0" : null;
     }
 
     /** `-2147483648` and `- 2147483648`, but not `x - 2147483648`, which Java rejects too. */
@@ -159,7 +176,7 @@ public final class SourceParser {
             return "Axolotl has no `Float` type; write `" + text.substring(0, text.length() - 1) + "` for a `Double`";
         }
         if (t.getType() != AxolotlLexer.INT_LITERAL) {
-            return null;
+            return doubleProblem(text);
         }
         boolean isLong = text.endsWith("l") || text.endsWith("L");
         String digits = text.replace("_", "").replaceAll("[lL]$", "");

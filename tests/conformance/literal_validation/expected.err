@@ -7,5 +7,10 @@ AXL001 app/Main.axl:9:13: error: Axolotl has no `Float` type; write `1.5` for a 
 AXL001 app/Main.axl:10:13: error: unknown escape `\u12G4`; write `\\` for a backslash
 AXL001 app/Main.axl:11:13: error: a character literal holds one character; write text in double quotes
 AXL001 app/Main.axl:12:13: error: `9223372036854775808L` is too large for a `Long`
-AXL001 app/Main.axl:13:13: error: write a space instead of `\s`, which is easily misread
-AXL001 app/Main.axl:14:13: error: `𝐀` takes two Java chars, so it does not fit in a `Character`; write it in double quotes
+AXL001 app/Main.axl:13:13: error: `3.f` is not a valid number; write `3.0`
+AXL001 app/Main.axl:14:13: error: `1.e5` is not a valid number; write `1.0e5`
+AXL001 app/Main.axl:15:13: error: a number has no members; for `5.toString`, call a method of its class, such as `Integer.toString(5)`
+AXL001 app/Main.axl:16:13: error: `1e400` is too large for a `Double`
+AXL001 app/Main.axl:17:13: error: `1e-400` is too small for a `Double` and would be 0
+AXL001 app/Main.axl:19:13: error: write a space instead of `\s`, which is easily misread
+AXL001 app/Main.axl:20:13: error: `𝐀` takes two Java chars, so it does not fit in a `Character`; write it in double quotes
