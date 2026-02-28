@@ -1,0 +1,14 @@
+package app
+
+val b: Int =
+    Integer.parseInt(1)
+val c: Int = 1 +
+    qq
+
+fn f() -> Int =
+    zz
+
+
+fn main() {
+    println(b)
+}

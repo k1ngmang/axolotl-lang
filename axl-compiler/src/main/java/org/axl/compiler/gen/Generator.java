@@ -146,8 +146,9 @@ public final class Generator {
 
     private void emitValue(Decl.Value value) {
         String type = value.type() != null ? type(value.type()) : valueTypes.get(value.name());
-        em.line(value.pos().line(), visibility(value) + " static final " + type + " " + value.name()
-                + " = " + expr(value.init()) + ";");
+        int line = value.pos().line();
+        em.line(line, joined(visibility(value) + " static final " + type + " " + value.name(), " = ", expr(value.init()),
+                line, startLine(value.init())) + ";");
     }
 
     private void emitProbe() {
