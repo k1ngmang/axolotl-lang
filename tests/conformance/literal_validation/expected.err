@@ -7,3 +7,5 @@ AXL001 app/Main.axl:9:13: error: Axolotl has no `Float` type; write `1.5` for a 
 AXL001 app/Main.axl:10:13: error: unknown escape `\u12G4`; write `\\` for a backslash
 AXL001 app/Main.axl:11:13: error: a character literal holds one character; write text in double quotes
 AXL001 app/Main.axl:12:13: error: `9223372036854775808L` is too large for a `Long`
+AXL001 app/Main.axl:13:13: error: write a space instead of `\s`, which is easily misread
+AXL001 app/Main.axl:14:13: error: `𝐀` takes two Java chars, so it does not fit in a `Character`; write it in double quotes

@@ -3,6 +3,7 @@ package org.axl.compiler.parse;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.antlr.v4.runtime.BailErrorStrategy;
@@ -25,7 +26,7 @@ public final class SourceParser {
 
     // The escapes Java knows in strings and characters.
     private static final Pattern ESCAPE = Pattern.compile(
-            "\\\\(?:[btnfrs\"'\\\\]|[0-3]?[0-7]{1,2}|u+[0-9a-fA-F]{4})");
+            "\\\\(?:[btnfr\"'\\\\]|[0-3]?[0-7]{1,2}|u+[0-9a-fA-F]{4})");
 
     /** file is null when the source has syntax errors. */
     public record Result(SourceFile file, List<AxlDiagnostic> diagnostics) {}
@@ -86,7 +87,7 @@ public final class SourceParser {
                     && all.get(i + 2).getStartIndex() == all.get(i + 1).getStopIndex() + 1)) {
                 message = "`" + t.getText() + ".` is not a valid number; write `" + t.getText() + ".0`";
             } else if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
-                message = numberProblem(t, i > 0 ? all.get(i - 1) : null, i + 1 < all.size() ? all.get(i + 1) : null);
+                message = numberProblem(t, afterUnaryMinus(all, i), i + 1 < all.size() ? all.get(i + 1) : null);
             } else if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
                 message = textProblem(t);
             } else if (t.getType() == AxolotlLexer.IDENTIFIER && !isJavaName(t.getText())) {
@@ -124,7 +125,27 @@ public final class SourceParser {
         }
     }
 
-    private static String numberProblem(Token t, Token previous, Token next) {
+    /** `-2147483648` and `- 2147483648`, but not `x - 2147483648`, which Java rejects too. */
+    private static boolean afterUnaryMinus(List<Token> tokens, int i) {
+        int minus = previousCode(tokens, i);
+        if (minus < 0 || tokens.get(minus).getType() != AxolotlLexer.MINUS) {
+            return false;
+        }
+        int before = previousCode(tokens, minus);
+        return before < 0 || !Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL,
+                AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL, AxolotlLexer.RPAREN, AxolotlLexer.TRUE,
+                AxolotlLexer.FALSE, AxolotlLexer.NULL).contains(tokens.get(before).getType());
+    }
+
+    private static int previousCode(List<Token> tokens, int i) {
+        int j = i - 1;
+        while (j >= 0 && Set.of(AxolotlLexer.WS, AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT).contains(tokens.get(j).getType())) {
+            j--;
+        }
+        return j;
+    }
+
+    private static String numberProblem(Token t, boolean afterUnaryMinus, Token next) {
         String text = t.getText();
         if (next != null && next.getStartIndex() == t.getStopIndex() + 1
                 && (next.getType() == AxolotlLexer.IDENTIFIER || next.getType() == AxolotlLexer.INT_LITERAL)) {
@@ -148,7 +169,7 @@ public final class SourceParser {
         BigInteger max = BigInteger.valueOf(isLong ? Long.MAX_VALUE : Integer.MAX_VALUE);
         // Hexadecimal numbers may use the sign bit; a decimal one may be the magnitude of the minimum after `-`.
         BigInteger limit = hex ? max.shiftLeft(1).add(BigInteger.ONE)
-                : previous != null && previous.getText().equals("-") ? max.add(BigInteger.ONE) : max;
+                : afterUnaryMinus ? max.add(BigInteger.ONE) : max;
         if (value.compareTo(limit) > 0) {
             return "`" + text + "` is too large for " + (isLong ? "a `Long`" : "an `Int`; add `L` for a `Long`");
         }
@@ -168,12 +189,18 @@ public final class SourceParser {
             Matcher escape = ESCAPE.matcher(inner).region(i, inner.length());
             if (!escape.lookingAt()) {
                 String shown = inner.substring(i, Math.min(inner.length(), inner.charAt(i + 1) == 'u' ? i + 6 : i + 2));
+                if (shown.equals("\\s")) {
+                    return "write a space instead of `\\s`, which is easily misread";
+                }
                 return "unknown escape `" + shown + "`; write `\\\\` for a backslash";
             }
             i = escape.end();
         }
         if (text.startsWith("'") && count != 1) {
             return "a character literal holds one character; write text in double quotes";
+        }
+        if (text.startsWith("'") && Character.isSupplementaryCodePoint(inner.codePointAt(0))) {
+            return "`" + inner + "` takes two Java chars, so it does not fit in a `Character`; write it in double quotes";
         }
         return null;
     }
