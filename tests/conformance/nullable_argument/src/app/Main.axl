@@ -1,8 +1,18 @@
 package app
 
+import java.util.ArrayList
+import java.util.List
+
 fn shout(s: String) -> String = s.toUpperCase()
 
 fn main() {
     val name: String? = null
     println(shout(name))
+}
+
+fn count(ys: List<String>) -> Int = ys.size()
+
+fn nullableElements() -> Int {
+    val xs = ArrayList<String?>()
+    return count(xs)
 }

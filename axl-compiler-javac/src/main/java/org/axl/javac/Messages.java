@@ -25,7 +25,8 @@ final class Messages {
     private static final Pattern NO_INSTANCE = Pattern.compile(
             "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+)$");
     private static final Pattern LOSSY =Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
-    private static final Pattern INCOMPATIBLE = Pattern.compile("^incompatible types: (.+) cannot be converted to (.+)$");
+    private static final Pattern INCOMPATIBLE = Pattern.compile(
+            "^incompatible types: (?:bad type in conditional expression; )?(.+) cannot be converted to (.+?)(?: \\(.+ is a subtype of .+\\))?$");
     private static final Pattern BOUNDS = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; (?:equality constraints|upper bounds): (.+?); lower bounds: (.+)$");
     private static final Pattern UNKNOWN = Pattern.compile("^cannot find symbol; symbol: (variable|method|class) (.+?); location: (.+)$");
