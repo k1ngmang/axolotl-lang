@@ -14,6 +14,7 @@ final class Messages {
     private static final Pattern DEREFERENCE = Pattern.compile("^\\[NullAway] dereferenced expression '(.+?)' is @Nullable");
     private static final Pattern NULLAWAY_LINK = Pattern.compile(";? ?\\(see http://t\\.uber\\.com/nullaway ?\\)");
     private static final Pattern IMPORTED_CLASS = Pattern.compile("^import ([\\w.]+);$");
+    private static final Pattern STATIC_IMPORT = Pattern.compile("^import static ([\\w.]+)\\.\\w+;$");
     private static final Pattern CONSTRAINTS = Pattern.compile("incompatible equality constraints (.+)$");
     private static final Pattern TRY_CHECK = Pattern.compile("^if \\((\\$t\\d+)\\.isErr\\(\\)\\) return Result\\.propagate\\(\\1\\);$");
     private static final Pattern NO_IS_ERR = Pattern.compile("^cannot find symbol; symbol: method isErr\\(\\); location: variable \\$t\\d+ of type (.+)$");
@@ -62,12 +63,13 @@ final class Messages {
 
     private static final String LAMBDA_VALUE = "the lambda returns a value, but nothing is expected here; "
             + "use the value in a call, such as `println(...)`, or remove it";
+    private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
 
     private Messages() {}
 
     /** Messages that javac reports twice for one mistake, at different columns of the same line. */
     static boolean oncePerLine(String translated) {
-        return translated.equals(LAMBDA_VALUE);
+        return translated.equals(LAMBDA_VALUE) || translated.endsWith(UNKNOWN_IMPORTED_CLASS);
     }
 
     /** Warnings about the shape of generated code, which the author cannot change. */
@@ -129,6 +131,11 @@ final class Messages {
             }
             return new Translated(ErrorCode.IMPORT_MEMBER, "`" + name + "` is not a type: for a function write `import fn "
                     + name + "`, for a value `import val " + name + "`");
+        }
+        Matcher staticImport = STATIC_IMPORT.matcher(text.strip());
+        if (staticImport.find() && (message.equals("static import only from classes and interfaces")
+                || message.startsWith("cannot find symbol; symbol: class "))) {
+            return new Translated(ErrorCode.JAVAC, "unknown class `" + staticImport.group(1) + UNKNOWN_IMPORTED_CLASS);
         }
         Matcher duplicate = DUPLICATE_METHOD.matcher(message);
         if (duplicate.find()) {

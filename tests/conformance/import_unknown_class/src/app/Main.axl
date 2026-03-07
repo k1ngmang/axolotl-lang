@@ -1,0 +1,8 @@
+package app
+
+import fn java.lang.Mth.max
+import fn app.Nope.f
+import fn java.util.max
+
+fn main() {
+}
