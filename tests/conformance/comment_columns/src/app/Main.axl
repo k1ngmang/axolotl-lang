@@ -1,0 +1,11 @@
+package app
+
+fn f() {
+    /* note:
+       qq is bad */ val y = qq
+    println(y)
+    val z = "it's" + 'x' + zz /* ' */ + zz
+}
+
+fn main() {
+}

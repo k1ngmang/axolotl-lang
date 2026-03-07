@@ -195,6 +195,11 @@ final class Columns {
     /** Every name outside string and char literals and comments. */
     private static List<Region> names(String line) {
         String code = LITERAL.matcher(line).replaceAll(m -> " ".repeat(m.group().length()));
+        int commentEnd = code.indexOf("*/");
+        if (commentEnd >= 0 && !code.substring(0, commentEnd).contains("/*")) {
+            // The end of a comment that started on an earlier line.
+            code = " ".repeat(commentEnd + 2) + code.substring(commentEnd + 2);
+        }
         code = COMMENT.matcher(code).replaceAll(m -> " ".repeat(m.group().length()));
         List<Region> result = new ArrayList<>();
         Matcher matcher = NAME.matcher(code);
