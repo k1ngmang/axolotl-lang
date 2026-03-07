@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:6:23: error: type mismatch: expected `Int`, found `List`
+AXL100 app/Main.axl:7:5: error: type mismatch: expected `Int`, found `Ok`
+AXL100 app/Main.axl:8:43: error: type mismatch: expected `String`, found `List`
+AXL100 app/Main.axl:13:12: error: `attempt` gives a `Result`, but `Int` is expected

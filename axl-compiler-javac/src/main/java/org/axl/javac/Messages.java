@@ -22,7 +22,9 @@ final class Messages {
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
-    private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
+    private static final Pattern NO_INSTANCE = Pattern.compile(
+            "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+)$");
+    private static final Pattern LOSSY =Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile("^incompatible types: (.+) cannot be converted to (.+)$");
     private static final Pattern BOUNDS = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; (?:equality constraints|upper bounds): (.+?); lower bounds: (.+)$");
@@ -211,6 +213,14 @@ final class Messages {
         }
         if (message.startsWith("incompatible types: inferred type does not conform to upper bound(s)")) {
             return text.contains("Nulls.or(") ? "the two sides of `?:` have different types" : "the types in this expression do not fit together";
+        }
+        Matcher noInstance = NO_INSTANCE.matcher(message);
+        if (noInstance.find()) {
+            String found = axlType(noInstance.group(1).replaceFirst("<.*", ""));
+            String expected = axlType(noInstance.group(2));
+            return found.equals("Result") && text.contains("Result.attempt(")
+                    ? "`attempt` gives a `Result`, but `" + expected + "` is expected"
+                    : "type mismatch: expected `" + expected + "`, found `" + found + "`";
         }
         Matcher lossy = LOSSY.matcher(message);
         if (lossy.find()) {

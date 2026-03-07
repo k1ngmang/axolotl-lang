@@ -1,0 +1,14 @@
+package app
+
+import java.util.List
+
+fn values() -> Result<Int, String> {
+    val a: Int = List.of(1)
+    val b: Int = Ok(1)
+    val c: String = java.util.Collections.emptyList()
+    return Ok(a + b + c.length())
+}
+
+fn parsed(s: String) -> Int {
+    return attempt Integer.parseInt(s) else 0
+}
