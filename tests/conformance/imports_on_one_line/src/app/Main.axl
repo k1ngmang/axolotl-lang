@@ -1,0 +1,5 @@
+package app import java.util.List import java.util.Map
+
+fn main() {
+    println(List.of(1))
+}

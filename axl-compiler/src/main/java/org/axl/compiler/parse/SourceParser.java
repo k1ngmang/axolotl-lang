@@ -112,7 +112,15 @@ public final class SourceParser {
     /** Statements end at the end of a line or at `;`; the grammar alone would take `f() g()` as two. */
     private static void sharedLines(String path, ParseTree node, List<AxlDiagnostic> diagnostics) {
         List<? extends ParserRuleContext> statements = switch (node) {
-            case AxolotlParser.CompilationUnitContext unit -> unit.topLevel();
+            case AxolotlParser.CompilationUnitContext unit -> {
+                List<ParserRuleContext> all = new ArrayList<>();
+                if (unit.packageDecl() != null) {
+                    all.add(unit.packageDecl());
+                }
+                all.addAll(unit.importDecl());
+                all.addAll(unit.topLevel());
+                yield all;
+            }
             case AxolotlParser.BlockContext block -> block.statement();
             case AxolotlParser.LambdaContext lambda -> lambda.statement();
             default -> List.of();
