@@ -1,4 +1,4 @@
 AXL100 app/Main.axl:7:27: error: wrong arguments for `StringBuilder`: got (Int, Int); it takes (), (Int), (String), (CharSequence)
-AXL100 app/Main.axl:8:22: error: wrong arguments for `max`: got (Int, String); it takes (Int, Int), (Long, Long), (Float, Float), (Double, Double)
+AXL100 app/Main.axl:8:22: error: wrong arguments for `max`: got (Int, String); it takes (Int, Int), (Long, Long), (float, float), (Double, Double)
 AXL100 app/Main.axl:9:30: error: type mismatch: expected `Map<String, Int>`, found `HashMap<String, String>`
 AXL100 app/Main.axl:10:48: error: type mismatch: expected `String`, found `Int`

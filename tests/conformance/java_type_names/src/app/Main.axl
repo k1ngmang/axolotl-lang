@@ -1,0 +1,7 @@
+package app
+
+fn letters() {
+    val s: String = 'a'
+    val c: Char = 'b'
+    val r = "x".replace(1, 2)
+}

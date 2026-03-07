@@ -49,7 +49,8 @@ final class Messages {
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
     private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
     private static final Pattern NULLABLE_TYPE = Pattern.compile("@(?:org\\.jspecify\\.annotations\\.)?Nullable ([\\w.]+(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?)");
-    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|float|short|byte|char|Integer|Character)\\b");
+    // Axolotl names only these; `float`, `short` and `byte` keep Java's names, since `Float` would mean the boxed class.
+    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|char|Integer)\\b");
     private static final Pattern GENERATED = Pattern.compile("\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
 
@@ -262,7 +263,8 @@ final class Messages {
                         : memberOwner(location) + " has no field `" + symbol + "`";
                 case "method" -> inThisFile ? "unknown function `" + symbol + "`; check the spelling or add `import fn`"
                         : memberOwner(location) + " has no method `" + symbol + "`";
-                default -> "unknown type `" + symbol + "`; check the spelling or add an import";
+                default -> symbol.equals("Char") ? "unknown type `Char`; a character is a `Character`"
+                        : "unknown type `" + symbol + "`; check the spelling or add an import";
             };
         }
         Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);
@@ -396,7 +398,7 @@ final class Messages {
         type = simpleNames(QUALIFIED_TYPE.matcher(type).replaceAll("$1"));
         return PRIMITIVE.matcher(type).replaceAll(m -> switch (m.group(1)) {
             case "int", "Integer" -> "Int";
-            case "char", "Character" -> "Char";
+            case "char" -> "Character";
             default -> Character.toUpperCase(m.group(1).charAt(0)) + m.group(1).substring(1);
         }).replace(",", ", ").replace(",  ", ", ");
     }
