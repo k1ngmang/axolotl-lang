@@ -1,0 +1,6 @@
+package app
+
+fn invisible() {
+    val a = 1
+    val b =​2
+}

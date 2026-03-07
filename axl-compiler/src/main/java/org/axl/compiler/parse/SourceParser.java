@@ -57,6 +57,18 @@ public final class SourceParser {
         return "unexpected character `" + msg.replaceFirst("^token recognition error at: '", "").replaceFirst("'$", "") + "`";
     }
 
+    /** Characters that cannot be seen are named by their number. */
+    private static String unexpected(int c) {
+        if (Character.isISOControl(c)) {
+            return String.format("unexpected control character U+%04X", c);
+        }
+        int type = Character.getType(c);
+        boolean invisible = Character.isWhitespace(c) || Character.isSpaceChar(c) || type == Character.FORMAT
+                || type == Character.LINE_SEPARATOR || type == Character.PARAGRAPH_SEPARATOR;
+        return invisible ? String.format("unexpected invisible character U+%04X; remove it or type a plain space", c)
+                : "unexpected character `" + Character.toString(c) + "`";
+    }
+
     /** Characters that start no token, names Java would reject, and unclosed strings and comments. */
     private static List<AxlDiagnostic> lexicalErrors(String path, CommonTokenStream tokens) {
         List<AxlDiagnostic> errors = new ArrayList<>();
@@ -70,9 +82,7 @@ public final class SourceParser {
                     case "'" -> adjacent(all, i) && all.get(i + 1).getText().equals("'")
                             ? "a character literal holds one character; put one between the quotes"
                             : "unclosed character literal: add `'`";
-                    default -> Character.isISOControl(t.getText().codePointAt(0))
-                            ? String.format("unexpected control character U+%04X", t.getText().codePointAt(0))
-                            : "unexpected character `" + t.getText() + "`";
+                    default -> unexpected(t.getText().codePointAt(0));
                 };
             } else if (t.getType() == AxolotlLexer.SLASH && i + 1 < all.size() && all.get(i + 1).getType() == AxolotlLexer.STAR
                     && all.get(i + 1).getStartIndex() == t.getStopIndex() + 1) {
