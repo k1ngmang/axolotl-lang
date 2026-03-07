@@ -1,0 +1,11 @@
+package app
+
+fn log(s: String) {}
+fn nothing() {}
+
+fn fallback(s: String?) {
+    val a = s ?: log("a")
+}
+
+fn wrapped(s: String) -> Result<Int, String> = attempt nothing() else "x"
+fn sleeps(s: String) -> Result<Int, String> = attempt Thread.sleep(1) else "x"

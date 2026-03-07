@@ -204,6 +204,12 @@ final class Messages {
             return "a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; "
                     + "write it with a null check: `{ -> if (x != null) { x.m() } }`";
         }
+        if (voidResult && text.contains("Result.attempt(")) {
+            return "`attempt` needs a call that returns a value; this one returns nothing";
+        }
+        if (text.contains("Nulls.or(") && message.endsWith(" is not a functional interface)")) {
+            return "the right side of `?:` returns nothing, so it cannot be the value when the left side is null";
+        }
         if (message.equals("incompatible types: incompatible parameter types in lambda expression")) {
             return "the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`";
         }
@@ -321,8 +327,10 @@ final class Messages {
         }
         Matcher unreported = UNREPORTED.matcher(message);
         if (unreported.find()) {
-            return "this call can throw `" + axlType(unreported.group(1)) + "`, which Axolotl functions cannot pass on; "
-                    + "wrap it in `attempt ... else ...` to turn it into a `Result`";
+            String throwsIt = "this call can throw `" + axlType(unreported.group(1)) + "`";
+            // Inside `attempt` the call is already wrapped; javac only gives up on it because the call returns nothing.
+            return text.contains("Result.attempt(") ? throwsIt + "; `attempt` catches it only around a call that returns a value"
+                    : throwsIt + ", which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`";
         }
         if (message.equals("illegal forward reference")) {
             return "a top-level value is used before it is declared; move its declaration up";
