@@ -31,7 +31,8 @@ final class Messages {
     private static final Pattern UNKNOWN = Pattern.compile("^cannot find symbol; symbol: (variable|method|class) (.+?); location: (.+)$");
     private static final Pattern UNKNOWN_STATIC = Pattern.compile("^cannot find symbol; symbol: static (\\w+); location: \\w+ (.+)$");
     private static final Pattern NOT_APPLICABLE = Pattern.compile(
-            "^method (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
+            "^(?:method|constructor) (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
+    private static final Pattern PRIVATE_ACCESS = Pattern.compile("^(\\w+)(\\(.*\\))? has private access in ([\\w.$]+)$");
     private static final Pattern NO_SUITABLE = Pattern.compile("^no suitable (?:method|constructor) found for (\\w+)\\((.*?)\\);");
     private static final Pattern CANDIDATE = Pattern.compile("(?:method|constructor) [\\w.$<>]+?\\.(?:<[^>]*>)?\\w+\\(([^)]*)\\) is not applicable");
     private static final Pattern BAD_METHOD_REFERENCE = Pattern.compile(
@@ -250,6 +251,14 @@ final class Messages {
         if (notApplicable.find()) {
             return "wrong arguments for `" + notApplicable.group(1) + "`: expected (" + argumentList(notApplicable.group(2))
                     + "), got (" + argumentList(notApplicable.group(3)) + ")";
+        }
+        Matcher privateAccess = PRIVATE_ACCESS.matcher(message);
+        if (privateAccess.find()) {
+            String name = privateAccess.group(1);
+            String owner = simpleNames(axlType(privateAccess.group(3)));
+            boolean constructor = privateAccess.group(2) != null && (owner.equals(name) || owner.endsWith("." + name));
+            return constructor ? "`" + owner + "` cannot be created here: its constructor is private"
+                    : "`" + name + "` is private to `" + owner + "` and can only be used in that file";
         }
         Matcher noSuitable = NO_SUITABLE.matcher(message);
         if (noSuitable.find()) {

@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:6:17: error: wrong arguments for `CountDownLatch`: expected (Int), got ()
+AXL100 app/Main.axl:7:19: error: `Runtime` cannot be created here: its constructor is private
+AXL100 app/Main.axl:8:19: error: `secret` is private to `Other` and can only be used in that file
+AXL100 app/Main.axl:9:19: error: `hidden` is private to `Other` and can only be used in that file

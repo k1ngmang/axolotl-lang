@@ -1,0 +1,4 @@
+package app
+
+private fn secret(n: Int) -> Int = n
+private val hidden: String = "h"

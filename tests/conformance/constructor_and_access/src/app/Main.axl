@@ -1,0 +1,10 @@
+package app
+
+import java.util.concurrent.CountDownLatch
+
+fn main() {
+    val latch = CountDownLatch()
+    val runtime = Runtime()
+    println(Other.secret(1))
+    println(Other.hidden)
+}
