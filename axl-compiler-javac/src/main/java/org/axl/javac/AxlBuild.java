@@ -114,8 +114,7 @@ public final class AxlBuild {
         var translator = new DiagnosticTranslator(generated, display);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
-            // One .axl line becomes several Java lines, which can repeat the same error.
-            if (translated != null && !diagnostics.contains(translated)) {
+            if (translated != null && !repeated(diagnostics, translated)) {
                 diagnostics.add(translated);
             }
         }
@@ -128,6 +127,15 @@ public final class AxlBuild {
         } catch (CharacterCodingException e) {
             throw new IOException(display.apply(axl) + " is not UTF-8 text", e);
         }
+    }
+
+    /** One .axl line becomes several Java lines, which can repeat the same error. */
+    private static boolean repeated(List<AxlDiagnostic> diagnostics, AxlDiagnostic diagnostic) {
+        if (!Messages.oncePerLine(diagnostic.message())) {
+            return diagnostics.contains(diagnostic);
+        }
+        return diagnostics.stream().anyMatch(d -> d.file().equals(diagnostic.file()) && d.line() == diagnostic.line()
+                && d.message().equals(diagnostic.message()));
     }
 
     private static List<AxlDiagnostic> sorted(List<AxlDiagnostic> diagnostics) {

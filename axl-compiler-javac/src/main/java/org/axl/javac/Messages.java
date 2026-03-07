@@ -60,7 +60,15 @@ final class Messages {
     private static final Pattern GENERATED = Pattern.compile("\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
 
+    private static final String LAMBDA_VALUE = "the lambda returns a value, but nothing is expected here; "
+            + "use the value in a call, such as `println(...)`, or remove it";
+
     private Messages() {}
+
+    /** Messages that javac reports twice for one mistake, at different columns of the same line. */
+    static boolean oncePerLine(String translated) {
+        return translated.equals(LAMBDA_VALUE);
+    }
 
     /** Warnings about the shape of generated code, which the author cannot change. */
     static boolean ignored(String message) {
@@ -204,6 +212,14 @@ final class Messages {
         if (voidResult && text.contains("Nulls.map(")) {
             return "a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; "
                     + "write it with a null check: `{ -> if (x != null) { x.m() } }`";
+        }
+        // javac reports a value where nothing is expected twice, once as a missing return value.
+        boolean missingReturnValue = message.equals("incompatible types: bad return type in lambda expression; missing return value");
+        if (missingReturnValue && text.strip().equals("return;")) {
+            return "this lambda must return a value; give `return` one";
+        }
+        if (missingReturnValue || message.startsWith("incompatible types: lambda body is not compatible with a void functional interface")) {
+            return LAMBDA_VALUE;
         }
         if (voidResult && text.contains("Result.attempt(")) {
             return "`attempt` needs a call that returns a value; this one returns nothing";

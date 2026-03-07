@@ -1,0 +1,19 @@
+package app
+
+import java.util.List
+import java.util.function.Supplier
+
+fn values(xs: List<Int>) {
+    xs |> forEach { it * 2 }
+    xs.forEach({ x -> x + 1 })
+    val r: Runnable = { -> 5 }
+}
+
+fn noValue(c: Boolean) {
+    val s: Supplier<Int> = { ->
+        if (c) {
+            return
+        }
+        return 1
+    }
+}

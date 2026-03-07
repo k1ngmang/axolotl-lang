@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:7:21: error: the lambda returns a value, but nothing is expected here; use the value in a call, such as `println(...)`, or remove it
+AXL100 app/Main.axl:8:18: error: the lambda returns a value, but nothing is expected here; use the value in a call, such as `println(...)`, or remove it
+AXL100 app/Main.axl:9:28: error: the lambda returns a value, but nothing is expected here; use the value in a call, such as `println(...)`, or remove it
+AXL100 app/Main.axl:15:13: error: this lambda must return a value; give `return` one
