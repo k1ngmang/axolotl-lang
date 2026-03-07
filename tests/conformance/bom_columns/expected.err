@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:1:27: error: type mismatch: expected `Int`, found `String`
+AXL100 app/Main.axl:1:52: error: unknown name `qq`; check the spelling or add an import
