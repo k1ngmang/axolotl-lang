@@ -14,7 +14,11 @@ final class Messages {
     private static final Pattern DEREFERENCE = Pattern.compile("^\\[NullAway] dereferenced expression '(.+?)' is @Nullable");
     private static final Pattern NULLAWAY_LINK = Pattern.compile(";? ?\\(see http://t\\.uber\\.com/nullaway ?\\)");
     private static final Pattern IMPORTED_CLASS = Pattern.compile("^import ([\\w.]+);$");
-    private static final Pattern CONSTRAINTS = Pattern.compile("equality constraints:? (.+)$");
+    private static final Pattern CONSTRAINTS = Pattern.compile("incompatible equality constraints (.+)$");
+    private static final Pattern TRY_CHECK = Pattern.compile("^if \\((\\$t\\d+)\\.isErr\\(\\)\\) return Result\\.propagate\\(\\1\\);$");
+    private static final Pattern NO_IS_ERR = Pattern.compile("^cannot find symbol; symbol: method isErr\\(\\); location: variable \\$t\\d+ of type (.+)$");
+    private static final Pattern MAP_RESULT_ELEMENT = Pattern.compile(
+            "^incompatible types: (?:axl\\.lang\\.)?Result<(.+?),.+> cannot be converted to (?:axl\\.lang\\.)?Result<(.+),\\?>$");
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
@@ -78,7 +82,7 @@ final class Messages {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, message.substring(NullChecker.PREFIX.length()));
         }
         if (text.contains("Result.propagate(") || text.contains("Result.unwrap(") || text.contains("Result.<")) {
-            Translated tryProblem = tryProblem(message, javaLines, javaLine);
+            Translated tryProblem = tryProblem(message, text, javaLines, javaLine);
             if (tryProblem != null) {
                 return tryProblem;
             }
@@ -293,23 +297,49 @@ final class Messages {
         return message;
     }
 
-    /** `try e` on something that is not a `Result`: javac complains about the code `try` expands to. */
-    private static Translated tryProblem(String message, String[] javaLines, int javaLine) {
-        Translated errorType = tryErrorType(message, javaLines, javaLine);
-        if (errorType != null) {
-            return errorType;
+    /**
+     * `try e` and `mapResult` on something that is not a `Result`: javac complains about the code they expand to.
+     * Only errors in that code count; the rest of a line with `try` is the author's own code.
+     */
+    private static Translated tryProblem(String message, String text, String[] javaLines, int javaLine) {
+        boolean check = TRY_CHECK.matcher(text.strip()).matches();
+        String construct = check && javaLine < javaLines.length && javaLines[javaLine].contains(".add(Result.<")
+                ? "mapResult" : "try";
+        if (check) {
+            Translated errorType = tryErrorType(message, construct, javaLines, javaLine);
+            if (errorType != null) {
+                return errorType;
+            }
         }
-        Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);
+        Matcher element = MAP_RESULT_ELEMENT.matcher(message);
+        if (text.contains(".add(Result.<") && element.find()) {
+            return new Translated(ErrorCode.JAVAC, "`mapResult` gives `" + axlType(element.group(1))
+                    + "` values here, but the list holds `" + axlType(element.group(2)) + "`");
+        }
+        String found = check ? checkedType(message) : null;
         Matcher wrongArgument = WRONG_TRY_ARGUMENT.matcher(javacMessage(message, "", javaLines));
-        String found = notDereferenced.find() ? notDereferenced.group(1) : wrongArgument.find() ? wrongArgument.group(1) : null;
+        if (found == null && wrongArgument.find()) {
+            found = wrongArgument.group(1);
+        }
         if (found == null) {
             return null;
         }
-        return new Translated(ErrorCode.TRY_NOT_RESULT, "`try` needs a `Result`, found `" + axlType(found) + "`");
+        String problem = construct.equals("try") ? "`try` needs a `Result`" : "the lambda of `mapResult` must return a `Result`";
+        return new Translated(ErrorCode.TRY_NOT_RESULT, problem + ", found `" + axlType(found) + "`");
+    }
+
+    /** The type of the value whose `isErr()` the check of `try` calls, when it is not a `Result`. */
+    private static String checkedType(String message) {
+        Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);
+        if (notDereferenced.find()) {
+            return notDereferenced.group(1);
+        }
+        Matcher noIsErr = NO_IS_ERR.matcher(message);
+        return noIsErr.find() ? noIsErr.group(1) : null;
     }
 
     /** `E` of `Result.propagate` is invariant, so a different error type fails inference there. */
-    private static Translated tryErrorType(String message, String[] javaLines, int javaLine) {
+    private static Translated tryErrorType(String message, String construct, String[] javaLines, int javaLine) {
         Matcher constraints = CONSTRAINTS.matcher(message);
         String returnType = enclosingReturnType(javaLines, javaLine);
         if (!constraints.find() || returnType == null) {
@@ -325,7 +355,7 @@ final class Messages {
         if (actual == null) {
             return null;
         }
-        return new Translated(ErrorCode.TRY_ERROR_TYPE, "`try`: the error is `" + actual
+        return new Translated(ErrorCode.TRY_ERROR_TYPE, "`" + construct + "`: the error is `" + actual
                 + "`, but the function returns errors of type `" + expected + "`; convert it with `mapErr`");
     }
 

@@ -1,0 +1,27 @@
+package app
+
+import java.util.List
+
+fn p(s: String) -> Result<Int, String> = Ok(1)
+fn ps(s: String) -> Result<String, String> = Ok("a")
+fn pe(s: String) -> Result<Int, Exception> = Ok(1)
+fn sizes(xs: List<Int>) -> Int = xs.size()
+
+fn sameLine(n: Int, s: String?) -> Result<Int, String> {
+    val a = try p("a") + n.bar()
+    val b = try p("a") + sizes(List.of("x"))
+    val c: Int = s ?: try ps("x")
+    return Ok(a + b + c)
+}
+
+fn notResult(s: String) -> Result<Int, String> {
+    val a = try s
+    val b = try List.of(1)
+    return Ok(a.length() + b.size())
+}
+
+fn mapResults(xs: List<String>) -> Result<Int, String> {
+    val a = xs |> mapResult { pe(it) }
+    val b: List<String> = xs |> mapResult { p(it) }
+    return Ok(a.size() + b.size())
+}
