@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn narrow(d: Double, l: Long, xs: List<Int>) -> Int {
+    val a: Int = 1.5
+    val b: Int = l
+    val c: Long = d
+    val n: Int = xs |> count
+    val ok = Math.toIntExact(l) + Math.toIntExact(Math.round(d))
+    val okLong: Long = Math.round(d)
+    return d
+}

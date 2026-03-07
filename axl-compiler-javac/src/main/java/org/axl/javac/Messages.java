@@ -22,6 +22,7 @@ final class Messages {
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
+    private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile("^incompatible types: (.+) cannot be converted to (.+)$");
     private static final Pattern BOUNDS = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; (?:equality constraints|upper bounds): (.+?); lower bounds: (.+)$");
@@ -211,6 +212,10 @@ final class Messages {
         if (message.startsWith("incompatible types: inferred type does not conform to upper bound(s)")) {
             return text.contains("Nulls.or(") ? "the two sides of `?:` have different types" : "the types in this expression do not fit together";
         }
+        Matcher lossy = LOSSY.matcher(message);
+        if (lossy.find()) {
+            return lossyConversion(lossy.group(1), lossy.group(2));
+        }
         Matcher incompatible = INCOMPATIBLE.matcher(message);
         if (incompatible.find()) {
             return "type mismatch: expected `" + axlType(incompatible.group(2)) + "`, found `" + axlType(incompatible.group(1)) + "`";
@@ -297,6 +302,18 @@ final class Messages {
             return "a top-level value is used before it is declared; move its declaration up";
         }
         return message;
+    }
+
+    /** Axolotl has no casts, so name a method that converts. */
+    private static String lossyConversion(String from, String to) {
+        String conversion = switch (from + " " + to) {
+            case "long int" -> "`Math.toIntExact(x)`";
+            case "double long" -> "`Math.round(x)`";
+            case "double int" -> "`Math.toIntExact(Math.round(x))`";
+            default -> null;
+        };
+        return "`" + axlType(from) + "` does not always fit in `" + axlType(to) + "`; convert it explicitly"
+                + (conversion == null ? "" : ", for example with " + conversion);
     }
 
     /**

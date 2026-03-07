@@ -1,0 +1,5 @@
+AXL100 app/Main.axl:6:18: error: `Double` does not always fit in `Int`; convert it explicitly, for example with `Math.toIntExact(Math.round(x))`
+AXL100 app/Main.axl:7:18: error: `Long` does not always fit in `Int`; convert it explicitly, for example with `Math.toIntExact(x)`
+AXL100 app/Main.axl:8:19: error: `Double` does not always fit in `Long`; convert it explicitly, for example with `Math.round(x)`
+AXL100 app/Main.axl:9:24: error: `Long` does not always fit in `Int`; convert it explicitly, for example with `Math.toIntExact(x)`
+AXL100 app/Main.axl:12:12: error: `Double` does not always fit in `Int`; convert it explicitly, for example with `Math.toIntExact(Math.round(x))`
