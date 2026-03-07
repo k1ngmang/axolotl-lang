@@ -1,0 +1,6 @@
+package app
+
+fn other() {
+    println("😀😀"
+    println(2)
+}

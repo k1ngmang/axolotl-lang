@@ -1,0 +1,6 @@
+package app
+
+val x
+
+fn other() {
+}

@@ -57,6 +57,9 @@ public final class SourceParser {
         return "unexpected character `" + msg.replaceFirst("^token recognition error at: '", "").replaceFirst("'$", "") + "`";
     }
 
+    private static final Set<Integer> DECLARATION_STARTS = Set.of(AxolotlLexer.FN, AxolotlLexer.VAL, AxolotlLexer.VAR,
+            AxolotlLexer.PRIVATE, AxolotlLexer.IMPORT);
+
     /** Characters that cannot be seen are named by their number. */
     private static String unexpected(int c) {
         if (Character.isISOControl(c)) {
@@ -84,6 +87,10 @@ public final class SourceParser {
                             : "unclosed character literal: add `'`";
                     default -> unexpected(t.getText().codePointAt(0));
                 };
+            } else if ((t.getType() == AxolotlLexer.IMPORT || t.getType() == AxolotlLexer.PACKAGE)
+                    && (previousCode(all, i) < 0 || all.get(previousCode(all, i)).getLine() < t.getLine())
+                    && (nextCode(all, i) >= all.size() || all.get(nextCode(all, i)).getLine() > t.getLine())) {
+                message = "`" + t.getText() + "` needs a name after it on the same line";
             } else if (t.getType() == AxolotlLexer.SLASH && i + 1 < all.size() && all.get(i + 1).getType() == AxolotlLexer.STAR
                     && all.get(i + 1).getStartIndex() == t.getStopIndex() + 1) {
                 message = "unclosed comment: add `*/`";
@@ -168,6 +175,14 @@ public final class SourceParser {
         return before < 0 || !Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL,
                 AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL, AxolotlLexer.RPAREN, AxolotlLexer.TRUE,
                 AxolotlLexer.FALSE, AxolotlLexer.NULL).contains(tokens.get(before).getType());
+    }
+
+    private static int nextCode(List<Token> tokens, int i) {
+        int j = i + 1;
+        while (j < tokens.size() && Set.of(AxolotlLexer.WS, AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT).contains(tokens.get(j).getType())) {
+            j++;
+        }
+        return j;
     }
 
     private static int previousCode(List<Token> tokens, int i) {
@@ -360,16 +375,20 @@ public final class SourceParser {
                 int column = charPositionInLine + 1;
                 boolean closes = at == null || at.getType() == Token.EOF || at.getType() == AxolotlLexer.RBRACE
                         || at.getType() == AxolotlLexer.RPAREN;
+                // The next declaration, where the parser notices that the one before is not finished.
+                boolean nextDeclaration = at != null && at.getCharPositionInLine() == 0 && DECLARATION_STARTS.contains(at.getType());
                 // Something missing at the end of a line is reported there, not where the next line starts.
-                if (previous != null && previous.getLine() < line
-                        && (unfinished(previous) || !msg.startsWith("extraneous input")
+                if (previous != null && previous.getLine() < line && previous.getType() != AxolotlLexer.COMMA
+                        && (unfinished(previous) || nextDeclaration || !msg.startsWith("extraneous input")
                         && (closes || msg.startsWith("missing ") || openParens(tokens, previous.getLine()) > 0))) {
                     reportLine = previous.getLine();
-                    column = previous.getCharPositionInLine() + previous.getText().length() + 1;
+                    column = previous.getCharPositionInLine() + previous.getText().codePointCount(0, previous.getText().length()) + 1;
                 }
                 int finalLine = reportLine;
                 String message = reportLine < line && openParens(tokens, reportLine) > 0
                         ? "missing `)` at the end of the line"
+                        : reportLine < line && nextDeclaration && !unfinished(previous)
+                        ? "the declaration is not finished at the end of this line"
                         : previous != null && unfinished(previous) ? "`" + previous.getText() + "` needs "
                                 + (previous.getType() == AxolotlLexer.DOT ? "a name" : "a value") + " after it"
                         : parserMessage(msg, at, tokens);
