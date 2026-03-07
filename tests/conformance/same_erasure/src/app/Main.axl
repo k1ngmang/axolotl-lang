@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+fn total(xs: List<String>) -> Int = xs.size()
+fn total(xs: List<Int>) -> Int = xs.size()
+fn keys(m: Map<String, Int>, n: Int) {}
+fn keys(m: Map<Int, String>, n: Int) {}

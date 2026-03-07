@@ -1,0 +1,2 @@
+AXL010 app/Main.axl:7:4: error: `total(List<Int>)` and `total(List<String>)` differ only in type arguments, which Java does not keep at run time; give one of them another name
+AXL010 app/Main.axl:9:4: error: `keys(Map<Int, String>, Int)` and `keys(Map<String, Int>, Int)` differ only in type arguments, which Java does not keep at run time; give one of them another name

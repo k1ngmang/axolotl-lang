@@ -46,7 +46,8 @@ final class Messages {
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
-    private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
+    private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
+    private static final Pattern VAR_INITIALIZER =Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
     private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
@@ -124,6 +125,12 @@ final class Messages {
         if (duplicate.find()) {
             return new Translated(ErrorCode.DUPLICATE_NAME, "`" + duplicate.group(1)
                     + "` is already declared with the same parameter types");
+        }
+        Matcher clash = NAME_CLASH.matcher(message);
+        if (clash.find()) {
+            return new Translated(ErrorCode.DUPLICATE_NAME, "`" + clash.group(1) + "(" + argumentList(clash.group(2)) + ")` and `"
+                    + clash.group(3) + "(" + argumentList(clash.group(4)) + ")` differ only in type arguments, which Java "
+                    + "does not keep at run time; give one of them another name");
         }
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines)).replaceAll(""));
     }
