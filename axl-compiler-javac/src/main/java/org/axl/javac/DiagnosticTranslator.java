@@ -36,18 +36,19 @@ public final class DiagnosticTranslator {
             return null;
         }
         String message = oneLine(diagnostic.getMessage(Locale.ROOT));
-        if (Messages.ignored(message)) {
-            return null;
-        }
         if (diagnostic.getSource() == null) {
-            return new AxlDiagnostic("javac", 0, 0, severity, ErrorCode.JAVAC, message);
+            return Messages.ignored(message) ? null : new AxlDiagnostic("javac", 0, 0, severity, ErrorCode.JAVAC, message);
         }
         Path javaFile = normalize(Path.of(diagnostic.getSource().toUri()));
         int javaLine = (int) diagnostic.getLineNumber();
         GeneratedSource source = byJavaFile.get(javaFile);
         if (source == null) {
+            // Hand-written Java gets every warning; only generated code has a shape of its own.
             return new AxlDiagnostic(javaDisplay.apply(javaFile), javaLine, (int) diagnostic.getColumnNumber(),
                     severity, ErrorCode.JAVAC, message);
+        }
+        if (Messages.ignored(message)) {
+            return null;
         }
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
         String[] javaLines = source.unit().javaSource().split("\n", -1);

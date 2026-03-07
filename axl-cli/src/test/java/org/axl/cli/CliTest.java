@@ -67,6 +67,17 @@ class CliTest {
     }
 
     @Test
+    void checkShowsWarningsOfHandWrittenJava(@TempDir Path tmp) throws Exception {
+        Files.createDirectories(tmp.resolve("app"));
+        Files.writeString(tmp.resolve("app/Main.axl"), "package app\n\nfn main() {\n    println(J.f(1))\n}\n");
+        Files.writeString(tmp.resolve("app/J.java"), "package app;\n\nclass J {\n    static int f(int x) {\n"
+                + "        int it = 5;\n        return x;\n    }\n}\n");
+        assertEquals(0, axl("check", tmp.toString()), err.toString());
+        String printed = out.toString(StandardCharsets.UTF_8) + err;
+        assertTrue(printed.contains("J.java:5:13: warning: [UnusedVariable]"), printed);
+    }
+
+    @Test
     void checkDeletesDirectoriesLeftByAKilledCheck(@TempDir Path tmp) throws Exception {
         Path killed = Files.createTempDirectory(WorkDirectories.CHECK);
         Files.createFile(killed.resolve(".lock"));
