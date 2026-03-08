@@ -1,0 +1,17 @@
+package app
+
+sealed interface Shape {
+    val name: String
+}
+
+sealed interface Round : Shape
+
+data class Circle(val name: String, val radius: Double) : Round
+
+data class Square(val name: String, val side: Double, val label: String?) : Shape
+
+private data class Hidden(val id: Int)
+
+fn area(shape: Shape) -> Double = 0.0
+
+fn describe(label: String?) -> String = label ?: "none"

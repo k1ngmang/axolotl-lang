@@ -60,7 +60,24 @@ importDecl
 topLevel
     : functionDecl
     | valDecl SEMI?
+    | dataClassDecl
+    | interfaceDecl
     | SEMI
+    ;
+
+// `data class Point(val x: Int, val y: Int) : Shape`; `data` is a word only here.
+dataClassDecl
+    : PRIVATE? {_input.LT(1).getText().equals("data")}? IDENTIFIER CLASS identifier
+      LPAREN (field (COMMA field)*)? RPAREN (COLON type (COMMA type)*)?
+    ;
+
+field
+    : VAL identifier COLON type
+    ;
+
+// `sealed interface Shape { val name: String }`
+interfaceDecl
+    : PRIVATE? SEALED? INTERFACE identifier (COLON type (COMMA type)*)? (LBRACE field* RBRACE)?
     ;
 
 functionDecl
@@ -219,6 +236,9 @@ RETURN  : 'return';
 IF      : 'if';
 ELSE    : 'else';
 WHILE   : 'while';
+CLASS     : 'class';
+INTERFACE : 'interface';
+SEALED    : 'sealed';
 FOR     : 'for';
 TRY     : 'try';
 ATTEMPT : 'attempt';

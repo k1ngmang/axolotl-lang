@@ -1,0 +1,17 @@
+package app
+
+import app.Shapes.Circle
+import app.Shapes.Square
+import app.Shapes.Shape
+
+fn main() {
+    val circle = Circle("c", 2.0)
+    val square = Square("s", 1.5, null)
+    val shapes: java.util.List<Shape> = java.util.List.of(circle, square)
+    println(circle)
+    println(square.label())
+    println(circle.equals(Circle("c", 2.0)))
+    for (shape in shapes) {
+        println(shape.name())
+    }
+}

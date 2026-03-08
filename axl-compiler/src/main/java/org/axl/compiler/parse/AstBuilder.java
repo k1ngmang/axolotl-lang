@@ -44,6 +44,14 @@ final class AstBuilder {
         for (TopLevelContext top : ctx.topLevel()) {
             if (top.functionDecl() != null) {
                 decls.add(function(top.functionDecl()));
+            } else if (top.dataClassDecl() != null) {
+                DataClassDeclContext data = top.dataClassDecl();
+                decls.add(new Decl.DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
+                        name(data.identifier()), fields(data.field()), types(data.type())));
+            } else if (top.interfaceDecl() != null) {
+                InterfaceDeclContext iface = top.interfaceDecl();
+                decls.add(new Decl.Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
+                        name(iface.identifier()), iface.SEALED() != null, fields(iface.field()), types(iface.type())));
             } else if (top.valDecl() != null) {
                 ValDeclContext val = top.valDecl();
                 decls.add(new Decl.Value(pos(val.start), pos(val.identifier().start), val.PRIVATE() != null, name(val.identifier()),
@@ -51,6 +59,14 @@ final class AstBuilder {
             }
         }
         return new SourceFile(path, className, packagePos, packageName, imports, decls);
+    }
+
+    private List<Expr.Param> fields(List<FieldContext> contexts) {
+        return contexts.stream().map(f -> new Expr.Param(pos(f.start), name(f.identifier()), type(f.type()))).toList();
+    }
+
+    private List<TypeRef> types(List<TypeContext> contexts) {
+        return contexts.stream().map(this::type).toList();
     }
 
     private Decl.Function function(FunctionDeclContext ctx) {

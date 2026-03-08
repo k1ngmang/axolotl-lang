@@ -126,6 +126,8 @@ public final class Generator {
                 case Decl.Value value when probed.contains(value.name()) -> { }
                 case Decl.Value value -> emitValue(value);
                 case Decl.Function fn -> emitFunction(fn);
+                case Decl.DataClass data -> emitDataClass(data);
+                case Decl.Interface iface -> emitInterface(iface);
             }
         }
         if (!probed.isEmpty()) {
@@ -142,6 +144,43 @@ public final class Generator {
         copyCount = 0;
         listCount = 0;
         copies = Map.of();
+    }
+
+    private void emitDataClass(Decl.DataClass data) {
+        int line = data.pos().line();
+        em.line(line, visibility(data) + " record " + data.name() + "(" + parameters(data.fields(), line) + ")"
+                + typeList(" implements ", data.supertypes()) + " {}");
+    }
+
+    private void emitInterface(Decl.Interface iface) {
+        int line = iface.pos().line();
+        String head = visibility(iface) + interfaceModifier(iface) + " interface " + iface.name()
+                + typeList(" extends ", iface.supertypes());
+        if (iface.members().isEmpty()) {
+            em.line(line, head + " {}");
+            return;
+        }
+        em.line(line, head + " {");
+        em.indent();
+        for (Expr.Param member : iface.members()) {
+            em.line(member.pos().line(), type(member.type()) + " " + member.name() + "();");
+        }
+        em.dedent();
+        em.line(line, "}");
+    }
+
+    /** Java wants an interface under a sealed one to be sealed or open itself. */
+    private String interfaceModifier(Decl.Interface iface) {
+        if (iface.sealed()) {
+            return " sealed";
+        }
+        boolean underSealed = file.decls().stream().anyMatch(d -> d instanceof Decl.Interface parent && parent.sealed()
+                && iface.supertypes().stream().anyMatch(t -> t.name().equals(parent.name())));
+        return underSealed ? " non-sealed" : "";
+    }
+
+    private static String typeList(String keyword, List<TypeRef> types) {
+        return types.isEmpty() ? "" : keyword + types.stream().map(Generator::type).collect(Collectors.joining(", "));
     }
 
     private void emitValue(Decl.Value value) {
@@ -204,10 +243,14 @@ public final class Generator {
 
     /** A parameter on a line of its own keeps that line, so that errors in its type are found there. */
     private static String parameters(Decl.Function fn) {
+        return parameters(fn.params(), fn.pos().line());
+    }
+
+    private static String parameters(List<Expr.Param> params, int declarationLine) {
         StringBuilder sb = new StringBuilder();
-        int previous = fn.pos().line();
-        for (int i = 0; i < fn.params().size(); i++) {
-            Expr.Param p = fn.params().get(i);
+        int previous = declarationLine;
+        for (int i = 0; i < params.size(); i++) {
+            Expr.Param p = params.get(i);
             String code = type(p.type()) + " " + p.name();
             if (p.pos().line() > previous) {
                 sb.append(i > 0 ? "," : "").append(Emitter.continued(p.pos().line(), code));

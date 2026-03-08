@@ -3,6 +3,7 @@ package org.axl.compiler.check;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,10 @@ public final class Checker {
     private static final Set<String> OBJECT_METHODS = Set.of("toString/0", "hashCode/0", "equals/1", "getClass/0",
             "notify/0", "notifyAll/0", "wait/0", "wait/1", "wait/2", "clone/0", "finalize/0");
 
+    // Methods that a record or an interface member cannot be named after.
+    private static final Set<String> OBJECT_METHOD_NAMES = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
+            "notify", "notifyAll", "wait");
+
     // Where the classes above come from; importing them from there changes nothing.
     private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
 
@@ -101,6 +106,7 @@ public final class Checker {
     private final Set<Expr.Lambda> implicitIt = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> mutableRefs = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> stableNames = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<String> typeNames = new HashSet<>();
     private final Set<Expr.Name> staticNames = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<Expr.Stage, TypeRef> mapResultTypes = new IdentityHashMap<>();
     private Scope scope;
@@ -161,6 +167,8 @@ public final class Checker {
                             "`" + value.name() + "` is already declared at line " + existing.pos().line());
                 }
                 scope.names.put(value.name(), new Symbol(Kind.TOP_LEVEL, value.pos()));
+            } else if (decl instanceof Decl.DataClass || decl instanceof Decl.Interface) {
+                checkTypeName(decl);
             } else {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos()));
             }
@@ -178,6 +186,8 @@ public final class Checker {
             switch (decl) {
                 case Decl.Value value -> topLevelValue(value);
                 case Decl.Function fn -> function(fn);
+                case Decl.DataClass data -> members(data.fields(), "field");
+                case Decl.Interface iface -> members(iface.members(), "member");
             }
         }
         for (InitOrder.Problem problem : InitOrder.check(file)) {
@@ -185,6 +195,31 @@ public final class Checker {
             error(value.namePos(), ErrorCode.INIT_ORDER, "`" + value.name() + "` is computed from `" + problem.later()
                     + "`, which is declared " + (problem.later().equals(value.name()) ? "by itself" : "later")
                     + "; top-level values are set in order, so declare `" + problem.later() + "` first");
+        }
+    }
+
+    private void checkTypeName(Decl decl) {
+        if (!Character.isUpperCase(decl.name().charAt(0))) {
+            error(decl.namePos(), ErrorCode.SYNTAX, "the name of a type starts with a capital letter, as `"
+                    + Character.toUpperCase(decl.name().charAt(0)) + decl.name().substring(1) + "`: "
+                    + "`Name(...)` creates an object");
+        } else if (decl.name().equals(file.className())) {
+            error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "` is also the name of this file's class; "
+                    + "rename the file or the type");
+        } else if (!typeNames.add(decl.name())) {
+            error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "the type `" + decl.name() + "` is already declared in this file");
+        }
+    }
+
+    private void members(List<Expr.Param> members, String what) {
+        Set<String> seen = new HashSet<>();
+        for (Expr.Param member : members) {
+            if (!seen.add(member.name())) {
+                error(member.pos(), ErrorCode.DUPLICATE_NAME, "the " + what + " `" + member.name() + "` is declared twice");
+            } else if (OBJECT_METHOD_NAMES.contains(member.name())) {
+                error(member.pos(), ErrorCode.RESERVED_NAME, "`" + member.name() + "` is a method of every Java object "
+                        + "and cannot be the name of a " + what + "; choose another name");
+            }
         }
     }
 

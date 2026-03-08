@@ -1,0 +1,16 @@
+package app
+
+data class point(val x: Int)
+
+data class Pair(val first: Int, val first: Int)
+
+data class Named(val toString: String)
+
+data class Pair(val left: Int)
+
+interface Types
+
+sealed interface Open {
+    val id: Int
+    val id: Int
+}
