@@ -25,7 +25,7 @@ final class Messages {
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
     private static final Pattern NO_INSTANCE = Pattern.compile(
             "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+)$");
-    private static final Pattern LOSSY =Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
+    private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile(
             "^incompatible types: (?:bad type in conditional expression; )?(.+) cannot be converted to (.+?)(?: \\(.+ is a subtype of .+\\))?$");
     private static final Pattern BOUNDS = Pattern.compile(
@@ -48,12 +48,12 @@ final class Messages {
     private static final Pattern COLLECTION_TYPES = Pattern.compile(
             "^(\\[CollectionIncompatibleType] .*its type )(.+?)( is not compatible with its collection's type argument )(.+)$");
     private static final Pattern FORMAT_TYPE = Pattern.compile("'([\\w.$]+)' cannot be formatted");
-    private static final Pattern ERROR_PRONE_LINK =Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
+    private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
-    private static final Pattern VAR_INITIALIZER =Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
+    private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
     private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
