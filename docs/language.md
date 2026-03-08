@@ -50,12 +50,16 @@ the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `ja
 
 Calls, member access, `+ - * / %`, comparisons, `== !=` (Java's `==`), `&& || !`, string
 concatenation, lambdas and method references `String::length` work as in Java. A call of a
-capitalized name creates an object: `StringBuilder("x")`, `ArrayList<String>()`.
+capitalized name creates an object: `StringBuilder("x")`, `ArrayList<String>()`, also when it is
+qualified by a package: `java.sql.Timestamp(1L)`. Names use the letters A to Z and a to z, digits
+and `_`.
 
 Lambdas are written in braces: `{ x -> x + 1 }`, `{ a, b -> a.compareTo(b) }`. Without an arrow,
 `it` is the parameter if the body uses it: `{ it > 0 }`; `{ -> run() }` takes no parameters. Inside
 a lambda that has `it`, a nested lambda without an arrow reads that `it`; otherwise `it` belongs to
 the innermost lambda that uses it. A lambda with several statements returns its value with `return`.
+A lambda cannot use a `var` that changes, also not inside a `?:`, `?.` or `attempt` in it; copy the
+`var` to a `val` first.
 
 ## Null safety
 
@@ -71,7 +75,12 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   non-null. A nullable field is copied to a local `val` first.
 - `?` in a type argument counts too: `get` on a `List<String?>` returns `String?`, the `it` of a pipe
   over it may be null, `sorted` needs elements that are not null, and `|> first` gives `null` for a
-  null element as for an empty pipe. `add` on an `ArrayList<String>` does not accept null.
+  null element as for an empty pipe. `add` on an `ArrayList<String>` does not accept null. This
+  follows nested type arguments (`Map<String, List<String?>>`), copies such as `ArrayList<>(xs)` and
+  `collect(Collectors.toList())`, and fields of Java generic classes.
+- `Map.get` may return null, as NullAway knows.
+- A method reference is checked like the lambda it stands for: `xs.forEach(Main::print)` on a
+  `List<String?>` needs a `print` that accepts null.
 - A local written with a type without `?` cannot hold a value that may be null, and a lambda passed
   to Java cannot return null where the interface's result type has no `?`: `Supplier<String>` must
   not return null, `Supplier<String?>` may.
@@ -92,13 +101,15 @@ println(System.getenv("HOME")!!.length())   // fine: the check is explicit
 Such a value may not be dereferenced, unboxed, passed to an Axolotl parameter, returned from an
 Axolotl function or stored where the type is written without `?` until it is checked. A top-level
 `val` inferred from it gets a nullable type, a lambda that unannotated Java code calls gets nullable
-parameters, and a reference to an Axolotl function with parameters without `?` cannot be passed to
+parameters (also when an Axolotl function hands it on as a parameter of a JDK interface type), and
+a reference to an Axolotl function with parameters without `?` cannot be passed to
 such code.
 
 Trusted in strict mode: static final fields of the JDK such as `System.out`, constants, the Axolotl
 runtime, `Objects.requireNonNull`, the methods of `String`, `StringBuilder`, `Math` and the number
 classes (except `Integer.getInteger` and `Long.getLong`), `List.of`, `Set.of`, `Map.of`, `toString()`,
-the stream operations that pipes expand to and code in a `@NullMarked` scope.
+the stream operations that pipes expand to, code in a `@NullMarked` scope, and what comes out of a
+type argument written without `?`, such as `get` on a `List<String>`.
 
 ## Errors as values
 
