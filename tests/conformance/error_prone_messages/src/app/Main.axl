@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+
+fn findings(x: Int?, y: Int?, xs: List<String>) {
+    println(x == y)
+    println(xs.contains(1))
+    println(String.format("%d", "x"))
+}

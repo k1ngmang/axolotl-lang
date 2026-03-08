@@ -12,6 +12,31 @@ import org.junit.jupiter.api.io.TempDir;
 class AxlBuildTest {
 
     @Test
+    void wordsWarningsInAxolotlTerms(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                private val never = 3
+
+                private fn unused(a: Int) -> Int = 1
+
+                fn f(s: String) {
+                    println(s.equals(1))
+                    return
+                }
+
+                fn main() {
+                    println(unused(1))
+                }
+                """);
+        assertEquals(List.of(
+                "3:13 `never` is never read",
+                "5:19 `a` is never read",
+                "7:4 [ReturnAtTheEndOfVoidFunction] the `return` at the end of this function is unnecessary",
+                "8:15 [EqualsIncompatibleType] Calling equals on incompatible types String and Int"), warnings);
+    }
+
+    @Test
     void dropsAWarningAtTheSamePlaceAsAnError(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

@@ -44,7 +44,11 @@ final class Messages {
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
     private static final Pattern UNUSED_GENERATED = Pattern.compile("'(?:it|\\$\\w+)'");
     private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
-    private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
+    private static final Pattern EQUALS_TYPES = Pattern.compile("^(\\[EqualsIncompatibleType] .*incompatible types )(.+) and (.+)$");
+    private static final Pattern COLLECTION_TYPES = Pattern.compile(
+            "^(\\[CollectionIncompatibleType] .*its type )(.+?)( is not compatible with its collection's type argument )(.+)$");
+    private static final Pattern FORMAT_TYPE = Pattern.compile("'([\\w.$]+)' cannot be formatted");
+    private static final Pattern ERROR_PRONE_LINK =Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -118,8 +122,7 @@ final class Messages {
         }
         if (message.startsWith("[")) {
             String plain = SUGGESTION.matcher(ERROR_PRONE_LINK.matcher(message).replaceAll("")).replaceAll("");
-            return new Translated(ErrorCode.JAVAC, plain.replaceFirst("^\\[UnusedVariable] The local variable '(\\w+)' is never read",
-                    "`$1` is never read"));
+            return new Translated(ErrorCode.JAVAC, errorProne(plain));
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
@@ -149,6 +152,32 @@ final class Messages {
                     + "does not keep at run time; give one of them another name");
         }
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines)).replaceAll(""));
+    }
+
+    /** Error Prone findings, with Axolotl's names for types and declarations. */
+    private static String errorProne(String message) {
+        if (message.startsWith("[BoxedPrimitiveEquality]")) {
+            return "[BoxedPrimitiveEquality] `==` compares `Int?` values, and numbers taken from collections, as objects "
+                    + "rather than by value; use `java.util.Objects.equals(a, b)`";
+        }
+        if (message.startsWith("[ReturnAtTheEndOfVoidFunction]")) {
+            return "[ReturnAtTheEndOfVoidFunction] the `return` at the end of this function is unnecessary";
+        }
+        Matcher equalsTypes = EQUALS_TYPES.matcher(message);
+        if (equalsTypes.find()) {
+            return equalsTypes.group(1) + axlType(equalsTypes.group(2)) + " and " + axlType(equalsTypes.group(3));
+        }
+        Matcher collectionTypes = COLLECTION_TYPES.matcher(message);
+        if (collectionTypes.find()) {
+            return collectionTypes.group(1) + axlType(collectionTypes.group(2)) + collectionTypes.group(3)
+                    + axlType(collectionTypes.group(4));
+        }
+        Matcher formatType = FORMAT_TYPE.matcher(message);
+        if (formatType.find()) {
+            return formatType.replaceFirst(m -> Matcher.quoteReplacement("'" + axlType(m.group(1)) + "' cannot be formatted"));
+        }
+        return message.replaceFirst("^\\[UnusedVariable] The (?:local variable|parameter|field) '(\\w+)' is never read",
+                "`$1` is never read");
     }
 
     private static Translated nullAway(String message, String text, String[] javaLines) {
