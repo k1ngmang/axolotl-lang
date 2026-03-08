@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:6:5: error: `|>` needs a collection or a stream, found `String`
+AXL100 app/Main.axl:7:5: error: `|>` needs a collection or a stream, found `Map<String, Int>`

@@ -1,0 +1,8 @@
+package app
+
+import java.util.Map
+
+fn f(m: Map<String, Int>) {
+    val a = "abc" |> map { it }
+    val b = m |> filter { it != null }
+}

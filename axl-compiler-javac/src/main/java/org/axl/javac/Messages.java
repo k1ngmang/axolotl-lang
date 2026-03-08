@@ -348,6 +348,11 @@ final class Messages {
             String symbol = axlType(unknown.group(2));
             String location = unknown.group(3);
             boolean inThisFile = location.equals("class " + generatedClass(javaLines));
+            if (symbol.equals("stream()") && text.contains(".stream().")) {
+                int ofType = location.indexOf(" of type ");
+                String type = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
+                return "`|>` needs a collection or a stream, found `" + axlType(type) + "`";
+            }
             return switch (unknown.group(1)) {
                 case "variable" -> inThisFile ? "unknown name `" + symbol + "`; check the spelling or add an import"
                         : memberOwner(location) + " has no field `" + symbol + "`";
