@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val parts = "x".split()
+    val thread = Thread(1)
+}

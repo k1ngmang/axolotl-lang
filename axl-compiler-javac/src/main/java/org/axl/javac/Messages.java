@@ -1,9 +1,13 @@
 package org.axl.javac;
 
+import java.lang.reflect.Executable;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 import org.axl.compiler.ErrorCode;
 
 /** Rewrites javac messages that have a clearer explanation in Axolotl terms. */
@@ -36,7 +40,8 @@ final class Messages {
             "^(?:method|constructor) (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
     private static final Pattern PRIVATE_ACCESS = Pattern.compile("^(\\w+)(\\(.*\\))? has private access in ([\\w.$]+)$");
     private static final Pattern NO_SUITABLE = Pattern.compile("^no suitable (?:method|constructor) found for (\\w+)\\((.*?)\\);");
-    private static final Pattern CANDIDATE = Pattern.compile("(?:method|constructor) [\\w.$<>]+?\\.(?:<[^>]*>)?\\w+\\(([^)]*)\\) is not applicable");
+    private static final Pattern CANDIDATE = Pattern.compile(
+            "(?:method|constructor) ([\\w.$<>]+?)\\.(?:<[^>]*>)?(\\w+)\\(([^)]*)\\) is not applicable");
     private static final Pattern BAD_METHOD_REFERENCE = Pattern.compile(
             "^invalid method reference; cannot find symbol; symbol: method (\\w+)\\(.*?\\); location: \\w+ (.+)$");
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
@@ -331,7 +336,10 @@ final class Messages {
             List<String> candidates = new ArrayList<>();
             Matcher candidate = CANDIDATE.matcher(message);
             while (candidate.find()) {
-                candidates.add("(" + argumentList(candidate.group(1).isEmpty() ? "no arguments" : candidate.group(1)) + ")");
+                String parameters = candidate.group(3);
+                if (!isPrivate(candidate.group(1), candidate.group(2), parameters)) {
+                    candidates.add("(" + argumentList(parameters.isEmpty() ? "no arguments" : parameters) + ")");
+                }
             }
             String got = noSuitable.group(2).isEmpty() ? "" : argumentList(noSuitable.group(2));
             String takes = candidates.size() > 4
@@ -394,6 +402,27 @@ final class Messages {
             return "a top-level value is used before it is declared; move its declaration up";
         }
         return message;
+    }
+
+    /** javac lists private overloads of JDK classes too, which nobody outside can call. */
+    private static boolean isPrivate(String owner, String name, String parameters) {
+        if (!owner.startsWith("java.")) {
+            return false;
+        }
+        Class<?> type;
+        try {
+            type = Class.forName(owner, false, Messages.class.getClassLoader());
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
+        List<String> wanted = splitTopLevel(parameters).stream()
+                .map(p -> p.replaceAll("<.*>", "").replace("...", "[]")).toList();
+        Stream<? extends Executable> candidates = name.equals(type.getSimpleName())
+                ? Arrays.stream(type.getDeclaredConstructors())
+                : Arrays.stream(type.getDeclaredMethods()).filter(m -> m.getName().equals(name));
+        return candidates
+                .filter(e -> Arrays.stream(e.getParameterTypes()).map(p -> p.getTypeName().replace('$', '.')).toList().equals(wanted))
+                .anyMatch(e -> Modifier.isPrivate(e.getModifiers()));
     }
 
     /** Axolotl has no casts, so name a method that converts. */

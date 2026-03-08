@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:4:21: error: wrong arguments for `split`: got (); it takes (String, Int), (String)
+AXL100 app/Main.axl:5:18: error: wrong arguments for `Thread`: got (Int); it takes (Runnable), (String)
