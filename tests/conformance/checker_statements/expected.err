@@ -4,3 +4,4 @@ AXL100 app/Main.axl:10:43: error: `f` is a value, not a function; call its metho
 AXL001 app/Main.axl:12:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
 AXL001 app/Main.axl:14:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
 AXL001 app/Main.axl:16:5: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
+AXL001 app/Main.axl:21:9: error: this expression does nothing on its own; to return it from the lambda, write `return` before it

@@ -105,6 +105,7 @@ public final class Checker {
     private final Map<Expr.Stage, TypeRef> mapResultTypes = new IdentityHashMap<>();
     private Scope scope;
     private Decl.Function function;
+    private Stmt lastInLambda;
     private int lambdaDepth;
     private int safeTailDepth;
     // The written type of the `val` whose initializer is being checked, for `mapResult`.
@@ -295,7 +296,8 @@ public final class Checker {
                             + "to run these statements, remove the braces");
                 } else if (!doesSomething(exprStmt.expr())) {
                     error(exprStmt.expr().pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; "
-                            + "use its value, for example in a `val`, or remove it");
+                            + (stmt == lastInLambda ? "to return it from the lambda, write `return` before it"
+                                    : "use its value, for example in a `val`, or remove it"));
                 }
                 if (exprStmt.expr() instanceof Expr.Try t) {
                     statementTry(t);
@@ -526,7 +528,10 @@ public final class Checker {
             // A lambda of one expression returns its value, so the expression need not do anything.
             expr(single.expr());
         } else {
+            Stmt outerLast = lastInLambda;
+            lastInLambda = lambda.body().isEmpty() ? null : lambda.body().getLast();
             statements(lambda.body());
+            lastInLambda = outerLast;
         }
         lambdaDepth--;
         scope = scope.parent;

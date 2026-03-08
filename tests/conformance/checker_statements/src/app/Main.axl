@@ -15,3 +15,9 @@ fn m11(n: Int) {
     val s: String? = null
     s ?: "y"
 }
+fn m12() {
+    val f: Function<Int, Int> = { x ->
+        println(x)
+        x + 1
+    }
+}
