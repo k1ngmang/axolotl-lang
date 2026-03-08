@@ -170,6 +170,13 @@ final class Symbols {
                     expr(loop.condition(), pos, fn, out);
                     block(loop.body(), pos, fn, out);
                 }
+                case Stmt.For loop -> {
+                    expr(loop.iterable(), pos, fn, out);
+                    if (before(loop.body().pos(), pos) && before(pos, loop.body().end())) {
+                        out.add(new Symbol(loop.name(), Kind.LOCAL, loop.namePos(), null, fn, null));
+                    }
+                    block(loop.body(), pos, fn, out);
+                }
                 case Stmt.Block block -> block(block, pos, fn, out);
                 case Stmt.Assign assign -> expr(assign.value(), pos, fn, out);
                 case Stmt.Return ret -> {

@@ -1,0 +1,2 @@
+AXL008 app/Main.axl:8:9: error: cannot assign to `val` `x`; declare it with `var`
+AXL004 app/Main.axl:10:10: error: `xs` shadows the `xs` declared at line 6; choose another name

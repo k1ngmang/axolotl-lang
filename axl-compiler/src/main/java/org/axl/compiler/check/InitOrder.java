@@ -221,6 +221,10 @@ final class InitOrder {
                 names(w.condition(), hidden, out);
                 statement(w.body(), hidden, out);
             }
+            case Stmt.For f -> {
+                names(f.iterable(), hidden, out);
+                statement(f.body(), with(hidden, Set.of(f.name())), out);
+            }
             case Stmt.ExprStmt e -> names(e.expr(), hidden, out);
             case Stmt.Block b -> statements(b.statements(), hidden, out);
         }

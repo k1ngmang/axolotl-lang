@@ -1,0 +1,37 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.Map
+
+fn names() -> Result<List<String>, String> = Ok(List.of("a", "bb"))
+
+fn total(xs: List<Int>) -> Int {
+    var sum = 0
+    for (x in xs) {
+        sum += x
+    }
+    return sum
+}
+
+fn lengths() -> Result<Int, String> {
+    var count = 0
+    for (name in try names()) {
+        count += name.length()
+    }
+    return Ok(count)
+}
+
+fn main() {
+    println(total(List.of(1, 2, 3)))
+    println(lengths())
+    val seen = ArrayList<String>()
+    for (entry in Map.of("k", 1).entrySet()) {
+        seen.add(entry.getKey() + "=" + entry.getValue())
+    }
+    println(seen)
+    for (word in List.of("x", "y")) {
+        val shout: java.util.function.Supplier<String> = { -> word + "!" }
+        println(shout.get())
+    }
+}

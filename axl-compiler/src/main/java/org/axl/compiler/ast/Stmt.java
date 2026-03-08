@@ -18,6 +18,9 @@ public sealed interface Stmt {
 
     record While(Pos pos, Expr condition, Block body) implements Stmt {}
 
+    /** `for (name in iterable) { ... }`. */
+    record For(Pos pos, Pos namePos, String name, Expr iterable, Block body) implements Stmt {}
+
     record ExprStmt(Pos pos, Expr expr) implements Stmt {}
 
     record Block(Pos pos, List<Stmt> statements, Pos end) implements Stmt {}

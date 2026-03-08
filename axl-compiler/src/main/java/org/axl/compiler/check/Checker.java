@@ -290,6 +290,13 @@ public final class Checker {
                 expr(loop.condition());
                 statements(loop.body().statements());
             }
+            case Stmt.For loop -> {
+                expr(loop.iterable());
+                scope = new Scope(scope, false);
+                declare(loop.namePos(), loop.name(), Kind.LOCAL, null);
+                statements(loop.body().statements());
+                scope = scope.parent;
+            }
             case Stmt.ExprStmt exprStmt -> {
                 if (exprStmt.expr() instanceof Expr.Lambda lambda) {
                     error(lambda.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; "

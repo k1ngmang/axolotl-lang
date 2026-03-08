@@ -428,12 +428,15 @@ final class NullChecker implements TaskListener {
         public Void visitEnhancedForLoop(EnhancedForLoopTree loop, Void unused) {
             scan(loop.getExpression(), null);
             Element variable = trees.getElement(new TreePath(getCurrentPath(), loop.getVariable()));
-            Shape elements = elementShape(loop.getExpression());
+            Shape loopElements = elementShape(loop.getExpression());
             if (variable != null) {
                 inferredLocals.add(variable);
-                shapes.put(variable, elements.nonNull());
+                shapes.put(variable, loopElements.nonNull());
             }
-            Origin elementOrigin = elements.nullable() ? Origin.HIDDEN : Origin.NONE;
+            // NullAway sees the elements of an iterable whose type javac knows with its `?`.
+            boolean seen = shapeAs(shapeOf(typeOf(loop.getExpression()), Map.of()), typeOf(loop.getExpression()),
+                    elements.getTypeElement("java.lang.Iterable")).arg(0).nullable();
+            Origin elementOrigin = !loopElements.nullable() ? Origin.NONE : seen ? Origin.DECLARED : Origin.HIDDEN;
             state = loopBody(null, loop.getStatement(), variable == null ? null : Map.entry(variable, elementOrigin));
             return null;
         }

@@ -273,6 +273,7 @@ public final class Generator {
                 em.line(blockEnd(ifStmt), "}");
             }
             case Stmt.While loop -> emitWhile(loop);
+            case Stmt.For loop -> emitFor(loop);
             case Stmt.ExprStmt exprStmt -> {
                 int line = exprStmt.pos().line();
                 Expr e = withoutParens(exprStmt.expr());
@@ -441,6 +442,14 @@ public final class Generator {
             loop.body().statements().forEach(this::statement);
             em.dedent();
         }
+        em.line(loop.body().end().line(), "}");
+    }
+
+    private void emitFor(Stmt.For loop) {
+        int line = loop.pos().line();
+        withCopies(line, loop.iterable(), () ->
+                em.line(line, "for (final var " + loop.name() + " : " + lifted(line, loop.iterable()).code() + ") {"));
+        block(loop.body());
         em.line(loop.body().end().line(), "}");
     }
 

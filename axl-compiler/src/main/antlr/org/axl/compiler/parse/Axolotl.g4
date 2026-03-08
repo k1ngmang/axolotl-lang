@@ -94,6 +94,7 @@ statement
     | RETURN ({sameLine()}? expression)? SEMI?              # returnStatement
     | ifStatement                                           # ifStatementAlt
     | WHILE LPAREN expression RPAREN block                  # whileStatement
+    | FOR LPAREN identifier {_input.LT(1).getText().equals("in")}? IDENTIFIER expression RPAREN block   # forStatement
     | postfixExpression assignOp expression SEMI?           # assignStatement
     | expression SEMI?                                      # expressionStatement
     | SEMI                                                  # emptyStatement
@@ -218,6 +219,7 @@ RETURN  : 'return';
 IF      : 'if';
 ELSE    : 'else';
 WHILE   : 'while';
+FOR     : 'for';
 TRY     : 'try';
 ATTEMPT : 'attempt';
 TRUE    : 'true';

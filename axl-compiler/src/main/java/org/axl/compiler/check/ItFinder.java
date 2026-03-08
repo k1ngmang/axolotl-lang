@@ -16,6 +16,7 @@ final class ItFinder {
             case Stmt.Return r -> r.value() != null && in(r.value());
             case Stmt.If i -> in(i.condition()) || in(i.then()) || i.elseBranch() != null && in(i.elseBranch());
             case Stmt.While w -> in(w.condition()) || in(w.body());
+            case Stmt.For f -> in(f.iterable()) || in(f.body());
             case Stmt.ExprStmt e -> in(e.expr());
             case Stmt.Block b -> b.statements().stream().anyMatch(this::in);
         };

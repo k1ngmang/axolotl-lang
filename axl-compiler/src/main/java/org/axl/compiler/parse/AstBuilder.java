@@ -100,6 +100,8 @@ final class AstBuilder {
             case IfStatementAltContext s -> ifStatement(s.ifStatement());
             case WhileStatementContext s ->
                     new Stmt.While(pos(s.start), expr(s.expression()), block(s.block()));
+            case ForStatementContext s -> new Stmt.For(pos(s.start), pos(s.identifier().start), name(s.identifier()),
+                    expr(s.expression()), block(s.block()));
             case AssignStatementContext s -> {
                 Expr target = postfix(s.postfixExpression());
                 boolean assignable = target instanceof Expr.Name || target instanceof Expr.Member;

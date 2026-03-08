@@ -118,6 +118,10 @@ final class Captures {
                 visit(w.condition(), inLambda);
                 statement(w.body(), inLambda);
             }
+            case Stmt.For f -> {
+                visit(f.iterable(), inLambda);
+                statement(f.body(), inLambda);
+            }
             case Stmt.ExprStmt e -> visit(e.expr(), inLambda);
             case Stmt.Block b -> b.statements().forEach(s -> statement(s, inLambda));
         }

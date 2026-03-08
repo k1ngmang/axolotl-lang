@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val xs = List.of("a")
+    for (x in xs) {
+        x = "b"
+    }
+    for (xs in xs) {
+        println(xs)
+    }
+}

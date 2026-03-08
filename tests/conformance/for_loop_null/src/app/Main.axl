@@ -1,0 +1,11 @@
+package app
+
+import java.util.List
+
+fn maybe() -> List<String?> = List.of()
+
+fn main() {
+    for (item in maybe()) {
+        println(item.length())
+    }
+}
