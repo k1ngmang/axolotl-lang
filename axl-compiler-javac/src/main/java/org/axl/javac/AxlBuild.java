@@ -118,6 +118,9 @@ public final class AxlBuild {
                 diagnostics.add(translated);
             }
         }
+        // Error Prone can add a weaker warning about the same comparison, such as ReferenceEquality.
+        List<AxlDiagnostic> errors = diagnostics.stream().filter(AxlDiagnostic::isError).toList();
+        diagnostics.removeIf(d -> !d.isError() && errors.stream().anyMatch(e -> samePosition(e, d)));
         return new Result(outcome.success(), sorted(diagnostics), generated);
     }
 
@@ -136,6 +139,10 @@ public final class AxlBuild {
         }
         return diagnostics.stream().anyMatch(d -> d.file().equals(diagnostic.file()) && d.line() == diagnostic.line()
                 && d.message().equals(diagnostic.message()));
+    }
+
+    private static boolean samePosition(AxlDiagnostic a, AxlDiagnostic b) {
+        return a.file().equals(b.file()) && a.line() == b.line() && a.column() == b.column();
     }
 
     private static List<AxlDiagnostic> sorted(List<AxlDiagnostic> diagnostics) {
