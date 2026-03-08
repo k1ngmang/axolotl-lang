@@ -34,6 +34,7 @@ final class ItFinder {
             case Expr.Unary u -> in(u.operand());
             case Expr.Binary b -> in(b.left()) || in(b.right());
             case Expr.Elvis e -> in(e.left()) || in(e.right());
+            case Expr.Is i -> in(i.target());
             case Expr.Paren p -> in(p.inner());
             case Expr.Try t -> in(t.inner());
             case Expr.Attempt a -> in(a.body()) || !"it".equals(a.errorName()) && in(a.handler());

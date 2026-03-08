@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:11:17: error: `node` of type `Node` has no method `text()`
+AXL100 app/Main.axl:17:24: error: `current` of type `Node` has no method `text()`

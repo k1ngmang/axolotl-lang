@@ -471,6 +471,7 @@ public final class Checker {
                 expr(e.left());
                 expr(e.right());
             }
+            case Expr.Is i -> expr(i.target());
             case Expr.Paren p -> expr(p.inner());
             case Expr.Try t -> {
                 checkTryPlace(t.pos(), "`try`");

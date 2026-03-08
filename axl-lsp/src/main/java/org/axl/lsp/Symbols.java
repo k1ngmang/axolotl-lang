@@ -234,6 +234,7 @@ final class Symbols {
                 expr(e.left(), pos, fn, out);
                 expr(e.right(), pos, fn, out);
             }
+            case Expr.Is i -> expr(i.target(), pos, fn, out);
             case Expr.Paren p -> expr(p.inner(), pos, fn, out);
             case Expr.Try t -> expr(t.inner(), pos, fn, out);
             case Expr.Attempt a -> {

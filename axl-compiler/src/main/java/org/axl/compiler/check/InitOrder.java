@@ -82,6 +82,7 @@ final class InitOrder {
                 names(e.left(), hidden, out);
                 names(e.right(), hidden, out);
             }
+            case Expr.Is i -> names(i.target(), hidden, out);
             case Expr.Paren p -> names(p.inner(), hidden, out);
             case Expr.Try t -> names(t.inner(), hidden, out);
             case Expr.Attempt a -> {

@@ -1,0 +1,5 @@
+package app
+
+fn statement(node: Object) {
+    node is String
+}

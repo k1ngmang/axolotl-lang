@@ -70,6 +70,7 @@ public final class TypeInference {
             case Expr.Unary u -> u.op().equals("!") ? simple("Boolean", u.pos()) : of(u.operand());
             case Expr.Binary b -> binary(b);
             case Expr.Elvis e -> elvis(e);
+            case Expr.Is i -> simple("Boolean", i.pos());
             case Expr.Name n -> topLevelValue(n.name());
             case Expr.Call c when c.target() == null -> call(c);
             case Expr.GenericNew g when !g.typeArgs().isEmpty() -> new TypeRef(g.pos(), g.type(), g.typeArgs(), false);

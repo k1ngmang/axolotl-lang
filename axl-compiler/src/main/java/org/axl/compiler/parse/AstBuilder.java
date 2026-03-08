@@ -171,7 +171,16 @@ final class AstBuilder {
     }
 
     private Expr comparison(ComparisonContext ctx) {
-        return leftFold(ctx, ctx.elvis().stream().map(this::elvis).toList());
+        return leftFold(ctx, ctx.isCheck().stream().map(this::isCheck).toList());
+    }
+
+    private Expr isCheck(IsCheckContext ctx) {
+        Expr target = elvis(ctx.elvis());
+        if (ctx.IS() == null) {
+            return target;
+        }
+        QualifiedNameContext type = ctx.qualifiedName();
+        return new Expr.Is(target.pos(), target, new TypeRef(pos(type.start), type.getText(), List.of(), false), ctx.BANG() != null);
     }
 
     private Expr elvis(ElvisContext ctx) {

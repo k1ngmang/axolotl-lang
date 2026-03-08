@@ -147,7 +147,12 @@ equality
     ;
 
 comparison
-    : elvis ((LT | LE | GT | GE) elvis)*
+    : isCheck ((LT | LE | GT | GE) isCheck)*
+    ;
+
+// `x is Circle` and `x !is Circle`; a val or parameter is known as a Circle where the check holds.
+isCheck
+    : elvis ({sameLine()}? BANG? IS qualifiedName)?
     ;
 
 elvis
@@ -236,6 +241,7 @@ RETURN  : 'return';
 IF      : 'if';
 ELSE    : 'else';
 WHILE   : 'while';
+IS        : 'is';
 CLASS     : 'class';
 INTERFACE : 'interface';
 SEALED    : 'sealed';

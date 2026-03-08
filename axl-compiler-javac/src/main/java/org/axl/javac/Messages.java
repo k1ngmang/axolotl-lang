@@ -92,8 +92,26 @@ final class Messages {
      * @param javaLine  1-based line of the diagnostic
      */
     static Translated translate(String message, String[] javaLines, int javaLine) {
-        Translated translated = rewrite(message, javaLines, javaLine);
+        Translated translated = rewrite(withoutFileClass(message, javaLines), javaLines, javaLine);
         return new Translated(translated.code(), hideGenerated(translated.message()));
+    }
+
+    private static final Pattern NESTED_TYPE = Pattern.compile("^\\s*(?:(?:public|private|sealed|non-sealed|static)\\s+)*"
+            + "(?:record|interface|class)\\s+(\\w+)");
+
+    /** The data classes and interfaces of a file are nested in its class, but written without it. */
+    private static String withoutFileClass(String message, String[] javaLines) {
+        String generated = generatedClass(javaLines);
+        String fileClass = generated.substring(generated.lastIndexOf('.') + 1);
+        String result = message;
+        for (String line : javaLines) {
+            Matcher nested = NESTED_TYPE.matcher(line);
+            if (line.startsWith("    ") && !line.startsWith("     ") && nested.find() && !nested.group(1).equals(fileClass)) {
+                result = result.replaceAll("\\b(?:[a-z]\\w*\\.)*" + Pattern.quote(fileClass) + "\\." + nested.group(1) + "\\b",
+                        nested.group(1));
+            }
+        }
+        return result;
     }
 
     private static Translated rewrite(String message, String[] javaLines, int javaLine) {

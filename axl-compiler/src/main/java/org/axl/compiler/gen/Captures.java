@@ -73,6 +73,7 @@ final class Captures {
                 // A right side that needs statements becomes an `if`, not a lambda.
                 visit(e.right(), inLambda || !Lifts.needed(e.right()));
             }
+            case Expr.Is i -> visit(i.target(), inLambda);
             case Expr.Paren p -> visit(p.inner(), inLambda);
             case Expr.Try t -> visit(t.inner(), inLambda);
             case Expr.Attempt a -> {

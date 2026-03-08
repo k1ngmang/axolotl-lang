@@ -2,6 +2,7 @@ package org.axl.compiler.gen;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -51,6 +52,12 @@ public final class Generator {
     private final Set<String> probed;
     private final Set<String> declaredFunctions = new LinkedHashSet<>();
     private Emitter em = new Emitter();
+
+    // Names known as another type here, with the pattern variable that holds them: `x is Circle` makes
+    // `x` read `$s1` where the check holds, as Java scopes pattern variables.
+    private Map<String, String> smart = new HashMap<>();
+    private final Map<Expr.Is, String> patternVariables = new IdentityHashMap<>();
+    private int patternCount;
 
     // Per function: counters of generated names and the copies of captured `var`s.
     private int tempCount;
@@ -143,6 +150,8 @@ public final class Generator {
         exceptionCount = 0;
         copyCount = 0;
         listCount = 0;
+        patternCount = 0;
+        smart = new HashMap<>();
         copies = Map.of();
     }
 
@@ -314,6 +323,7 @@ public final class Generator {
             case Stmt.If ifStmt -> {
                 emitIf(ifStmt, "");
                 em.line(blockEnd(ifStmt), "}");
+                smart = union(smart, narrowedAfter(ifStmt));
             }
             case Stmt.While loop -> emitWhile(loop);
             case Stmt.For loop -> emitFor(loop);
@@ -375,13 +385,14 @@ public final class Generator {
         }
         withCopies(line, ifStmt.condition(), () ->
                 em.line(line, prefix + "if (" + lifted(line, ifStmt.condition()).code() + ") {"));
-        block(ifStmt.then());
+        narrowed(whenTrue(ifStmt.condition()), () -> block(ifStmt.then()));
+        Map<String, String> otherwise = whenFalse(ifStmt.condition());
         switch (ifStmt.elseBranch()) {
             case null -> { }
-            case Stmt.If elseIf -> emitIf(elseIf, "} else ");
+            case Stmt.If elseIf -> narrowed(otherwise, () -> emitIf(elseIf, "} else "));
             case Stmt.Block elseBlock -> {
                 em.line(elseBlock.pos().line(), "} else {");
-                block(elseBlock);
+                narrowed(otherwise, () -> block(elseBlock));
             }
             default -> throw new IllegalStateException();
         }
@@ -446,6 +457,16 @@ public final class Generator {
         };
     }
 
+    /** After `if (x !is T) { return }` the names stay narrowed, as Java introduces them. */
+    private Map<String, String> narrowedAfter(Stmt.If ifStmt) {
+        boolean thenExits = exits(ifStmt.then());
+        boolean elseExits = ifStmt.elseBranch() != null && exits(ifStmt.elseBranch());
+        if (thenExits && !elseExits) {
+            return whenFalse(ifStmt.condition());
+        }
+        return elseExits && !thenExits ? whenTrue(ifStmt.condition()) : Map.of();
+    }
+
     private static int blockEnd(Stmt.If ifStmt) {
         return switch (ifStmt.elseBranch()) {
             case null -> ifStmt.then().end().line();
@@ -459,7 +480,7 @@ public final class Generator {
         int line = loop.pos().line();
         if (Captures.in(loop.condition(), analysis).isEmpty() && !Lifts.needed(loop.condition())) {
             em.line(line, "while (" + expr(loop.condition()) + ") {");
-            block(loop.body());
+            narrowed(whenTrue(loop.condition()), () -> block(loop.body()));
         } else {
             // Copies and lifted `try`s must run on every iteration, before the condition.
             em.line(line, "while (true) {");
@@ -482,7 +503,7 @@ public final class Generator {
                 withCopies(line, loop.condition(), () ->
                         em.line(line, "if (" + negated(lifted(line, loop.condition()).code()) + ") break;"));
             }
-            loop.body().statements().forEach(this::statement);
+            narrowed(whenTrue(loop.condition()), () -> loop.body().statements().forEach(this::statement));
             em.dedent();
         }
         em.line(loop.body().end().line(), "}");
@@ -497,9 +518,11 @@ public final class Generator {
     }
 
     private void block(Stmt.Block block) {
+        Map<String, String> outer = smart;
         em.indent();
         block.statements().forEach(this::statement);
         em.dedent();
+        smart = outer;
     }
 
     /** What is left of a lifted statement may not be a Java statement: `$p1`, `$t1 + 1`, `(f())`. */
@@ -694,6 +717,7 @@ public final class Generator {
     private String expr(Expr expr, boolean inLambda) {
         return switch (expr) {
             case Expr.Literal l -> literal(l.text());
+            case Expr.Name n when smart.containsKey(n.name()) -> smart.get(n.name());
             case Expr.Name n -> inLambda && analysis.mutableRefs().contains(n)
                     ? copies.getOrDefault(n.name(), n.name()) : n.name();
             case Expr.Member m -> chain(Chains.flatten(m), inLambda);
@@ -705,8 +729,12 @@ public final class Generator {
             case Expr.MethodRef r -> expr(r.target(), inLambda) + "::" + r.name();
             case Expr.NotNull n -> "java.util.Objects.requireNonNull(" + expr(n.target(), inLambda) + ")";
             case Expr.Unary u -> unary(u.op(), expr(u.operand(), inLambda));
-            case Expr.Binary b -> joined(expr(b.left(), inLambda), " " + b.op() + " ", expr(b.right(), inLambda),
-                    startLine(b.left()), startLine(b.right()));
+            case Expr.Binary b -> {
+                String left = expr(b.left(), inLambda);
+                String right = narrowed(rightNarrowing(b), () -> expr(b.right(), inLambda));
+                yield joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()));
+            }
+            case Expr.Is i -> typeCheck(i, inLambda);
             case Expr.Elvis e -> elvis(e, expr(e.left(), inLambda));
             // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
             case Expr.Paren p when becomesCall(p.inner()) -> expr(p.inner(), inLambda);
@@ -719,6 +747,69 @@ public final class Generator {
             case Expr.Pipe p -> pipe(expr(p.source(), inLambda), p.source(), p.stages(), a -> expr(a, inLambda), inLambda);
             case Expr.Try t -> throw new IllegalStateException("try at " + t.pos() + " should have been lifted");
         };
+    }
+
+    /** `x instanceof T $s1` when `x` can be narrowed, which a name that never changes can. */
+    private String typeCheck(Expr.Is check, boolean inLambda) {
+        String type = type(check.type());
+        if (!(check.target() instanceof Expr.Name name) || analysis.mutableRefs().contains(name)
+                || analysis.staticNames().contains(name)) {
+            String test = expr(check.target(), inLambda) + " instanceof " + type;
+            return check.negated() ? "!(" + test + ")" : test;
+        }
+        String variable = "$s" + ++patternCount;
+        patternVariables.put(check, variable);
+        String test = expr(name, inLambda) + " instanceof " + type + " " + variable;
+        return check.negated() ? "!(" + test + ")" : test;
+    }
+
+    /** The names a condition narrows where it is true. */
+    private Map<String, String> whenTrue(Expr condition) {
+        return switch (condition) {
+            case Expr.Is i when !i.negated() && patternVariables.containsKey(i) -> Map.of(((Expr.Name) i.target()).name(), patternVariables.get(i));
+            case Expr.Is i when i.negated() -> Map.of();
+            case Expr.Paren p -> whenTrue(p.inner());
+            case Expr.Unary u when u.op().equals("!") -> whenFalse(u.operand());
+            case Expr.Binary b when b.op().equals("&&") -> union(whenTrue(b.left()), whenTrue(b.right()));
+            default -> Map.of();
+        };
+    }
+
+    /** The names a condition narrows where it is false. */
+    private Map<String, String> whenFalse(Expr condition) {
+        return switch (condition) {
+            case Expr.Is i when i.negated() && patternVariables.containsKey(i) -> Map.of(((Expr.Name) i.target()).name(), patternVariables.get(i));
+            case Expr.Paren p -> whenFalse(p.inner());
+            case Expr.Unary u when u.op().equals("!") -> whenTrue(u.operand());
+            case Expr.Binary b when b.op().equals("||") -> union(whenFalse(b.left()), whenFalse(b.right()));
+            default -> Map.of();
+        };
+    }
+
+    private static Map<String, String> union(Map<String, String> a, Map<String, String> b) {
+        Map<String, String> result = new HashMap<>(a);
+        result.putAll(b);
+        return result;
+    }
+
+    /** What the left side of `a && b` or `a || b` narrows in `b`. */
+    private Map<String, String> rightNarrowing(Expr.Binary b) {
+        return b.op().equals("&&") ? whenTrue(b.left()) : b.op().equals("||") ? whenFalse(b.left()) : Map.of();
+    }
+
+    private <T> T narrowed(Map<String, String> names, java.util.function.Supplier<T> body) {
+        Map<String, String> outer = smart;
+        smart = union(outer, names);
+        T result = body.get();
+        smart = outer;
+        return result;
+    }
+
+    private void narrowed(Map<String, String> names, Runnable body) {
+        narrowed(names, () -> {
+            body.run();
+            return null;
+        });
     }
 
     private static boolean becomesCall(Expr expr) {
@@ -851,12 +942,14 @@ public final class Generator {
         }
         Emitter outer = em;
         String outerReturnType = returnType;
+        Map<String, String> outerSmart = smart;
         returnType = null;
         em = new Emitter();
         em.indent();
         body.forEach(this::statement);
         String block = em.embedded();
         em = outer;
+        smart = outerSmart;
         copies = outerCopies;
         returnType = outerReturnType;
         return params + " -> {" + block + Emitter.continuation(lambda.end().line(), "}");
@@ -1038,7 +1131,7 @@ public final class Generator {
         em.line(line, "boolean " + temp + " = " + !and + ";");
         em.line(line, "if (" + (and ? left : negated(left)) + ") {");
         em.indent();
-        em.line(line, temp + " = " + lifted(line, b.right()).code() + ";");
+        em.line(line, temp + " = " + narrowed(rightNarrowing(b), () -> lifted(line, b.right()).code()) + ";");
         em.dedent();
         em.line(line, "}");
         return new Lifted(temp, true);

@@ -28,6 +28,9 @@ public sealed interface Expr {
 
     record Binary(Pos pos, String op, Expr left, Expr right) implements Expr {}
 
+    /** `target is Type` or `target !is Type`; type has no arguments. */
+    record Is(Pos pos, Expr target, TypeRef type, boolean negated) implements Expr {}
+
     record Elvis(Pos pos, Expr left, Expr right) implements Expr {}
 
     record Paren(Pos pos, Expr inner) implements Expr {}

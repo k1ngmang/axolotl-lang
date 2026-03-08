@@ -1,0 +1,53 @@
+package app
+
+sealed interface Node
+
+data class Leaf(val text: String) : Node
+
+data class Pair(val left: Node, val right: Node) : Node
+
+fn describe(node: Node) -> String {
+    if (node is Leaf) {
+        return "leaf " + node.text()
+    }
+    if (node !is Pair) {
+        return "unknown"
+    }
+    return "pair of " + describe(node.left()) + " and " + describe(node.right())
+}
+
+fn isEmptyLeaf(node: Node) -> Boolean = node is Leaf && node.text().isEmpty()
+
+fn isNotLeaf(node: Node) -> Boolean = node !is Leaf || node.text().isEmpty()
+
+fn depth(node: Node) -> Int {
+    var count = 1
+    var current = node
+    while (current is Pair) {
+        count += 1
+        current = Leaf("x")
+    }
+    return count
+}
+
+fn branches(node: Node) -> String {
+    if (node !is Leaf) {
+        return "not a leaf"
+    } else if (node.text().isEmpty()) {
+        return "empty"
+    } else {
+        return node.text()
+    }
+}
+
+fn main() {
+    println(describe(Leaf("a")))
+    println(describe(Pair(Leaf("a"), Leaf("b"))))
+    println(isEmptyLeaf(Leaf("")))
+    println(isEmptyLeaf(Pair(Leaf("a"), Leaf("b"))))
+    println(isNotLeaf(Leaf("a")))
+    println(depth(Pair(Leaf("a"), Leaf("b"))))
+    println(branches(Leaf("")))
+    println(branches(Leaf("z")))
+    println(branches(Pair(Leaf("a"), Leaf("b"))))
+}

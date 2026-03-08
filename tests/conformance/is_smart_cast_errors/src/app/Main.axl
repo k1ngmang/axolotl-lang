@@ -1,0 +1,24 @@
+package app
+
+sealed interface Node
+
+data class Leaf(val text: String) : Node
+
+fn outside(node: Node) -> String {
+    if (node is Leaf) {
+        println("leaf")
+    }
+    return node.text()
+}
+
+fn changing(node: Node) -> String {
+    var current = node
+    if (current is Leaf) {
+        return current.text()
+    }
+    return ""
+}
+
+fn main() {
+    println(outside(Leaf("a")))
+}
