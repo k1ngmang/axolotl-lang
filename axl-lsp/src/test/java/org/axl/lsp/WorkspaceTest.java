@@ -32,6 +32,48 @@ import org.junit.jupiter.api.io.TempDir;
 /** Editor features on a workspace, without the protocol around them. */
 class WorkspaceTest {
 
+    private static final String SHAPES = """
+            package app
+
+            sealed interface Shape {
+                val name: String
+            }
+
+            data class Circle(val name: String, val radius: Double) : Shape
+
+            data class Square(val name: String, val side: Double) : Shape
+
+            fn area(shape: Shape) -> Double = when (shape) {
+                is Circle -> shape.radius()
+                is Square -> {
+                    val side = shape.side()
+                    side * side
+                }
+            }
+
+            fn size(n: Int) -> String = when (n) {
+                1, 2 -> "few"
+                else -> "many"
+            }
+
+            fn describe(shape: Shape) -> String {
+                if (shape is Circle) {
+                    return shape.name()
+                }
+                if (shape !is Square) {
+                    return "other"
+                }
+                val total = when (val e = shape) {
+                    is Square -> e.side()
+                    else -> 0.0
+                }
+                for (x in java.util.List.of(1, 2)) {
+                    println(x + total)
+                }
+                return shape.name()
+            }
+            """;
+
     @TempDir
     Path project;
 
@@ -541,6 +583,38 @@ class WorkspaceTest {
         String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 0).stream().map(CompletionItem::getLabel).toList();
         assertTrue(labels.containsAll(List.of("for", "when", "is", "data", "class", "interface", "sealed")), labels.toString());
+    }
+
+    @Test
+    void acceptsAFileWithDataClassesInterfacesLoopsAndWhen() throws Exception {
+        String uri = open("Shapes.axl", SHAPES);
+        assertEquals(List.of(), errorLines(uri));
+    }
+
+    @Test
+    void completesTheMembersOfADataClassWhereATestNarrowsAValue() throws Exception {
+        String inWhen = open("Shapes.axl", SHAPES.replace("shape.radius()", "shape.ra"));
+        assertTrue(memberNames(inWhen, 11, 25).contains("radius"), memberNames(inWhen, 11, 25).toString());
+        assertFalse(memberNames(inWhen, 11, 25).contains("side"), memberNames(inWhen, 11, 25).toString());
+        String inIf = open("Shapes.axl", SHAPES.replaceFirst("return shape\\.name\\(\\)", "return shape.ra"));
+        assertTrue(memberNames(inIf, 25, 23).contains("radius"), memberNames(inIf, 25, 23).toString());
+    }
+
+    @Test
+    void knowsTheBindingOfAWhenAndTheVariableOfAFor() throws Exception {
+        String uri = open("Shapes.axl", SHAPES);
+        assertTrue(hover(uri, 31, 21).contains("val e: Square"), hover(uri, 31, 21));
+        assertTrue(hover(uri, 35, 16).contains("val x"), hover(uri, 35, 16));
+    }
+
+    @Test
+    void hoversAndGoesToDataClassesAndInterfaces() throws Exception {
+        String uri = open("Shapes.axl", SHAPES);
+        assertTrue(hover(uri, 10, 15).contains("sealed interface Shape"), hover(uri, 10, 15));
+        assertTrue(hover(uri, 11, 7).contains("data class Circle(val name: String, val radius: Double) : Shape"),
+                hover(uri, 11, 7));
+        assertEquals(List.of(2), definitionLines(uri, 10, 15));
+        assertEquals(List.of(6), definitionLines(uri, 11, 7));
     }
 
     @Test

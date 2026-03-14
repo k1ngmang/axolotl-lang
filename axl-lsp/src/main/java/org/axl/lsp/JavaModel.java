@@ -134,7 +134,7 @@ final class JavaModel {
         return result;
     }
 
-    /** A type named in an .axl file: by import, in the same package, in java.lang or axl.lang. */
+    /** A type named in an .axl file: by import, declared in it, in the same package, in java.lang or axl.lang. */
     TypeElement resolveType(SourceFile file, String name) {
         if (name.contains(".")) {
             return elements.getTypeElement(name);
@@ -145,6 +145,10 @@ final class JavaModel {
             }
         }
         String pkg = file.packageName() == null ? "" : file.packageName();
+        if (file.decls().stream().anyMatch(d -> isType(d) && d.name().equals(name))) {
+            // Data classes and interfaces are nested in the class of their file.
+            return elements.getTypeElement((pkg.isEmpty() ? file.className() : pkg + "." + file.className()) + "." + name);
+        }
         for (String candidate : List.of(pkg.isEmpty() ? name : pkg + "." + name, "java.lang." + name, "axl.lang." + name)) {
             TypeElement type = elements.getTypeElement(candidate);
             if (type != null) {
@@ -152,6 +156,10 @@ final class JavaModel {
             }
         }
         return null;
+    }
+
+    private static boolean isType(Decl decl) {
+        return decl instanceof Decl.DataClass || decl instanceof Decl.Interface;
     }
 
     TypeElement resolveType(SourceFile file, TypeRef type) {

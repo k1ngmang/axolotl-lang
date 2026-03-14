@@ -14,7 +14,7 @@ import org.axl.compiler.ast.TypeRef;
 /** Which names are visible at a position of a file, and where they are declared. */
 final class Symbols {
 
-    enum Kind { FUNCTION, VALUE, IMPORTED_FUNCTION, IMPORTED_VALUE, TYPE, PARAMETER, LOCAL, VARIABLE }
+    enum Kind { FUNCTION, VALUE, IMPORTED_FUNCTION, IMPORTED_VALUE, TYPE, DECLARED_TYPE, PARAMETER, LOCAL, VARIABLE }
 
     /**
      * type is null when it is not written in the source; function is set for functions and their
@@ -40,8 +40,8 @@ final class Symbols {
                 case Decl.Function fn -> result.add(new Symbol(fn.name(), Kind.FUNCTION, fn.namePos(), fn.returnType(), fn, null));
                 case Decl.Value value -> result.add(new Symbol(value.name(), Kind.VALUE, value.namePos(), value.type(), null, null));
                 case Decl.ClassDecl classDecl -> { }
-                case Decl.DataClass data -> { }
-                case Decl.Interface iface -> { }
+                case Decl.DataClass data -> result.add(new Symbol(data.name(), Kind.DECLARED_TYPE, data.namePos(), null, null, null));
+                case Decl.Interface iface -> result.add(new Symbol(iface.name(), Kind.DECLARED_TYPE, iface.namePos(), null, null, null));
             }
         }
         Decl enclosing = enclosingDecl(file, pos);
@@ -164,6 +164,10 @@ final class Symbols {
                 }
                 case Stmt.If ifStmt -> {
                     expr(ifStmt.condition(), pos, fn, out);
+                    if (ifStmt.condition() instanceof Expr.Is is && !is.negated() && is.target() instanceof Expr.Name name
+                            && inside(ifStmt.then(), pos)) {
+                        narrow(name.name(), is.type(), out);
+                    }
                     block(ifStmt.then(), pos, fn, out);
                     if (ifStmt.elseBranch() != null) {
                         statements(List.of(ifStmt.elseBranch()), pos, fn, out);
@@ -197,8 +201,23 @@ final class Symbols {
     }
 
     private static void block(Stmt.Block block, Pos pos, Decl.Function fn, List<Symbol> out) {
-        if (before(block.pos(), pos) && before(pos, block.end())) {
+        if (inside(block, pos)) {
             statements(block.statements(), pos, fn, out);
+        }
+    }
+
+    private static boolean inside(Stmt.Block block, Pos pos) {
+        return before(block.pos(), pos) && before(pos, block.end());
+    }
+
+    /** Where a test `x is T` holds, `x` reads as a T: the nearest visible `x` is shadowed by one with that type. */
+    private static void narrow(String name, TypeRef type, List<Symbol> out) {
+        for (int i = out.size() - 1; i >= 0; i--) {
+            Symbol symbol = out.get(i);
+            if (symbol.name().equals(name)) {
+                out.add(new Symbol(name, symbol.kind(), symbol.pos(), type, symbol.function(), symbol.imported()));
+                return;
+            }
         }
     }
 
@@ -238,8 +257,16 @@ final class Symbols {
             case Expr.Is i -> expr(i.target(), pos, fn, out);
             case Expr.When w -> {
                 expr(w.subject(), pos, fn, out);
-                for (Expr.Arm arm : w.arms()) {
-                    statements(arm.body(), pos, fn, out);
+                if (w.bindingName() != null && before(w.bindingPos(), pos) && before(pos, w.end())) {
+                    out.add(new Symbol(w.bindingName(), Kind.LOCAL, w.bindingPos(), null, fn, null));
+                }
+                List<Expr.Arm> arms = w.arms();
+                for (int i = 0; i < arms.size(); i++) {
+                    Pos armEnd = i + 1 < arms.size() ? arms.get(i + 1).pos() : w.end();
+                    if (before(arms.get(i).pos(), pos) && before(pos, armEnd)) {
+                        narrowToArmType(w, arms.get(i), out);
+                        statements(arms.get(i).body(), pos, fn, out);
+                    }
                 }
             }
             case Expr.Paren p -> expr(p.inner(), pos, fn, out);
@@ -262,6 +289,15 @@ final class Symbols {
             }
             case Expr.Literal l -> { }
             case Expr.Name n -> { }
+        }
+    }
+
+    /** In an arm `is T ->`, the subject reads as a T. */
+    private static void narrowToArmType(Expr.When when, Expr.Arm arm, List<Symbol> out) {
+        String subject = when.bindingName() != null ? when.bindingName()
+                : when.subject() instanceof Expr.Name name ? name.name() : null;
+        if (subject != null && arm.conditions().size() == 1 && arm.conditions().getFirst().type() != null) {
+            narrow(subject, arm.conditions().getFirst().type(), out);
         }
     }
 

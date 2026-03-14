@@ -60,6 +60,7 @@ final class Hovers {
             case IMPORTED_FUNCTION -> "import fn " + symbol.imported().name();
             case IMPORTED_VALUE -> "import val " + symbol.imported().name();
             case TYPE -> "import " + symbol.imported().name();
+            case DECLARED_TYPE -> declaration(Symbols.topLevel(document.ast, symbol.name(), () -> null));
             case PARAMETER, LOCAL, VARIABLE -> {
                 String keyword = symbol.kind() == Symbols.Kind.VARIABLE ? "var " : symbol.kind() == Symbols.Kind.LOCAL ? "val " : "";
                 yield keyword + symbol.name() + ": " + type(document, symbol);
@@ -72,6 +73,23 @@ final class Hovers {
             return typeText(symbol.type());
         }
         return JavaModel.display(workspace.javaModel(document.module).typeOf(document.ast, symbol));
+    }
+
+    private static String declaration(Decl decl) {
+        String visibility = decl.isPrivate() ? "private " : "";
+        return switch (decl) {
+            case Decl.DataClass data -> visibility + "data class " + data.name() + data.fields().stream()
+                    .map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"))
+                    + supertypes(data.supertypes());
+            case Decl.Interface iface -> visibility + (iface.sealed() ? "sealed " : "") + "interface " + iface.name()
+                    + supertypes(iface.supertypes());
+            case Decl.Function fn -> signature(fn);
+            case Decl.Value value -> "val " + value.name();
+        };
+    }
+
+    private static String supertypes(List<TypeRef> supertypes) {
+        return supertypes.isEmpty() ? "" : supertypes.stream().map(Hovers::typeText).collect(Collectors.joining(", ", " : ", ""));
     }
 
     static String signature(Decl.Function fn) {
