@@ -17,8 +17,13 @@ import java.util.List;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.intellij.java.PsiJavaTypes;
+import com.intellij.ide.structureView.TreeBasedStructureViewBuilder;
+import org.axl.intellij.highlight.AxlFoldingBuilder;
+import org.axl.intellij.highlight.AxlStructureViewFactory;
+import org.axl.intellij.highlight.AxlSyntaxHighlighter;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
+import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.axl.intellij.psi.AxlVariable;
 import org.axl.intellij.refactor.AxlNamesValidator;
 import org.jetbrains.annotations.NotNull;
@@ -430,6 +435,127 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         List<String> files = myFixture.findUsages(parse).stream()
                 .map(u -> u.getFile().getName()).sorted().toList();
         assertEquals(List.of("Caller.java", "Parse.axl"), files);
+    }
+
+    private static final String SHAPES = """
+            package app
+
+            sealed interface Shape {
+                val name: String
+            }
+
+            data class Circle(val name: String, val radius: Double) : Shape
+
+            fn area(shape: Shape) -> Double = when (shape) {
+                is Circle -> shape.radius()
+                else -> 0.0
+            }
+
+            fn make() -> Shape = Circle("c", 1.0)
+
+            fn total(xs: java.util.List<Int>) -> Int {
+                var sum = 0
+                for (x in xs) {
+                    sum += x
+                }
+                val kind = when (val e = make()) {
+                    is Circle -> e.name()
+                    else -> "other"
+                }
+                return sum
+            }
+            """;
+
+    public void testHasNoErrorsInAFileWithDataClassesInterfacesLoopsAndWhen() {
+        myFixture.configureByText("Shapes.axl", SHAPES);
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testListsDataClassesAndInterfacesWithTheirFields() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Shapes.axl", SHAPES);
+        List<AxlTypeDeclaration> declarations = file.typeDeclarations();
+        assertEquals(List.of("Shape", "Circle"), declarations.stream().map(AxlTypeDeclaration::getName).toList());
+        assertEquals(List.of(true, false), declarations.stream().map(AxlTypeDeclaration::isInterface).toList());
+        assertTrue(declarations.getFirst().isSealed());
+        assertEquals(List.of("name"), declarations.getFirst().fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("name", "radius"), declarations.get(1).fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("area", "make", "total"), file.functions().stream().map(AxlFunction::getName).toList());
+        assertEquals(List.of(), file.values());
+    }
+
+    public void testShowsDataClassesAndInterfacesInTheStructureView() throws Exception {
+        myFixture.configureByText("Shapes.axl", SHAPES);
+        var builder = (TreeBasedStructureViewBuilder) new AxlStructureViewFactory().getStructureViewBuilder(myFixture.getFile());
+        var model = builder.createStructureViewModel(myFixture.getEditor());
+        try {
+            var top = model.getRoot().getChildren();
+            assertEquals(List.of("Shape", "Circle", "area(shape: Shape) -> Double", "make() -> Shape",
+                    "total(xs: java.util.List<Int>) -> Int"),
+                    java.util.Arrays.stream(top).map(e -> e.getPresentation().getPresentableText()).toList());
+            assertEquals(List.of("name: String", "radius: Double"),
+                    java.util.Arrays.stream(top[1].getChildren()).map(e -> e.getPresentation().getPresentableText()).toList());
+        } finally {
+            model.dispose();
+        }
+    }
+
+    public void testFoldsTheBodiesOfWhenAndInterface() {
+        PsiFile file = myFixture.configureByText("Shapes.axl", SHAPES);
+        var document = myFixture.getEditor().getDocument();
+        List<String> folded = java.util.Arrays.stream(new AxlFoldingBuilder().buildFoldRegions(file, document, false))
+                .map(d -> document.getText(d.getRange())).toList();
+        assertTrue(folded.toString(), folded.stream().anyMatch(text -> text.startsWith("{\n    val name: String")));
+        assertTrue(folded.toString(), folded.stream().anyMatch(text -> text.startsWith("{\n    is Circle -> shape.radius()")));
+    }
+
+    public void testResolvesDataClassesInterfacesLoopVariablesAndWhenBindings() {
+        myFixture.configureByText("Shapes.axl", SHAPES.replace("sum += x", "sum += <caret>x"));
+        assertEquals("x", resolveAtCaret().getText());
+        assertTrue(resolveAtCaret() instanceof AxlVariable);
+
+        myFixture.configureByText("Binding.axl", SHAPES.replace("e.name()", "<caret>e.name()"));
+        assertEquals("e", ((AxlVariable) resolveAtCaret()).getName());
+
+        myFixture.configureByText("Type.axl", SHAPES.replace("fn make() -> Shape", "fn make() -> <caret>Shape"));
+        assertEquals("Shape", ((AxlTypeDeclaration) resolveAtCaret()).getName());
+
+        myFixture.configureByText("Test.axl", SHAPES.replace("is Circle -> shape.radius()", "is <caret>Circle -> shape.radius()"));
+        assertEquals("Circle", ((AxlTypeDeclaration) resolveAtCaret()).getName());
+
+        myFixture.configureByText("New.axl", SHAPES.replace("= Circle(\"c\"", "= <caret>Circle(\"c\""));
+        assertEquals("Circle", ((AxlTypeDeclaration) resolveAtCaret()).getName());
+    }
+
+    public void testDoesNotSeeALoopVariableOutsideItsLoop() {
+        myFixture.configureByText("Scope.axl", SHAPES.replace("return sum", "return <caret>x"));
+        assertNull(myFixture.getFile().findReferenceAt(myFixture.getCaretOffset()).resolve());
+    }
+
+    public void testRenamesDataClassesAndTheirUsages() {
+        myFixture.configureByText("Shapes.axl", SHAPES);
+        AxlTypeDeclaration circle = ((AxlFile) myFixture.getFile()).typeDeclarations().get(1);
+        myFixture.renameElement(circle, "Disc");
+        String text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("data class Disc(val name: String"));
+        assertTrue(text, text.contains("is Disc -> shape.radius()"));
+        assertTrue(text, text.contains("= Disc(\"c\", 1.0)"));
+        assertEquals(2, text.split("is Disc", -1).length - 1);
+    }
+
+    public void testFindsTheUsagesOfAnInterface() {
+        myFixture.configureByText("Shapes.axl", SHAPES);
+        AxlTypeDeclaration shape = ((AxlFile) myFixture.getFile()).typeDeclarations().getFirst();
+        assertEquals(3, myFixture.findUsages(shape).size());
+    }
+
+    public void testHighlightsDataAndInAsKeywordsWhereTheyAreOne() {
+        myFixture.configureByText("Shapes.axl", SHAPES);
+        String text = myFixture.getFile().getText();
+        List<String> words = myFixture.doHighlighting().stream()
+                .filter(h -> h.forcedTextAttributesKey == AxlSyntaxHighlighter.KEYWORD)
+                .map(h -> text.substring(h.getStartOffset(), h.getEndOffset())).toList();
+        assertEquals(List.of("data", "in"), words);
     }
 
     public void testConvertsJavaFileToAxolotl() {

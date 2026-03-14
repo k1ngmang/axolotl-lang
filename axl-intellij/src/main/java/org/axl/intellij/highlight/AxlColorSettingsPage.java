@@ -46,9 +46,20 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
                 fn <fn>greet</fn>(name: String?) -> String =
                     "Hello, " + (name?.trim() ?: "stranger")
 
+                sealed interface Shape
+
+                data class Circle(val radius: Double) : Shape
+
+                fn <fn>area</fn>(shape: Shape) -> Double = when (shape) {
+                    is Circle -> 3.14 * shape.radius() * shape.radius()
+                    else -> 0.0
+                }
+
                 fn <fn>main</fn>() {
                     var count = 0
-                    count += 1
+                    for (x in java.util.List.of(1, 2)) {
+                        count += x
+                    }
                     println(greet(null))   // Hello, stranger
                     println(doubled("21"))
                 }

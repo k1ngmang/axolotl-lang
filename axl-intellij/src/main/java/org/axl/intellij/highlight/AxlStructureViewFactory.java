@@ -15,10 +15,11 @@ import java.util.ArrayList;
 import java.util.List;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
+import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 
-/** Top-level functions and values of a file. */
+/** Top-level functions, values, data classes and interfaces of a file, and the fields of the latter two. */
 public final class AxlStructureViewFactory implements PsiStructureViewFactory {
 
     @Override
@@ -27,7 +28,7 @@ public final class AxlStructureViewFactory implements PsiStructureViewFactory {
             @Override
             public @NotNull StructureViewModel createStructureViewModel(Editor editor) {
                 return new StructureViewModelBase(psiFile, editor, new Element((NavigatablePsiElement) psiFile))
-                        .withSuitableClasses(AxlFunction.class, AxlVariable.class);
+                        .withSuitableClasses(AxlFunction.class, AxlVariable.class, AxlTypeDeclaration.class);
             }
         };
     }
@@ -67,13 +68,14 @@ public final class AxlStructureViewFactory implements PsiStructureViewFactory {
 
         @Override
         public TreeElement @NotNull [] getChildren() {
-            if (!(element instanceof AxlFile file)) {
-                return EMPTY_ARRAY;
-            }
             List<TreeElement> children = new ArrayList<>();
-            for (var child : file.getChildren()) {
-                if (child instanceof AxlFunction || child instanceof AxlVariable) {
-                    children.add(new Element((NavigatablePsiElement) child));
+            if (element instanceof AxlTypeDeclaration declaration) {
+                declaration.fields().forEach(field -> children.add(new Element(field)));
+            } else if (element instanceof AxlFile file) {
+                for (var child : file.getChildren()) {
+                    if (child instanceof AxlFunction || child instanceof AxlVariable || child instanceof AxlTypeDeclaration) {
+                        children.add(new Element((NavigatablePsiElement) child));
+                    }
                 }
             }
             return children.toArray(TreeElement[]::new);

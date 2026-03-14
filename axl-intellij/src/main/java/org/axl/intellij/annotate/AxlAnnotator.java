@@ -14,6 +14,7 @@ import org.axl.compiler.ErrorCode;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.intellij.java.PsiJavaTypes;
+import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.highlight.AxlSyntaxHighlighter;
 import org.axl.intellij.parser.AxlElementTypes;
 import org.axl.intellij.psi.AxlFile;
@@ -33,6 +34,10 @@ public final class AxlAnnotator implements Annotator {
         if (element instanceof AxlFunction function && function.getNameIdentifier() != null) {
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(function.getNameIdentifier())
                     .textAttributes(AxlSyntaxHighlighter.FUNCTION_DECLARATION).create();
+        }
+        if (element.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD) {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(element)
+                    .textAttributes(AxlSyntaxHighlighter.KEYWORD).create();
         }
         if (!(element instanceof AxlFile file)) {
             return;

@@ -15,16 +15,16 @@ import org.axl.intellij.psi.AxlImport;
 import org.axl.intellij.psi.AxlPsiElement;
 import org.jetbrains.annotations.NotNull;
 
-/** Folds blocks, lambdas, block comments and the import list. */
+/** Folds blocks, lambdas, the bodies of `when` and `interface`, block comments and the import list. */
 public final class AxlFoldingBuilder extends FoldingBuilderEx {
 
     @Override
     public FoldingDescriptor @NotNull [] buildFoldRegions(@NotNull PsiElement root, @NotNull Document document, boolean quick) {
         List<FoldingDescriptor> regions = new ArrayList<>();
         for (AxlPsiElement element : PsiTreeUtil.findChildrenOfType(root, AxlPsiElement.class)) {
-            var type = element.getNode().getElementType();
-            if ((type == AxlElementTypes.BLOCK || type == AxlElementTypes.LAMBDA) && spansLines(element, document)) {
-                regions.add(new FoldingDescriptor(element.getNode(), element.getTextRange()));
+            TextRange body = bodyOf(element);
+            if (body != null && spansLines(body, document)) {
+                regions.add(new FoldingDescriptor(element.getNode(), body));
             }
         }
         for (PsiElement comment : PsiTreeUtil.findChildrenOfType(root, com.intellij.psi.PsiComment.class)) {
@@ -41,8 +41,24 @@ public final class AxlFoldingBuilder extends FoldingBuilderEx {
         return regions.toArray(FoldingDescriptor.EMPTY_ARRAY);
     }
 
+    /** The braces and what they enclose; the head of a `when` or an `interface` stays visible. */
+    private static TextRange bodyOf(AxlPsiElement element) {
+        var type = element.getNode().getElementType();
+        if (type == AxlElementTypes.BLOCK || type == AxlElementTypes.LAMBDA) {
+            return element.getTextRange();
+        }
+        if (type == AxlElementTypes.WHEN || type == AxlElementTypes.INTERFACE) {
+            ASTNode brace = element.getNode().findChildByType(AxlTokenTypes.LBRACE);
+            return brace == null ? null : new TextRange(brace.getStartOffset(), element.getTextRange().getEndOffset());
+        }
+        return null;
+    }
+
     private static boolean spansLines(PsiElement element, Document document) {
-        TextRange range = element.getTextRange();
+        return spansLines(element.getTextRange(), document);
+    }
+
+    private static boolean spansLines(TextRange range, Document document) {
         return document.getLineNumber(range.getStartOffset()) < document.getLineNumber(range.getEndOffset());
     }
 
