@@ -513,6 +513,37 @@ class WorkspaceTest {
     }
 
     @Test
+    void classifiesTheKeywordsOfLoopsDataClassesAndWhen() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                sealed interface Shape
+                data class Circle(val radius: Double) : Shape
+
+                fn f(shape: Shape, xs: java.util.List<Int>, data: Int, in: Int) -> Int {
+                    for (x in xs) {
+                        println(x is Int)
+                    }
+                    return when (shape) {
+                        is Circle -> data + in
+                        else -> 0
+                    }
+                }
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("2:0:6:keyword", "2:7:9:keyword", "3:0:4:keyword", "3:5:5:keyword",
+                "6:4:3:keyword", "6:9:1:variable", "6:11:2:keyword", "7:18:2:keyword", "9:11:4:keyword",
+                "10:8:2:keyword", "10:21:4:variable", "10:28:2:variable")), tokens.toString());
+    }
+
+    @Test
+    void completesTheKeywordsOfLoopsDataClassesAndWhen() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n");
+        List<String> labels = new Completions(workspace).complete(uri, 3, 0).stream().map(CompletionItem::getLabel).toList();
+        assertTrue(labels.containsAll(List.of("for", "when", "is", "data", "class", "interface", "sealed")), labels.toString());
+    }
+
+    @Test
     void splitsBlockCommentsAtWindowsLineEnds() throws Exception {
         String uri = open("Main.axl", "package app\r\n/* a\r\n b */\r\nfn main() {\r\n}\r\n");
         List<String> tokens = semanticTokens(workspace.document(uri));

@@ -17,8 +17,9 @@ final class SemanticTokensProvider {
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
             AxolotlLexer.VAL, AxolotlLexer.VAR, AxolotlLexer.PRIVATE, AxolotlLexer.RETURN, AxolotlLexer.IF,
-            AxolotlLexer.ELSE, AxolotlLexer.WHILE, AxolotlLexer.TRY, AxolotlLexer.ATTEMPT, AxolotlLexer.TRUE,
-            AxolotlLexer.FALSE, AxolotlLexer.NULL);
+            AxolotlLexer.ELSE, AxolotlLexer.WHILE, AxolotlLexer.FOR, AxolotlLexer.WHEN, AxolotlLexer.IS,
+            AxolotlLexer.CLASS, AxolotlLexer.INTERFACE, AxolotlLexer.SEALED, AxolotlLexer.TRY, AxolotlLexer.ATTEMPT,
+            AxolotlLexer.TRUE, AxolotlLexer.FALSE, AxolotlLexer.NULL);
     private static final Set<Integer> OPERATORS = Set.of(AxolotlLexer.SAFE_DOT, AxolotlLexer.ELVIS, AxolotlLexer.ARROW, AxolotlLexer.PIPE,
             AxolotlLexer.BANGBANG);
 
@@ -76,6 +77,9 @@ final class SemanticTokensProvider {
     private static String name(List<? extends Token> tokens, int index) {
         Token next = neighbour(tokens, index, 1);
         Token previous = neighbour(tokens, index, -1);
+        if (isContextualKeyword(tokens, index, next, previous)) {
+            return "keyword";
+        }
         boolean upperCase = Character.isUpperCase(tokens.get(index).getText().charAt(0));
         String qualified = inDeclaredName(tokens, index, next);
         if (qualified != null) {
@@ -94,6 +98,21 @@ final class SemanticTokensProvider {
             return upperCase && next != null && next.getType() == AxolotlLexer.DOT ? "type" : "property";
         }
         return upperCase ? "type" : "variable";
+    }
+
+    /** `data` before `class`, and `in` in `for (x in xs)`; both are ordinary names elsewhere. */
+    private static boolean isContextualKeyword(List<? extends Token> tokens, int index, Token next, Token previous) {
+        String text = tokens.get(index).getText();
+        if (text.equals("data")) {
+            return next != null && next.getType() == AxolotlLexer.CLASS;
+        }
+        if (text.equals("in")) {
+            int loopVariable = previousIndex(tokens, index);
+            return previous != null && previous.getType() == AxolotlLexer.IDENTIFIER
+                    && type(tokens, previousIndex(tokens, loopVariable)) == AxolotlLexer.LPAREN
+                    && type(tokens, previousIndex(tokens, previousIndex(tokens, loopVariable))) == AxolotlLexer.FOR;
+        }
+        return false;
     }
 
     /**
