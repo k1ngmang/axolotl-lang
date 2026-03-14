@@ -748,7 +748,7 @@ public final class Checker {
     }
 
     private static boolean mentionsIt(List<Stmt> statements) {
-        return statements.stream().anyMatch(new ItFinder()::in);
+        return statements.stream().anyMatch(ItFinder::usesIt);
     }
 
     private void error(Pos pos, ErrorCode code, String message) {

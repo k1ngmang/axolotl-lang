@@ -1,0 +1,42 @@
+package org.axl.compiler.check
+
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Stmt
+
+/*
+ * Looks for a reference to `it` that is not bound by a nested lambda. A nested lambda without `->`
+ * that uses `it` has an `it` of its own.
+ */
+
+fn usesIt(stmt: Stmt) -> Boolean = when (stmt) {
+    is Stmt.Local -> usesIt(stmt.init())
+    is Stmt.Assign -> usesIt(stmt.target()) || usesIt(stmt.value())
+    is Stmt.Return -> stmt.value() != null && usesIt(stmt.value()!!)
+    is Stmt.If -> usesIt(stmt.condition()) || usesIt(stmt.then()) || (stmt.elseBranch() != null && usesIt(stmt.elseBranch()!!))
+    is Stmt.While -> usesIt(stmt.condition()) || usesIt(stmt.body())
+    is Stmt.For -> usesIt(stmt.iterable()) || usesIt(stmt.body())
+    is Stmt.ExprStmt -> usesIt(stmt.expr())
+    is Stmt.Block -> stmt.statements().stream().anyMatch({ usesIt(it) })
+}
+
+fn usesIt(expr: Expr) -> Boolean = when (expr) {
+    is Expr.Literal -> false
+    is Expr.Name -> expr.name().equals("it")
+    is Expr.Member -> usesIt(expr.target())
+    is Expr.Call -> (expr.target() != null && usesIt(expr.target()!!)) || expr.args().stream().anyMatch({ usesIt(it) })
+    is Expr.GenericNew -> expr.args().stream().anyMatch({ usesIt(it) })
+    is Expr.MethodRef -> usesIt(expr.target())
+    is Expr.NotNull -> usesIt(expr.target())
+    is Expr.Unary -> usesIt(expr.operand())
+    is Expr.Binary -> usesIt(expr.left()) || usesIt(expr.right())
+    is Expr.Elvis -> usesIt(expr.left()) || usesIt(expr.right())
+    is Expr.Is -> usesIt(expr.target())
+    is Expr.When -> usesIt(expr.subject()) || expr.arms().stream().anyMatch({ arm -> arm.body().stream().anyMatch({ usesIt(it) }) })
+    is Expr.Paren -> usesIt(expr.inner())
+    is Expr.Try -> usesIt(expr.inner())
+    is Expr.Attempt -> usesIt(expr.body()) || (!"it".equals(expr.errorName()) && usesIt(expr.handler()))
+    is Expr.Lambda -> expr.arrow() && expr.params().stream().noneMatch({ it.name().equals("it") }) && expr.body().stream().anyMatch({ usesIt(it) })
+    is Expr.Pipe -> usesIt(expr.source()) || expr.stages().stream().anyMatch({ stage ->
+        stage.args().stream().anyMatch({ usesIt(it) }) || (stage.lambda() != null && usesIt(stage.lambda()!!))
+    })
+}
