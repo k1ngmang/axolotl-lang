@@ -20,6 +20,8 @@ import org.eclipse.lsp4j.DefinitionParams;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
+import org.eclipse.lsp4j.DocumentSymbol;
+import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.InitializeParams;
@@ -30,11 +32,13 @@ import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
+import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceFolder;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
@@ -69,6 +73,27 @@ class LanguageServerTest {
             public final class Helper {
                 public static String salute(String name) {
                     return "hi " + name;
+                }
+            }
+            """;
+
+    private static final String SHAPES = """
+            package app
+
+            sealed interface Shape {
+                val name: String
+            }
+
+            data class Circle(val name: String, val radius: Double) : Shape
+
+            fn area(shape: Shape) -> Double = when (shape) {
+                is Circle -> shape.radius()
+                else -> 0.0
+            }
+
+            fn main() {
+                for (x in java.util.List.of(1, 2)) {
+                    println(x is Int)
                 }
             }
             """;
@@ -109,6 +134,7 @@ class LanguageServerTest {
         assertEquals(List.of("."), result.getCapabilities().getCompletionProvider().getTriggerCharacters());
         assertTrue(result.getCapabilities().getHoverProvider().getLeft());
         assertTrue(result.getCapabilities().getDefinitionProvider().getLeft());
+        assertTrue(result.getCapabilities().getDocumentSymbolProvider().getLeft());
     }
 
     @AfterEach
@@ -217,6 +243,21 @@ class LanguageServerTest {
         String hover = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(uri()),
                 new Position(4, 12))).get(60, TimeUnit.SECONDS).getContents().getRight().getValue();
         assertTrue(hover.contains("val x: int"), hover);
+    }
+
+    @Test
+    void outlinesDataClassesInterfacesAndFunctions() throws Exception {
+        open(SHAPES);
+        diagnosticsWhere(List::isEmpty);
+        List<DocumentSymbol> symbols = server.getTextDocumentService().documentSymbol(new DocumentSymbolParams(
+                new TextDocumentIdentifier(uri()))).get(30, TimeUnit.SECONDS).stream().map(Either::getRight).toList();
+        assertEquals(List.of("Shape", "Circle", "area", "main"), symbols.stream().map(DocumentSymbol::getName).toList());
+        assertEquals(List.of(SymbolKind.Interface, SymbolKind.Class, SymbolKind.Function, SymbolKind.Function),
+                symbols.stream().map(DocumentSymbol::getKind).toList());
+        assertEquals(List.of("name"), symbols.get(0).getChildren().stream().map(DocumentSymbol::getName).toList());
+        assertEquals(List.of("name", "radius"), symbols.get(1).getChildren().stream().map(DocumentSymbol::getName).toList());
+        assertEquals(new Position(6, 11), symbols.get(1).getSelectionRange().getStart());
+        assertEquals(new Position(6, 40), symbols.get(1).getChildren().get(1).getSelectionRange().getStart());
     }
 
     @Test

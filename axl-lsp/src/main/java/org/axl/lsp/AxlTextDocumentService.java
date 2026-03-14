@@ -10,10 +10,13 @@ import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidCloseTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
 import org.eclipse.lsp4j.DidSaveTextDocumentParams;
+import org.eclipse.lsp4j.DocumentSymbol;
+import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.Hover;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
+import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.SemanticTokens;
 import org.eclipse.lsp4j.SemanticTokensParams;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
@@ -25,12 +28,14 @@ final class AxlTextDocumentService implements TextDocumentService {
     private final Completions completions;
     private final Definitions definitions;
     private final Hovers hovers;
+    private final Outline outline;
 
     AxlTextDocumentService(Workspace workspace) {
         this.workspace = workspace;
         this.completions = new Completions(workspace);
         this.definitions = new Definitions(workspace);
         this.hovers = new Hovers(workspace);
+        this.outline = new Outline(workspace);
     }
 
     @Override
@@ -84,6 +89,12 @@ final class AxlTextDocumentService implements TextDocumentService {
     public CompletableFuture<Hover> hover(HoverParams params) {
         return workspace.submit(() -> hovers.hover(params.getTextDocument().getUri(),
                 params.getPosition().getLine(), params.getPosition().getCharacter()));
+    }
+
+    @Override
+    public CompletableFuture<List<Either<SymbolInformation, DocumentSymbol>>> documentSymbol(DocumentSymbolParams params) {
+        return workspace.submit(() -> outline.symbols(params.getTextDocument().getUri()).stream()
+                .map(Either::<SymbolInformation, DocumentSymbol>forRight).toList());
     }
 
     @Override

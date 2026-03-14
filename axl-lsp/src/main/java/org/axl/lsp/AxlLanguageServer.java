@@ -76,6 +76,7 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
         capabilities.setCompletionProvider(new CompletionOptions(false, List.of(".")));
         capabilities.setDefinitionProvider(true);
         capabilities.setHoverProvider(true);
+        capabilities.setDocumentSymbolProvider(true);
         capabilities.setSemanticTokensProvider(new SemanticTokensWithRegistrationOptions(SemanticTokensProvider.LEGEND, true));
         capabilities.setExecuteCommandProvider(new ExecuteCommandOptions(List.of(SHOW_GENERATED_JAVA)));
         return capabilities;
