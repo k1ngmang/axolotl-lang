@@ -5,7 +5,11 @@ import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.testFramework.fixtures.BasePlatformTestCase;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
+import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
 
 /** Syntax errors in IntelliJ are the ones the compiler reports. */
@@ -54,6 +58,93 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(0, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
         file = myFixture.configureByText("New.axl", "package app\n\nfn f() = Box<java.util.List<String>>(1)\n");
         assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
+    }
+
+    private static final String SHAPES = """
+            package app
+
+            sealed interface Shape : Named {
+                val name: String
+            }
+
+            private interface Named
+
+            data class Circle(val name: String, val radius: Double) : Shape, Named
+
+            private data class Empty()
+
+            fn area(shape: Shape) -> Double = when (shape) {
+                is Circle -> 3.0 * shape.radius()
+                else -> 0.0
+            }
+
+            fn size(n: Int) -> String = when (n) {
+                1, 2 -> "few"
+                else -> "many"
+            }
+
+            fn describe(shape: Shape) -> String {
+                if (shape !is Circle) {
+                    return "other"
+                }
+                val total = when (val e = shape) {
+                    is Circle -> {
+                        val r = e.radius()
+                        r * r
+                    }
+                    is Empty, is Circle -> 0.0
+                }
+                for (x in java.util.List.of(1, 2)) {
+                    println(x is Int && shape is Circle)
+                }
+                return shape.name()
+            }
+            """;
+
+    public void testAcceptsDataClassesInterfacesLoopsTypeTestsAndWhen() {
+        PsiFile file = myFixture.configureByText("Shapes.axl", SHAPES);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.FOR).length);
+        assertEquals(3, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.IS_CHECK).length);
+        assertEquals(6, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.WHEN_ARM).length);
+    }
+
+    public void testParsesTheConformanceCasesOfTheNewSyntax() throws IOException {
+        for (String name : List.of("for_loops/src/app/Main", "data_classes/src/app/Shapes", "data_classes/src/app/Main",
+                "is_smart_cast/src/app/Main", "when_expressions/src/app/Main")) {
+            String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
+            PsiFile file = myFixture.configureByText("Case.axl", text);
+            assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        }
+    }
+
+    public void testEndsATypeTestAtALineBreak() {
+        PsiFile file = myFixture.configureByText("Arms.axl", "package app\n\nfn f(s: Shape) = when (s) {\n    is A -> s\n"
+                + "    is B -> s\n}\n");
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(0, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.IS_CHECK).length);
+        assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.WHEN_ARM).length);
+    }
+
+    public void testKeepsDataAndInAsNamesOutsideTheirPlaces() {
+        PsiFile file = myFixture.configureByText("Names.axl", "package app\n\nfn f(data: Int, in: Int) = data + in\n");
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(0, PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD).length);
+        file = myFixture.configureByText("Words.axl", "package app\n\ndata class P(val x: Int)\n\nfn f() {\n    for (x in g()) {\n    }\n}\n");
+        assertEquals(2, PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD).length);
+    }
+
+    public void testRejectsWhatTheGrammarRejectsInNewConstructs() {
+        assertErrors("data class P(x: Int)\n");
+        assertErrors("data class P(val x: Int\n");
+        assertErrors("interface I { fn f() {} }\n");
+        assertErrors("fn f(xs: List<Int>) {\n    for (x xs) {\n    }\n}\n");
+        assertErrors("fn f(xs: List<Int>) {\n    for (x in xs) println(x)\n}\n");
+        assertErrors("fn f(n: Int) = when (n) {\n    foo -> 1\n}\n");
+        assertErrors("fn f(n: Int) = when (n) {\n    1 2\n}\n");
+        assertErrors("fn f(n: Int) {\n    n is Int = 1\n}\n");
     }
 
     private int calls(String body) {

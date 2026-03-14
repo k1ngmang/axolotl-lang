@@ -57,6 +57,10 @@ public final class AxlFile extends PsiFileBase {
         return PsiTreeUtil.getChildrenOfTypeAsList(this, AxlFunction.class);
     }
 
+    public List<AxlTypeDeclaration> typeDeclarations() {
+        return PsiTreeUtil.getChildrenOfTypeAsList(this, AxlTypeDeclaration.class);
+    }
+
     public List<AxlVariable> values() {
         return PsiTreeUtil.getChildrenOfTypeAsList(this, AxlVariable.class);
     }

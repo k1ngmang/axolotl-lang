@@ -12,7 +12,7 @@ import org.axl.intellij.lexer.AxlTokenTypes;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-/** A `val`, a `var`, a parameter or a lambda parameter. */
+/** A `val`, a `var`, a parameter, a lambda parameter, a loop variable or a field of a data class or an interface. */
 public final class AxlVariable extends AxlNamedElement {
 
     public AxlVariable(ASTNode node) {
@@ -57,6 +57,9 @@ public final class AxlVariable extends AxlNamedElement {
 
             @Override
             public Icon getIcon(boolean unused) {
+                if (getParent() instanceof AxlTypeDeclaration) {
+                    return com.intellij.icons.AllIcons.Nodes.Field;
+                }
                 return isTopLevel() ? com.intellij.icons.AllIcons.Nodes.Constant : com.intellij.icons.AllIcons.Nodes.Variable;
             }
         };

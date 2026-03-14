@@ -87,11 +87,95 @@ public final class AxlParser implements PsiParser {
         } else if (at(VAL) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(VAL)) {
             variable();
             consume(SEMI);
+        } else if (atDataClass()) {
+            dataClass();
+        } else if (atInterface()) {
+            interfaceDeclaration();
         } else if (at(SEMI)) {
             b.advanceLexer();
         } else {
-            skip("`fn` or `val` expected");
+            skip("`fn`, `val`, `data class` or `interface` expected");
         }
+    }
+
+    /** `data` is a word only before `class`; an identifier followed by `class` cannot be anything else. */
+    private boolean atDataClass() {
+        int word = at(PRIVATE) ? 1 : 0;
+        return b.lookAhead(word) == AxlTokenTypes.IDENTIFIER && b.lookAhead(word + 1) == AxlTokenTypes.of(CLASS);
+    }
+
+    private boolean atInterface() {
+        int modifiers = at(PRIVATE) ? 1 : 0;
+        if (b.lookAhead(modifiers) == AxlTokenTypes.of(SEALED)) {
+            modifiers++;
+        }
+        return b.lookAhead(modifiers) == AxlTokenTypes.of(INTERFACE);
+    }
+
+    private void dataClass() {
+        PsiBuilder.Marker m = b.mark();
+        consume(PRIVATE);
+        if ("data".equals(b.getTokenText())) {
+            b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+        } else {
+            b.error("`data` expected");
+        }
+        b.advanceLexer();
+        b.advanceLexer();
+        expect(IDENTIFIER, "class name expected");
+        if (expect(LPAREN, "`(` expected")) {
+            if (!at(RPAREN)) {
+                do {
+                    field();
+                } while (consume(COMMA));
+            }
+            expect(RPAREN, "`)` expected");
+        }
+        supertypes();
+        m.done(AxlElementTypes.DATA_CLASS);
+    }
+
+    private void interfaceDeclaration() {
+        PsiBuilder.Marker m = b.mark();
+        consume(PRIVATE);
+        consume(SEALED);
+        b.advanceLexer();
+        expect(IDENTIFIER, "interface name expected");
+        supertypes();
+        if (consume(LBRACE)) {
+            while (!at(RBRACE) && !b.eof()) {
+                if (at(VAL)) {
+                    field();
+                } else {
+                    skip("`val` expected");
+                }
+            }
+            expect(RBRACE, "`}` expected");
+        }
+        m.done(AxlElementTypes.INTERFACE);
+    }
+
+    /** `: Shape, Other` after the name of a data class or an interface. */
+    private void supertypes() {
+        if (consume(COLON)) {
+            do {
+                type();
+            } while (consume(COMMA));
+        }
+    }
+
+    /** `val name: Type`, a component of a data class or a value an interface requires. */
+    private void field() {
+        PsiBuilder.Marker m = b.mark();
+        if (!expect(VAL, "`val` expected")) {
+            m.drop();
+            return;
+        }
+        expect(IDENTIFIER, "name expected");
+        if (expect(COLON, "`:` expected")) {
+            type();
+        }
+        m.done(AxlElementTypes.FIELD);
     }
 
     private void function() {
@@ -204,6 +288,8 @@ public final class AxlParser implements PsiParser {
             condition();
             block(LBRACE);
             m.done(AxlElementTypes.WHILE);
+        } else if (at(FOR)) {
+            forStatement();
         } else if (at(SEMI)) {
             b.advanceLexer();
         } else if (startsExpression()) {
@@ -230,6 +316,29 @@ public final class AxlParser implements PsiParser {
         }
     }
 
+    private void forStatement() {
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        if (expect(LPAREN, "`(` expected")) {
+            PsiBuilder.Marker variable = b.mark();
+            if (expect(IDENTIFIER, "loop variable expected")) {
+                variable.done(AxlElementTypes.LOOP_VARIABLE);
+            } else {
+                variable.drop();
+            }
+            if (at(IDENTIFIER) && "in".equals(b.getTokenText())) {
+                b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+                b.advanceLexer();
+            } else {
+                b.error("`in` expected");
+            }
+            expression();
+            expect(RPAREN, "`)` expected");
+        }
+        block(LBRACE);
+        m.done(AxlElementTypes.FOR);
+    }
+
     /** The grammar assigns only to a primary expression with postfix operators. */
     private static boolean isPostfix(LighterASTNode expression) {
         if (expression == null) {
@@ -237,7 +346,8 @@ public final class AxlParser implements PsiParser {
         }
         IElementType type = expression.getTokenType();
         return type != AxlElementTypes.BINARY && type != AxlElementTypes.UNARY && type != AxlElementTypes.ELVIS
-                && type != AxlElementTypes.PIPE && type != AxlElementTypes.TRY && type != AxlElementTypes.ATTEMPT;
+                && type != AxlElementTypes.PIPE && type != AxlElementTypes.TRY && type != AxlElementTypes.ATTEMPT
+                && type != AxlElementTypes.IS_CHECK;
     }
 
     private void ifStatement() {
@@ -273,7 +383,7 @@ public final class AxlParser implements PsiParser {
     private boolean startsExpression() {
         return at(IDENTIFIER) || at(INT_LITERAL) || at(FLOAT_LITERAL) || at(STRING_LITERAL) || at(CHAR_LITERAL)
                 || at(TRUE) || at(FALSE) || at(NULL) || at(LPAREN) || at(LBRACE) || at(BANG) || at(BANGBANG)
-                || at(MINUS) || at(PLUS) || at(TRY) || at(ATTEMPT);
+                || at(MINUS) || at(PLUS) || at(TRY) || at(ATTEMPT) || at(WHEN);
     }
 
     private void expression() {
@@ -308,18 +418,12 @@ public final class AxlParser implements PsiParser {
             prefix();
             return;
         }
-        PsiBuilder.Marker left = b.mark();
-        binary(level + 1);
         if (level == ELVIS_LEVEL) {
-            if (at(ELVIS)) {
-                b.advanceLexer();
-                binary(level);
-                left.done(AxlElementTypes.ELVIS);
-            } else {
-                left.drop();
-            }
+            typeTest();
             return;
         }
+        PsiBuilder.Marker left = b.mark();
+        binary(level + 1);
         while (atAny(LEVELS[level]) && (level != 5 || !newlineBefore())) {
             b.advanceLexer();
             binary(level + 1);
@@ -327,6 +431,40 @@ public final class AxlParser implements PsiParser {
             left = left.precede();
         }
         left.drop();
+    }
+
+    /** `x is Circle` and `x !is Circle`, which bind weaker than `?:` and stay on the line of `x`. */
+    private void typeTest() {
+        PsiBuilder.Marker m = b.mark();
+        elvis();
+        boolean negated = at(BANG) && b.lookAhead(1) == AxlTokenTypes.of(IS);
+        if (!newlineBefore() && (negated || at(IS))) {
+            consume(BANG);
+            b.advanceLexer();
+            typeName();
+            m.done(AxlElementTypes.IS_CHECK);
+        } else {
+            m.drop();
+        }
+    }
+
+    private void elvis() {
+        PsiBuilder.Marker left = b.mark();
+        binary(ELVIS_LEVEL + 1);
+        if (at(ELVIS)) {
+            b.advanceLexer();
+            elvis();
+            left.done(AxlElementTypes.ELVIS);
+        } else {
+            left.drop();
+        }
+    }
+
+    /** A type without arguments, as after `is`. */
+    private void typeName() {
+        PsiBuilder.Marker m = b.mark();
+        referenceChain();
+        m.done(AxlElementTypes.TYPE);
     }
 
     private void prefix() {
@@ -388,7 +526,7 @@ public final class AxlParser implements PsiParser {
 
     /** The completed marker of the primary expression, which postfix operators wrap; null on error. */
     private PsiBuilder.Marker primary() {
-        if (at(INT_LITERAL) || at(FLOAT_LITERAL) || at(STRING_LITERAL) || at(CHAR_LITERAL) || at(TRUE) || at(FALSE) || at(NULL)) {
+        if (atLiteral()) {
             PsiBuilder.Marker m = b.mark();
             b.advanceLexer();
             m.done(AxlElementTypes.LITERAL);
@@ -418,8 +556,76 @@ public final class AxlParser implements PsiParser {
         if (at(LBRACE)) {
             return lambda();
         }
+        if (at(WHEN)) {
+            return whenExpression();
+        }
         b.error("expression expected");
         return null;
+    }
+
+    private boolean atLiteral() {
+        return at(INT_LITERAL) || at(FLOAT_LITERAL) || at(STRING_LITERAL) || at(CHAR_LITERAL) || at(TRUE) || at(FALSE)
+                || at(NULL);
+    }
+
+    /** `when (subject) { is A -> ...; 1, 2 -> ...; else -> ... }`, also `when (val e = subject)`. */
+    private PsiBuilder.Marker whenExpression() {
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        if (expect(LPAREN, "`(` expected")) {
+            if (at(VAL)) {
+                whenBinding();
+            } else {
+                expression();
+            }
+            expect(RPAREN, "`)` expected");
+        }
+        if (expect(LBRACE, "`{` expected")) {
+            while (!at(RBRACE) && !b.eof()) {
+                whenArm();
+            }
+            expect(RBRACE, "`}` expected");
+        }
+        m.done(AxlElementTypes.WHEN);
+        return m;
+    }
+
+    private void whenBinding() {
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        expect(IDENTIFIER, "name expected");
+        if (expect(ASSIGN, "`=` expected")) {
+            expression();
+        }
+        m.done(AxlElementTypes.VARIABLE);
+    }
+
+    private void whenArm() {
+        PsiBuilder.Marker m = b.mark();
+        if (!consume(ELSE)) {
+            do {
+                whenCondition();
+            } while (consume(COMMA));
+        }
+        if (expect(ARROW, "`->` expected")) {
+            if (at(LBRACE)) {
+                block();
+            } else {
+                expression();
+            }
+        }
+        consume(SEMI);
+        m.done(AxlElementTypes.WHEN_ARM);
+    }
+
+    private void whenCondition() {
+        if (consume(IS)) {
+            typeName();
+        } else if (atLiteral()) {
+            primary();
+        } else {
+            skip("`is`, a constant or `else` expected");
+        }
     }
 
     /** `Name<T>(args)`; rolls back when the `<` turns out to be a comparison. */

@@ -67,6 +67,11 @@ public final class AxlResolver {
                 return List.of(value);
             }
         }
+        for (AxlTypeDeclaration declaration : file.typeDeclarations()) {
+            if (name.equals(declaration.getName())) {
+                return List.of(declaration);
+            }
+        }
         boolean inImport = PsiTreeUtil.getParentOfType(place, AxlImport.class) != null;
         for (AxlImport imp : file.imports()) {
             if (inImport || !imp.simpleName().equals(name)) {
@@ -370,6 +375,7 @@ public final class AxlResolver {
         if (file != null) {
             result.addAll(file.functions());
             result.addAll(file.values());
+            result.addAll(file.typeDeclarations());
             result.addAll(file.imports());
         }
         return result;
@@ -389,6 +395,10 @@ public final class AxlResolver {
                     }
                 }
                 result.addAll(before);
+            } else if (type == AxlElementTypes.FOR && child.getNode().getElementType() == AxlElementTypes.BLOCK) {
+                result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(parent, AxlVariable.class));
+            } else if (type == AxlElementTypes.WHEN && child.getNode().getElementType() == AxlElementTypes.WHEN_ARM) {
+                result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(parent, AxlVariable.class));
             } else if (parent instanceof AxlFunction function) {
                 result.addAll(function.parameters());
             }

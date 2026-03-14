@@ -41,6 +41,14 @@ public final class AxlElementTypes {
     public static final IElementType ATTEMPT = type("ATTEMPT");
     public static final IElementType PIPE = type("PIPE");
     public static final IElementType PIPE_STAGE = type("PIPE_STAGE");
+    public static final IElementType FOR = type("FOR");
+    public static final IElementType LOOP_VARIABLE = type("LOOP_VARIABLE");
+    public static final IElementType DATA_CLASS = type("DATA_CLASS");
+    public static final IElementType INTERFACE = type("INTERFACE");
+    public static final IElementType FIELD = type("FIELD");
+    public static final IElementType IS_CHECK = type("IS_CHECK");
+    public static final IElementType WHEN = type("WHEN");
+    public static final IElementType WHEN_ARM = type("WHEN_ARM");
 
     private AxlElementTypes() {}
 

@@ -31,6 +31,9 @@ public final class AxlTokenTypes {
     public static final IElementType LPAREN = of(AxolotlLexer.LPAREN);
     public static final IElementType RPAREN = of(AxolotlLexer.RPAREN);
 
+    /** `data` before `class` and `in` of `for`: words only where the parser finds them, names elsewhere. */
+    public static final IElementType CONTEXTUAL_KEYWORD = new IElementType("CONTEXTUAL_KEYWORD", AxlLanguage.INSTANCE);
+
     public static final TokenSet WHITESPACE = TokenSet.create(TokenType.WHITE_SPACE);
     public static final TokenSet COMMENTS = TokenSet.create(LINE_COMMENT, BLOCK_COMMENT);
     public static final TokenSet STRINGS = TokenSet.create(STRING, CHAR);
