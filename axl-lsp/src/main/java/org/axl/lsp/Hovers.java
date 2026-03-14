@@ -81,8 +81,11 @@ final class Hovers {
             case Decl.DataClass data -> visibility + "data class " + data.name() + data.fields().stream()
                     .map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(data.supertypes());
-            case Decl.Interface iface -> visibility + (iface.sealed() ? "sealed " : "") + "interface " + iface.name()
+            case Decl.Interface iface -> visibility + (iface.isSealed() ? "sealed " : "") + "interface " + iface.name()
                     + supertypes(iface.supertypes());
+            case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + classDecl.parameters().stream()
+                    .map(p -> (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"))
+                    + supertypes(classDecl.supertypes());
             case Decl.Function fn -> signature(fn);
             case Decl.Value value -> "val " + value.name();
         };
