@@ -1,0 +1,83 @@
+package org.axl.compiler.ast
+
+import java.util.List
+
+sealed interface Expr {
+    val pos: Pos
+}
+
+data class Literal(val pos: Pos, val text: String) : Expr
+
+data class Name(val pos: Pos, val name: String) : Expr
+
+/** `target.name` or `target?.name`. */
+data class Member(val pos: Pos, val target: Expr, val name: String, val safe: Boolean) : Expr
+
+/** `name(args)` when target is null, otherwise `target.name(args)` or `target?.name(args)`. */
+data class Call(val pos: Pos, val target: Expr?, val name: String, val args: List<Expr>, val safe: Boolean) : Expr
+
+/** `Name<T>(args)` or `Name<>(args)`. */
+data class GenericNew(val pos: Pos, val type: String, val typeArgs: List<TypeRef>, val args: List<Expr>) : Expr
+
+data class MethodRef(val pos: Pos, val target: Expr, val name: String) : Expr
+
+/** `target!!`: fails with NullPointerException when the value is null. */
+data class NotNull(val pos: Pos, val target: Expr) : Expr
+
+data class Unary(val pos: Pos, val op: String, val operand: Expr) : Expr
+
+data class Binary(val pos: Pos, val op: String, val left: Expr, val right: Expr) : Expr
+
+/** `target is Type` or `target !is Type`; type has no arguments. */
+data class Is(val pos: Pos, val target: Expr, val type: TypeRef, val negated: Boolean) : Expr
+
+/**
+ * `when (subject) { arms }`. bindingName is set for `when (val name = subject)`; an arm without
+ * conditions is the `else` arm.
+ */
+data class When(
+    val pos: Pos,
+    val bindingName: String?,
+    val bindingPos: Pos?,
+    val subject: Expr,
+    val arms: List<Arm>,
+    val end: Pos
+) : Expr
+
+/** A block arm has its statements in body; an expression arm has one expression statement. */
+data class Arm(val pos: Pos, val conditions: List<Cond>, val body: List<Stmt>, val block: Boolean)
+
+/** `is Type` when type is set, otherwise the literal constant. */
+data class Cond(val pos: Pos, val type: TypeRef?, val constant: Literal?)
+
+data class Elvis(val pos: Pos, val left: Expr, val right: Expr) : Expr
+
+data class Paren(val pos: Pos, val inner: Expr) : Expr
+
+data class Try(val pos: Pos, val inner: Expr) : Expr
+
+/** `attempt body else handler`; errorName and errorNamePos are null without `else e ->`. */
+data class Attempt(
+    val pos: Pos,
+    val body: Expr,
+    val errorName: String?,
+    val errorNamePos: Pos?,
+    val handler: Expr
+) : Expr
+
+/** arrow is true when the parameter list is written out, even if empty: `{ -> f() }`. */
+data class Lambda(
+    val pos: Pos,
+    val params: List<Param>,
+    val arrow: Boolean,
+    val body: List<Stmt>,
+    val end: Pos
+) : Expr
+
+data class Param(val pos: Pos, val name: String, val type: TypeRef?)
+
+/** `source |> stage |> stage`. */
+data class Pipe(val pos: Pos, val source: Expr, val stages: List<Stage>) : Expr
+
+/** A pipe stage: a name with optional arguments and an optional trailing lambda. */
+data class Stage(val pos: Pos, val name: String, val args: List<Expr>, val lambda: Lambda?)

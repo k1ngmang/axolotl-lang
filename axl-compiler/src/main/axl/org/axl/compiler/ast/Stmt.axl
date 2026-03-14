@@ -1,0 +1,33 @@
+package org.axl.compiler.ast
+
+import java.util.List
+
+sealed interface Stmt {
+    val pos: Pos
+}
+
+/** `val` or `var`; type is null when it is left to javac. */
+data class Local(
+    val pos: Pos,
+    val namePos: Pos,
+    val name: String,
+    val type: TypeRef?,
+    val init: Expr,
+    val mutable: Boolean
+) : Stmt
+
+data class Assign(val pos: Pos, val target: Expr, val op: String, val value: Expr) : Stmt
+
+data class Return(val pos: Pos, val value: Expr?) : Stmt
+
+/** elseBranch is null, a Block or another If. */
+data class If(val pos: Pos, val condition: Expr, val then: Block, val elseBranch: Stmt?) : Stmt
+
+data class While(val pos: Pos, val condition: Expr, val body: Block) : Stmt
+
+/** `for (name in iterable) { ... }`. */
+data class For(val pos: Pos, val namePos: Pos, val name: String, val iterable: Expr, val body: Block) : Stmt
+
+data class ExprStmt(val pos: Pos, val expr: Expr) : Stmt
+
+data class Block(val pos: Pos, val statements: List<Stmt>, val end: Pos) : Stmt

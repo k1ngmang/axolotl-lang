@@ -216,10 +216,10 @@ public final class Generator {
 
     /** Java wants an interface under a sealed one to be sealed or open itself. */
     private String interfaceModifier(Decl.Interface iface) {
-        if (iface.sealed()) {
+        if (iface.isSealed()) {
             return " sealed";
         }
-        boolean underSealed = file.decls().stream().anyMatch(d -> d instanceof Decl.Interface parent && parent.sealed()
+        boolean underSealed = file.decls().stream().anyMatch(d -> d instanceof Decl.Interface parent && parent.isSealed()
                 && iface.supertypes().stream().anyMatch(t -> t.name().equals(parent.name())));
         return underSealed ? " non-sealed" : "";
     }

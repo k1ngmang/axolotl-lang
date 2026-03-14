@@ -1,0 +1,56 @@
+package org.axl.compiler.ast
+
+import java.util.List
+
+sealed interface Decl {
+    val pos: Pos
+
+    /** Where the declared name is, for errors about the name. */
+    val namePos: Pos
+
+    val name: String
+
+    val isPrivate: Boolean
+}
+
+/** Exactly one of exprBody and body is set; returnType is null for void. */
+data class Function(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val params: List<Expr.Param>,
+    val returnType: TypeRef?,
+    val exprBody: Expr?,
+    val body: Stmt.Block?
+) : Decl
+
+data class Value(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val type: TypeRef?,
+    val init: Expr
+) : Decl
+
+/** An immutable class: a Java record. supertypes are interfaces of the same file. */
+data class DataClass(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val fields: List<Expr.Param>,
+    val supertypes: List<TypeRef>
+) : Decl
+
+/** members are the values it requires, such as `val pos: Pos`. */
+data class Interface(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val isSealed: Boolean,
+    val members: List<Expr.Param>,
+    val supertypes: List<TypeRef>
+) : Decl

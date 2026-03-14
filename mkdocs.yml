@@ -31,4 +31,5 @@ nav:
       - Line map format: axlmap.md
       - Performance: perf.md
       - Decisions: decisions.md
+      - The compiler in Axolotl: self-hosting.md
       - IntelliJ debugger check: intellij-debug-check.md

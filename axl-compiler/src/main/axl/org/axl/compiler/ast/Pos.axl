@@ -1,0 +1,4 @@
+package org.axl.compiler.ast
+
+/** A 1-based line and column in an .axl file. */
+data class Pos(val line: Int, val column: Int)

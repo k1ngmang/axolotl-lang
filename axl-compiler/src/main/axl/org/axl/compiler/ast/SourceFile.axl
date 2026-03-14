@@ -1,0 +1,13 @@
+package org.axl.compiler.ast
+
+import java.util.List
+
+/** packageName is null when the file has no package clause. */
+data class SourceFile(
+    val path: String,
+    val className: String,
+    val packagePos: Pos?,
+    val packageName: String?,
+    val imports: List<Import>,
+    val decls: List<Decl>
+)
