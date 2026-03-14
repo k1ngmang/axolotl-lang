@@ -8,7 +8,7 @@ data class Named(val toString: String)
 
 data class Pair(val left: Int)
 
-interface Types
+private interface Types
 
 sealed interface Open {
     val id: Int

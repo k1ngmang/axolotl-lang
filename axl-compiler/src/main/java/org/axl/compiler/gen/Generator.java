@@ -125,11 +125,19 @@ public final class Generator {
             em.line(imp.pos().line(), keyword + imp.name() + ";");
         }
         em.blank();
-        em.line(0, "@NullMarked public final class " + file.className() + " {");
-        em.indent();
-        em.line(0, "private " + file.className() + "() {}");
+        Decl fileType = fileType();
+        if (fileType == null) {
+            em.line(0, "@NullMarked public final class " + file.className() + " {");
+            em.indent();
+            em.line(0, "private " + file.className() + "() {}");
+        } else {
+            emitFileType(fileType);
+        }
         for (Decl decl : file.decls()) {
             resetCounters();
+            if (decl == fileType) {
+                continue;
+            }
             switch (decl) {
                 case Decl.Value value when probed.contains(value.name()) -> { }
                 case Decl.Value value -> emitValue(value);
@@ -156,6 +164,29 @@ public final class Generator {
         copies = Map.of();
     }
 
+    /** A data class or interface named like the file is the class of the file; the rest of the file is in it. */
+    private Decl fileType() {
+        return file.decls().stream().filter(d -> d.name().equals(file.className())
+                && (d instanceof Decl.DataClass || d instanceof Decl.Interface)).findFirst().orElse(null);
+    }
+
+    private void emitFileType(Decl fileType) {
+        int line = fileType.pos().line();
+        switch (fileType) {
+            case Decl.DataClass data -> em.line(line, "@NullMarked public record " + data.name() + "("
+                    + parameters(data.fields(), line) + ")" + typeList(" implements ", data.supertypes()) + " {");
+            case Decl.Interface iface -> {
+                em.line(line, "@NullMarked public" + interfaceModifier(iface) + " interface " + iface.name()
+                        + typeList(" extends ", iface.supertypes()) + " {");
+                emitRequiredValues(iface);
+                em.indent();
+                return;
+            }
+            default -> throw new IllegalStateException();
+        }
+        em.indent();
+    }
+
     private void emitDataClass(Decl.DataClass data) {
         int line = data.pos().line();
         em.line(line, visibility(data) + " record " + data.name() + "(" + parameters(data.fields(), line) + ")"
@@ -171,12 +202,16 @@ public final class Generator {
             return;
         }
         em.line(line, head + " {");
+        emitRequiredValues(iface);
+        em.line(line, "}");
+    }
+
+    private void emitRequiredValues(Decl.Interface iface) {
         em.indent();
         for (Expr.Param member : iface.members()) {
             em.line(member.pos().line(), type(member.type()) + " " + member.name() + "();");
         }
         em.dedent();
-        em.line(line, "}");
     }
 
     /** Java wants an interface under a sealed one to be sealed or open itself. */

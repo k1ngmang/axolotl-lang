@@ -181,6 +181,9 @@ public final class Checker {
             if (decl instanceof Decl.Function fn) {
                 checkFunctionName(fn);
             }
+            if (decl instanceof Decl.Value value && value.isPrivate() && fileIsInterface()) {
+                error(value.namePos(), ErrorCode.SYNTAX, "a value in the file of an interface cannot be private");
+            }
             if (decl instanceof Decl.Value value && value.name().equals("args")
                     && file.decls().stream().anyMatch(d -> d instanceof Decl.Function fn && isMain(fn))) {
                 error(value.namePos(), ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` "
@@ -203,14 +206,17 @@ public final class Checker {
         }
     }
 
+    private boolean fileIsInterface() {
+        return file.decls().stream().anyMatch(d -> d instanceof Decl.Interface && d.name().equals(file.className()));
+    }
+
     private void checkTypeName(Decl decl) {
         if (!Character.isUpperCase(decl.name().charAt(0))) {
             error(decl.namePos(), ErrorCode.SYNTAX, "the name of a type starts with a capital letter, as `"
                     + Character.toUpperCase(decl.name().charAt(0)) + decl.name().substring(1) + "`: "
                     + "`Name(...)` creates an object");
-        } else if (decl.name().equals(file.className())) {
-            error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "` is also the name of this file's class; "
-                    + "rename the file or the type");
+        } else if (decl.name().equals(file.className()) && decl.isPrivate()) {
+            error(decl.namePos(), ErrorCode.SYNTAX, "`" + decl.name() + "` is the type of this file and cannot be private");
         } else if (!typeNames.add(decl.name())) {
             error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "the type `" + decl.name() + "` is already declared in this file");
         }

@@ -1,0 +1,22 @@
+package app
+
+sealed interface Node {
+    val label: String
+}
+
+data class Leaf(val label: String) : Node
+
+data class Branch(val label: String, val children: java.util.List<Node>) : Node
+
+val root: Node = Branch("root", java.util.List.of(Leaf("a"), Leaf("b")))
+
+fn count(node: Node) -> Int = when (node) {
+    is Leaf -> 1
+    is Branch -> {
+        var total = 1
+        for (child in node.children()) {
+            total += count(child)
+        }
+        total
+    }
+}

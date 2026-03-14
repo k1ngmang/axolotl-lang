@@ -1,0 +1,11 @@
+package app
+
+import app.Node.Branch
+import app.Node.Leaf
+
+fn main() {
+    println(Node.count(Node.root))
+    println(Point.add(Point(1, 2), Point.origin))
+    println(Leaf("x").label())
+    println(Branch("b", java.util.List.of()).children())
+}

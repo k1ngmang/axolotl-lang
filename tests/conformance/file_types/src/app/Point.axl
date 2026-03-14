@@ -1,0 +1,7 @@
+package app
+
+data class Point(val x: Int, val y: Int)
+
+val origin: Point = Point(0, 0)
+
+fn add(a: Point, b: Point) -> Point = Point(a.x() + b.x(), a.y() + b.y())

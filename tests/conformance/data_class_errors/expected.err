@@ -2,5 +2,5 @@ AXL001 app/Types.axl:3:12: error: the name of a type starts with a capital lette
 AXL010 app/Types.axl:5:33: error: the field `first` is declared twice
 AXL011 app/Types.axl:7:18: error: `toString` is a method of every Java object and cannot be the name of a field; choose another name
 AXL010 app/Types.axl:9:12: error: the type `Pair` is already declared in this file
-AXL010 app/Types.axl:11:11: error: `Types` is also the name of this file's class; rename the file or the type
+AXL001 app/Types.axl:11:19: error: `Types` is the type of this file and cannot be private
 AXL010 app/Types.axl:15:5: error: the member `id` is declared twice
