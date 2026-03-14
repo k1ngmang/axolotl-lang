@@ -22,6 +22,15 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("HexFloat.java", inClass("public static double f() { return 0x1p3; }"));
         assertRefused("Keyword.java", inClass("public static int f(int val) { return val; }"));
         assertRefused("Args.java", inClass("public static void main(String[] args) { System.out.println(args.length); }"));
+        assertRefused("Is.java", inClass("public static int f(int is) { return is; }"));
+        assertRefused("When.java", inClass("public static int f(int when) { return when; }"));
+        assertRefused("Sealed.java", inClass("public static int f(int sealed) { return sealed; }"));
+        assertRefused("Each.java", inClass("public static int f(java.util.List<Integer> xs) { int s = 0; "
+                + "for (int x : xs) { s += x; } return s; }"));
+        assertRefused("Instance.java", inClass("public static boolean f(Object o) { return o instanceof String; }"));
+        assertRefused("Switch.java", inClass("public static int f(int n) { switch (n) { case 1: return 2; "
+                + "default: return 3; } }"));
+        assertRefused("Rec.java", "package util;\npublic record Rec(int a) {}\n");
         assertRefused("Generic.java", inClass("public static <T> T id(T x) { return x; }"));
         assertRefused("Init.java", inClass("static { System.out.println(\"loaded\"); }"));
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));

@@ -75,7 +75,8 @@ final class JavaToAxolotl {
     private static final Map<String, String> BOXED = Map.of("java.lang.Integer", "Int?", "java.lang.Long", "Long?",
             "java.lang.Boolean", "Boolean?", "java.lang.Double", "Double?");
     private static final Set<String> KEYWORDS = Set.of("package", "import", "fn", "val", "var", "private", "return",
-            "if", "else", "while", "try", "attempt", "true", "false", "null");
+            "if", "else", "while", "for", "is", "when", "class", "interface", "sealed", "try", "attempt", "true", "false",
+            "null");
     private static final Set<String> OPERATORS = Set.of("+", "-", "*", "/", "%", "==", "!=", "<", "<=", ">", ">=",
             "&&", "||");
     private static final Set<String> ASSIGNMENTS = Set.of("=", "+=", "-=", "*=", "/=", "%=");

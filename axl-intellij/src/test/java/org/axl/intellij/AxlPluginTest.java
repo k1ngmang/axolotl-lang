@@ -123,6 +123,15 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(myFixture.getEditor().getDocument().getText().contains("xs |> filter"));
     }
 
+    public void testCompletesTheKeywordsOfLoopsDataClassesAndWhen() {
+        myFixture.configureByText("Main.axl", "package app\n\nfn f() {\n    whe<caret>\n}\n");
+        myFixture.completeBasic();
+        assertTrue(myFixture.getEditor().getDocument().getText().contains("    when\n"));
+        myFixture.configureByText("Types.axl", "package app\n\nsea<caret>\n");
+        myFixture.completeBasic();
+        assertTrue(myFixture.getEditor().getDocument().getText().contains("sealed"));
+    }
+
     public void testOffersToRunOnlyAPublicMain() {
         myFixture.configureByText("Main.axl", "package app\n\nfn ma<caret>in() {\n    println(1)\n}\n");
         assertEquals(1, myFixture.findGuttersAtCaret().size());
@@ -397,10 +406,10 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
 
     public void testAcceptsOnlyAxolotlNamesForRenaming() {
         AxlNamesValidator validator = new AxlNamesValidator();
-        for (String name : List.of("x1", "gr\u00f6\u00dfe", "_count")) {
+        for (String name : List.of("x1", "gr\u00f6\u00dfe", "_count", "data", "in")) {
             assertTrue(name, validator.isIdentifier(name, getProject()));
         }
-        for (String name : List.of("record", "yield", "sealed", "permits", "fn", "class", "a\u20ac", "a$b", "1a", "a b")) {
+        for (String name : List.of("record", "yield", "sealed", "permits", "fn", "class", "is", "when", "interface", "for", "a\u20ac", "a$b", "1a", "a b")) {
             assertFalse(name, validator.isIdentifier(name, getProject()));
         }
     }

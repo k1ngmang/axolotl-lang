@@ -9,6 +9,7 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import java.util.ArrayList;
 import java.util.List;
 import org.axl.intellij.lexer.AxlLexer;
+import org.axl.intellij.lexer.AxlTokenTypes;
 
 public class AxlLexerTest extends BasePlatformTestCase {
 
@@ -33,6 +34,19 @@ public class AxlLexerTest extends BasePlatformTestCase {
         myFixture.getEditor().getCaretModel().moveToOffset(myFixture.getEditor().getDocument().getText().indexOf("}\n"));
         myFixture.type("*/");
         assertHighlightingMatchesFreshLexing();
+    }
+
+    public void testHighlightsTheKeywordsOfLoopsDataClassesAndWhen() {
+        String text = "for is when class interface sealed";
+        AxlLexer lexer = new AxlLexer();
+        lexer.start(text, 0, text.length(), 0);
+        int keywords = 0;
+        for (; lexer.getTokenType() != null; lexer.advance()) {
+            if (AxlTokenTypes.KEYWORDS.contains(lexer.getTokenType())) {
+                keywords++;
+            }
+        }
+        assertEquals(6, keywords);
     }
 
     private void assertHighlightingMatchesFreshLexing() {

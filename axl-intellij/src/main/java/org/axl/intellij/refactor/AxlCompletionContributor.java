@@ -19,7 +19,8 @@ import org.jetbrains.annotations.NotNull;
 public final class AxlCompletionContributor extends CompletionContributor {
 
     private static final List<String> KEYWORDS = List.of("val", "var", "fn", "private", "return", "if", "else",
-            "while", "try", "attempt", "true", "false", "null", "import", "package");
+            "while", "for", "when", "is", "data", "class", "interface", "sealed", "try", "attempt", "true", "false", "null",
+            "import", "package");
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
     private static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct",
             "limit", "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
