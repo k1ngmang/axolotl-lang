@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:9:1: error: this `when` does not cover every case; add an `else ->` branch, or a branch for each class of the sealed interface
+AXL100 app/Main.axl:15:8: error: this branch is never chosen: an earlier branch already matches everything it matches
+AXL100 app/Main.axl:19:5: error: this `when` does not cover every case; add an `else ->` branch, or a branch for each class of the sealed interface

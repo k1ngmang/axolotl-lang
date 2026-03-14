@@ -83,7 +83,8 @@ final class Messages {
 
     /** Warnings about the shape of generated code, which the author cannot change. */
     static boolean ignored(String message) {
-        return message.startsWith("[UnnecessaryParentheses]")
+        return message.startsWith("[UnnecessaryParentheses]") || message.startsWith("[RefactorSwitch]")
+                || message.startsWith("[StatementSwitchToExpressionSwitch]")
                 || message.startsWith("[UnusedVariable]") && UNUSED_GENERATED.matcher(message).find();
     }
 
@@ -332,6 +333,19 @@ final class Messages {
         }
         if (message.equals("not a statement")) {
             return "this expression does nothing on its own; use its value, for example in a `val`, or remove it";
+        }
+        if (message.matches("the switch (statement|expression) does not cover all possible input values")) {
+            return "this `when` does not cover every case; add an `else ->` branch, or a branch for each class of the "
+                    + "sealed interface";
+        }
+        if (message.equals("this case label is dominated by a preceding case label")) {
+            return "this branch is never chosen: an earlier branch already matches everything it matches";
+        }
+        if (message.equals("switch has both an unconditional pattern and a default label")) {
+            return "this `else` is never chosen: an earlier branch matches every value";
+        }
+        if (message.matches("duplicate case label")) {
+            return "this value is already handled by an earlier branch of the `when`";
         }
         if (message.equals("missing return statement")) {
             return "the function does not return a value on every path; add a `return` at the end";

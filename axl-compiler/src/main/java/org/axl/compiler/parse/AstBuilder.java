@@ -279,10 +279,33 @@ final class AstBuilder {
             case NamePrimaryContext n -> new Expr.Name(pos(n.start), name(n.identifier()));
             case ParenPrimaryContext p -> new Expr.Paren(pos(p.start), expr(p.expression()));
             case LambdaPrimaryContext l -> lambda(l.lambda());
+            case WhenPrimaryContext w -> whenExpression(w.whenExpression());
             case GenericConstructorContext g -> new Expr.GenericNew(pos(g.start), name(g.identifier()),
                     g.typeArgs().type().stream().map(this::type).toList(), arguments(g.arguments()));
             default -> throw new IllegalStateException("unknown primary " + ctx.getClass());
         };
+    }
+
+    private Expr whenExpression(WhenExpressionContext ctx) {
+        List<Expr.Arm> arms = new ArrayList<>();
+        for (WhenArmContext arm : ctx.whenArm()) {
+            List<Expr.Cond> conditions = new ArrayList<>();
+            for (WhenConditionContext condition : arm.whenCondition()) {
+                if (condition.IS() != null) {
+                    QualifiedNameContext type = condition.qualifiedName();
+                    conditions.add(new Expr.Cond(pos(condition.start),
+                            new TypeRef(pos(type.start), type.getText(), List.of(), false), null));
+                } else {
+                    conditions.add(new Expr.Cond(pos(condition.start), null,
+                            new Expr.Literal(pos(condition.start), condition.literal().getText())));
+                }
+            }
+            List<Stmt> body = arm.block() != null ? statements(arm.block().statement())
+                    : List.of(new Stmt.ExprStmt(pos(arm.expression().start), expr(arm.expression())));
+            arms.add(new Expr.Arm(pos(arm.start), conditions, body, arm.block() != null));
+        }
+        return new Expr.When(pos(ctx.start), ctx.identifier() == null ? null : name(ctx.identifier()),
+                ctx.identifier() == null ? null : pos(ctx.identifier().start), expr(ctx.expression()), arms, pos(ctx.stop));
     }
 
     private Expr lambda(LambdaContext ctx) {

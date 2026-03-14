@@ -1,0 +1,18 @@
+package app
+
+fn maybe() -> String? = null
+
+fn check(n: Int) -> Int {
+    val s = maybe()
+    when (n) {
+        1 -> {
+            if (s == null) {
+                return 0
+            }
+            println(s.length())
+        }
+        2 -> println(s.length())
+        else -> println("other")
+    }
+    return 1
+}

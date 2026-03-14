@@ -107,6 +107,11 @@ public final class Checker {
     private final Set<Expr.Name> mutableRefs = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> stableNames = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<String> typeNames = new HashSet<>();
+    // How each `when` is used; one that is not here gives a value.
+    private final Map<Expr.When, Boolean> whenResults = new IdentityHashMap<>();
+    // Lambda depth inside the innermost `when` that gives a value, or -1.
+    private int valueWhenDepth = -1;
+    private int expressionLambdas;
     private final Set<Expr.Name> staticNames = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<Expr.Stage, TypeRef> mapResultTypes = new IdentityHashMap<>();
     private Scope scope;
@@ -239,6 +244,9 @@ public final class Checker {
             declare(p.pos(), p.name(), Kind.PARAM);
         }
         if (fn.exprBody() != null) {
+            if (unparenthesized(fn.exprBody()) instanceof Expr.When w) {
+                whenResults.put(w, fn.returnType() != null);
+            }
             if (fn.exprBody() instanceof Expr.Try t) {
                 if (!returnsResult(fn)) {
                     statementTry(t);
@@ -305,6 +313,13 @@ public final class Checker {
                 expr(assign.value());
             }
             case Stmt.Return ret -> {
+                if (valueWhenDepth == lambdaDepth) {
+                    error(ret.pos(), ErrorCode.SYNTAX, "`return` cannot leave a `when` that gives a value; "
+                            + "write the `when` as a statement or as `return when ...`");
+                }
+                if (unparenthesized(ret.value()) instanceof Expr.When w) {
+                    whenResults.put(w, true);
+                }
                 if (ret.value() instanceof Expr.Try t && (lambdaDepth > 0 || !returnsResult(function))) {
                     statementTry(t);
                 } else if (ret.value() instanceof Expr.Try t) {
@@ -333,6 +348,9 @@ public final class Checker {
                 scope = scope.parent;
             }
             case Stmt.ExprStmt exprStmt -> {
+                if (unparenthesized(exprStmt.expr()) instanceof Expr.When w) {
+                    whenResults.put(w, false);
+                }
                 if (exprStmt.expr() instanceof Expr.Lambda lambda) {
                     error(lambda.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; "
                             + "to run these statements, remove the braces");
@@ -382,7 +400,11 @@ public final class Checker {
 
     /** `try` and `mapResult` return from the function, so they need one that returns `Result`. */
     private void checkTryPlace(Pos pos, String what) {
-        if (lambdaDepth > 0) {
+        if (valueWhenDepth == lambdaDepth) {
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, what + " cannot be used in a `when` that gives a value, since it "
+                    + "would return from the function in the middle of the `when`; write the `when` as a statement "
+                    + "or as `return when ...`");
+        } else if (lambdaDepth > 0) {
             error(pos, ErrorCode.TRY_IN_EXPRESSION, what.equals("`try`") ? TRY_IN_LAMBDA
                     : what + " cannot be used in a lambda: it would return from the lambda, not the function");
         } else if (safeTailDepth > 0) {
@@ -409,6 +431,7 @@ public final class Checker {
             case Expr.Try t -> true;
             case Expr.Pipe p -> true;
             case Expr.Elvis e -> doesSomething(e.right());
+            case Expr.When w -> true;
             case Expr.Attempt a -> true;
             case Expr.NotNull n -> true;
             case Expr.Lambda l -> true;
@@ -472,6 +495,7 @@ public final class Checker {
                 expr(e.right());
             }
             case Expr.Is i -> expr(i.target());
+            case Expr.When w -> when(w);
             case Expr.Paren p -> expr(p.inner());
             case Expr.Try t -> {
                 checkTryPlace(t.pos(), "`try`");
@@ -491,6 +515,76 @@ public final class Checker {
             }
             case Expr.Pipe pipe -> pipe(pipe);
             case Expr.Lambda lambda -> lambda(lambda, false);
+        }
+    }
+
+    /** The arms are checked as the statements they become in the places where a `when` stands. */
+    private void when(Expr.When w) {
+        Boolean result = whenResults.get(w);
+        boolean gives = result == null;
+        if (gives && function == null) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value must be inside a function");
+        } else if (gives && expressionLambdas > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside a lambda of one expression; "
+                    + "give the lambda statements and write `return when ...`");
+        }
+        expr(w.subject());
+        scope = new Scope(scope, false);
+        if (w.bindingName() != null) {
+            declare(w.bindingPos(), w.bindingName(), Kind.LOCAL);
+        }
+        checkArms(w, result == null || result);
+        int outerDepth = valueWhenDepth;
+        if (gives) {
+            valueWhenDepth = lambdaDepth;
+        }
+        for (Expr.Arm arm : w.arms()) {
+            List<Stmt> body = result != null && result ? Whens.returning(arm) : arm.body();
+            if (gives && (arm.body().isEmpty() || !(arm.body().getLast() instanceof Stmt.ExprStmt))) {
+                error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value");
+            }
+            if (!arm.block() && result != null && !result && !doesSomething(((Stmt.ExprStmt) arm.body().getFirst()).expr())) {
+                error(arm.body().getFirst().pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; "
+                        + "use its value, for example in a `val`, or remove it");
+            }
+            if (result != null) {
+                statements(body);
+            } else {
+                scope = new Scope(scope, false);
+                for (int i = 0; i < body.size(); i++) {
+                    if (i == body.size() - 1 && body.get(i) instanceof Stmt.ExprStmt value) {
+                        expr(value.expr());
+                    } else {
+                        statement(body.get(i));
+                    }
+                }
+                scope = scope.parent;
+            }
+        }
+        valueWhenDepth = outerDepth;
+        scope = scope.parent;
+    }
+
+    private void checkArms(Expr.When w, boolean needsElse) {
+        boolean sawElse = false;
+        boolean types = false;
+        boolean constants = false;
+        for (Expr.Arm arm : w.arms()) {
+            if (sawElse) {
+                error(arm.pos(), ErrorCode.SYNTAX, "`else` must be the last branch of a `when`");
+            }
+            if (arm.conditions().isEmpty()) {
+                sawElse = true;
+            }
+            for (Expr.Cond condition : arm.conditions()) {
+                types |= condition.type() != null;
+                constants |= condition.type() == null;
+            }
+        }
+        if (types && constants) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both");
+        } else if (constants && needsElse && !sawElse) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` over constants that gives a value needs an `else` branch");
         }
     }
 
@@ -569,12 +663,17 @@ public final class Checker {
         if (lambda.body().size() == 1 && lambda.body().getFirst() instanceof Stmt.ExprStmt single
                 && !(single.expr() instanceof Expr.Try)) {
             // A lambda of one expression returns its value, so the expression need not do anything.
+            expressionLambdas++;
             expr(single.expr());
+            expressionLambdas--;
         } else {
             Stmt outerLast = lastInLambda;
+            int outerExpressionLambdas = expressionLambdas;
+            expressionLambdas = 0;
             lastInLambda = lambda.body().isEmpty() ? null : lambda.body().getLast();
             statements(lambda.body());
             lastInLambda = outerLast;
+            expressionLambdas = outerExpressionLambdas;
         }
         lambdaDepth--;
         scope = scope.parent;

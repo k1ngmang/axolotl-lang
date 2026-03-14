@@ -195,6 +195,21 @@ primary
     | identifier                                                    # namePrimary
     | LPAREN expression RPAREN                                      # parenPrimary
     | lambda                                                        # lambdaPrimary
+    | whenExpression                                                # whenPrimary
+    ;
+
+// `when (x) { is Circle -> x.radius(); 1, 2 -> "few"; else -> { ... } }`
+whenExpression
+    : WHEN LPAREN (VAL identifier ASSIGN)? expression RPAREN LBRACE whenArm* RBRACE
+    ;
+
+whenArm
+    : (whenCondition (COMMA whenCondition)* | ELSE) ARROW (block | expression) SEMI?
+    ;
+
+whenCondition
+    : IS qualifiedName
+    | literal
     ;
 
 typeArgs
@@ -242,6 +257,7 @@ IF      : 'if';
 ELSE    : 'else';
 WHILE   : 'while';
 IS        : 'is';
+WHEN      : 'when';
 CLASS     : 'class';
 INTERFACE : 'interface';
 SEALED    : 'sealed';

@@ -235,6 +235,12 @@ final class Symbols {
                 expr(e.right(), pos, fn, out);
             }
             case Expr.Is i -> expr(i.target(), pos, fn, out);
+            case Expr.When w -> {
+                expr(w.subject(), pos, fn, out);
+                for (Expr.Arm arm : w.arms()) {
+                    statements(arm.body(), pos, fn, out);
+                }
+            }
             case Expr.Paren p -> expr(p.inner(), pos, fn, out);
             case Expr.Try t -> expr(t.inner(), pos, fn, out);
             case Expr.Attempt a -> {

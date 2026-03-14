@@ -35,6 +35,7 @@ final class ItFinder {
             case Expr.Binary b -> in(b.left()) || in(b.right());
             case Expr.Elvis e -> in(e.left()) || in(e.right());
             case Expr.Is i -> in(i.target());
+            case Expr.When w -> in(w.subject()) || w.arms().stream().anyMatch(a -> a.body().stream().anyMatch(this::in));
             case Expr.Paren p -> in(p.inner());
             case Expr.Try t -> in(t.inner());
             case Expr.Attempt a -> in(a.body()) || !"it".equals(a.errorName()) && in(a.handler());

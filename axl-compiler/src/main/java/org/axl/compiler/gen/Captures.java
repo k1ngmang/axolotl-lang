@@ -16,6 +16,8 @@ final class Captures {
 
     private final Analysis analysis;
     private final Set<String> names = new LinkedHashSet<>();
+    // Depth of the block lambdas being looked into.
+    private int lambdaBodies;
 
     private Captures(Analysis analysis) {
         this.analysis = analysis;
@@ -74,6 +76,13 @@ final class Captures {
                 visit(e.right(), inLambda || !Lifts.needed(e.right()));
             }
             case Expr.Is i -> visit(i.target(), inLambda);
+            case Expr.When w -> {
+                visit(w.subject(), inLambda);
+                // Outside a lambda the statements of the arms are emitted, and so copied, one by one.
+                if (lambdaBodies > 0) {
+                    w.arms().forEach(a -> a.body().forEach(s -> statement(s, inLambda)));
+                }
+            }
             case Expr.Paren p -> visit(p.inner(), inLambda);
             case Expr.Try t -> visit(t.inner(), inLambda);
             case Expr.Attempt a -> {
@@ -84,7 +93,9 @@ final class Captures {
             // captured by the lambda itself, which javac rejects; a copy would hide that behind a stale value.
             case Expr.Lambda l -> {
                 Set<String> before = new LinkedHashSet<>(names);
+                lambdaBodies++;
                 l.body().forEach(s -> statement(s, inLambda));
+                lambdaBodies--;
                 names.retainAll(before);
             }
             case Expr.Pipe p -> {

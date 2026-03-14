@@ -1,0 +1,51 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+
+data class Square(val side: Double) : Shape
+
+fn load() -> Result<Int, String> = Ok(1)
+
+fn mixed(shape: Shape, n: Int) -> String = when (n) {
+    else -> "x"
+    1 -> "y"
+}
+
+fn both(shape: Shape) -> String = when (shape) {
+    is Circle -> "c"
+    1 -> "one"
+    else -> "x"
+}
+
+fn tries(shape: Shape) -> Result<Int, String> {
+    val n = when (shape) {
+        is Circle -> try load()
+        else -> 0
+    }
+    return Ok(n)
+}
+
+fn returns(shape: Shape) -> Int {
+    val n = when (shape) {
+        is Circle -> {
+            return 1
+        }
+        else -> 0
+    }
+    return n
+}
+
+val top = when (1) {
+    1 -> "x"
+    else -> "y"
+}
+
+fn lambda(xs: java.util.List<Shape>) {
+    xs |> forEach { when (it) { is Circle -> println(1) } }
+}
+
+fn numbers(n: Int) -> String = when (n) {
+    1 -> "one"
+}

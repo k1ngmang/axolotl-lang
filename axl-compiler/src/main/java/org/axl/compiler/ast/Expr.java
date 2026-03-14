@@ -31,6 +31,18 @@ public sealed interface Expr {
     /** `target is Type` or `target !is Type`; type has no arguments. */
     record Is(Pos pos, Expr target, TypeRef type, boolean negated) implements Expr {}
 
+    /**
+     * `when (subject) { arms }`. bindingName is set for `when (val name = subject)`; an arm without
+     * conditions is the `else` arm.
+     */
+    record When(Pos pos, String bindingName, Pos bindingPos, Expr subject, List<Arm> arms, Pos end) implements Expr {}
+
+    /** A block arm has its statements in body; an expression arm has one expression statement. */
+    record Arm(Pos pos, List<Cond> conditions, List<Stmt> body, boolean block) {}
+
+    /** `is Type` when type is set, otherwise the literal constant. */
+    record Cond(Pos pos, TypeRef type, Literal constant) {}
+
     record Elvis(Pos pos, Expr left, Expr right) implements Expr {}
 
     record Paren(Pos pos, Expr inner) implements Expr {}

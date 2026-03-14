@@ -22,6 +22,7 @@ import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.check.Analysis;
 import org.axl.compiler.check.Checker;
 import org.axl.compiler.check.TypeInference;
+import org.axl.compiler.check.Whens;
 
 /** Generates Java following the expansion rules of the specification. Expects a file without errors. */
 public final class Generator {
@@ -281,6 +282,12 @@ public final class Generator {
 
     private void statement(Stmt stmt) {
         switch (stmt) {
+            case Stmt.Local local when withoutParens(local.init()) instanceof Expr.When w -> {
+                String modifiers = local.mutable() ? "" : "final ";
+                String type = local.type() == null ? "var" : type(local.type());
+                emitWhen(local.pos().line(), w, modifiers + type + " " + local.name() + " = ", WhenForm.VALUE);
+                localTypes.put(local.name(), local.type());
+            }
             case Stmt.Local local -> {
                 int line = local.pos().line();
                 Expr init = local.init();
@@ -311,6 +318,8 @@ public final class Generator {
                 }
                 em.line(line, target + " " + assign.op() + " " + value + ";");
             });
+            case Stmt.Return ret when ret.value() != null && withoutParens(ret.value()) instanceof Expr.When w ->
+                    emitWhen(ret.pos().line(), w, "", WhenForm.RESULT);
             case Stmt.Return ret -> {
                 if (ret.value() == null) {
                     em.line(ret.pos().line(), "return;");
@@ -331,7 +340,9 @@ public final class Generator {
                 int line = exprStmt.pos().line();
                 Expr e = withoutParens(exprStmt.expr());
                 Expr condition = runsWhen(e);
-                if (condition != null) {
+                if (e instanceof Expr.When w) {
+                    emitWhen(line, w, "", WhenForm.STATEMENT);
+                } else if (condition != null) {
                     // Java takes no `c && f()` or `a ?: f()` as a statement.
                     Expr action = e instanceof Expr.Binary b ? b.right() : ((Expr.Elvis) e).right();
                     Stmt.Block then = new Stmt.Block(action.pos(), List.of(new Stmt.ExprStmt(action.pos(), action)), action.pos());
@@ -507,6 +518,77 @@ public final class Generator {
             em.dedent();
         }
         em.line(loop.body().end().line(), "}");
+    }
+
+    /** Where a `when` stands: what its branches do with their value. */
+    private enum WhenForm { STATEMENT, RESULT, VALUE }
+
+    /**
+     * A `when` is a Java switch. As a statement its branches are statements, after `return` they return
+     * their last expression, and as a value they yield it; head is what comes before a switch that is
+     * a value. Each `is` condition has a branch of its own, so a branch with several is written for each.
+     */
+    private void emitWhen(int line, Expr.When w, String head, WhenForm form) {
+        String[] subject = new String[1];
+        withCopies(line, w.subject(), () -> {
+            if (w.bindingName() != null) {
+                subject[0] = "$e" + ++patternCount;
+                em.line(line, "final var " + subject[0] + " = " + lifted(line, w.subject()).code() + ";");
+            } else {
+                subject[0] = lifted(line, w.subject()).code();
+            }
+        });
+        // The name the branches narrow: a bound name, or a subject that is a name that never changes.
+        String narrowedName = w.bindingName() != null ? w.bindingName()
+                : withoutParens(w.subject()) instanceof Expr.Name n && !analysis.mutableRefs().contains(n)
+                && !analysis.staticNames().contains(n) ? n.name() : null;
+        Map<String, String> whole = w.bindingName() != null ? Map.of(w.bindingName(), subject[0]) : Map.of();
+        em.line(line, head + "switch (" + subject[0] + ") {");
+        em.indent();
+        for (Expr.Arm arm : w.arms()) {
+            narrowed(whole, () -> emitArm(arm, narrowedName, form));
+        }
+        em.dedent();
+        em.line(w.end().line(), form == WhenForm.VALUE ? "};" : "}");
+    }
+
+    private void emitArm(Expr.Arm arm, String narrowedName, WhenForm form) {
+        if (arm.conditions().isEmpty()) {
+            emitBranch(arm, "default", Map.of(), form);
+        } else if (arm.conditions().getFirst().type() == null) {
+            String constants = arm.conditions().stream().map(c -> literal(c.constant().text())).collect(Collectors.joining(", "));
+            emitBranch(arm, "case " + constants, Map.of(), form);
+        } else {
+            for (Expr.Cond condition : arm.conditions()) {
+                String variable = "$s" + ++patternCount;
+                emitBranch(arm, "case " + type(condition.type()) + " " + variable,
+                        narrowedName == null ? Map.of() : Map.of(narrowedName, variable), form);
+            }
+        }
+    }
+
+    private void emitBranch(Expr.Arm arm, String label, Map<String, String> narrowing, WhenForm form) {
+        int line = arm.pos().line();
+        if (form == WhenForm.VALUE && !arm.block() && !Lifts.needed(((Stmt.ExprStmt) arm.body().getFirst()).expr())) {
+            Expr value = ((Stmt.ExprStmt) arm.body().getFirst()).expr();
+            em.line(line, label + " -> " + narrowed(narrowing, () -> expr(value)) + ";");
+            return;
+        }
+        em.line(line, label + " -> {");
+        em.indent();
+        narrowed(narrowing, () -> {
+            List<Stmt> body = form == WhenForm.RESULT ? Whens.returning(arm) : arm.body();
+            for (int i = 0; i < body.size(); i++) {
+                if (form == WhenForm.VALUE && i == body.size() - 1) {
+                    Expr value = ((Stmt.ExprStmt) body.get(i)).expr();
+                    em.line(body.get(i).pos().line(), "yield " + lifted(body.get(i).pos().line(), value).code() + ";");
+                } else {
+                    statement(body.get(i));
+                }
+            }
+        });
+        em.dedent();
+        em.line(arm.body().isEmpty() ? line : arm.body().getLast().pos().line(), "}");
     }
 
     private void emitFor(Stmt.For loop) {
@@ -746,6 +828,7 @@ public final class Generator {
             case Expr.Lambda l -> lambda(l);
             case Expr.Pipe p -> pipe(expr(p.source(), inLambda), p.source(), p.stages(), a -> expr(a, inLambda), inLambda);
             case Expr.Try t -> throw new IllegalStateException("try at " + t.pos() + " should have been lifted");
+            case Expr.When w -> throw new IllegalStateException("when at " + w.pos() + " should have been lifted");
         };
     }
 
@@ -969,6 +1052,11 @@ public final class Generator {
         }
         return switch (e) {
             case Expr.Try t -> new Lifted(unwrapTry(line, t), true);
+            case Expr.When w -> {
+                String temp = "$t" + ++tempCount;
+                emitWhen(line, w, "final var " + temp + " = ", WhenForm.VALUE);
+                yield new Lifted(temp, true);
+            }
             case Expr.Binary b when (b.op().equals("&&") || b.op().equals("||")) && Lifts.needed(b.right()) ->
                     shortCircuit(line, b);
             case Expr.Binary b -> {

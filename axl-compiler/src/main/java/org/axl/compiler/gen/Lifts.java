@@ -41,6 +41,8 @@ final class Lifts {
             case Expr.Binary b -> needed(b.left()) || needed(b.right());
             case Expr.Elvis e -> needed(e.left()) || needed(e.right()) || numberAfterSafeCall(e);
             case Expr.Is i -> needed(i.target());
+            // A switch with statements in its arms cannot be written inside an expression.
+            case Expr.When w -> true;
             case Expr.Paren p -> needed(p.inner());
             case Expr.Literal l -> false;
             case Expr.Name n -> false;

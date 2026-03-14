@@ -1,0 +1,75 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+
+data class Rect(val width: Double, val height: Double) : Shape
+
+data class Empty(val label: String?) : Shape
+
+fn area(shape: Shape) -> Double = when (shape) {
+    is Circle -> 3.0 * shape.radius() * shape.radius()
+    is Rect -> shape.width() * shape.height()
+    is Empty -> 0.0
+}
+
+fn name(shape: Shape) -> String {
+    return when (shape) {
+        is Circle -> "circle"
+        is Rect -> {
+            val big = shape.width() > 10.0
+            "rect " + big
+        }
+        is Empty -> shape.label() ?: "nothing"
+    }
+}
+
+fn size(n: Int) -> String = when (n) {
+    0 -> "none"
+    1, 2 -> "few"
+    else -> "many"
+}
+
+fn kind(word: String) -> Int {
+    val length = when (word) {
+        "a" -> 1
+        "bb" -> 2
+        else -> { word.length() * 10 }
+    }
+    return length + 1
+}
+
+fn show(shape: Shape) {
+    when (shape) {
+        is Circle -> println("circle " + shape.radius())
+        is Rect -> {
+            println("rect")
+            println(shape.width())
+        }
+        is Empty -> println("empty")
+    }
+}
+
+fn pick() -> Shape = Rect(2.0, 3.0)
+
+fn bound() -> String {
+    return when (val e = pick()) {
+        is Circle -> "c"
+        is Rect -> "r " + e.width()
+        else -> "other"
+    }
+}
+
+fn main() {
+    println(area(Circle(2.0)))
+    println(area(Rect(2.0, 3.0)))
+    println(name(Rect(20.0, 1.0)))
+    println(name(Empty(null)))
+    println(size(0) + size(2) + size(9))
+    println(kind("a") + kind("zzz"))
+    show(Circle(1.0))
+    show(Rect(1.0, 2.0))
+    show(Empty(null))
+    println(bound())
+}

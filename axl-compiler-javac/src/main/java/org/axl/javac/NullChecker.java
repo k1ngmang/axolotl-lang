@@ -6,10 +6,12 @@ import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.BlockTree;
 import com.sun.source.tree.BreakTree;
+import com.sun.source.tree.CaseTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.CompoundAssignmentTree;
 import com.sun.source.tree.ConditionalExpressionTree;
 import com.sun.source.tree.ContinueTree;
+import com.sun.source.tree.DefaultCaseLabelTree;
 import com.sun.source.tree.EnhancedForLoopTree;
 import com.sun.source.tree.ExpressionStatementTree;
 import com.sun.source.tree.ExpressionTree;
@@ -25,6 +27,8 @@ import com.sun.source.tree.ParameterizedTypeTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.ReturnTree;
 import com.sun.source.tree.StatementTree;
+import com.sun.source.tree.SwitchExpressionTree;
+import com.sun.source.tree.SwitchTree;
 import com.sun.source.tree.ThrowTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
@@ -411,6 +415,34 @@ final class NullChecker implements TaskListener {
             } else {
                 state = merged(afterThen, afterElse);
             }
+            return null;
+        }
+
+        @Override
+        public Void visitSwitch(SwitchTree tree, Void unused) {
+            return cases(tree.getExpression(), tree.getCases());
+        }
+
+        @Override
+        public Void visitSwitchExpression(SwitchExpressionTree tree, Void unused) {
+            return cases(tree.getExpression(), tree.getCases());
+        }
+
+        /** Each branch starts from what was known before the switch; what follows may come from any of them. */
+        private Void cases(ExpressionTree selector, List<? extends CaseTree> cases) {
+            scan(selector, null);
+            Map<Element, Origin> entry = new HashMap<>(state);
+            boolean hasDefault = cases.stream().anyMatch(c -> c.getLabels().stream().anyMatch(l -> l instanceof DefaultCaseLabelTree));
+            Map<Element, Origin> result = hasDefault ? null : entry;
+            for (CaseTree branch : cases) {
+                state = new HashMap<>(entry);
+                scan(branch, null);
+                boolean leaves = branch.getBody() instanceof StatementTree body && exits(body);
+                if (!leaves) {
+                    result = result == null ? state : merged(result, state);
+                }
+            }
+            state = result == null ? entry : result;
             return null;
         }
 
