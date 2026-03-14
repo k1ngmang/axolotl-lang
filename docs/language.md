@@ -40,6 +40,7 @@ the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `ja
   value is `null` or a lambda: `val x: String? = null`.
 - `x = e`, `x += e`, `-=`, `*=`, `/=`, `%=` assign to a `var` (or to a Java field).
 - `if (c) { ... } else if (d) { ... } else { ... }`, `while (c) { ... }`, `return e`.
+- `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
 - Statements end at the end of a line or at `;`. A line starting with `(`, `+` or `-` starts a new
   statement; break long lines after an operator or before `.`, `?.`, `?:` and `|>`. Two statements
   on one line need a `;` between them, and an expression that does nothing, such as `x + 1`,
@@ -60,6 +61,63 @@ a lambda that has `it`, a nested lambda without an arrow reads that `it`; otherw
 the innermost lambda that uses it. A lambda with several statements returns its value with `return`.
 A lambda cannot use a `var` that changes, also not inside a `?:`, `?.` or `attempt` in it; copy the
 `var` to a `val` first.
+
+## Data classes and interfaces
+
+```axl
+sealed interface Shape {
+    val name: String
+}
+
+data class Circle(val name: String, val radius: Double) : Shape
+data class Square(val name: String, val side: Double, val label: String?) : Shape
+```
+
+A `data class` is an immutable Java record: its fields are read with `circle.radius()` and it has
+`equals`, `hashCode` and `toString`. An `interface` lists the values its implementations provide;
+`sealed` limits the implementations to the file, so that a `when` can cover them all. Type names start
+with a capital letter, and `Circle("c", 2.0)` creates one. They are nested in the class of their file
+(`Shapes.axl` makes `Shapes.Circle`), so other files import them as `import app.Shapes.Circle`.
+Methods of a record are plain functions that take it: `fn area(c: Circle) -> Double = ...`.
+
+## Type tests and `when`
+
+`x is Circle` and `x !is Circle` test the type of a value. A `val` or parameter that has been tested
+reads as the new type where the test holds: in the `if` branch, to the right of `&&` (or of `||` for
+`!is`), and after an `if` that leaves:
+
+```axl
+fn describe(shape: Shape) -> String {
+    if (shape !is Circle) {
+        return "not round"
+    }
+    return "radius " + shape.radius()
+}
+```
+
+A `var` can be tested but is not narrowed, since it may change.
+
+`when` chooses a branch by type or by constant:
+
+```axl
+fn area(shape: Shape) -> Double = when (shape) {
+    is Circle -> 3.14 * shape.radius() * shape.radius()
+    is Square -> shape.side() * shape.side()
+}
+
+fn size(n: Int) -> String = when (n) {
+    0 -> "none"
+    1, 2 -> "few"
+    else -> "many"
+}
+```
+
+It becomes a Java `switch`. The subject of `is` branches is narrowed in each branch (`when (val e = f())`
+names a subject that is not already a name). A branch is an expression or, after `->`, a block whose last
+expression is the value. Branches with `is` must cover a sealed interface or end with `else`; a `when`
+over constants that gives a value needs an `else`. A `when` stands as a statement, after `return` or as
+the body of a function, or gives a value (`val x = when ...`); only the last form cannot contain `try` or
+`return`, and none of them can be the single expression of a lambda or of a top-level value.
 
 ## Null safety
 

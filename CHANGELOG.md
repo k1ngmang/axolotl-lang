@@ -129,3 +129,10 @@ A third audit found about 110 more problems; they are fixed, each with a conform
 - Build tools and editors: see the commits; among them `axl:check` with Error Prone, Maven state per execution, overlapping source directories, `=` in paths, killed `axl check` runs, hover, drafts and caches in the language server, and the Java converter.
 
 Left as they are: a nested class whose name is all capitals before a `try` (`Outer.IO.f(try g())`) is taken for a value; qualified constructors with type arguments (`java.util.ArrayList<String>()`) do not parse; NullAway's narrowing of calls (`if (f() != null) f().length()`) is kept.
+
+## Language additions
+
+- `for (x in xs)` loops over any `Iterable` or array.
+- `data class` (a Java record) and `sealed interface`, nested in the class of their file.
+- `x is T` and `x !is T`, with smart casts of a `val` or parameter where the test holds.
+- `when` with type tests and constants, as a statement, after `return` or as a value.
