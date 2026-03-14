@@ -1,0 +1,29 @@
+package app
+
+import java.util.ArrayList
+
+class Counter(val name: String, var step: Int) {
+    var count: Int = 0
+    val history: ArrayList<Int> = ArrayList<Int>()
+    private val label: String = "counter " + name
+
+    fn next() -> Int {
+        count += step
+        history.add(count)
+        return count
+    }
+
+    fn reset() {
+        count = 0
+        history.clear()
+    }
+
+    fn describe() -> String = label + ": " + count + " after " + history.size() + " steps"
+
+    fn twice() -> Int {
+        next()
+        return next()
+    }
+}
+
+fn start(name: String) -> Counter = Counter(name, 1)

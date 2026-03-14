@@ -48,6 +48,8 @@ final class AstBuilder {
                 DataClassDeclContext data = top.dataClassDecl();
                 decls.add(new Decl.DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
                         name(data.identifier()), fields(data.field()), types(data.type())));
+            } else if (top.classDecl() != null) {
+                decls.add(classDecl(top.classDecl()));
             } else if (top.interfaceDecl() != null) {
                 InterfaceDeclContext iface = top.interfaceDecl();
                 decls.add(new Decl.Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
@@ -59,6 +61,26 @@ final class AstBuilder {
             }
         }
         return new SourceFile(path, className, packagePos, packageName, imports, decls);
+    }
+
+    private Decl.ClassDecl classDecl(ClassDeclContext ctx) {
+        List<Decl.Property> parameters = new ArrayList<>();
+        for (ClassParamContext p : ctx.classParam()) {
+            parameters.add(new Decl.Property(pos(p.start), pos(p.identifier().start), false, name(p.identifier()), type(p.type()),
+                    null, p.VAR() != null));
+        }
+        List<Decl.Property> properties = new ArrayList<>();
+        List<Decl.Function> methods = new ArrayList<>();
+        for (ClassMemberContext member : ctx.classMember()) {
+            switch (member) {
+                case PropertyMemberContext p -> properties.add(new Decl.Property(pos(p.start), pos(p.identifier().start),
+                        p.PRIVATE() != null, name(p.identifier()), typeOrNull(p.type()), expr(p.expression()), p.VAR() != null));
+                case MethodMemberContext m -> methods.add(function(m.functionDecl()));
+                default -> throw new IllegalStateException("unknown member " + member.getClass());
+            }
+        }
+        return new Decl.ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, name(ctx.identifier()),
+                parameters, properties, methods, types(ctx.type()));
     }
 
     private List<Expr.Param> fields(List<FieldContext> contexts) {

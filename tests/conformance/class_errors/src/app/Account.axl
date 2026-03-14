@@ -1,0 +1,24 @@
+package app
+
+class Account(val owner: String, var balance: Int) {
+    val created = 0
+    val history: java.util.List<Int> = java.util.List.of()
+
+    fn rename(name: String) {
+        owner = name
+    }
+
+    fn deposit(amount: Int, balance: Int) {
+        this.balance += amount
+    }
+
+    fn total() -> Int = balance + history.size()
+
+    fn describe() -> String = owner
+}
+
+fn main() {
+    val account = Account("a", 1)
+    account.balance = 2
+    println(account.total())
+}

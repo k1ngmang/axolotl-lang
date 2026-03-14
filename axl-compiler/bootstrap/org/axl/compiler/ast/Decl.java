@@ -39,4 +39,21 @@ import java.util.List;
             boolean isSealed,
             List<Expr.Param> members,
             List<TypeRef> supertypes) implements Decl {}
+    public record ClassDecl(
+            Pos pos,
+            Pos namePos,
+            boolean isPrivate,
+            String name,
+            List<Property> parameters,
+            List<Property> properties,
+            List<Function> methods,
+            List<TypeRef> supertypes) implements Decl {}
+    public record Property(
+            Pos pos,
+            Pos namePos,
+            boolean isPrivate,
+            String name,
+            @Nullable TypeRef type,
+            @Nullable Expr init,
+            boolean mutable) {}
 }

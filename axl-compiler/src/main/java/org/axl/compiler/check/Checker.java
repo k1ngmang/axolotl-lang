@@ -70,7 +70,7 @@ public final class Checker {
     // Names that would hide the `java` and `axl` packages the generated code qualifies names with.
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
 
-    private enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED }
+    private enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
 
     /** type is the written type of a local, or null. */
     private record Symbol(Kind kind, Pos pos, TypeRef type) {
@@ -172,7 +172,7 @@ public final class Checker {
                             "`" + value.name() + "` is already declared at line " + existing.pos().line());
                 }
                 scope.names.put(value.name(), new Symbol(Kind.TOP_LEVEL, value.pos()));
-            } else if (decl instanceof Decl.DataClass || decl instanceof Decl.Interface) {
+            } else if (decl instanceof Decl.DataClass || decl instanceof Decl.Interface || decl instanceof Decl.ClassDecl) {
                 checkTypeName(decl);
             } else {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos()));
@@ -194,6 +194,7 @@ public final class Checker {
             switch (decl) {
                 case Decl.Value value -> topLevelValue(value);
                 case Decl.Function fn -> function(fn);
+                case Decl.ClassDecl classDecl -> classDecl(classDecl);
                 case Decl.DataClass data -> members(data.fields(), "field");
                 case Decl.Interface iface -> members(iface.members(), "member");
             }
@@ -204,6 +205,25 @@ public final class Checker {
                     + "`, which is declared " + (problem.later().equals(value.name()) ? "by itself" : "later")
                     + "; top-level values are set in order, so declare `" + problem.later() + "` first");
         }
+    }
+
+    private void classDecl(Decl.ClassDecl c) {
+        scope = new Scope(scope, false);
+        for (Decl.Property p : c.parameters()) {
+            declare(p.namePos(), p.name(), p.mutable() ? Kind.MUTABLE_FIELD : Kind.FIELD, p.type());
+        }
+        for (Decl.Property p : c.properties()) {
+            if (p.type() == null) {
+                error(p.pos(), ErrorCode.TYPE_REQUIRED, "a property needs a type: `" + (p.mutable() ? "var " : "val ")
+                        + p.name() + ": Type = ...`");
+            }
+            declare(p.namePos(), p.name(), p.mutable() ? Kind.MUTABLE_FIELD : Kind.FIELD, p.type());
+        }
+        for (Decl.Property p : c.properties()) {
+            expr(p.init());
+        }
+        c.methods().forEach(this::function);
+        scope = scope.parent;
     }
 
     private boolean fileIsInterface() {
@@ -308,7 +328,7 @@ public final class Checker {
             case Stmt.Assign assign -> {
                 if (assign.target() instanceof Expr.Name name) {
                     Symbol symbol = scope.lookup(name.name());
-                    if (symbol != null && symbol.kind != Kind.MUTABLE_LOCAL) {
+                    if (symbol != null && symbol.kind != Kind.MUTABLE_LOCAL && symbol.kind != Kind.MUTABLE_FIELD) {
                         error(assign.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(name.name(), symbol));
                     } else if (symbol != null && symbol.type() != null && !symbol.type().nullable() && isNull(assign.value())) {
                         // NullAway does not check what is assigned to locals.
@@ -381,6 +401,7 @@ public final class Checker {
             case TOP_LEVEL -> file.decls().stream().anyMatch(d -> d instanceof Decl.Function && d.name().equals(name))
                     ? "`" + name + "` is a function, not a variable"
                     : "cannot assign to the top-level value `" + name + "`; top-level values cannot change";
+            case FIELD -> "cannot assign to the `val` property `" + name + "`; declare it with `var`";
             default -> "cannot assign to `val` `" + name + "`; declare it with `var`";
         };
     }
@@ -461,7 +482,7 @@ public final class Checker {
                 if (symbol != null && symbol.kind == Kind.MUTABLE_LOCAL) {
                     mutableRefs.add(name);
                 }
-                if (symbol != null && symbol.kind != Kind.IMPORTED) {
+                if (symbol != null && symbol.kind != Kind.IMPORTED && symbol.kind != Kind.MUTABLE_FIELD) {
                     stableNames.add(name);
                 }
                 if (symbol == null) {
@@ -693,7 +714,8 @@ public final class Checker {
     private Symbol localLookup(String name) {
         for (Scope s = scope; s != null && !s.fileScope; s = s.parent) {
             Symbol symbol = s.names.get(name);
-            if (symbol != null) {
+            // A method may have the name of a property.
+            if (symbol != null && symbol.kind != Kind.FIELD && symbol.kind != Kind.MUTABLE_FIELD) {
                 return symbol;
             }
         }

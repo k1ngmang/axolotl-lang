@@ -136,3 +136,4 @@ Left as they are: a nested class whose name is all capitals before a `try` (`Out
 - `data class` (a Java record) and `sealed interface`, nested in the class of their file.
 - `x is T` and `x !is T`, with smart casts of a `val` or parameter where the test holds.
 - `when` with type tests and constants, as a statement, after `return` or as a value.
+- `class` with parameters, properties and methods, and files that are the type they declare.

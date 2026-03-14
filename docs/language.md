@@ -80,6 +80,32 @@ with a capital letter, and `Circle("c", 2.0)` creates one. They are nested in th
 (`Shapes.axl` makes `Shapes.Circle`), so other files import them as `import app.Shapes.Circle`.
 Methods of a record are plain functions that take it: `fn area(c: Circle) -> Double = ...`.
 
+## Classes
+
+A `class` has state and methods:
+
+```axl
+class Counter(val name: String, var step: Int) {
+    var count: Int = 0
+    val history: ArrayList<Int> = ArrayList<Int>()
+
+    fn next() -> Int {
+        count += step
+        history.add(count)
+        return count
+    }
+}
+```
+
+The parameters of the class and the properties in its body are fields: `val` ones cannot be assigned,
+`var` ones can, from inside the class (`count += step`) and outside (`counter.step = 5`). A property
+needs a type and a value; it is set after the parameters, in order. Methods are the `fn`s in the body
+and read the fields by name. `private` hides a property or a method. A class cannot extend another one
+and is created like a data class: `Counter("c", 1)`; it may implement interfaces of the same file.
+
+A file whose name is a type it declares, such as `Counter.axl` above, is that type. Its other
+declarations are static members: `Counter.start("c")`.
+
 ## Type tests and `when`
 
 `x is Circle` and `x !is Circle` test the type of a value. A `val` or parameter that has been tested

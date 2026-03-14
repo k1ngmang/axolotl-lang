@@ -1,0 +1,23 @@
+package app
+
+class Box(val value: String) {
+    var seen: Int = 0
+
+    fn read() -> String {
+        seen += 1
+        return value
+    }
+}
+
+fn main() {
+    val counter = Counter.start("c")
+    counter.step = 5
+    println(counter.next())
+    println(counter.twice())
+    println(counter.describe())
+    counter.reset()
+    println(counter.describe())
+    val box = Box("x")
+    println(box.read() + box.read())
+    println(box.seen)
+}

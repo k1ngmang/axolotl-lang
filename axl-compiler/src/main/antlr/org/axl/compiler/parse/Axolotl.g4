@@ -61,6 +61,7 @@ topLevel
     : functionDecl
     | valDecl SEMI?
     | dataClassDecl
+    | classDecl
     | interfaceDecl
     | SEMI
     ;
@@ -73,6 +74,21 @@ dataClassDecl
 
 field
     : VAL identifier COLON type
+    ;
+
+// A class with state: constructor parameters and properties are fields, functions are methods.
+classDecl
+    : PRIVATE? CLASS identifier (LPAREN (classParam (COMMA classParam)*)? RPAREN)? (COLON type (COMMA type)*)?
+      (LBRACE classMember* RBRACE)?
+    ;
+
+classParam
+    : (VAL | VAR) identifier COLON type
+    ;
+
+classMember
+    : PRIVATE? (VAL | VAR) identifier (COLON type)? ASSIGN expression SEMI?   # propertyMember
+    | functionDecl                                                            # methodMember
     ;
 
 // `sealed interface Shape { val name: String }`

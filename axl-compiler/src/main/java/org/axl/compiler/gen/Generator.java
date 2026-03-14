@@ -141,7 +141,8 @@ public final class Generator {
             switch (decl) {
                 case Decl.Value value when probed.contains(value.name()) -> { }
                 case Decl.Value value -> emitValue(value);
-                case Decl.Function fn -> emitFunction(fn);
+                case Decl.Function fn -> emitFunction(fn, true);
+                case Decl.ClassDecl classDecl -> emitClass(classDecl);
                 case Decl.DataClass data -> emitDataClass(data);
                 case Decl.Interface iface -> emitInterface(iface);
             }
@@ -167,7 +168,8 @@ public final class Generator {
     /** A data class or interface named like the file is the class of the file; the rest of the file is in it. */
     private Decl fileType() {
         return file.decls().stream().filter(d -> d.name().equals(file.className())
-                && (d instanceof Decl.DataClass || d instanceof Decl.Interface)).findFirst().orElse(null);
+                && (d instanceof Decl.DataClass || d instanceof Decl.Interface || d instanceof Decl.ClassDecl))
+                .findFirst().orElse(null);
     }
 
     private void emitFileType(Decl fileType) {
@@ -182,9 +184,61 @@ public final class Generator {
                 em.indent();
                 return;
             }
+            case Decl.ClassDecl classDecl -> {
+                em.line(line, "@NullMarked public final class " + classDecl.name()
+                        + typeList(" implements ", classDecl.supertypes()) + " {");
+                emitClassMembers(classDecl);
+                em.indent();
+                return;
+            }
             default -> throw new IllegalStateException();
         }
         em.indent();
+    }
+
+    private void emitClass(Decl.ClassDecl classDecl) {
+        em.line(classDecl.pos().line(), visibility(classDecl) + " static final class " + classDecl.name()
+                + typeList(" implements ", classDecl.supertypes()) + " {");
+        emitClassMembers(classDecl);
+        em.line(classDecl.pos().line(), "}");
+    }
+
+    /** Fields, the constructor and the methods, inside the class that is open. */
+    private void emitClassMembers(Decl.ClassDecl classDecl) {
+        em.indent();
+        // Properties are set after the parameters, in the constructor, since they may read them.
+        boolean inConstructor = !classDecl.parameters().isEmpty();
+        for (Decl.Property p : classDecl.parameters()) {
+            em.line(p.pos().line(), field(p) + ";");
+        }
+        for (Decl.Property p : classDecl.properties()) {
+            resetCounters();
+            em.line(p.pos().line(), field(p) + (inConstructor ? "" : " = " + expr(p.init())) + ";");
+        }
+        if (inConstructor) {
+            int line = classDecl.pos().line();
+            String params = classDecl.parameters().stream().map(p -> type(p.type()) + " " + p.name()).collect(Collectors.joining(", "));
+            em.line(line, "public " + classDecl.name() + "(" + params + ") {");
+            em.indent();
+            for (Decl.Property p : classDecl.parameters()) {
+                em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";");
+            }
+            for (Decl.Property p : classDecl.properties()) {
+                resetCounters();
+                em.line(p.pos().line(), "this." + p.name() + " = " + expr(p.init()) + ";");
+            }
+            em.dedent();
+            em.line(line, "}");
+        }
+        for (Decl.Function method : classDecl.methods()) {
+            resetCounters();
+            emitFunction(method, false);
+        }
+        em.dedent();
+    }
+
+    private String field(Decl.Property p) {
+        return (p.isPrivate() ? "private" : "public") + (p.mutable() ? "" : " final") + " " + type(p.type()) + " " + p.name();
     }
 
     private void emitDataClass(Decl.DataClass data) {
@@ -248,10 +302,10 @@ public final class Generator {
         em.line(0, "}");
     }
 
-    private void emitFunction(Decl.Function fn) {
-        String params = isMain(fn) ? "String[] args" : parameters(fn);
+    private void emitFunction(Decl.Function fn, boolean isStatic) {
+        String params = isStatic && isMain(fn) ? "String[] args" : parameters(fn);
         String returnType = fn.returnType() == null ? "void" : type(fn.returnType());
-        em.line(fn.pos().line(), visibility(fn) + " static " + returnType + " " + fn.name() + "(" + params + ") {");
+        em.line(fn.pos().line(), visibility(fn) + (isStatic ? " static " : " ") + returnType + " " + fn.name() + "(" + params + ") {");
         this.returnType = fn.returnType() == null ? null : nullableType(fn.returnType());
         localTypes.clear();
         fn.params().forEach(p -> localTypes.put(p.name(), p.type()));

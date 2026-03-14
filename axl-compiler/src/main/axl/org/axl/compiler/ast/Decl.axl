@@ -54,3 +54,28 @@ data class Interface(
     val members: List<Expr.Param>,
     val supertypes: List<TypeRef>
 ) : Decl
+
+/**
+ * A class with state and methods. A property without init is a parameter of the constructor; methods
+ * are functions that read the properties by name.
+ */
+data class ClassDecl(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val parameters: List<Property>,
+    val properties: List<Property>,
+    val methods: List<Function>,
+    val supertypes: List<TypeRef>
+) : Decl
+
+data class Property(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val type: TypeRef?,
+    val init: Expr?,
+    val mutable: Boolean
+)
