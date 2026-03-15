@@ -35,11 +35,13 @@ import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.tree.WhileLoopTree;
+import com.sun.source.tree.YieldTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
+import com.sun.source.util.TreeScanner;
 import com.sun.source.util.Trees;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -996,9 +998,41 @@ final class NullChecker implements TaskListener {
 
         private void checkUnboxing(ExpressionTree value, boolean nullAwayChecks) {
             TypeMirror type = typeOf(value);
-            if (type != null && BOXES.contains(erasedName(type))) {
+            if (unwrap(value) instanceof SwitchExpressionTree tree) {
+                // A switch takes the primitive type it is assigned to, and NullAway does not look into its branches.
+                yielded(tree).forEach(branch -> checkUnboxing(branch, false));
+            } else if (type != null && BOXES.contains(erasedName(type))) {
                 report(value, origin(value), nullAwayChecks, describe(value) + ", but is used as a number or boolean here; " + FIX);
             }
+        }
+
+        /** The values the branches of a switch expression give, without those of switches nested in them. */
+        private List<ExpressionTree> yielded(SwitchExpressionTree tree) {
+            List<ExpressionTree> values = new ArrayList<>();
+            for (CaseTree branch : tree.getCases()) {
+                if (branch.getBody() instanceof ExpressionTree value) {
+                    values.add(value);
+                } else if (branch.getBody() != null) {
+                    new TreeScanner<Void, Void>() {
+                        @Override
+                        public Void visitYield(YieldTree yield, Void unused) {
+                            values.add(yield.getValue());
+                            return null;
+                        }
+
+                        @Override
+                        public Void visitSwitchExpression(SwitchExpressionTree nested, Void unused) {
+                            return null;
+                        }
+
+                        @Override
+                        public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
+                            return null;
+                        }
+                    }.scan(branch.getBody(), null);
+                }
+            }
+            return values;
         }
 
         /**
@@ -1098,6 +1132,9 @@ final class NullChecker implements TaskListener {
             }
             if (e instanceof AssignmentTree assignment) {
                 return origin(assignment.getExpression());
+            }
+            if (e instanceof SwitchExpressionTree tree) {
+                return yielded(tree).stream().map(this::origin).max(Origin::compareTo).orElse(Origin.NONE);
             }
             if (!(e instanceof MethodInvocationTree) && !(e instanceof MemberSelectTree) && !(e instanceof IdentifierTree)) {
                 return Origin.NONE;
