@@ -1,0 +1,45 @@
+package app
+
+fn maybeInt(flag: Boolean) -> Int? = if (flag) null else 5
+
+fn load(n: Int) -> Result<Int, String> = if (n > 0) Ok(n) else Err("negative")
+
+fn anything(n: Int) -> Result<Object, String> = if (n > 1) Ok("text") else Ok(n)
+
+// A branch that is a number stays boxed, so that a null in the other one is kept.
+fn pick(flag: Boolean) -> Int? = if (flag) maybeInt(flag) else 0
+
+fn byNumber(n: Int) -> Int? {
+    val value = when (n) {
+        1 -> maybeInt(true)
+        else -> 0
+    }
+    return value
+}
+
+// `?.` and `try` may stand in an `if` that gives a value: the condition is computed first.
+fn size(flag: Boolean, s: String?) -> Int = if (flag) s?.length() ?: 0 else -1
+
+fn checked(n: Int) -> Result<String, String> {
+    val word = if (try load(n) > 1) "big" else "small"
+    return Ok(word)
+}
+
+fn isText(n: Int) -> Result<Boolean, String> {
+    val text = try anything(n) is String
+    return Ok(text)
+}
+
+fn main() {
+    println(pick(true))
+    println(pick(false))
+    println(byNumber(1))
+    println(byNumber(2))
+    println(size(true, null))
+    println(size(true, "abc"))
+    println(size(false, "abc"))
+    println(checked(2))
+    println(checked(-1))
+    println(isText(1))
+    println(isText(2))
+}
