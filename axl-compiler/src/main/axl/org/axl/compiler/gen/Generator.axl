@@ -1,0 +1,2037 @@
+package org.axl.compiler.gen
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.IdentityHashMap
+import java.util.LinkedHashSet
+import java.util.List
+import java.util.Locale
+import java.util.Map
+import java.util.Set
+import java.util.function.Function
+import java.util.function.Supplier
+import org.axl.compiler.GeneratedUnit
+import org.axl.compiler.JavaTypes
+import org.axl.compiler.LineMap
+import org.axl.compiler.Options
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Expr.Binary
+import org.axl.compiler.ast.Expr.Literal
+import org.axl.compiler.ast.Expr.Name
+import org.axl.compiler.ast.Expr.Paren
+import org.axl.compiler.ast.Expr.Pipe
+import org.axl.compiler.ast.Expr.Unary
+import org.axl.compiler.ast.Import
+import org.axl.compiler.ast.Pos
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.Stmt
+import org.axl.compiler.ast.Stmt.Block
+import org.axl.compiler.ast.Stmt.ExprStmt
+import org.axl.compiler.ast.Stmt.If
+import org.axl.compiler.ast.Stmt.Return
+import org.axl.compiler.ast.TypeRef
+import org.axl.compiler.check.Analysis
+import org.axl.compiler.check.Checker
+import org.axl.compiler.check.TypeInference
+import org.axl.compiler.check.Whens
+
+private val PRIMITIVE_NAMES: Map<String, String> = Map.of("Int", "int", "Long", "long", "Boolean", "boolean",
+    "Double", "double")
+private val BOXED_NAMES: Map<String, String> = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
+    "Double", "Double")
+
+// Types whose values Java unboxes in a conditional, as Axolotl or Java names them.
+private val NUMBERS: Set<String> = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character")
+
+// `s ?: 0` with `s: Short?`: the number is converted, so that both sides have the type on the left.
+private val NARROW_NUMBERS: Map<String, String> = Map.of("Short", "short", "Byte", "byte", "Character", "char",
+    "Float", "float")
+
+private val WIDENING: List<String> = List.of("Int", "Long", "Double")
+
+private val TARGET_TYPED_FACTORIES: Set<String> = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
+    "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity")
+
+/** Where a `when` stands: what its branches do with their value. */
+enum WhenForm { STATEMENT, RESULT, VALUE }
+
+/** Code of an expression whose `try`s and `mapResult`s were moved into statements before it. */
+data class Lifted(val code: String, val pure: Boolean)
+
+/** Generates Java following the expansion rules of the specification. Expects a file without errors. */
+class Generator(
+    val file: SourceFile,
+    val analysis: Analysis,
+    val options: Options,
+    // Java types of top-level values without a written type, by name.
+    val valueTypes: Map<String, String>,
+    // Values declared as locals of a probe method instead of fields, for JavaTypes.
+    val probed: Set<String>
+) {
+
+    val declaredFunctions: LinkedHashSet<String> = declaredFunctionNames(file)
+    var em: Emitter = Emitter()
+
+    // Names known as another type here, with the pattern variable that holds them: `x is Circle` makes
+    // `x` read `$s1` where the check holds, as Java scopes pattern variables.
+    var smart: Map<String, String> = HashMap<String, String>()
+    val patternVariables: IdentityHashMap<Expr.Is, String> = IdentityHashMap<Expr.Is, String>()
+    var patternCount: Int = 0
+
+    // Per function: counters of generated names and the copies of captured `var`s.
+    var tempCount: Int = 0
+    var nullCount: Int = 0
+    var exceptionCount: Int = 0
+    var copyCount: Int = 0
+    var listCount: Int = 0
+    var copies: Map<String, String> = Map.of()
+
+    // The Java result type of the function whose body is being emitted; null inside a lambda.
+    var returnType: String? = null
+
+    // Types of the parameters and locals of the function so far; null where the code does not say.
+    val localTypes: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
+
+    fn emitFile() {
+        val packageName = file.packageName() ?: ""
+        val packagePos = file.packagePos() ?: Pos(1, 1)
+        em.line(packagePos.line(), "package " + packageName + ";")
+        em.line(0, "import axl.lang.*;")
+        em.line(0, "import org.jspecify.annotations.*;")
+        for (imp in file.imports()) {
+            val keyword = if (imp.kind() == Import.Kind.TYPE) "import " else "import static "
+            em.line(imp.pos().line(), keyword + imp.name() + ";")
+        }
+        em.blank()
+        val fileType = typeOfFile()
+        if (fileType == null) {
+            em.line(0, "@NullMarked public final class " + file.className() + " {")
+            em.indent()
+            em.line(0, "private " + file.className() + "() {}")
+        } else {
+            emitFileType(fileType)
+        }
+        for (decl in file.decls()) {
+            resetCounters()
+            if (decl != fileType) {
+                emitDecl(decl)
+            }
+        }
+        if (!probed.isEmpty()) {
+            emitProbe()
+        }
+        em.dedent()
+        em.line(0, "}")
+    }
+
+    private fn emitDecl(decl: Decl) {
+        when (decl) {
+            is Decl.Value -> {
+                if (!probed.contains(decl.name())) {
+                    emitValue(decl)
+                }
+            }
+            is Decl.Function -> emitFunction(decl, true)
+            is Decl.ClassDecl -> emitClass(decl)
+            is Decl.EnumDecl -> em.line(decl.pos().line(), visibility(decl) + " enum " + decl.name() + " { " +
+                String.join(", ", decl.constants()) + " }")
+            is Decl.DataClass -> emitDataClass(decl)
+            is Decl.Interface -> emitInterface(decl)
+        }
+    }
+
+    private fn resetCounters() {
+        tempCount = 0
+        nullCount = 0
+        exceptionCount = 0
+        copyCount = 0
+        listCount = 0
+        patternCount = 0
+        smart = HashMap<String, String>()
+        copies = Map.of()
+    }
+
+    private fn newTemp() -> String {
+        tempCount += 1
+        return "$t" + tempCount
+    }
+
+    private fn newNull() -> String {
+        nullCount += 1
+        return "$n" + nullCount
+    }
+
+    private fn newCopy() -> String {
+        copyCount += 1
+        return "$c" + copyCount
+    }
+
+    private fn newList() -> String {
+        listCount += 1
+        return "$p" + listCount
+    }
+
+    private fn newPattern() -> Int {
+        patternCount += 1
+        return patternCount
+    }
+
+    /** A data class or interface named like the file is the class of the file; the rest of the file is in it. */
+    private fn typeOfFile() -> Decl? {
+        for (d in file.decls()) {
+            if (d.name().equals(file.className()) && (d is Decl.DataClass || d is Decl.Interface || d is Decl.ClassDecl)) {
+                return d
+            }
+        }
+        return null
+    }
+
+    private fn emitFileType(fileType: Decl) {
+        val line = fileType.pos().line()
+        if (fileType is Decl.DataClass) {
+            em.line(line, "@NullMarked public record " + fileType.name() + "(" + parameters(fileType.fields(), line) + ")" +
+                typeList(" implements ", fileType.supertypes()) + " {")
+        } else if (fileType is Decl.Interface) {
+            em.line(line, "@NullMarked public" + interfaceModifier(fileType) + " interface " + fileType.name() +
+                typeList(" extends ", fileType.supertypes()) + " {")
+            emitRequiredValues(fileType)
+        } else if (fileType is Decl.ClassDecl) {
+            em.line(line, "@NullMarked public final class " + fileType.name() +
+                typeList(" implements ", fileType.supertypes()) + " {")
+            emitClassMembers(fileType)
+        } else {
+            throw IllegalStateException()
+        }
+        em.indent()
+    }
+
+    private fn emitClass(classDecl: Decl.ClassDecl) {
+        em.line(classDecl.pos().line(), visibility(classDecl) + " static final class " + classDecl.name() +
+            typeList(" implements ", classDecl.supertypes()) + " {")
+        emitClassMembers(classDecl)
+        em.line(classDecl.pos().line(), "}")
+    }
+
+    /** Fields, the constructor and the methods, inside the class that is open. */
+    private fn emitClassMembers(classDecl: Decl.ClassDecl) {
+        em.indent()
+        // Properties are set after the parameters, in the constructor, since they may read them.
+        val inConstructor = !classDecl.parameters().isEmpty()
+        for (p in classDecl.parameters()) {
+            em.line(p.pos().line(), field(p) + ";")
+        }
+        for (p in classDecl.properties()) {
+            resetCounters()
+            val initial = if (inConstructor) "" else " = " + expr(propertyInit(p))
+            em.line(p.pos().line(), field(p) + initial + ";")
+        }
+        if (inConstructor) {
+            emitConstructor(classDecl)
+        }
+        for (method in classDecl.methods()) {
+            resetCounters()
+            emitFunction(method, false)
+        }
+        em.dedent()
+    }
+
+    private fn emitConstructor(classDecl: Decl.ClassDecl) {
+        val line = classDecl.pos().line()
+        val params = classDecl.parameters() |> map { p -> javaType(propertyType(p)) + " " + p.name() }
+        em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {")
+        em.indent()
+        for (p in classDecl.parameters()) {
+            em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";")
+        }
+        for (p in classDecl.properties()) {
+            resetCounters()
+            em.line(p.pos().line(), "this." + p.name() + " = " + expr(propertyInit(p)) + ";")
+        }
+        em.dedent()
+        em.line(line, "}")
+    }
+
+    private fn field(p: Decl.Property) -> String {
+        val visibility = if (p.isPrivate()) "private" else "public"
+        val modifier = if (p.mutable()) "" else " final"
+        return visibility + modifier + " " + javaType(propertyType(p)) + " " + p.name()
+    }
+
+    private fn emitDataClass(dataClass: Decl.DataClass) {
+        val line = dataClass.pos().line()
+        em.line(line, visibility(dataClass) + " record " + dataClass.name() + "(" + parameters(dataClass.fields(), line) + ")" +
+            typeList(" implements ", dataClass.supertypes()) + " {}")
+    }
+
+    private fn emitInterface(iface: Decl.Interface) {
+        val line = iface.pos().line()
+        val head = visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
+            typeList(" extends ", iface.supertypes())
+        if (iface.members().isEmpty()) {
+            em.line(line, head + " {}")
+            return
+        }
+        em.line(line, head + " {")
+        emitRequiredValues(iface)
+        em.line(line, "}")
+    }
+
+    private fn emitRequiredValues(iface: Decl.Interface) {
+        em.indent()
+        for (member in iface.members()) {
+            em.line(member.pos().line(), javaType(memberType(member)) + " " + member.name() + "();")
+        }
+        em.dedent()
+    }
+
+    /** Java wants an interface under a sealed one to be sealed or open itself. */
+    private fn interfaceModifier(iface: Decl.Interface) -> String {
+        if (iface.isSealed()) {
+            return " sealed"
+        }
+        val underSealed = file.decls() |> anyMatch { d -> d is Decl.Interface && d.isSealed() && extendsInterface(iface, d.name()) }
+        return if (underSealed) " non-sealed" else ""
+    }
+
+    private fn extendsInterface(iface: Decl.Interface, parentName: String) -> Boolean =
+        iface.supertypes() |> anyMatch { t -> t.name().equals(parentName) }
+
+    private fn emitValue(value: Decl.Value) {
+        val declared = value.type()
+        val type = if (declared != null) javaType(declared) else valueTypes.getOrDefault(value.name(), "Object")
+        val line = value.pos().line()
+        val head = visibility(value) + " static final " + type + " " + value.name()
+        em.line(line, joined(head, " = ", expr(value.init()), line, startLine(value.init())) + ";")
+    }
+
+    private fn emitProbe() {
+        resetCounters()
+        em.line(0, "private static void " + JavaTypes.PROBE_METHOD + "() {")
+        em.indent()
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && probed.contains(decl.name())) {
+                em.line(decl.pos().line(), "var " + decl.name() + " = " + expr(decl.init()) + ";")
+            }
+        }
+        em.dedent()
+        em.line(0, "}")
+    }
+
+    private fn emitFunction(f: Decl.Function, isStatic: Boolean) {
+        val params = if (isStatic && isMain(f)) "String[] args" else parameters(f.params(), f.pos().line())
+        val declaredReturn = f.returnType()
+        val resultType = if (declaredReturn == null) "void" else javaType(declaredReturn)
+        val modifier = if (isStatic) " static " else " "
+        em.line(f.pos().line(), visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
+        returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
+        localTypes.clear()
+        for (p in f.params()) {
+            localTypes.put(p.name(), p.type())
+        }
+        em.indent()
+        val exprBody = f.exprBody()
+        val body = f.body()
+        if (exprBody != null) {
+            val line = exprBody.pos().line()
+            val stmt: Stmt = if (declaredReturn == null) ExprStmt(exprBody.pos(), exprBody) else Return(exprBody.pos(), exprBody)
+            statement(stmt)
+            em.dedent()
+            em.line(line, "}")
+        } else if (body != null) {
+            emitStatements(body.statements())
+            em.dedent()
+            em.line(body.end().line(), "}")
+        }
+    }
+
+    private fn emitStatements(list: List<Stmt>) {
+        for (stmt in list) {
+            statement(stmt)
+        }
+    }
+
+    private fn statement(stmt: Stmt) {
+        when (stmt) {
+            is Stmt.Local -> localStatement(stmt)
+            is Stmt.Assign -> assignStatement(stmt)
+            is Stmt.Return -> returnStatement(stmt)
+            is Stmt.If -> ifStatement(stmt)
+            is Stmt.While -> emitWhile(stmt)
+            is Stmt.For -> emitFor(stmt)
+            is Stmt.ExprStmt -> exprStatement(stmt)
+            is Stmt.Block -> {
+                em.line(stmt.pos().line(), "{")
+                em.indent()
+                emitStatements(stmt.statements())
+                em.dedent()
+                em.line(stmt.end().line(), "}")
+            }
+        }
+    }
+
+    private fn localStatement(local: Stmt.Local) {
+        val line = local.pos().line()
+        val init = local.init()
+        val declared = local.type()
+        val modifiers = if (local.mutable()) "" else "final "
+        val typeCode = if (declared == null) "var" else javaType(declared)
+        val whole = withoutParens(init)
+        if (whole is Expr.When) {
+            emitWhen(line, whole, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE)
+            localTypes.put(local.name(), declared)
+            return
+        }
+        val localType = declared ?: typeOf(init)
+        val stored = if (declared == null) null else nullableType(declared)
+        withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
+            val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
+            em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
+        })
+        localTypes.put(local.name(), localType)
+    }
+
+    private fn assignStatement(assign: Stmt.Assign) {
+        val line = assign.pos().line()
+        val assigned = assign.value()
+        withCopiesOf(line, Captures.capturedIn(assigned, analysis, inlinesElvis(assigned)), { ->
+            val valueLifts = Lifts.needed(assigned)
+            val target = assignTarget(line, assign.target(), valueLifts)
+            // `a.f += try g()` reads `a.f` before `g` runs, which may change it.
+            val readsOld = valueLifts && !assign.op().equals("=") && !isLocal(assign.target())
+            val old: String? = if (readsOld) newTemp() else null
+            if (old != null) {
+                em.line(line, "final var " + old + " = " + target + ";")
+            }
+            val code = valueCode(line, assigned, null)
+            if (old != null) {
+                em.line(line, target + " = " + old + ";")
+            }
+            em.line(line, target + " " + assign.op() + " " + code + ";")
+        })
+    }
+
+    private fn returnStatement(ret: Stmt.Return) {
+        val line = ret.pos().line()
+        val value = ret.value()
+        if (value == null) {
+            em.line(line, "return;")
+            return
+        }
+        val whole = withoutParens(value)
+        if (whole is Expr.When) {
+            emitWhen(line, whole, "", WhenForm.RESULT)
+            return
+        }
+        withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), { ->
+            em.line(line, "return " + valueCode(line, value, returnType) + ";")
+        })
+    }
+
+    private fn ifStatement(ifStmt: Stmt.If) {
+        val split = shortCircuitWithLift(ifStmt.condition())
+        if (split != null && splitsCondition(ifStmt)) {
+            shortCircuitIf(ifStmt, split)
+            return
+        }
+        emitIf(ifStmt, "")
+        em.line(blockEnd(ifStmt), "}")
+        smart = union(smart, narrowedAfter(ifStmt))
+    }
+
+    private fn exprStatement(exprStmt: Stmt.ExprStmt) {
+        val line = exprStmt.pos().line()
+        val e = withoutParens(exprStmt.expr())
+        val condition = runsWhen(e)
+        if (e is Expr.When) {
+            emitWhen(line, e, "", WhenForm.STATEMENT)
+        } else if (e is Expr.Throw) {
+            withCopies(line, e.value(), { -> em.line(line, "throw " + lifted(line, e.value()).code() + ";") })
+        } else if (condition != null) {
+            // Java takes no `c && f()` or `a ?: f()` as a statement.
+            val action = actionOf(e)
+            val thenBlock = Block(action.pos(), List.of(ExprStmt(action.pos(), action)), action.pos())
+            statement(If(exprStmt.pos(), condition, thenBlock, null))
+        } else if (e is Expr.Try) {
+            withCopies(line, e.inner(), { -> unwrapTry(line, e) })
+        } else if (Chains.hasSafeStep(e)) {
+            val chain = Chains.flatten(e)
+            withCopiesOf(line, Captures.inStatementChain(chain, analysis), { -> safeChainStatement(line, chain) })
+        } else if (Lifts.needed(e)) {
+            withCopies(line, e, { -> liftedStatement(line, e, lifted(line, e)) })
+        } else {
+            withCopies(line, e, { -> em.line(line, expr(e) + ";") })
+        }
+    }
+
+    /**
+     * Emits the `if` chain up to, but not including, the final closing brace.
+     * An `else if` whose condition needs copies becomes `else { copies; if ... }`.
+     */
+    private fn emitIf(ifStmt: Stmt.If, prefix: String) {
+        val line = ifStmt.pos().line()
+        val condition = ifStmt.condition()
+        val captured = Captures.capturedIn(condition, analysis)
+        val prelude = !captured.isEmpty() || Lifts.needed(condition)
+        if (!prefix.isEmpty() && prelude) {
+            em.line(line, prefix + "{")
+            em.indent()
+            statement(ifStmt)
+            em.dedent()
+            return
+        }
+        val plain = prefix.isEmpty() && captured.isEmpty() && ifStmt.elseBranch() == null
+        val nested = if (plain) andWithLiftedRight(condition) else null
+        if (nested != null) {
+            // Nested ifs keep what the left side checks, such as `s != null`, known in the right side and the body.
+            em.line(line, "if (" + lifted(line, nested.left()).code() + ") {")
+            em.indent()
+            val inner = If(ifStmt.pos(), nested.right(), ifStmt.then(), null)
+            emitIf(inner, "")
+            em.line(blockEnd(inner), "}")
+            em.dedent()
+            return
+        }
+        withCopies(line, condition, { -> em.line(line, prefix + "if (" + lifted(line, condition).code() + ") {") })
+        narrowed(whenTrue(condition), { -> emitBlock(ifStmt.then()) })
+        val otherwise = whenFalse(condition)
+        val elseBranch = ifStmt.elseBranch()
+        if (elseBranch is Stmt.If) {
+            narrowed(otherwise, { -> emitIf(elseBranch, "} else ") })
+        } else if (elseBranch is Stmt.Block) {
+            em.line(elseBranch.pos().line(), "} else {")
+            narrowed(otherwise, { -> emitBlock(elseBranch) })
+        }
+    }
+
+    private fn splitsCondition(ifStmt: Stmt.If) -> Boolean {
+        val condition = ifStmt.condition()
+        val simpleAnd = ifStmt.elseBranch() == null && condition is Expr.Binary && condition.op().equals("&&")
+        if (simpleAnd || !Captures.capturedIn(condition, analysis).isEmpty()) {
+            return false
+        }
+        return shortCircuitWithLift(condition) != null
+    }
+
+    /**
+     * `if (s != null && try ok(s)) {...} else {...}`, or `||`: nested ifs keep what the left side
+     * checks known where it holds, which a boolean temporary would hide from NullAway. The branch
+     * taken inside them leaves a loop that runs once, so that the other one is written only once.
+     */
+    private fn shortCircuitIf(ifStmt: Stmt.If, b: Expr.Binary) {
+        val line = ifStmt.pos().line()
+        val and = b.op().equals("&&")
+        val otherwise = asBlock(ifStmt.elseBranch())
+        val inside: Stmt.Block? = if (and) ifStmt.then() else otherwise
+        val after: Stmt.Block? = if (and) otherwise else ifStmt.then()
+        em.line(line, "do {")
+        em.indent()
+        val left = lifted(line, b.left()).code()
+        em.line(line, "if (" + (if (and) left else negated(left)) + ") {")
+        em.indent()
+        val right = lifted(line, b.right()).code()
+        em.line(line, "if (" + (if (and) right else negated(right)) + ") {")
+        if (inside != null) {
+            emitBlock(inside)
+        }
+        val closing = if (inside == null) line else inside.end().line()
+        if (inside == null || !exits(inside)) {
+            em.indent()
+            em.line(closing, "break;")
+            em.dedent()
+        }
+        em.line(closing, "}")
+        em.dedent()
+        em.line(line, "}")
+        if (after != null) {
+            emitStatements(after.statements())
+        }
+        em.dedent()
+        em.line(blockEnd(ifStmt), "} while (false);")
+    }
+
+    /** After `if (x !is T) { return }` the names stay narrowed, as Java introduces them. */
+    private fn narrowedAfter(ifStmt: Stmt.If) -> Map<String, String> {
+        val thenExits = exits(ifStmt.then())
+        val elseBranch = ifStmt.elseBranch()
+        val elseExits = elseBranch != null && exits(elseBranch)
+        if (thenExits && !elseExits) {
+            return whenFalse(ifStmt.condition())
+        }
+        if (elseExits && !thenExits) {
+            return whenTrue(ifStmt.condition())
+        }
+        return Map.of()
+    }
+
+    private fn emitWhile(loop: Stmt.While) {
+        val line = loop.pos().line()
+        val condition = loop.condition()
+        val plain = Captures.capturedIn(condition, analysis).isEmpty()
+        if (plain && !Lifts.needed(condition)) {
+            em.line(line, "while (" + expr(condition) + ") {")
+            narrowed(whenTrue(condition), { -> emitBlock(loop.body()) })
+        } else {
+            // Copies and lifted `try`s must run on every iteration, before the condition.
+            em.line(line, "while (true) {")
+            em.indent()
+            val split = if (plain) shortCircuitWithLift(condition) else null
+            if (split != null) {
+                // Separate checks keep what the left side checks known in the body, as in shortCircuitIf.
+                whileChecks(line, split)
+            } else {
+                withCopies(line, condition, { -> em.line(line, "if (" + negated(lifted(line, condition).code()) + ") break;") })
+            }
+            narrowed(whenTrue(condition), { -> emitStatements(loop.body().statements()) })
+            em.dedent()
+        }
+        em.line(loop.body().end().line(), "}")
+    }
+
+    private fn whileChecks(line: Int, b: Expr.Binary) {
+        val left = lifted(line, b.left()).code()
+        val and = b.op().equals("&&")
+        em.line(line, "if (" + negated(left) + ") " + (if (and) "break;" else "{"))
+        if (!and) {
+            em.indent()
+        }
+        em.line(line, "if (" + negated(lifted(line, b.right()).code()) + ") break;")
+        if (!and) {
+            em.dedent()
+            em.line(line, "}")
+        }
+    }
+
+    /**
+     * A `when` is a Java switch. As a statement its branches are statements, after `return` they return
+     * their last expression, and as a value they yield it; head is what comes before a switch that is
+     * a value. Each `is` condition has a branch of its own, so a branch with several is written for each.
+     */
+    private fn emitWhen(line: Int, w: Expr.When, head: String, form: WhenForm) {
+        val subject = ArrayList<String>()
+        val bindingName = w.bindingName()
+        withCopies(line, w.subject(), { ->
+            if (bindingName != null) {
+                val name = "$e" + newPattern()
+                em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";")
+                subject.add(name)
+            } else {
+                subject.add(lifted(line, w.subject()).code())
+            }
+        })
+        val subjectCode = subject.getFirst()
+        // The name the branches narrow: a bound name, or a subject that is a name that never changes.
+        val narrowedName = bindingName ?: narrowableName(withoutParens(w.subject()))
+        val whole = nameBinding(bindingName, subjectCode)
+        em.line(line, head + "switch (" + subjectCode + ") {")
+        em.indent()
+        for (arm in w.arms()) {
+            narrowed(whole, { -> emitArm(arm, narrowedName, form) })
+        }
+        em.dedent()
+        em.line(w.end().line(), if (form == WhenForm.VALUE) "};" else "}")
+    }
+
+    private fn narrowableName(subject: Expr) -> String? {
+        if (subject is Expr.Name && !analysis.mutableRefs().contains(subject) && !analysis.staticNames().contains(subject)) {
+            return subject.name()
+        }
+        return null
+    }
+
+    private fn emitArm(arm: Expr.Arm, narrowedName: String?, form: WhenForm) {
+        val conditions = arm.conditions()
+        if (conditions.isEmpty()) {
+            emitBranch(arm, "default", Map.of(), form)
+            return
+        }
+        if (conditions.getFirst().type() == null) {
+            val constants = conditions |> map { c -> literal(constantOf(c).text()) }
+            emitBranch(arm, "case " + String.join(", ", constants), Map.of(), form)
+            return
+        }
+        for (condition in conditions) {
+            val variable = "$s" + newPattern()
+            val narrowing = nameBinding(narrowedName, variable)
+            emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form)
+        }
+    }
+
+    private fn emitBranch(arm: Expr.Arm, label: String, narrowing: Map<String, String>, form: WhenForm) {
+        val line = arm.pos().line()
+        val single = singleExpression(arm)
+        if (form == WhenForm.VALUE && single != null) {
+            if (single is Expr.Throw && !Lifts.needed(single.value())) {
+                em.line(line, label + " -> throw " + narrowedValue(narrowing, { -> expr(single.value()) }) + ";")
+                return
+            }
+            if (!Lifts.needed(single)) {
+                em.line(line, label + " -> " + narrowedValue(narrowing, { -> expr(single) }) + ";")
+                return
+            }
+        }
+        em.line(line, label + " -> {")
+        em.indent()
+        narrowed(narrowing, { -> emitArmBody(arm, form) })
+        em.dedent()
+        em.line(if (arm.body().isEmpty()) line else arm.body().getLast().pos().line(), "}")
+    }
+
+    private fn emitArmBody(arm: Expr.Arm, form: WhenForm) {
+        val body = if (form == WhenForm.RESULT) Whens.returning(arm) else arm.body()
+        var i = 0
+        while (i < body.size()) {
+            val stmt = body.get(i)
+            val last = i == body.size() - 1
+            if (form == WhenForm.VALUE && last && stmt is Stmt.ExprStmt && stmt.expr() !is Expr.Throw) {
+                em.line(stmt.pos().line(), "yield " + lifted(stmt.pos().line(), stmt.expr()).code() + ";")
+            } else {
+                statement(stmt)
+            }
+            i += 1
+        }
+    }
+
+    private fn emitFor(loop: Stmt.For) {
+        val line = loop.pos().line()
+        withCopies(line, loop.iterable(), { ->
+            em.line(line, "for (final var " + loop.name() + " : " + lifted(line, loop.iterable()).code() + ") {")
+        })
+        emitBlock(loop.body())
+        em.line(loop.body().end().line(), "}")
+    }
+
+    private fn emitBlock(block: Stmt.Block) {
+        val outer = smart
+        em.indent()
+        emitStatements(block.statements())
+        em.dedent()
+        smart = outer
+    }
+
+    /** What is left of a lifted statement may not be a Java statement: `$p1`, `$t1 + 1`, `(f())`. */
+    private fn liftedStatement(line: Int, rest: Expr, left: Lifted) {
+        var code = left.code()
+        while (code.startsWith("(") && code.endsWith(")") && closingParen(code) == code.length() - 1) {
+            code = code.substring(1, code.length() - 1)
+        }
+        if (code.matches("[\\w$]+")) {
+            return
+        }
+        val e = withoutParens(rest)
+        // A call stays a statement: it may return nothing, which a temporary cannot hold.
+        val call = (e is Expr.Call || e is Expr.GenericNew || e is Expr.Try || e is Expr.Pipe) && code.endsWith(")")
+        em.line(line, if (call) code + ";" else "final var " + newTemp() + " = " + code + ";")
+    }
+
+    /**
+     * The value of a statement; with inlineElvis a root `?:` becomes a temporary and a conditional.
+     *
+     * stored: the type the value is stored as, if the code says; a root `?:` whose right side
+     * needs statements gets its temporary declared with it
+     */
+    private fn valueCode(line: Int, e: Expr, stored: String?) -> String {
+        if (e is Expr.Elvis && Lifts.needed(e.right())) {
+            return elvisChain(line, e, stored).code()
+        }
+        if (Lifts.needed(e)) {
+            return lifted(line, e).code()
+        }
+        if (!inlinesElvis(e) || e !is Expr.Elvis) {
+            return expr(e)
+        }
+        val temp = newTemp()
+        em.line(line, "final var " + temp + " = " + expr(e.left()) + ";")
+        // Objects.nonNull also compiles when the left side is a primitive.
+        return "java.util.Objects.nonNull(" + temp + ") ? " + temp + " : " + expr(e.right())
+    }
+
+    /**
+     * Whether Java widens the number to the type on the left without boxing. Otherwise the overloads
+     * of Nulls.or for numbers and for any type both apply, and Java cannot pick one.
+     */
+    private fn widens(number: Expr, left: TypeRef?) -> Boolean {
+        if (left == null) {
+            return true
+        }
+        val type = TypeInference.typeOf(file, number)
+        return type != null && WIDENING.contains(type.name()) && WIDENING.indexOf(type.name()) <= WIDENING.indexOf(left.name())
+    }
+
+    /** Whether `value` emits a root `?:` as a conditional rather than Nulls.or. */
+    private fn inlinesElvis(e: Expr) -> Boolean {
+        if (!options.inlineElvis()) {
+            return false
+        }
+        return e is Expr.Elvis && !Lifts.needed(e.right()) && !Lifts.needed(e) && !mayMixNumbers(e)
+    }
+
+    /**
+     * `Int? ?: Long?` or `Int? ?: 1.5`: Java unboxes both sides of such a conditional, which fails on a
+     * null right side, and widens the result. Nulls.or keeps them as they are. A side whose type the
+     * code does not state may be a number.
+     */
+    private fn mayMixNumbers(elvis: Expr.Elvis) -> Boolean {
+        val left = typeOf(elvis.left())
+        val right = typeOf(elvis.right())
+        if (left != null && right != null && left.name().equals(right.name())) {
+            return false
+        }
+        val leftOther = left != null && !NUMBERS.contains(left.name())
+        val rightOther = right != null && !NUMBERS.contains(right.name())
+        return !(leftOther || rightOther)
+    }
+
+    private fn typeOf(e: Expr) -> TypeRef? {
+        val inner = withoutParens(e)
+        if (inner is Expr.Name && localTypes.containsKey(inner.name())) {
+            return localTypes.get(inner.name())
+        }
+        return TypeInference.typeOf(file, inner)
+    }
+
+    /**
+     * A number on the right is passed as is, so that Java widens it to the type on the left. After
+     * `?.` only when the left side is a temporary: Java could not infer the type of its Nulls.map.
+     */
+    private fn elvisCode(elvis: Expr.Elvis, left: String) -> String {
+        val right = elvis.right()
+        val leftType = typeOf(elvis.left())
+        val isNumber = Lifts.isNumber(right)
+        val number = isNumber && widens(right, leftType) && (!Chains.hasSafeStep(elvis.left()) || left.matches("\\$t\\d+"))
+        val narrow: String? = if (isNumber) NARROW_NUMBERS.get(nameOf(leftType)) else null
+        val fallback = if (number) expr(right) else lambdaFallback(right, narrow)
+        return joined("Nulls.or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")"
+    }
+
+    private fn lambdaFallback(right: Expr, narrow: String?) -> String {
+        if (narrow != null) {
+            return "() -> " + converted(expr(right), narrow)
+        }
+        return "() -> " + exprIn(right, true)
+    }
+
+    /** Copies `var`s that lambdas of this statement capture into fresh finals, then emits it. */
+    private fn withCopies(line: Int, e: Expr, emit: Runnable) {
+        withCopiesOf(line, Captures.capturedIn(e, analysis), emit)
+    }
+
+    private fn withCopiesOf(line: Int, captured: List<String>, emit: Runnable) {
+        if (captured.isEmpty()) {
+            emit.run()
+            return
+        }
+        val saved = copies
+        val mine = HashMap<String, String>(saved)
+        copies = mine
+        for (name in captured) {
+            // Already a copy made around an enclosing lambda.
+            if (!saved.containsKey(name)) {
+                val copy = newCopy()
+                em.line(line, "final var " + copy + " = " + name + ";")
+                mine.put(name, copy)
+            }
+        }
+        emit.run()
+        copies = saved
+    }
+
+    /** Emits the check and early return of `try` and returns the expression that unwraps the value. */
+    private fn unwrapTry(statementLine: Int, t: Expr.Try) -> String {
+        // A `try` on a continuation line runs, and fails, on that line.
+        val line = Math.max(statementLine, t.pos().line())
+        val inner = lifted(line, t.inner()).code()
+        val temp = newTemp()
+        em.line(line, "final var " + temp + " = " + inner + ";")
+        em.line(line, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");")
+        return "Result.unwrap(" + temp + ")"
+    }
+
+    /** `a?.b()` as a statement: no lambda, so void methods work too. */
+    private fn safeChainStatement(line: Int, chain: Chains.Chain) {
+        val steps = chain.steps()
+        val first = indexOfFirstSafe(steps)
+        var current = liftedPrefix(line, chain, first)
+        var opened = 0
+        var i = first
+        while (i < steps.size()) {
+            val step = steps.get(i)
+            if (step.safe()) {
+                val temp = newNull()
+                // A call before `?.` may return a primitive, which cannot be compared with null: box it.
+                val value = if (opened > 0) "Nulls.typed(" + current + ").value()" else current
+                em.line(line, "final var " + temp + " = " + value + ";")
+                em.line(line, "if (" + temp + " != null) {")
+                em.indent()
+                opened += 1
+                current = temp
+            }
+            current += stepText(step, false)
+            i += 1
+        }
+        em.line(line, current + ";")
+        var j = 0
+        while (j < opened) {
+            em.dedent()
+            em.line(line, "}")
+            j += 1
+        }
+    }
+
+    private fn expr(e: Expr) -> String = exprIn(e, false)
+
+    /** inLambda is true inside the lambdas generated for `?:`, `?.` and `attempt`. */
+    private fn exprIn(e: Expr, inLambda: Boolean) -> String = when (e) {
+        is Expr.Literal -> literal(e.text())
+        is Expr.Name -> nameCode(e, inLambda)
+        is Expr.Member -> chainCode(Chains.flatten(e), inLambda)
+        is Expr.Call -> callExpr(e, inLambda)
+        is Expr.GenericNew -> genericNew(e, argsCode(e.args(), inLambda, e.pos().line()))
+        is Expr.MethodRef -> exprIn(e.target(), inLambda) + "::" + e.name()
+        is Expr.NotNull -> "java.util.Objects.requireNonNull(" + exprIn(e.target(), inLambda) + ")"
+        is Expr.Unary -> unary(e.op(), exprIn(e.operand(), inLambda))
+        is Expr.Binary -> binaryCode(e, inLambda)
+        is Expr.Is -> typeCheck(e, inLambda)
+        is Expr.Conditional -> conditionalCode(e, inLambda)
+        is Expr.Throw -> throw IllegalStateException("throw at " + e.pos() + " cannot be an expression")
+        is Expr.Elvis -> elvisCode(e, exprIn(e.left(), inLambda))
+        is Expr.Paren -> parenCode(e, inLambda)
+        is Expr.Attempt -> attemptCode(e)
+        is Expr.Lambda -> lambdaCode(e)
+        is Expr.Pipe -> pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) })
+        is Expr.Try -> throw IllegalStateException("try at " + e.pos() + " should have been lifted")
+        is Expr.When -> throw IllegalStateException("when at " + e.pos() + " should have been lifted")
+    }
+
+    private fn nameCode(n: Expr.Name, inLambda: Boolean) -> String {
+        val known = smart.get(n.name())
+        if (known != null) {
+            return known
+        }
+        if (inLambda && analysis.mutableRefs().contains(n)) {
+            return copies.getOrDefault(n.name(), n.name())
+        }
+        return n.name()
+    }
+
+    private fn callExpr(c: Expr.Call, inLambda: Boolean) -> String {
+        val target = c.target()
+        val path = if (target == null) null else packagePath(target)
+        if (path != null && isTypeName(c.name())) {
+            return "new " + path + "." + c.name() + "(" + argsCode(c.args(), inLambda, c.pos().line()) + ")"
+        }
+        if (target != null) {
+            return chainCode(Chains.flatten(c), inLambda)
+        }
+        return callCode(c, argsCode(c.args(), inLambda, c.pos().line()))
+    }
+
+    private fn binaryCode(b: Expr.Binary, inLambda: Boolean) -> String {
+        val left = exprIn(b.left(), inLambda)
+        val right = narrowedValue(rightNarrowing(b), { -> exprIn(b.right(), inLambda) })
+        return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()))
+    }
+
+    private fn conditionalCode(c: Expr.Conditional, inLambda: Boolean) -> String {
+        val condition = exprIn(c.condition(), inLambda)
+        val thenCode = narrowedValue(whenTrue(c.condition()), { -> exprIn(c.then(), inLambda) })
+        val otherwise = narrowedValue(whenFalse(c.condition()), { -> exprIn(c.otherwise(), inLambda) })
+        return "(" + condition + " ? " + thenCode + " : " + otherwise + ")"
+    }
+
+    // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
+    private fn parenCode(p: Expr.Paren, inLambda: Boolean) -> String {
+        if (becomesCall(p.inner())) {
+            return exprIn(p.inner(), inLambda)
+        }
+        return "(" + exprIn(p.inner(), inLambda) + ")"
+    }
+
+    private fn attemptCode(a: Expr.Attempt) -> String {
+        val errorName = a.errorName()
+        val error = if (errorName != null) errorName else "$ex" + nextException()
+        return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")"
+    }
+
+    private fn nextException() -> Int {
+        exceptionCount += 1
+        return exceptionCount
+    }
+
+    /** `x instanceof T $s1` when `x` can be narrowed, which a name that never changes can. */
+    private fn typeCheck(check: Expr.Is, inLambda: Boolean) -> String {
+        val type = javaType(check.type())
+        val target = check.target()
+        if (target !is Expr.Name || analysis.mutableRefs().contains(target) || analysis.staticNames().contains(target)) {
+            val plainTest = exprIn(target, inLambda) + " instanceof " + type
+            return if (check.negated()) "!(" + plainTest + ")" else plainTest
+        }
+        val variable = "$s" + newPattern()
+        patternVariables.put(check, variable)
+        val test = exprIn(target, inLambda) + " instanceof " + type + " " + variable
+        return if (check.negated()) "!(" + test + ")" else test
+    }
+
+    /** The names a condition narrows where it is true. */
+    private fn whenTrue(condition: Expr) -> Map<String, String> {
+        if (condition is Expr.Is) {
+            return if (condition.negated()) Map.of() else checkedName(condition)
+        }
+        if (condition is Expr.Paren) {
+            return whenTrue(condition.inner())
+        }
+        if (condition is Expr.Unary && condition.op().equals("!")) {
+            return whenFalse(condition.operand())
+        }
+        if (condition is Expr.Binary && condition.op().equals("&&")) {
+            return union(whenTrue(condition.left()), whenTrue(condition.right()))
+        }
+        return Map.of()
+    }
+
+    /** The names a condition narrows where it is false. */
+    private fn whenFalse(condition: Expr) -> Map<String, String> {
+        if (condition is Expr.Is) {
+            return if (condition.negated()) checkedName(condition) else Map.of()
+        }
+        if (condition is Expr.Paren) {
+            return whenFalse(condition.inner())
+        }
+        if (condition is Expr.Unary && condition.op().equals("!")) {
+            return whenTrue(condition.operand())
+        }
+        if (condition is Expr.Binary && condition.op().equals("||")) {
+            return union(whenFalse(condition.left()), whenFalse(condition.right()))
+        }
+        return Map.of()
+    }
+
+    /** The name a type check narrows and the pattern variable that holds it, if it made one. */
+    private fn checkedName(check: Expr.Is) -> Map<String, String> {
+        val variable = patternVariables.get(check)
+        val target = check.target()
+        if (variable != null && target is Expr.Name) {
+            return Map.of(target.name(), variable)
+        }
+        return Map.of()
+    }
+
+    /** What the left side of `a && b` or `a || b` narrows in `b`. */
+    private fn rightNarrowing(b: Expr.Binary) -> Map<String, String> {
+        if (b.op().equals("&&")) {
+            return whenTrue(b.left())
+        }
+        if (b.op().equals("||")) {
+            return whenFalse(b.left())
+        }
+        return Map.of()
+    }
+
+    private fn narrowedValue(names: Map<String, String>, body: Supplier<String>) -> String {
+        val outer = smart
+        smart = union(outer, names)
+        val result = body.get()
+        smart = outer
+        return result
+    }
+
+    private fn narrowed(names: Map<String, String>, body: Runnable) {
+        val outer = smart
+        smart = union(outer, names)
+        body.run()
+        smart = outer
+    }
+
+    private fn genericNew(g: Expr.GenericNew, args: String) -> String {
+        val typeArgs = g.typeArgs() |> map { t -> boxedType(t) }
+        return "new " + g.type() + "<" + String.join(", ", typeArgs) + ">(" + args + ")"
+    }
+
+    private fn callCode(c: Expr.Call, args: String) -> String {
+        if (c.name().equals("println") && !declaredFunctions.contains("println")) {
+            return "System.out.println(" + args + ")"
+        }
+        if (c.name().equals("Ok") || c.name().equals("Err")) {
+            return "new " + c.name() + "<>(" + args + ")"
+        }
+        if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
+            return "new " + c.name() + "(" + args + ")"
+        }
+        return c.name() + "(" + args + ")"
+    }
+
+    /** Each `?.` wraps the rest of the chain, so the first null skips everything after it. */
+    private fn chainCode(chain: Chains.Chain, inLambda: Boolean) -> String =
+        chainFrom(exprIn(chain.base(), inLambda), chain.steps(), 0, inLambda, startLine(chain.base()))
+
+    private fn chainFrom(prefix: String, steps: List<Chains.Step>, index: Int, inLambda: Boolean, baseLine: Int) -> String {
+        if (index == steps.size()) {
+            return prefix
+        }
+        val step = steps.get(index)
+        if (step.safe()) {
+            val param = newNull()
+            val rest = chainFrom(param + stepOnLine(step, true, steps, index, baseLine), steps, index + 1, true, baseLine)
+            return "Nulls.map(" + prefix + ", " + param + " -> " + rest + ")"
+        }
+        return chainFrom(prefix + stepOnLine(step, inLambda, steps, index, baseLine), steps, index + 1, inLambda, baseLine)
+    }
+
+    /** `.name(args)`, on a new Java line when the step starts a new .axl line. */
+    private fn stepOnLine(step: Chains.Step, inLambda: Boolean, steps: List<Chains.Step>, index: Int, baseLine: Int) -> String {
+        val text = stepText(step, inLambda)
+        val previous = if (index == 0) baseLine else steps.get(index - 1).line()
+        return if (step.line() > previous) Emitter.continued(step.line(), text) else text
+    }
+
+    private fn stepText(step: Chains.Step, inLambda: Boolean) -> String {
+        val args = step.args()
+        if (args == null) {
+            return "." + step.name()
+        }
+        return "." + step.name() + "(" + argsCode(args, inLambda, step.line()) + ")"
+    }
+
+    private fn argsCode(args: List<Expr>, inLambda: Boolean, line: Int) -> String {
+        val codes = args |> map { a -> argument(a, inLambda) }
+        return joinedArgs(args, codes, line)
+    }
+
+    /** Where a `?.` argument, also on the left of `?:`, cannot be moved into a temporary, Nulls.typed gives it its type. */
+    private fn argument(arg: Expr, inLambda: Boolean) -> String {
+        if (arg is Expr.Paren) {
+            return "(" + argument(arg.inner(), inLambda) + ")"
+        }
+        if (arg is Expr.NotNull) {
+            return "java.util.Objects.requireNonNull(" + argument(arg.target(), inLambda) + ")"
+        }
+        // As the receiver of `.value()`, the expansion gets its type without the overloads of the call.
+        if (Chains.hasSafeStep(arg) || hasSafeElvis(arg)) {
+            return "Nulls.typed(" + exprIn(arg, inLambda) + ").value()"
+        }
+        return exprIn(arg, inLambda)
+    }
+
+    private fn lambdaCode(l: Expr.Lambda) -> String {
+        val params = lambdaParams(l)
+        val body = l.body()
+        val outerCopies = copies
+        copies = Map.of()
+        val single = lambdaExpression(body)
+        if (single != null) {
+            val bodyLine = startLine(single)
+            val code = expr(single)
+            copies = outerCopies
+            // A body on its own line keeps that line, for errors, stack traces and breakpoints.
+            return if (bodyLine > l.pos().line()) params + " ->" + Emitter.continued(bodyLine, code) else params + " -> " + code
+        }
+        val outer = em
+        val outerReturnType = returnType
+        val outerSmart = smart
+        returnType = null
+        em = Emitter()
+        em.indent()
+        emitStatements(body)
+        val block = em.embedded()
+        em = outer
+        smart = outerSmart
+        copies = outerCopies
+        returnType = outerReturnType
+        return params + " -> {" + block + Emitter.continuation(l.end().line(), "}")
+    }
+
+    private fn lambdaParams(l: Expr.Lambda) -> String {
+        if (analysis.implicitIt().contains(l)) {
+            return "it"
+        }
+        val params = l.params()
+        if (params.size() == 1 && params.getFirst().type() == null) {
+            return params.getFirst().name()
+        }
+        // `x: Int` fits Function<Integer, ...> and IntUnaryOperator alike only when Java infers it.
+        val plain = params |> allMatch { p -> isPlainParam(p) }
+        val names = if (plain) params |> map { p -> p.name() } else params |> map { p -> typedParam(p) }
+        return "(" + String.join(", ", names) + ")"
+    }
+
+    private fn isPlainParam(p: Expr.Param) -> Boolean {
+        val type = p.type()
+        return type == null || javaType(type).equals(primitive(type))
+    }
+
+    private fn typedParam(p: Expr.Param) -> String {
+        val type = p.type()
+        if (type == null) {
+            return p.name()
+        }
+        return boxedType(type) + " " + p.name()
+    }
+
+    /**
+     * Emits the statements a `try` or `mapResult` needs and returns what is left of the expression.
+     * Operands to the left of a lifted part are evaluated into temporaries first, so the order of
+     * evaluation stays left to right.
+     */
+    private fn lifted(line: Int, e: Expr) -> Lifted {
+        if (!Lifts.needed(e)) {
+            return Lifted(expr(e), isPure(e))
+        }
+        return when (e) {
+            is Expr.Try -> Lifted(unwrapTry(line, e), true)
+            is Expr.When -> liftedWhen(line, e)
+            is Expr.Binary -> liftedBinary(line, e)
+            is Expr.Elvis -> liftedElvis(line, e)
+            is Expr.Unary -> Lifted(unary(e.op(), lifted(line, e.operand()).code()), false)
+            is Expr.Paren -> liftedParen(line, e)
+            is Expr.Call -> liftedCall(line, e)
+            is Expr.Member -> chainLifted(line, Chains.flatten(e))
+            is Expr.GenericNew -> Lifted(genericNew(e, codes(operands(line, e.args()))), false)
+            is Expr.MethodRef -> Lifted(lifted(line, e.target()).code() + "::" + e.name(), false)
+            is Expr.NotNull -> Lifted("java.util.Objects.requireNonNull(" + lifted(line, e.target()).code() + ")", false)
+            is Expr.Pipe -> pipeLifted(line, e)
+            else -> throw IllegalStateException("nothing to lift in " + e)
+        }
+    }
+
+    private fn liftedWhen(line: Int, w: Expr.When) -> Lifted {
+        val temp = newTemp()
+        emitWhen(line, w, "final var " + temp + " = ", WhenForm.VALUE)
+        return Lifted(temp, true)
+    }
+
+    private fn liftedBinary(line: Int, b: Expr.Binary) -> Lifted {
+        if (shortCircuitWithLift(b) != null) {
+            return shortCircuit(line, b)
+        }
+        val ops = operands(line, List.of(b.left(), b.right()))
+        val code = joined(ops.get(0).code(), " " + b.op() + " ", ops.get(1).code(), startLine(b.left()), startLine(b.right()))
+        return Lifted(code, false)
+    }
+
+    private fn liftedElvis(line: Int, el: Expr.Elvis) -> Lifted {
+        if (Lifts.needed(el.right())) {
+            return elvisChain(line, el, null)
+        }
+        if (Lifts.numberAfterSafeCall(el) && !Lifts.needed(el.left())) {
+            val temp = newTemp()
+            em.line(line, "final var " + temp + " = " + expr(el.left()) + ";")
+            return Lifted(elvisCode(el, temp), false)
+        }
+        return Lifted(elvisCode(el, lifted(line, el.left()).code()), false)
+    }
+
+    private fn liftedParen(line: Int, p: Expr.Paren) -> Lifted {
+        val inner = lifted(line, p.inner())
+        val code = if (becomesCall(p.inner())) inner.code() else "(" + inner.code() + ")"
+        return Lifted(code, inner.pure())
+    }
+
+    private fn liftedCall(line: Int, c: Expr.Call) -> Lifted {
+        if (c.target() == null) {
+            return Lifted(callCode(c, codes(operands(line, c.args()))), false)
+        }
+        return chainLifted(line, Chains.flatten(c))
+    }
+
+    /** A local, which no call can change; top-level values cannot be shadowed, so a name of one is not. */
+    private fn isLocal(target: Expr) -> Boolean {
+        if (target !is Expr.Name) {
+            return false
+        }
+        return file.decls() |> noneMatch { d -> d is Decl.Value && d.name().equals(target.name()) }
+    }
+
+    /** Java evaluates the object of `a.f = v` before `v`, so before a `try` in `v`. */
+    private fn assignTarget(line: Int, target: Expr, valueLifts: Boolean) -> String {
+        if (target !is Expr.Member || (!valueLifts && !Lifts.needed(target))) {
+            return expr(target)
+        }
+        val receiver = lifted(line, target.target())
+        var code = receiver.code()
+        if (valueLifts && !receiver.pure()) {
+            code = newTemp()
+            em.line(line, "final var " + code + " = " + receiver.code() + ";")
+        }
+        return code + "." + target.name()
+    }
+
+    /** Operands in evaluation order; those left of the last lifted one are kept in temporaries. */
+    private fn operands(line: Int, exprs: List<Expr>) -> List<Lifted> {
+        var last = -1
+        var i = 0
+        while (i < exprs.size()) {
+            if (Lifts.hoisted(exprs.get(i))) {
+                last = i
+            }
+            i += 1
+        }
+        val result = ArrayList<Lifted>()
+        var k = 0
+        while (k < exprs.size()) {
+            val e = exprs.get(k)
+            val at = Math.max(line, startLine(e))
+            var operand = if (k < last && takesTypeFromTarget(e)) withArgumentsFirst(at, e) else lifted(at, e)
+            if ((k < last && !operand.pure()) || Chains.hasSafeStep(e)) {
+                val temp = newTemp()
+                em.line(at, "final var " + temp + " = " + operand.code() + ";")
+                operand = Lifted(temp, true)
+            }
+            result.add(operand)
+            k += 1
+        }
+        return result
+    }
+
+    /**
+     * `Ok(x)`, `ArrayList<>()` and `List.of(...)` get their type arguments from where they are passed;
+     * in a temporary they would get `Object`. Factories like these are kept where they stand, which
+     * would change the order of calls with side effects.
+     */
+    private fn takesTypeFromTarget(e: Expr) -> Boolean {
+        if (e is Expr.Call) {
+            val target = e.target()
+            if (target == null) {
+                return e.name().equals("Ok") || e.name().equals("Err")
+            }
+            return target is Expr.Name && analysis.staticNames().contains(target) && TARGET_TYPED_FACTORIES.contains(e.name())
+        }
+        if (e is Expr.GenericNew) {
+            return e.typeArgs().isEmpty()
+        }
+        return e is Expr.MethodRef
+    }
+
+    /** Evaluates the arguments into temporaries and keeps the call itself inline, where Java infers its type. */
+    private fn withArgumentsFirst(line: Int, e: Expr) -> Lifted {
+        if (e is Expr.MethodRef) {
+            return methodRefFirst(line, e)
+        }
+        val codes = ArrayList<String>()
+        for (arg in argumentsOf(e)) {
+            var operand = if (takesTypeFromTarget(arg)) withArgumentsFirst(line, arg) else lifted(line, arg)
+            if (!operand.pure()) {
+                val temp = newTemp()
+                em.line(line, "final var " + temp + " = " + operand.code() + ";")
+                operand = Lifted(temp, true)
+            }
+            codes.add(operand.code())
+        }
+        return Lifted(inlineCall(e, String.join(", ", codes)), true)
+    }
+
+    private fn methodRefFirst(line: Int, r: Expr.MethodRef) -> Lifted {
+        // `make()::run` calls make() where it stands; a type name such as `String::valueOf` evaluates nothing.
+        val target = lifted(line, r.target())
+        if (target.pure() || isPath(r.target())) {
+            return Lifted(target.code() + "::" + r.name(), true)
+        }
+        val temp = newTemp()
+        em.line(line, "final var " + temp + " = " + target.code() + ";")
+        return Lifted(temp + "::" + r.name(), true)
+    }
+
+    private fn inlineCall(e: Expr, argsText: String) -> String {
+        if (e is Expr.Call) {
+            val target = e.target()
+            if (target == null) {
+                return callCode(e, argsText)
+            }
+            return expr(target) + "." + e.name() + "(" + argsText + ")"
+        }
+        if (e is Expr.GenericNew) {
+            return genericNew(e, argsText)
+        }
+        throw IllegalStateException()
+    }
+
+    private fn codes(list: List<Lifted>) -> String {
+        val texts = list |> map { l -> l.code() }
+        return String.join(", ", texts)
+    }
+
+    /** Values that no call can change: literals, lambdas and the file's own names. */
+    private fn isPure(e: Expr) -> Boolean = when (e) {
+        is Expr.Literal -> true
+        is Expr.Name -> analysis.stableNames().contains(e) || analysis.staticNames().contains(e)
+        is Expr.Lambda -> true
+        is Expr.MethodRef -> isPure(e.target()) || isPath(e.target())
+        is Expr.Paren -> isPure(e.inner())
+        is Expr.Call -> isPureResult(e)
+        else -> false
+    }
+
+    // Kept inline so that Java can still infer their type arguments from the target.
+    private fn isPureResult(c: Expr.Call) -> Boolean {
+        if (c.target() == null && (c.name().equals("Ok") || c.name().equals("Err"))) {
+            return c.args() |> allMatch { a -> isPure(a) }
+        }
+        return false
+    }
+
+    /** A class, or a static field reached through classes and packages, such as `System.out`. */
+    private fn isPath(e: Expr) -> Boolean = when (e) {
+        is Expr.Name -> analysis.staticNames().contains(e)
+        is Expr.Member -> !e.safe() && isPath(e.target())
+        else -> false
+    }
+
+    /** `a && try b` evaluates `b` and its `try` only when `a` holds. */
+    private fn shortCircuit(line: Int, b: Expr.Binary) -> Lifted {
+        val left = lifted(line, b.left()).code()
+        val temp = newTemp()
+        val and = b.op().equals("&&")
+        // The left side stays in the condition, so that a null check in it covers the right side.
+        em.line(line, "boolean " + temp + " = " + (if (and) "false" else "true") + ";")
+        em.line(line, "if (" + (if (and) left else negated(left)) + ") {")
+        em.indent()
+        em.line(line, temp + " = " + narrowedValue(rightNarrowing(b), { -> lifted(line, b.right()).code() }) + ";")
+        em.dedent()
+        em.line(line, "}")
+        return Lifted(temp, true)
+    }
+
+    /** `a ?: try b` evaluates `b` and its `try` only when `a` is null. */
+    private fn elvisChain(line: Int, elvis: Expr.Elvis, stored: String?) -> Lifted {
+        val left = lifted(line, elvis.left()).code()
+        val right = elvis.right()
+        if (stored == null && right is Expr.Try && !Lifts.needed(right.inner())) {
+            return elvisTry(line, left, right)
+        }
+        val temp = newTemp()
+        em.line(line, (if (stored == null) "var" else stored) + " " + temp + " = " + left + ";")
+        // Objects.isNull also compiles when the left side is a primitive.
+        em.line(line, "if (java.util.Objects.isNull(" + temp + ")) {")
+        em.indent()
+        em.line(line, temp + " = " + lifted(line, right).code() + ";")
+        em.dedent()
+        em.line(line, "}")
+        return Lifted(temp, true)
+    }
+
+    // A temporary of the type on the left could not hold the value on the right: `xs ?: try load()`
+    // with an ArrayList on the left and a List on the right. A conditional lets Java find the type.
+    private fn elvisTry(line: Int, left: String, t: Expr.Try) -> Lifted {
+        val value = newTemp()
+        em.line(line, "final var " + value + " = " + left + ";")
+        val result = newTemp()
+        em.line(line, "final var " + result + " = java.util.Objects.isNull(" + value + ") ? " + expr(t.inner()) + " : null;")
+        em.line(line, "if (" + result + " != null && " + result + ".isErr()) return Result.propagate(" + result + ");")
+        return Lifted("java.util.Objects.nonNull(" + value + ") ? " + value +
+            " : Result.unwrap(java.util.Objects.requireNonNull(" + result + "))", false)
+    }
+
+    /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */
+    private fn chainLifted(line: Int, chain: Chains.Chain) -> Lifted {
+        val first = indexOfFirstSafe(chain.steps())
+        val prefix = liftedPrefix(line, chain, first)
+        return Lifted(chainFrom(prefix, chain.steps(), first, false, startLine(chain.base())), false)
+    }
+
+    /** `java.sql` in `java.sql.Timestamp(1L)`, which creates an object as `Timestamp(1L)` would; else null. */
+    private fn packagePath(target: Expr) -> String? {
+        if (target is Expr.Name && analysis.staticNames().contains(target) && Character.isLowerCase(target.name().charAt(0))) {
+            return target.name()
+        }
+        if (target is Expr.Member && !target.safe() && Character.isLowerCase(target.name().charAt(0))) {
+            val path = packagePath(target.target())
+            return if (path == null) null else path + "." + target.name()
+        }
+        return null
+    }
+
+    /** The chain up to its first `?.`, with the statements its `try`s need. */
+    private fn liftedPrefix(line: Int, chain: Chains.Chain, firstSafe: Int) -> String {
+        val steps = chain.steps()
+        val base = lifted(line, chain.base())
+        var current = base.code()
+        // fixed: no evaluation can change what `current` denotes; a type or package name is fixed too.
+        var fixed = base.pure()
+        var typeOrPackage = isStaticName(chain.base())
+        var segment = if (typeOrPackage) baseName(chain) else ""
+        var i = 0
+        while (i < firstSafe) {
+            val step = steps.get(i)
+            val stepArgs = step.args()
+            if (stepArgs == null) {
+                // java.util.List and Thread.State are paths to a class; System.out and Color.RED are values.
+                typeOrPackage = typeOrPackage && (Character.isLowerCase(segment.charAt(0)) || isTypeName(step.name()))
+                fixed = typeOrPackage
+                segment = step.name()
+                current += "." + step.name()
+            } else {
+                // The receiver is evaluated before the arguments, so before their `try`.
+                val hoisted = stepArgs |> anyMatch { a -> Lifts.hoisted(a) }
+                if (hoisted && !fixed) {
+                    val temp = newTemp()
+                    em.line(line, "final var " + temp + " = " + current + ";")
+                    current = temp
+                }
+                val argsText = if (hoisted) codes(operands(line, stepArgs)) else plainArgs(stepArgs)
+                current += "." + step.name() + "(" + argsText + ")"
+                fixed = false
+                typeOrPackage = false
+            }
+            i += 1
+        }
+        return current
+    }
+
+    private fn plainArgs(args: List<Expr>) -> String {
+        val texts = args |> map { a -> expr(a) }
+        return String.join(", ", texts)
+    }
+
+    private fn isStaticName(e: Expr) -> Boolean = e is Expr.Name && analysis.staticNames().contains(e)
+
+    /** `xs |> ... |> mapResult { f(it) } |> ...`: a loop that returns the first `Err` from the function. */
+    private fn pipeLifted(line: Int, pipe: Expr.Pipe) -> Lifted {
+        val stages = pipe.stages()
+        var mapResult = 0
+        while (mapResult < stages.size() && !stages.get(mapResult).name().equals("mapResult")) {
+            mapResult += 1
+        }
+        val eager = ArrayList<Expr>()
+        eager.add(pipe.source())
+        var i = 0
+        while (i < mapResult) {
+            eager.addAll(stages.get(i).args())
+            i += 1
+        }
+        val ops = operands(line, eager)
+        val argCodes = IdentityHashMap<Expr, String>()
+        var j = 1
+        while (j < eager.size()) {
+            argCodes.put(eager.get(j), ops.get(j).code())
+            j += 1
+        }
+        val argOf: Function<Expr, String> = { a -> argCodes.getOrDefault(a, "") }
+        if (mapResult == stages.size()) {
+            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf), false)
+        }
+        val items = if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
+            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf)
+        val list = mapResultLoop(line, stages.get(mapResult), items)
+        val rest = stages.subList(mapResult + 1, stages.size())
+        if (rest.isEmpty()) {
+            return Lifted(list, true)
+        }
+        return pipeLifted(line, Pipe(pipe.pos(), Name(pipe.pos(), list), rest))
+    }
+
+    /** The loop of one `mapResult` stage; returns the name of the list it fills. */
+    private fn mapResultLoop(line: Int, stage: Expr.Stage, items: String) -> String {
+        val lambda = stageLambda(stage)
+        val param = if (lambda.params().isEmpty()) "it" else lambda.params().getFirst().name()
+        val body = firstExpression(lambda.body())
+        val list = newList()
+        val element = boxedType(mapResultType(stage))
+        em.line(line, "final java.util.List<" + element + "> " + list + " = new java.util.ArrayList<>();")
+        em.line(line, "for (final var " + param + " : " + items + ") {")
+        em.indent()
+        val temp = newTemp()
+        val bodyLine = lambda.pos().line()
+        em.line(bodyLine, "final var " + temp + " = " + expr(body) + ";")
+        em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");")
+        em.line(bodyLine, list + ".add(Result.<" + element + ">unwrap(" + temp + "));")
+        em.dedent()
+        em.line(line, "}")
+        return list
+    }
+
+    private fn stageLambda(stage: Expr.Stage) -> Expr.Lambda {
+        val lambda = stage.lambda()
+        if (lambda == null) {
+            throw IllegalStateException("mapResult without a lambda")
+        }
+        return lambda
+    }
+
+    private fn mapResultType(stage: Expr.Stage) -> TypeRef {
+        val type = analysis.mapResultTypes().get(stage)
+        if (type == null) {
+            throw IllegalStateException("mapResult without an element type")
+        }
+        return type
+    }
+
+    /** Pipe stages as a Java stream; without a terminal stage the result is a List. */
+    private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>) -> String {
+        val sb = StringBuilder(parenthesized(source, sourceExpr)).append(".stream()")
+        var terminal = false
+        var previousLine = startLine(sourceExpr)
+        for (stage in stages) {
+            val stageBody = stage.lambda()
+            val lambdaText = if (stageBody == null) "" else lambdaCode(stageBody)
+            if (stage.pos().line() > previousLine) {
+                sb.append(Emitter.continued(stage.pos().line(), ""))
+                previousLine = stage.pos().line()
+            }
+            appendStage(sb, stage, lambdaText, arg)
+            if (Checker.TERMINAL_STAGES.contains(stage.name())) {
+                terminal = true
+            }
+        }
+        return if (terminal) sb.toString() else sb.append(".toList()").toString()
+    }
+
+    private fn appendStage(sb: StringBuilder, stage: Expr.Stage, lambdaText: String, arg: Function<Expr, String>) {
+        val name = stage.name()
+        when (name) {
+            "limit", "skip" -> sb.append('.').append(name).append('(').append(arg.apply(stage.args().getFirst())).append(')')
+            "distinct" -> sb.append(".distinct()")
+            "count" -> sb.append(".count()")
+            "first" -> sb.insert(0, "Nulls.first(").append(".iterator())")
+            "map" -> sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))")
+            else -> sb.append('.').append(name).append('(').append(lambdaText).append(')')
+        }
+    }
+}
+
+fn generate(sourcePath: String, file: SourceFile, analysis: Analysis, options: Options,
+            valueTypes: Map<String, String>) -> GeneratedUnit {
+    val generator = Generator(file, analysis, options, valueTypes, Set.of())
+    generator.emitFile()
+    return GeneratedUnit(sourcePath, file.packageName() ?: "", file.className(), generator.em.text(),
+        lineMap(sourcePath, generator.em))
+}
+
+/**
+ * Java source in which the values in `probed` are `var` locals of the method
+ * JavaTypes.PROBE_METHOD, so that a compiler can tell their types; its line map tells
+ * where the compiler's errors are.
+ */
+fn probe(file: SourceFile, analysis: Analysis, options: Options, valueTypes: Map<String, String>,
+         probed: Set<String>) -> GeneratedUnit {
+    val generator = Generator(file, analysis, options, valueTypes, probed)
+    generator.emitFile()
+    val name = file.className() + ".axl"
+    return GeneratedUnit(name, file.packageName() ?: "", file.className(), generator.em.text(),
+        lineMap(name, generator.em))
+}
+
+private fn lineMap(sourcePath: String, em: Emitter) -> LineMap =
+    LineMap(sourcePath, em.lineNumbers().stream().mapToInt(Integer::intValue).toArray())
+
+/** The Java form of a written type. */
+fn javaType(type: TypeRef) -> String = typeText(type, false)
+
+/** Primitive names become wrappers inside generics and when nullable. */
+private fn boxedType(type: TypeRef) -> String = typeText(type, true)
+
+private fn typeText(type: TypeRef, generic: Boolean) -> String {
+    val primitive = PRIMITIVE_NAMES.get(type.name())
+    var name = type.name()
+    if (primitive != null) {
+        name = if (generic || type.nullable()) BOXED_NAMES.getOrDefault(type.name(), primitive) else primitive
+    }
+    if (!type.args().isEmpty()) {
+        val args = type.args() |> map { t -> typeText(t, true) }
+        name += "<" + String.join(", ", args) + ">"
+    }
+    if (!type.nullable()) {
+        return name
+    }
+    // A type-use annotation on a qualified name goes before the simple name: java.util.@Nullable List.
+    val dot = type.name().lastIndexOf(".")
+    return if (dot < 0) "@Nullable " + name else name.substring(0, dot + 1) + "@Nullable " + name.substring(dot + 1)
+}
+
+/** The type as a temporary that may hold null before it gets its value. */
+private fn nullableType(type: TypeRef) -> String = boxedType(TypeRef(type.pos(), type.name(), type.args(), true))
+
+private fn primitive(type: TypeRef) -> String? {
+    val name = PRIMITIVE_NAMES.get(type.name())
+    if (name == null || type.nullable()) {
+        return null
+    }
+    return name
+}
+
+private fn declaredFunctionNames(file: SourceFile) -> LinkedHashSet<String> {
+    val names = LinkedHashSet<String>()
+    for (decl in file.decls()) {
+        if (decl is Decl.Function) {
+            names.add(decl.name())
+        }
+    }
+    for (imp in file.imports()) {
+        if (imp.kind() == Import.Kind.FN) {
+            names.add(imp.simpleName())
+        }
+    }
+    return names
+}
+
+private fn propertyInit(p: Decl.Property) -> Expr {
+    val init = p.init()
+    if (init == null) {
+        throw IllegalStateException("property " + p.name() + " has no initializer")
+    }
+    return init
+}
+
+private fn propertyType(p: Decl.Property) -> TypeRef {
+    val type = p.type()
+    if (type == null) {
+        throw IllegalStateException("property " + p.name() + " has no type")
+    }
+    return type
+}
+
+private fn memberType(member: Expr.Param) -> TypeRef {
+    val type = member.type()
+    if (type == null) {
+        throw IllegalStateException("member " + member.name() + " has no type")
+    }
+    return type
+}
+
+private fn conditionType(condition: Expr.Cond) -> TypeRef {
+    val type = condition.type()
+    if (type == null) {
+        throw IllegalStateException("condition without a type")
+    }
+    return type
+}
+
+private fn constantOf(condition: Expr.Cond) -> Expr.Literal {
+    val constant = condition.constant()
+    if (constant == null) {
+        throw IllegalStateException("condition without a constant")
+    }
+    return constant
+}
+
+/** The condition under which a statement `c && f()`, `c || f()` or `a ?: f()` runs its right side, or null. */
+private fn runsWhen(statement: Expr) -> Expr? {
+    if (statement is Expr.Binary && statement.op().equals("&&")) {
+        return statement.left()
+    }
+    if (statement is Expr.Binary && statement.op().equals("||")) {
+        return Unary(statement.pos(), "!", Paren(statement.pos(), statement.left()))
+    }
+    if (statement is Expr.Elvis) {
+        return Binary(statement.pos(), "==", statement.left(), Literal(statement.pos(), "null"))
+    }
+    return null
+}
+
+private fn actionOf(statement: Expr) -> Expr {
+    if (statement is Expr.Binary) {
+        return statement.right()
+    }
+    if (statement is Expr.Elvis) {
+        return statement.right()
+    }
+    throw IllegalStateException()
+}
+
+/** `(f())` as a statement is the call: Java takes no parentheses there. */
+private fn withoutParens(e: Expr) -> Expr = if (e is Expr.Paren) withoutParens(e.inner()) else e
+
+/** A parameter on a line of its own keeps that line, so that errors in its type are found there. */
+private fn parameters(params: List<Expr.Param>, declarationLine: Int) -> String {
+    val sb = StringBuilder()
+    var previous = declarationLine
+    var i = 0
+    while (i < params.size()) {
+        val p = params.get(i)
+        val code = javaType(memberType(p)) + " " + p.name()
+        if (p.pos().line() > previous) {
+            sb.append(if (i > 0) "," else "").append(Emitter.continued(p.pos().line(), code))
+            previous = p.pos().line()
+        } else {
+            sb.append(if (i > 0) ", " else "").append(code)
+        }
+        i += 1
+    }
+    return sb.toString()
+}
+
+private fn typeList(keyword: String, types: List<TypeRef>) -> String {
+    if (types.isEmpty()) {
+        return ""
+    }
+    val names = types |> map { t -> javaType(t) }
+    return keyword + String.join(", ", names)
+}
+
+private fn isMain(f: Decl.Function) -> Boolean =
+    f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate()
+
+private fn visibility(decl: Decl) -> String = if (decl.isPrivate()) "private" else "public"
+
+/** The name that reads as the variable, or nothing when there is no name. */
+private fn nameBinding(name: String?, variable: String) -> Map<String, String> {
+    if (name == null) {
+        return Map.of()
+    }
+    return Map.of(name, variable)
+}
+
+/** The condition of `a && b` or `a || b` whose right side needs statements, or null. */
+private fn shortCircuitWithLift(condition: Expr) -> Expr.Binary? {
+    if (condition is Expr.Binary && (condition.op().equals("&&") || condition.op().equals("||")) && Lifts.needed(condition.right())) {
+        return condition
+    }
+    return null
+}
+
+private fn andWithLiftedRight(condition: Expr) -> Expr.Binary? {
+    if (condition is Expr.Binary && condition.op().equals("&&") && Lifts.needed(condition.right())) {
+        return condition
+    }
+    return null
+}
+
+/** The else branch as a block of its own; an `else if` becomes a block holding it. */
+private fn asBlock(elseBranch: Stmt?) -> Stmt.Block? {
+    if (elseBranch is Stmt.Block) {
+        return elseBranch
+    }
+    if (elseBranch is Stmt.If) {
+        return Block(elseBranch.pos(), List.of(elseBranch), Pos(blockEnd(elseBranch), 1))
+    }
+    return null
+}
+
+/** Java rejects a statement after one that never completes. */
+private fn exits(stmt: Stmt) -> Boolean = when (stmt) {
+    is Stmt.Return -> true
+    is Stmt.ExprStmt -> stmt.expr() is Expr.Throw
+    is Stmt.Block -> !stmt.statements().isEmpty() && exits(stmt.statements().getLast())
+    is Stmt.If -> exitsIf(stmt)
+    is Stmt.While -> loopsForever(stmt)
+    else -> false
+}
+
+private fn exitsIf(ifStmt: Stmt.If) -> Boolean {
+    val elseBranch = ifStmt.elseBranch()
+    return elseBranch != null && exits(ifStmt.then()) && exits(elseBranch)
+}
+
+private fn loopsForever(loop: Stmt.While) -> Boolean {
+    val condition = loop.condition()
+    return condition is Expr.Literal && condition.text().equals("true")
+}
+
+private fn blockEnd(ifStmt: Stmt.If) -> Int {
+    val elseBranch = ifStmt.elseBranch()
+    if (elseBranch is Stmt.If) {
+        return blockEnd(elseBranch)
+    }
+    if (elseBranch is Stmt.Block) {
+        return elseBranch.end().line()
+    }
+    return ifStmt.then().end().line()
+}
+
+private fn singleExpression(arm: Expr.Arm) -> Expr? {
+    if (arm.block()) {
+        return null
+    }
+    val first = arm.body().getFirst()
+    if (first is Stmt.ExprStmt) {
+        return first.expr()
+    }
+    return null
+}
+
+private fn argumentsOf(e: Expr) -> List<Expr> {
+    if (e is Expr.Call) {
+        return e.args()
+    }
+    if (e is Expr.GenericNew) {
+        return e.args()
+    }
+    throw IllegalStateException()
+}
+
+private fn firstExpression(body: List<Stmt>) -> Expr {
+    val first = body.getFirst()
+    if (first is Stmt.ExprStmt) {
+        return first.expr()
+    }
+    throw IllegalStateException()
+}
+
+/** The expression of a body that is nothing else, other than a `throw`. */
+private fn lambdaExpression(body: List<Stmt>) -> Expr? {
+    if (body.size() != 1) {
+        return null
+    }
+    val first = body.getFirst()
+    if (first is Stmt.ExprStmt && first.expr() !is Expr.Throw) {
+        return first.expr()
+    }
+    return null
+}
+
+private fn hasSafeElvis(e: Expr) -> Boolean = e is Expr.Elvis && Chains.hasSafeStep(e.left())
+
+private fn becomesCall(e: Expr) -> Boolean = e is Expr.Elvis || e is Expr.Attempt || Chains.hasSafeStep(e)
+
+private fn union(a: Map<String, String>, b: Map<String, String>) -> Map<String, String> {
+    val result = HashMap<String, String>(a)
+    result.putAll(b)
+    return result
+}
+
+private fn indexOfFirstSafe(steps: List<Chains.Step>) -> Int {
+    var index = 0
+    while (index < steps.size() && !steps.get(index).safe()) {
+        index += 1
+    }
+    return index
+}
+
+private fn baseName(chain: Chains.Chain) -> String {
+    val base = chain.base()
+    if (base is Expr.Name) {
+        return base.name()
+    }
+    return ""
+}
+
+private fn isTypeName(name: String) -> Boolean =
+    Character.isUpperCase(name.charAt(0)) && !name.equals(name.toUpperCase(Locale.ROOT))
+
+private fn closingParen(code: String) -> Int {
+    var depth = 0
+    var i = 0
+    while (i < code.length()) {
+        val c = code.charAt(i)
+        if (c == '(') {
+            depth += 1
+        } else if (c == ')') {
+            depth -= 1
+            if (depth == 0) {
+                return i
+            }
+        }
+        i += 1
+    }
+    return -1
+}
+
+private fn converted(number: String, target: String) -> String {
+    if (target.equals("float") && number.matches("-?[\\d.]+")) {
+        return number + "F"
+    }
+    return "(" + target + ") " + number
+}
+
+private fn nameOf(type: TypeRef?) -> String = if (type == null) "" else type.name()
+
+/** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */
+private fn joinedArgs(args: List<Expr>, codes: List<String>, line: Int) -> String {
+    val sb = StringBuilder()
+    var previous = line
+    var i = 0
+    while (i < codes.size()) {
+        val argLine = startLine(args.get(i))
+        if (argLine > previous) {
+            sb.append(if (i > 0) "," else "").append(Emitter.continued(argLine, codes.get(i)))
+        } else {
+            sb.append(if (i > 0) ", " else "").append(codes.get(i))
+        }
+        previous = argLine
+        i += 1
+    }
+    return sb.toString()
+}
+
+/** head, separator and tail, with the tail on a new Java line when it starts a new .axl line. */
+private fn joined(head: String, separator: String, tail: String, headLine: Int, tailLine: Int) -> String {
+    if (tailLine > headLine) {
+        return head + separator.stripTrailing() + Emitter.continued(tailLine, tail)
+    }
+    return head + separator + tail
+}
+
+/** The .axl line an expression starts on; a chain starts with its base. */
+private fn startLine(e: Expr) -> Int = when (e) {
+    is Expr.Member -> startLine(e.target())
+    is Expr.Call -> callStartLine(e)
+    is Expr.Binary -> startLine(e.left())
+    is Expr.Elvis -> startLine(e.left())
+    is Expr.Pipe -> startLine(e.source())
+    is Expr.MethodRef -> startLine(e.target())
+    is Expr.NotNull -> startLine(e.target())
+    else -> e.pos().line()
+}
+
+private fn callStartLine(c: Expr.Call) -> Int {
+    val target = c.target()
+    if (target != null) {
+        return startLine(target)
+    }
+    return c.pos().line()
+}
+
+private fn parenthesized(code: String, source: Expr) -> String {
+    val simple = source is Expr.Name || source is Expr.Call || source is Expr.Member || source is Expr.Paren ||
+        source is Expr.GenericNew || source is Expr.Literal
+    return if (simple) code else "(" + code + ")"
+}
+
+/**
+ * javac turns unicode escapes into their characters before it reads anything else, so an escaped
+ * quote would end the string there. In a string or character literal it becomes an ordinary escape.
+ */
+private fn literal(text: String) -> String {
+    if (!text.contains("\\u") || !(text.startsWith("\"") || text.startsWith("'"))) {
+        return text
+    }
+    val sb = StringBuilder()
+    var i = 0
+    while (i < text.length()) {
+        val c = text.charAt(i)
+        if (c == '\\' && i + 5 < text.length() && text.charAt(i + 1) == 'u') {
+            var end = i + 2
+            while (end < text.length() && text.charAt(end) == 'u') {
+                end += 1
+            }
+            sb.append(escaped(Integer.parseInt(text.substring(end, end + 4), 16)))
+            i = end + 3
+        } else if (c == '\\') {
+            sb.append(c).append(text.charAt(i + 1))
+            i += 1
+        } else {
+            sb.append(c)
+        }
+        i += 1
+    }
+    return sb.toString()
+}
+
+private fn escaped(code: Int) -> String = when (code) {
+    34 -> "\\\""
+    39 -> "\\'"
+    92 -> "\\\\"
+    10 -> "\\n"
+    13 -> "\\r"
+    9 -> "\\t"
+    8 -> "\\b"
+    12 -> "\\f"
+    else -> escapedOther(code)
+}
+
+private fn escapedOther(code: Int) -> String {
+    if (code < 32) {
+        return String.format("\\%03o", code)
+    }
+    if (code > 126) {
+        return String.format("\\u%04x", code)
+    }
+    return String.valueOf(Character.toChars(code))
+}
+
+private fn negated(condition: String) -> String =
+    if (condition.matches("[\\w$]+")) "!" + condition else "!(" + condition + ")"
+
+/** `- -x` must not become Java's `--x`. */
+private fn unary(op: String, operand: String) -> String {
+    val merges = !operand.isEmpty() && "+-".indexOf(operand.charAt(0)) >= 0 && !op.equals("!")
+    return if (merges) op + " " + operand else op + operand
+}
