@@ -1,0 +1,22 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.List
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Stmt
+import org.axl.compiler.ast.Stmt.Return
+
+/* How the arms of a `when` read in the places where it stands for the value of a function. */
+
+/** The arm's statements with its value, the last expression, returned: `return when (x) {...}`. */
+fn returning(arm: Expr.Arm) -> List<Stmt> {
+    val statements = ArrayList<Stmt>(arm.body())
+    if (statements.isEmpty()) {
+        return statements
+    }
+    val last = statements.getLast()
+    if (last is Stmt.ExprStmt && last.expr() !is Expr.Throw) {
+        statements.set(statements.size() - 1, Return(last.pos(), last.expr()))
+    }
+    return statements
+}
