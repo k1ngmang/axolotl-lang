@@ -412,8 +412,8 @@ public final class SourceParser {
             }
         }
         try {
-            return new Result(new AstBuilder().build(path, className, tree), diagnostics);
-        } catch (AstBuilder.Rejected e) {
+            return new Result(AstBuilder.build(path, className, tree), diagnostics);
+        } catch (Rejected e) {
             diagnostics.add(AxlDiagnostic.error(path, e.pos.line(), e.pos.column(), ErrorCode.SYNTAX, e.getMessage()));
             return new Result(null, diagnostics);
         }
