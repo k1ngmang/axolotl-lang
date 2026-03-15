@@ -1,0 +1,1003 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.Collections
+import java.util.HashMap
+import java.util.HashSet
+import java.util.IdentityHashMap
+import java.util.List
+import java.util.Map
+import java.util.Set
+import org.axl.compiler.AxlDiagnostic
+import org.axl.compiler.ErrorCode
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Import
+import org.axl.compiler.ast.Pos
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.Stmt
+import org.axl.compiler.ast.TypeRef
+
+val TRY_IN_LAMBDA: String =
+    "`try` cannot be used in a lambda or `attempt`: it would not return from the function; move it into a `val` first, " +
+    "or use `|> mapResult` for a collection"
+val TRY_AFTER_SAFE_CALL: String =
+    "`try` after `?.` runs only for a non-null value; move `try` into a separate `val`"
+val RETURN_TRY: String =
+    "`return try e` makes no sense: `try` unwraps the value, but the function returns `Result`; write `return e`"
+val TRY_NEEDS_RESULT: String = "`try` can only be used in a function that returns `Result`"
+
+private val STAGES_WITH_LAMBDA: Set<String> = Set.of("filter", "map", "peek", "mapResult", "forEach",
+    "anyMatch", "allMatch", "noneMatch")
+private val STAGES_WITH_ARGUMENT: Set<String> = Set.of("limit", "skip")
+private val STAGES_WITHOUT_ARGUMENTS: Set<String> = Set.of("distinct", "count", "first")
+val TERMINAL_STAGES: Set<String> = Set.of("forEach", "anyMatch", "allMatch", "noneMatch", "count", "first")
+
+/* Restricted identifiers and Axolotl keywords that only file names could still hit come after the Java keywords. */
+private val RESERVED: Set<String> = Set.of(
+    "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
+    "continue", "default", "do", "double", "enum", "extends", "final", "finally", "float", "for",
+    "goto", "implements", "instanceof", "int", "interface", "long", "native", "new", "protected",
+    "public", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw",
+    "throws", "transient", "void", "volatile", "_",
+    "var", "yield", "record", "sealed", "permits", "true", "false", "null",
+    "package", "import", "if", "else", "while", "return", "try")
+
+// Classes the generated code names: a file of the same name would hide them.
+private val GENERATED_CODE_CLASSES: Set<String> = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable",
+    "NullMarked", "String", "Integer", "Long", "Double", "Boolean", "Object", "Exception")
+
+// Methods of java.lang.Object by name and parameter count, which the static method of a function would clash with.
+private val OBJECT_METHODS: Set<String> = Set.of("toString/0", "hashCode/0", "equals/1", "getClass/0",
+    "notify/0", "notifyAll/0", "wait/0", "wait/1", "wait/2", "clone/0", "finalize/0")
+
+// Methods that a record or an interface member cannot be named after.
+private val OBJECT_METHOD_NAMES: Set<String> = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
+    "notify", "notifyAll", "wait")
+
+// Where the classes above come from; importing them from there changes nothing.
+private val GENERATED_CODE_PACKAGES: Set<String> = Set.of("axl.lang", "java.lang", "org.jspecify.annotations")
+
+// Classes the generated code names in expressions, where a value of the same name would take their place.
+private val GENERATED_CODE_RECEIVERS: Set<String> = Set.of("System", "Nulls", "Result")
+
+// Names that would hide the `java` and `axl` packages the generated code qualifies names with.
+private val PACKAGE_ROOTS: Set<String> = Set.of("java", "axl")
+
+enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
+
+/** type is the written type of a local, or null. */
+data class Symbol(val kind: Kind, val pos: Pos, val type: TypeRef?)
+
+class Scope(val parent: Scope?, val fileScope: Boolean) {
+
+    val names: HashMap<String, Symbol> = HashMap<String, Symbol>()
+
+    fn lookup(name: String) -> Symbol? {
+        var s: Scope? = this
+        while (s != null) {
+            val symbol = s.names.get(name)
+            if (symbol != null) {
+                return symbol
+            }
+            s = s.parent
+        }
+        return null
+    }
+}
+
+/**
+ * Name and placement rules that need no types: scopes, shadowing, where `try` may appear,
+ * mandatory type annotations. Also records what the generator needs to know about names.
+ */
+class Checker(val file: SourceFile) {
+
+    val diagnostics: ArrayList<AxlDiagnostic> = ArrayList<AxlDiagnostic>()
+    val implicitIt: Set<Expr.Lambda> = Collections.newSetFromMap(IdentityHashMap<Expr.Lambda, Boolean>())
+    val mutableRefs: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
+    val stableNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
+    val staticNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
+    val typeNames: HashSet<String> = HashSet<String>()
+    // How each `when` is used; one that is not here gives a value.
+    val whenResults: IdentityHashMap<Expr.When, Boolean> = IdentityHashMap<Expr.When, Boolean>()
+    // Lambda depth inside the innermost `when` that gives a value, or -1.
+    var valueWhenDepth: Int = -1
+    var expressionLambdas: Int = 0
+    // Inside the branches of an `if` that gives a value.
+    var conditionalDepth: Int = 0
+    val allowedThrows: Set<Expr.Throw> = Collections.newSetFromMap(IdentityHashMap<Expr.Throw, Boolean>())
+    val mapResultTypes: IdentityHashMap<Expr.Stage, TypeRef> = IdentityHashMap<Expr.Stage, TypeRef>()
+    var scope: Scope = Scope(null, true)
+    var current: Decl.Function? = null
+    var lastInLambda: Stmt? = null
+    var lambdaDepth: Int = 0
+    var safeTailDepth: Int = 0
+    // The written type of the `val` whose initializer is being checked, for `mapResult`.
+    var declaredType: TypeRef? = null
+
+    fn run() {
+        checkFileName()
+        checkPackage()
+        checkImports()
+        declareTopLevel()
+        for (decl in file.decls()) {
+            when (decl) {
+                is Decl.Value -> topLevelValue(decl)
+                is Decl.Function -> function(decl)
+                is Decl.ClassDecl -> classDecl(decl)
+                is Decl.EnumDecl -> { }
+                is Decl.DataClass -> members(decl.fields(), "field")
+                is Decl.Interface -> members(decl.members(), "member")
+            }
+        }
+        checkInitOrder()
+    }
+
+    private fn checkFileName() {
+        val name = file.className()
+        if (!isJavaIdentifier(name) || RESERVED.contains(name)) {
+            error(Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` is not a valid class name")
+        } else if (PACKAGE_ROOTS.contains(name)) {
+            error(Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` would hide the `" +
+                name + "` package that the generated code uses; rename the file")
+        } else if (GENERATED_CODE_CLASSES.contains(name)) {
+            error(Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name +
+                "` would hide the class `" + name + "` that the generated code uses; rename the file")
+        }
+    }
+
+    private fn checkPackage() {
+        val packageName = file.packageName()
+        if (packageName == null) {
+            error(Pos(1, 1), ErrorCode.MISSING_PACKAGE,
+                "missing `package` declaration: every .axl file starts with `package name`")
+            return
+        }
+        for (segment in packageName.split("\\.")) {
+            if (RESERVED.contains(segment)) {
+                error(file.packagePos() ?: Pos(1, 1), ErrorCode.RESERVED_NAME, "`" + segment +
+                    "` is a reserved word in Java and cannot be part of a package name")
+            }
+        }
+    }
+
+    private fn checkImports() {
+        for (imp in file.imports()) {
+            if (imp.kind() != Import.Kind.TYPE) {
+                scope.names.putIfAbsent(imp.simpleName(), Symbol(Kind.IMPORTED, imp.pos(), null))
+            } else if (hidesGeneratedClass(imp)) {
+                error(imp.pos(), ErrorCode.RESERVED_NAME, "`" + imp.simpleName() + "` would hide the class `" +
+                    imp.simpleName() + "` that the generated code uses; write `" + imp.name() + "` in full instead")
+            }
+        }
+    }
+
+    private fn hidesGeneratedClass(imp: Import) -> Boolean {
+        if (!GENERATED_CODE_CLASSES.contains(imp.simpleName())) {
+            return false
+        }
+        val packageName = imp.name().substring(0, Math.max(imp.name().lastIndexOf("."), 0))
+        return !GENERATED_CODE_PACKAGES.contains(packageName)
+    }
+
+    private fn declareTopLevel() {
+        for (decl in file.decls()) {
+            if (decl is Decl.Value) {
+                val existing = scope.names.get(decl.name())
+                if (existing != null) {
+                    error(decl.namePos(), ErrorCode.DUPLICATE_NAME,
+                        "`" + decl.name() + "` is already declared at line " + existing.pos().line())
+                }
+                scope.names.put(decl.name(), Symbol(Kind.TOP_LEVEL, decl.pos(), null))
+            } else if (isTypeDecl(decl)) {
+                checkTypeName(decl)
+            } else {
+                scope.names.putIfAbsent(decl.name(), Symbol(Kind.TOP_LEVEL, decl.pos(), null))
+            }
+            checkReserved(decl.namePos(), decl.name())
+            if (decl is Decl.Function) {
+                checkFunctionName(decl)
+            }
+            if (decl is Decl.Value) {
+                checkValueName(decl)
+            }
+        }
+    }
+
+    private fn checkValueName(value: Decl.Value) {
+        if (value.isPrivate() && fileIsInterface()) {
+            error(value.namePos(), ErrorCode.SYNTAX, "a value in the file of an interface cannot be private")
+        }
+        if (value.name().equals("args") && hasMain()) {
+            error(value.namePos(), ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` " +
+                "method, which would read it instead of this value; choose another name")
+        }
+    }
+
+    private fn hasMain() -> Boolean = file.decls() |> anyMatch { d -> d is Decl.Function && isMain(d) }
+
+    private fn checkInitOrder() {
+        for (problem in InitOrder.check(file)) {
+            val value = problem.value()
+            val position = if (problem.later().equals(value.name())) "by itself" else "later"
+            error(value.namePos(), ErrorCode.INIT_ORDER, "`" + value.name() + "` is computed from `" + problem.later() +
+                "`, which is declared " + position + "; top-level values are set in order, so declare `" +
+                problem.later() + "` first")
+        }
+    }
+
+    private fn classDecl(c: Decl.ClassDecl) {
+        scope = Scope(scope, false)
+        for (p in c.parameters()) {
+            declare(p.namePos(), p.name(), fieldKind(p), p.type())
+        }
+        for (p in c.properties()) {
+            if (p.type() == null) {
+                val keyword = if (p.mutable()) "var " else "val "
+                error(p.pos(), ErrorCode.TYPE_REQUIRED, "a property needs a type: `" + keyword + p.name() + ": Type = ...`")
+            }
+            declare(p.namePos(), p.name(), fieldKind(p), p.type())
+        }
+        for (p in c.properties()) {
+            val init = p.init()
+            if (init != null) {
+                expr(init)
+            }
+        }
+        for (m in c.methods()) {
+            function(m)
+        }
+        pop()
+    }
+
+    private fn fieldKind(p: Decl.Property) -> Kind = if (p.mutable()) Kind.MUTABLE_FIELD else Kind.FIELD
+
+    private fn pop() {
+        scope = scope.parent!!
+    }
+
+    private fn fileIsInterface() -> Boolean =
+        file.decls() |> anyMatch { d -> d is Decl.Interface && d.name().equals(file.className()) }
+
+    private fn checkTypeName(decl: Decl) {
+        val name = decl.name()
+        if (!Character.isUpperCase(name.charAt(0))) {
+            error(decl.namePos(), ErrorCode.SYNTAX, "the name of a type starts with a capital letter, as `" +
+                Character.toUpperCase(name.charAt(0)) + name.substring(1) + "`: `Name(...)` creates an object")
+        } else if (name.equals(file.className()) && decl.isPrivate()) {
+            error(decl.namePos(), ErrorCode.SYNTAX, "`" + name + "` is the type of this file and cannot be private")
+        } else if (!typeNames.add(name)) {
+            error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "the type `" + name + "` is already declared in this file")
+        }
+    }
+
+    private fn members(list: List<Expr.Param>, what: String) {
+        val seen = HashSet<String>()
+        for (member in list) {
+            if (!seen.add(member.name())) {
+                error(member.pos(), ErrorCode.DUPLICATE_NAME, "the " + what + " `" + member.name() + "` is declared twice")
+            } else if (OBJECT_METHOD_NAMES.contains(member.name())) {
+                error(member.pos(), ErrorCode.RESERVED_NAME, "`" + member.name() + "` is a method of every Java object " +
+                    "and cannot be the name of a " + what + "; choose another name")
+            }
+        }
+    }
+
+    private fn topLevelValue(value: Decl.Value) {
+        val init = value.init()
+        if (init is Expr.Try) {
+            error(init.pos(), ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, TRY_NEEDS_RESULT)
+            expr(init.inner())
+        } else {
+            expr(init)
+        }
+    }
+
+    private fn function(f: Decl.Function) {
+        current = f
+        scope = Scope(scope, false)
+        for (p in f.params()) {
+            declare(p.pos(), p.name(), Kind.PARAM, null)
+        }
+        val exprBody = f.exprBody()
+        val body = f.body()
+        if (exprBody != null) {
+            expressionBody(f, exprBody)
+        } else if (body != null) {
+            statements(body.statements())
+        }
+        pop()
+        current = null
+    }
+
+    private fn expressionBody(f: Decl.Function, body: Expr) {
+        val inner = unparenthesized(body)
+        if (inner is Expr.When) {
+            whenResults.put(inner, f.returnType() != null)
+        }
+        if (body is Expr.Try) {
+            if (!returnsResult(f)) {
+                statementTry(body)
+            } else {
+                error(body.pos(), ErrorCode.RETURN_TRY, RETURN_TRY)
+                expr(body.inner())
+            }
+            return
+        }
+        if (f.returnType() == null && !doesSomething(body)) {
+            error(body.pos(), ErrorCode.SYNTAX, "a function without a result type runs its body as a " +
+                "statement, where this expression does nothing; to return it, add the type: `-> Type`")
+        }
+        expr(body)
+    }
+
+    private fn statements(list: List<Stmt>) {
+        scope = Scope(scope, false)
+        for (stmt in list) {
+            statement(stmt)
+        }
+        pop()
+    }
+
+    private fn statement(stmt: Stmt) {
+        when (stmt) {
+            is Stmt.Local -> local(stmt)
+            is Stmt.Assign -> assign(stmt)
+            is Stmt.Return -> returnStatement(stmt)
+            is Stmt.If -> {
+                expr(stmt.condition())
+                statements(stmt.then().statements())
+                val elseBranch = stmt.elseBranch()
+                if (elseBranch != null) {
+                    statement(elseBranch)
+                }
+            }
+            is Stmt.While -> {
+                expr(stmt.condition())
+                statements(stmt.body().statements())
+            }
+            is Stmt.For -> {
+                expr(stmt.iterable())
+                scope = Scope(scope, false)
+                declare(stmt.namePos(), stmt.name(), Kind.LOCAL, null)
+                statements(stmt.body().statements())
+                pop()
+            }
+            is Stmt.ExprStmt -> expressionStatement(stmt)
+            is Stmt.Block -> statements(stmt.statements())
+        }
+    }
+
+    private fn local(stmt: Stmt.Local) {
+        val init = unparenthesized(stmt.init())
+        if ((init is Expr.Lambda || isNull(init)) && stmt.type() == null) {
+            val keyword = if (stmt.mutable()) "var" else "val"
+            val what = if (init is Expr.Lambda) "a lambda" else "`null`"
+            error(stmt.pos(), ErrorCode.TYPE_REQUIRED, "`" + keyword + " " + stmt.name() +
+                "` needs a type when it is initialized with " + what + ": `" + keyword + " " + stmt.name() + ": Type = ...`")
+        }
+        declaredType = stmt.type()
+        val value = stmt.init()
+        if (value is Expr.Try) {
+            statementTry(value)
+        } else {
+            expr(value)
+        }
+        declaredType = null
+        val type = stmt.type()
+        if (type != null && !type.nullable() && isNull(value)) {
+            error(value.pos(), ErrorCode.NULLABLE_DEREFERENCE, notNullable(stmt.name(), type))
+        }
+        val kind = if (stmt.mutable()) Kind.MUTABLE_LOCAL else Kind.LOCAL
+        declare(stmt.namePos(), stmt.name(), kind, type)
+    }
+
+    private fn assign(stmt: Stmt.Assign) {
+        val target = stmt.target()
+        if (target is Expr.Name) {
+            val symbol = scope.lookup(target.name())
+            val notNull = declaredNotNull(symbol)
+            if (symbol != null && symbol.kind() != Kind.MUTABLE_LOCAL && symbol.kind() != Kind.MUTABLE_FIELD) {
+                error(stmt.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(target.name(), symbol))
+            } else if (notNull != null && isNull(stmt.value())) {
+                // NullAway does not check what is assigned to locals.
+                error(stmt.value().pos(), ErrorCode.NULLABLE_DEREFERENCE, notNullable(target.name(), notNull))
+            }
+        }
+        expr(target)
+        expr(stmt.value())
+    }
+
+    private fn declaredNotNull(symbol: Symbol?) -> TypeRef? {
+        if (symbol == null) {
+            return null
+        }
+        val type = symbol.type()
+        if (type != null && !type.nullable()) {
+            return type
+        }
+        return null
+    }
+
+    private fn returnStatement(stmt: Stmt.Return) {
+        if (valueWhenDepth == lambdaDepth) {
+            error(stmt.pos(), ErrorCode.SYNTAX, "`return` cannot leave a `when` that gives a value; " +
+                "write the `when` as a statement or as `return when ...`")
+        }
+        val value = stmt.value()
+        if (value == null) {
+            return
+        }
+        val inner = unparenthesized(value)
+        if (inner is Expr.When) {
+            whenResults.put(inner, true)
+        }
+        if (value !is Expr.Try) {
+            expr(value)
+        } else if (lambdaDepth > 0 || !returnsResult(current)) {
+            statementTry(value)
+        } else {
+            error(value.pos(), ErrorCode.RETURN_TRY, RETURN_TRY)
+            expr(value.inner())
+        }
+    }
+
+    private fn expressionStatement(stmt: Stmt.ExprStmt) {
+        val e = stmt.expr()
+        val inner = unparenthesized(e)
+        if (inner is Expr.When) {
+            whenResults.put(inner, false)
+        }
+        if (e is Expr.Throw) {
+            allowedThrows.add(e)
+        }
+        if (e is Expr.Lambda) {
+            error(e.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces")
+        } else if (!doesSomething(e)) {
+            val hint = if (stmt == lastInLambda) "to return it from the lambda, write `return` before it" else "use its value, for example in a `val`, or remove it"
+            error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint)
+        }
+        if (e is Expr.Try) {
+            statementTry(e)
+        } else {
+            expr(e)
+        }
+    }
+
+    private fn assignmentProblem(name: String, symbol: Symbol) -> String {
+        val kind = symbol.kind()
+        if (kind == Kind.PARAM) {
+            return "cannot assign to the parameter `" + name + "`; copy it into a `var` first: `var current = " + name + "`"
+        }
+        if (kind == Kind.TOP_LEVEL) {
+            return topLevelProblem(name)
+        }
+        if (kind == Kind.FIELD) {
+            return "cannot assign to the `val` property `" + name + "`; declare it with `var`"
+        }
+        return "cannot assign to `val` `" + name + "`; declare it with `var`"
+    }
+
+    private fn topLevelProblem(name: String) -> String {
+        val isFunction = file.decls() |> anyMatch { d -> d is Decl.Function && d.name().equals(name) }
+        if (isFunction) {
+            return "`" + name + "` is a function, not a variable"
+        }
+        return "cannot assign to the top-level value `" + name + "`; top-level values cannot change"
+    }
+
+    /** A `try` in one of the two allowed statement positions. */
+    private fn statementTry(t: Expr.Try) {
+        checkTryPlace(t.pos(), "`try`")
+        expr(t.inner())
+    }
+
+    /** `try` and `mapResult` return from the function, so they need one that returns `Result`. */
+    private fn checkTryPlace(pos: Pos, what: String) {
+        val isTry = what.equals("`try`")
+        if (conditionalDepth > 0) {
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, what + " cannot be used in an `if` that gives a value; " +
+                "write an `if` statement")
+        } else if (valueWhenDepth == lambdaDepth) {
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, what + " cannot be used in a `when` that gives a value, since it " +
+                "would return from the function in the middle of the `when`; write the `when` as a statement " +
+                "or as `return when ...`")
+        } else if (lambdaDepth > 0) {
+            val message = if (isTry) TRY_IN_LAMBDA
+                else what + " cannot be used in a lambda: it would return from the lambda, not the function"
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, message)
+        } else if (safeTailDepth > 0) {
+            val message = if (isTry) TRY_AFTER_SAFE_CALL
+                else what + " after `?.` runs only for a non-null value; move it into a separate `val`"
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, message)
+        } else if (returnsNullableResult()) {
+            error(pos, ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, what + " needs a function that returns `Result` without `?`; " +
+                "this one may return null instead")
+        } else if (!returnsResult(current)) {
+            error(pos, ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, what + " can only be used in a function that returns `Result`")
+        }
+    }
+
+    private fn returnsNullableResult() -> Boolean {
+        val f = current
+        if (f == null) {
+            return false
+        }
+        val type = f.returnType()
+        return type != null && type.nullable() && isResult(type)
+    }
+
+    private fn expr(e: Expr) {
+        when (e) {
+            is Expr.Literal -> { }
+            is Expr.Name -> name(e)
+            is Expr.Member -> expr(e.target())
+            is Expr.Call -> call(e)
+            is Expr.GenericNew -> exprs(e.args())
+            is Expr.MethodRef -> expr(e.target())
+            is Expr.NotNull -> expr(e.target())
+            is Expr.Unary -> expr(e.operand())
+            is Expr.Binary -> {
+                expr(e.left())
+                expr(e.right())
+            }
+            is Expr.Elvis -> {
+                expr(e.left())
+                expr(e.right())
+            }
+            is Expr.Is -> expr(e.target())
+            is Expr.Conditional -> {
+                expr(e.condition())
+                conditionalDepth = conditionalDepth + 1
+                expr(e.then())
+                expr(e.otherwise())
+                conditionalDepth = conditionalDepth - 1
+            }
+            is Expr.Throw -> {
+                if (!allowedThrows.contains(e)) {
+                    error(e.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
+                        "not inside an expression")
+                }
+                expr(e.value())
+            }
+            is Expr.When -> whenExpr(e)
+            is Expr.Paren -> expr(e.inner())
+            is Expr.Try -> {
+                checkTryPlace(e.pos(), "`try`")
+                expr(e.inner())
+            }
+            is Expr.Attempt -> attemptExpr(e)
+            is Expr.Pipe -> pipeExpr(e)
+            is Expr.Lambda -> lambdaExpr(e, false)
+        }
+    }
+
+    private fn exprs(list: List<Expr>) {
+        for (item in list) {
+            expr(item)
+        }
+    }
+
+    private fn name(e: Expr.Name) {
+        val symbol = scope.lookup(e.name())
+        if (symbol == null) {
+            staticNames.add(e)
+            return
+        }
+        if (symbol.kind() == Kind.MUTABLE_LOCAL) {
+            mutableRefs.add(e)
+        }
+        if (symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.MUTABLE_FIELD) {
+            stableNames.add(e)
+        }
+    }
+
+    private fn call(e: Expr.Call) {
+        val target = e.target()
+        if (target != null) {
+            expr(target)
+        } else if (localLookup(e.name()) != null) {
+            error(e.pos(), ErrorCode.JAVAC, "`" + e.name() + "` is a value, not a function; " +
+                "call its method, such as `" + e.name() + ".apply(...)` or `" + e.name() + ".get()`")
+        }
+        // Arguments after a `?.` are evaluated only when the receiver is not null.
+        val safeTail = e.safe() || (target != null && hasSafeStep(target))
+        if (safeTail) {
+            safeTailDepth = safeTailDepth + 1
+        }
+        exprs(e.args())
+        if (safeTail) {
+            safeTailDepth = safeTailDepth - 1
+        }
+    }
+
+    /** The body and the handler of `attempt` run inside lambdas. */
+    private fn attemptExpr(e: Expr.Attempt) {
+        lambdaDepth = lambdaDepth + 1
+        expr(e.body())
+        scope = Scope(scope, false)
+        val errorName = e.errorName()
+        val errorPos = e.errorNamePos()
+        if (errorName != null && errorPos != null) {
+            declare(errorPos, errorName, Kind.PARAM, null)
+        }
+        expr(e.handler())
+        pop()
+        lambdaDepth = lambdaDepth - 1
+    }
+
+    /** The arms are checked as the statements they become in the places where a `when` stands. */
+    private fn whenExpr(w: Expr.When) {
+        val result = whenResults.get(w)
+        val gives = result == null
+        val returns = result != null && result
+        checkWhenPlace(w, gives)
+        expr(w.subject())
+        scope = Scope(scope, false)
+        val bindingName = w.bindingName()
+        val bindingPos = w.bindingPos()
+        if (bindingName != null && bindingPos != null) {
+            declare(bindingPos, bindingName, Kind.LOCAL, null)
+        }
+        checkArms(w, gives || returns)
+        val outerDepth = valueWhenDepth
+        if (gives) {
+            valueWhenDepth = lambdaDepth
+        }
+        for (arm in w.arms()) {
+            checkArm(arm, gives, returns)
+        }
+        valueWhenDepth = outerDepth
+        pop()
+    }
+
+    private fn checkWhenPlace(w: Expr.When, gives: Boolean) {
+        if (!gives) {
+            return
+        }
+        if (current == null) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value must be inside a function")
+        } else if (conditionalDepth > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside an `if` that gives a value")
+        } else if (expressionLambdas > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside a lambda of one expression; " +
+                "give the lambda statements and write `return when ...`")
+        }
+    }
+
+    private fn checkArm(arm: Expr.Arm, gives: Boolean, returns: Boolean) {
+        val body = if (returns) Whens.returning(arm) else arm.body()
+        if (gives && !endsWithValue(arm.body())) {
+            error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value")
+        }
+        if (!arm.block() && !gives && !returns) {
+            val first = arm.body().getFirst()
+            if (first is Stmt.ExprStmt && !doesSomething(first.expr())) {
+                error(first.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " +
+                    "use its value, for example in a `val`, or remove it")
+            }
+        }
+        if (gives) {
+            valueArm(body)
+        } else {
+            statements(body)
+        }
+    }
+
+    private fn endsWithValue(body: List<Stmt>) -> Boolean = !body.isEmpty() && body.getLast() is Stmt.ExprStmt
+
+    /** All but the last statement are statements; the last is the value. */
+    private fn valueArm(body: List<Stmt>) {
+        scope = Scope(scope, false)
+        var i = 0
+        while (i < body.size()) {
+            val stmt = body.get(i)
+            if (i == body.size() - 1 && stmt is Stmt.ExprStmt) {
+                val value = stmt.expr()
+                if (value is Expr.Throw) {
+                    allowedThrows.add(value)
+                }
+                expr(value)
+            } else {
+                statement(stmt)
+            }
+            i += 1
+        }
+        pop()
+    }
+
+    private fn checkArms(w: Expr.When, needsElse: Boolean) {
+        var sawElse = false
+        var types = false
+        var constants = false
+        for (arm in w.arms()) {
+            if (sawElse) {
+                error(arm.pos(), ErrorCode.SYNTAX, "`else` must be the last branch of a `when`")
+            }
+            if (arm.conditions().isEmpty()) {
+                sawElse = true
+            }
+            for (condition in arm.conditions()) {
+                if (condition.type() != null) {
+                    types = true
+                } else {
+                    constants = true
+                }
+            }
+        }
+        if (types && constants) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both")
+        } else if (constants && needsElse && !sawElse) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` over constants that gives a value needs an `else` branch")
+        }
+    }
+
+    private fn pipeExpr(p: Expr.Pipe) {
+        val declared = declaredType
+        declaredType = null
+        expr(p.source())
+        val stages = p.stages()
+        var i = 0
+        while (i < stages.size()) {
+            val stage = stages.get(i)
+            val isLast = i == stages.size() - 1
+            val lambda = stage.lambda()
+            checkStage(stage, isLast)
+            if (stage.name().equals("mapResult") && lambda != null) {
+                mapResult(stage, lambda, if (isLast) declared else null)
+            }
+            exprs(stage.args())
+            if (lambda != null) {
+                // Every stage but `sorted` passes one element, so a lambda without parameters takes `it`.
+                lambdaExpr(lambda, !stage.name().equals("sorted"))
+            }
+            i += 1
+        }
+    }
+
+    private fn checkStage(stage: Expr.Stage, isLast: Boolean) {
+        val name = stage.name()
+        val hasLambda = stage.lambda() != null
+        val noArguments = STAGES_WITHOUT_ARGUMENTS.contains(name)
+        val known = STAGES_WITH_LAMBDA.contains(name) || STAGES_WITH_ARGUMENT.contains(name) ||
+            noArguments || name.equals("sorted")
+        if (!known) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "unknown pipe stage `" + name + "`; use filter, map, mapResult, peek, " +
+                "sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first")
+        } else if (STAGES_WITH_LAMBDA.contains(name) && (!hasLambda || !stage.args().isEmpty())) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes a lambda: `|> " + name + " { ... }`")
+        } else if (STAGES_WITH_ARGUMENT.contains(name) && (hasLambda || stage.args().size() != 1)) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes one argument: `|> " + name + "(n)`")
+        } else if (((noArguments || name.equals("sorted")) && !stage.args().isEmpty()) || (noArguments && hasLambda)) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes no arguments")
+        } else if (TERMINAL_STAGES.contains(name) && !isLast) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` ends a pipe and must be its last stage")
+        }
+    }
+
+    /** The loop of `mapResult` needs the element type of the list it builds. */
+    private fn mapResult(stage: Expr.Stage, lambda: Expr.Lambda, declared: TypeRef?) {
+        checkTryPlace(stage.pos(), "`mapResult`")
+        val body = lambda.body()
+        if (body.size() != 1 || body.getFirst() !is Stmt.ExprStmt) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "the lambda of `mapResult` must be a single expression")
+            return
+        }
+        val element = MapResultTypes.elementType(stage, file, declared)
+        if (element == null) {
+            error(stage.pos(), ErrorCode.TYPE_REQUIRED, "`mapResult` needs the element type: call a function of this file " +
+                "that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`")
+        } else {
+            mapResultTypes.put(stage, element)
+        }
+    }
+
+    private fn lambdaExpr(l: Expr.Lambda, takesElement: Boolean) {
+        scope = Scope(scope, false)
+        lambdaDepth = lambdaDepth + 1
+        for (p in l.params()) {
+            declare(p.pos(), p.name(), Kind.PARAM, null)
+        }
+        declareIt(l, takesElement)
+        val body = l.body()
+        val single = onlyExpression(body)
+        if (single != null) {
+            // A lambda of one expression returns its value, so the expression need not do anything.
+            expressionLambdas = expressionLambdas + 1
+            if (single is Expr.Throw) {
+                allowedThrows.add(single)
+            }
+            expr(single)
+            expressionLambdas = expressionLambdas - 1
+        } else {
+            val outerLast = lastInLambda
+            val outerExpressionLambdas = expressionLambdas
+            expressionLambdas = 0
+            lastInLambda = lastOf(body)
+            statements(body)
+            lastInLambda = outerLast
+            expressionLambdas = outerExpressionLambdas
+        }
+        lambdaDepth = lambdaDepth - 1
+        pop()
+    }
+
+    private fn declareIt(l: Expr.Lambda, takesElement: Boolean) {
+        val outerIt = localLookup("it")
+        if (l.arrow()) {
+            return
+        }
+        if (takesElement && outerIt != null) {
+            error(l.pos(), ErrorCode.SHADOWING, "this lambda's `it` would shadow the `it` declared at line " +
+                outerIt.pos().line() + "; name the parameter: `{ x -> ... }`")
+        } else if (outerIt == null && (takesElement || mentionsIt(l.body()))) {
+            implicitIt.add(l)
+            scope.names.put("it", Symbol(Kind.PARAM, l.pos(), null))
+        }
+    }
+
+    /** The expression of a body that is nothing else, other than a `try`. */
+    private fn onlyExpression(body: List<Stmt>) -> Expr? {
+        if (body.size() != 1) {
+            return null
+        }
+        val first = body.getFirst()
+        if (first is Stmt.ExprStmt && first.expr() !is Expr.Try) {
+            return first.expr()
+        }
+        return null
+    }
+
+    private fn lastOf(body: List<Stmt>) -> Stmt? {
+        if (body.isEmpty()) {
+            return null
+        }
+        return body.getLast()
+    }
+
+    /** A local, parameter or lambda parameter; file-level names do not count. */
+    private fn localLookup(name: String) -> Symbol? {
+        var s: Scope? = scope
+        while (s != null && !s.fileScope) {
+            val symbol = s.names.get(name)
+            // A method may have the name of a property.
+            if (symbol != null && symbol.kind() != Kind.FIELD && symbol.kind() != Kind.MUTABLE_FIELD) {
+                return symbol
+            }
+            s = s.parent
+        }
+        return null
+    }
+
+    private fn declare(pos: Pos, name: String, kind: Kind, type: TypeRef?) {
+        checkReserved(pos, name)
+        var s: Scope? = scope
+        while (s != null && !s.fileScope) {
+            val existing = s.names.get(name)
+            if (existing == null) {
+                s = s.parent
+            } else {
+                if (s == scope) {
+                    error(pos, ErrorCode.DUPLICATE_NAME, "`" + name + "` is already declared at line " + existing.pos().line())
+                } else {
+                    error(pos, ErrorCode.SHADOWING, "`" + name + "` shadows the `" + name + "` declared at line " +
+                        existing.pos().line() + "; choose another name")
+                }
+                s = null
+            }
+        }
+        scope.names.put(name, Symbol(kind, pos, type))
+    }
+
+    private fn checkFunctionName(f: Decl.Function) {
+        val signature = f.name() + "/" + f.params().size()
+        if (f.name().equals("Ok") || f.name().equals("Err")) {
+            error(f.namePos(), ErrorCode.RESERVED_NAME, "`" + f.name() + "(...)` makes a `Result`, so a function of " +
+                "this name would never be called; choose another name")
+        } else if (OBJECT_METHODS.contains(signature)) {
+            error(f.namePos(), ErrorCode.RESERVED_NAME, "every Java object has a method `" + f.name() +
+                "` with as many parameters, which a function cannot replace; choose another name")
+        }
+    }
+
+    private fn checkReserved(pos: Pos, name: String) {
+        if (RESERVED.contains(name)) {
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` is a reserved word in Java and cannot be used as a name")
+        } else if (PACKAGE_ROOTS.contains(name)) {
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the `" + name +
+                "` package that the generated code uses; choose another name")
+        } else if (GENERATED_CODE_RECEIVERS.contains(name)) {
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the class `" + name +
+                "` that the generated code uses; choose another name")
+        } else if (name.equals("args") && inMain()) {
+            error(pos, ErrorCode.RESERVED_NAME, "`args` is the parameter of the generated `main` method; choose another name")
+        }
+    }
+
+    private fn inMain() -> Boolean {
+        val f = current
+        return f != null && isMain(f)
+    }
+
+    private fn error(pos: Pos, code: ErrorCode, message: String) {
+        diagnostics.add(AxlDiagnostic.error(file.path(), pos.line(), pos.column(), code, message))
+    }
+}
+
+fn check(file: SourceFile, diagnostics: List<AxlDiagnostic>) -> Analysis {
+    val checker = Checker(file)
+    checker.run()
+    diagnostics.addAll(checker.diagnostics)
+    return Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
+        checker.mapResultTypes)
+}
+
+private fn isTypeDecl(decl: Decl) -> Boolean =
+    decl is Decl.DataClass || decl is Decl.Interface || decl is Decl.ClassDecl || decl is Decl.EnumDecl
+
+private fn isMain(f: Decl.Function) -> Boolean =
+    f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate()
+
+private fn isNull(e: Expr) -> Boolean {
+    val inner = unparenthesized(e)
+    return inner is Expr.Literal && inner.text().equals("null")
+}
+
+private fn notNullable(name: String, type: TypeRef) -> String =
+    "`" + name + "` is declared as `" + type.name() + "`, which does not allow null; declare it as `" + type.name() + "?`"
+
+private fn unparenthesized(e: Expr) -> Expr = if (e is Expr.Paren) unparenthesized(e.inner()) else e
+
+/** Whether an expression can stand as a statement: it calls something or creates an object. */
+private fn doesSomething(e: Expr) -> Boolean = when (e) {
+    is Expr.Paren -> doesSomething(e.inner())
+    is Expr.Binary -> (e.op().equals("&&") || e.op().equals("||")) && doesSomething(e.right())
+    is Expr.Elvis -> doesSomething(e.right())
+    // `s.le` while a name is being typed: javac reports it, so that the rest of the file still translates.
+    is Expr.Member, is Expr.Call, is Expr.GenericNew, is Expr.Try, is Expr.Pipe, is Expr.Throw -> true
+    is Expr.When, is Expr.Attempt, is Expr.NotNull, is Expr.Lambda -> true
+    else -> false
+}
+
+private fn returnsResult(f: Decl.Function?) -> Boolean {
+    if (f == null) {
+        return false
+    }
+    val type = f.returnType()
+    return type != null && !type.nullable() && isResult(type)
+}
+
+private fn isResult(type: TypeRef) -> Boolean = type.name().equals("Result") || type.name().equals("axl.lang.Result")
+
+private fn hasSafeStep(e: Expr) -> Boolean = when (e) {
+    is Expr.Member -> e.safe() || hasSafeStep(e.target())
+    is Expr.Call -> {
+        val target = e.target()
+        e.safe() || (target != null && hasSafeStep(target))
+    }
+    else -> false
+}
+
+private fn mentionsIt(list: List<Stmt>) -> Boolean {
+    for (stmt in list) {
+        if (ItFinder.usesIt(stmt)) {
+            return true
+        }
+    }
+    return false
+}
+
+private fn isJavaIdentifier(name: String) -> Boolean {
+    if (name.isEmpty() || !Character.isJavaIdentifierStart(name.charAt(0))) {
+        return false
+    }
+    var i = 0
+    while (i < name.length()) {
+        // 36 is the dollar sign, which the generator keeps for its own names.
+        if (!Character.isJavaIdentifierPart(name.charAt(i)) || name.charAt(i) == 36) {
+            return false
+        }
+        i += 1
+    }
+    return true
+}
