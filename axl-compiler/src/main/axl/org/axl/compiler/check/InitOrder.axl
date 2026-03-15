@@ -1,0 +1,288 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.HashSet
+import java.util.List
+import java.util.Set
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.Stmt
+
+/**
+ * Top-level values are static fields set in declaration order, so a value that reads a later one,
+ * directly or through functions of the file, sees null or zero.
+ */
+class InitOrder(val file: SourceFile) {
+
+    // Functions and values already followed while one initializer is checked; a cycle reads nothing new.
+    val visited: HashSet<String> = HashSet<String>()
+
+    fn problems() -> List<Problem> {
+        val values = ArrayList<Decl.Value>()
+        for (decl in file.decls()) {
+            if (decl is Decl.Value) {
+                values.add(decl)
+            }
+        }
+        val problems = ArrayList<Problem>()
+        var i = 0
+        while (i < values.size()) {
+            val read = HashSet<String>()
+            visited.clear()
+            names(values.get(i).init(), Set.of(), read)
+            val later = firstRead(values.subList(i, values.size()), read)
+            if (later != null) {
+                problems.add(Problem(values.get(i), later))
+            }
+            i += 1
+        }
+        return problems
+    }
+
+    private fn firstRead(values: List<Decl.Value>, read: Set<String>) -> String? {
+        for (value in values) {
+            if (read.contains(value.name())) {
+                return value.name()
+            }
+        }
+        return null
+    }
+
+    /**
+     * Names an expression reads when it runs, following calls into functions of the file.
+     *
+     * hidden: parameters and locals in scope, which are not the top-level values of the same name.
+     */
+    private fn names(expr: Expr, hidden: Set<String>, out: Set<String>) {
+        when (expr) {
+            is Expr.Name -> read(expr.name(), hidden, out)
+            is Expr.Call -> callNames(expr, hidden, out)
+            is Expr.Member -> {
+                if (isThisClass(expr.target())) {
+                    read(expr.name(), Set.of(), out)
+                } else {
+                    names(expr.target(), hidden, out)
+                }
+            }
+            is Expr.GenericNew -> arguments(expr.args(), hidden, out)
+            is Expr.MethodRef -> names(expr.target(), hidden, out)
+            is Expr.NotNull -> names(expr.target(), hidden, out)
+            is Expr.Unary -> names(expr.operand(), hidden, out)
+            is Expr.Binary -> {
+                names(expr.left(), hidden, out)
+                names(expr.right(), hidden, out)
+            }
+            is Expr.Elvis -> {
+                names(expr.left(), hidden, out)
+                names(expr.right(), hidden, out)
+            }
+            is Expr.Is -> names(expr.target(), hidden, out)
+            is Expr.Conditional -> {
+                names(expr.condition(), hidden, out)
+                names(expr.then(), hidden, out)
+                names(expr.otherwise(), hidden, out)
+            }
+            is Expr.Throw -> names(expr.value(), hidden, out)
+            is Expr.When -> whenNames(expr, hidden, out)
+            is Expr.Paren -> names(expr.inner(), hidden, out)
+            is Expr.Try -> names(expr.inner(), hidden, out)
+            is Expr.Attempt -> {
+                names(expr.body(), hidden, out)
+                val errorName = expr.errorName()
+                names(expr.handler(), if (errorName == null) hidden else with(hidden, Set.of(errorName)), out)
+            }
+            is Expr.Pipe -> pipeNames(expr, hidden, out)
+            // A lambda that is not passed to a call runs later, if at all.
+            is Expr.Lambda -> { }
+            is Expr.Literal -> { }
+        }
+    }
+
+    private fn callNames(call: Expr.Call, hidden: Set<String>, out: Set<String>) {
+        val target = call.target()
+        if (target == null) {
+            if (!hidden.contains(call.name())) {
+                function(call.name(), out)
+            }
+        } else if (isThisClass(target)) {
+            function(call.name(), out)
+        } else {
+            names(target, hidden, out)
+        }
+        arguments(call.args(), hidden, out)
+    }
+
+    private fn whenNames(w: Expr.When, hidden: Set<String>, out: Set<String>) {
+        names(w.subject(), hidden, out)
+        val binding = w.bindingName()
+        val inArms = if (binding == null) hidden else with(hidden, Set.of(binding))
+        for (arm in w.arms()) {
+            statements(arm.body(), inArms, out)
+        }
+    }
+
+    private fn pipeNames(pipe: Expr.Pipe, hidden: Set<String>, out: Set<String>) {
+        names(pipe.source(), hidden, out)
+        for (stage in pipe.stages()) {
+            for (arg in stage.args()) {
+                names(arg, hidden, out)
+            }
+            val lambda = stage.lambda()
+            if (lambda != null) {
+                lambdaBody(lambda, hidden, out)
+            }
+        }
+    }
+
+    /** A lambda or function reference passed to a call is likely called by it. */
+    private fn arguments(args: List<Expr>, hidden: Set<String>, out: Set<String>) {
+        for (arg in args) {
+            val inner = unparenthesized(arg)
+            if (inner is Expr.Lambda) {
+                lambdaBody(inner, hidden, out)
+            } else if (inner is Expr.MethodRef && isThisClass(inner.target())) {
+                function(inner.name(), out)
+            } else {
+                names(arg, hidden, out)
+            }
+        }
+    }
+
+    private fn read(name: String, hidden: Set<String>, out: Set<String>) {
+        if (hidden.contains(name)) {
+            return
+        }
+        out.add(name)
+        // Reading a value that holds a lambda is usually done to call it.
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && decl.name().equals(name) && visited.add("val " + name)) {
+                val init = unparenthesized(decl.init())
+                if (init is Expr.Lambda) {
+                    lambdaBody(init, Set.of(), out)
+                } else if (init is Expr.MethodRef && isThisClass(init.target())) {
+                    function(init.name(), out)
+                }
+            }
+        }
+    }
+
+    private fn lambdaBody(lambda: Expr.Lambda, hidden: Set<String>, out: Set<String>) {
+        val scope = HashSet<String>(hidden)
+        for (param in lambda.params()) {
+            scope.add(param.name())
+        }
+        if (lambda.params().isEmpty()) {
+            scope.add("it")
+        }
+        statements(lambda.body(), scope, out)
+    }
+
+    private fn function(name: String, out: Set<String>) {
+        if (!visited.add("fn " + name)) {
+            return
+        }
+        for (decl in file.decls()) {
+            if (decl is Decl.Function && decl.name().equals(name)) {
+                val scope = HashSet<String>()
+                for (param in decl.params()) {
+                    scope.add(param.name())
+                }
+                val exprBody = decl.exprBody()
+                if (exprBody != null) {
+                    names(exprBody, scope, out)
+                } else {
+                    statements(decl.body()!!.statements(), scope, out)
+                }
+            }
+        }
+    }
+
+    /** `Main.names` and `app.Main.names` name a value of this file too. */
+    private fn isThisClass(target: Expr) -> Boolean {
+        val text = dotted(target)
+        if (text == null) {
+            return false
+        }
+        val packageName = file.packageName()!!
+        val qualified = if (packageName.isEmpty()) file.className() else packageName + "." + file.className()
+        return text.equals(file.className()) || text.equals(qualified)
+    }
+
+    /** A local hides the value of the same name from its declaration to the end of its block. */
+    private fn statements(statements: List<Stmt>, hidden: Set<String>, out: Set<String>) {
+        val scope = HashSet<String>(hidden)
+        for (stmt in statements) {
+            statement(stmt, scope, out)
+            if (stmt is Stmt.Local) {
+                scope.add(stmt.name())
+            }
+        }
+    }
+
+    private fn statement(stmt: Stmt, hidden: Set<String>, out: Set<String>) {
+        when (stmt) {
+            is Stmt.Local -> {
+                val init = unparenthesized(stmt.init())
+                // A lambda kept in a local is there to be called.
+                if (init is Expr.Lambda) {
+                    lambdaBody(init, hidden, out)
+                } else {
+                    names(stmt.init(), hidden, out)
+                }
+            }
+            is Stmt.Assign -> {
+                names(stmt.target(), hidden, out)
+                names(stmt.value(), hidden, out)
+            }
+            is Stmt.Return -> {
+                val value = stmt.value()
+                if (value != null) {
+                    names(value, hidden, out)
+                }
+            }
+            is Stmt.If -> {
+                names(stmt.condition(), hidden, out)
+                statement(stmt.then(), hidden, out)
+                val otherwise = stmt.elseBranch()
+                if (otherwise != null) {
+                    statement(otherwise, hidden, out)
+                }
+            }
+            is Stmt.While -> {
+                names(stmt.condition(), hidden, out)
+                statement(stmt.body(), hidden, out)
+            }
+            is Stmt.For -> {
+                names(stmt.iterable(), hidden, out)
+                statement(stmt.body(), with(hidden, Set.of(stmt.name())), out)
+            }
+            is Stmt.ExprStmt -> names(stmt.expr(), hidden, out)
+            is Stmt.Block -> statements(stmt.statements(), hidden, out)
+        }
+    }
+}
+
+/** A value and a later value it reads while it is initialized. */
+data class Problem(val value: Decl.Value, val later: String)
+
+fn check(file: SourceFile) -> List<Problem> = InitOrder(file).problems()
+
+private fn unparenthesized(expr: Expr) -> Expr = if (expr is Expr.Paren) expr.inner() else expr
+
+private fn dotted(expr: Expr) -> String? {
+    if (expr is Expr.Name) {
+        return expr.name()
+    }
+    if (expr is Expr.Member && !expr.safe()) {
+        val target = dotted(expr.target())
+        return if (target == null) null else target + "." + expr.name()
+    }
+    return null
+}
+
+private fn with(names: Set<String>, more: Set<String>) -> Set<String> {
+    val result = HashSet<String>(names)
+    result.addAll(more)
+    return result
+}
