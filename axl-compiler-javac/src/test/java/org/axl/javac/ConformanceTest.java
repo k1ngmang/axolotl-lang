@@ -83,7 +83,7 @@ class ConformanceTest {
                 Files.createDirectories(golden.getParent());
                 Files.writeString(golden, actual);
             } else if (Files.exists(golden)) {
-                assertEquals(Files.readString(golden), actual, "generated " + source.unit().javaPath());
+                assertEquals(Files.readString(golden).replace("\r\n", "\n"), actual, "generated " + source.unit().javaPath());
             } else if (!errorCase) {
                 fail("missing golden file " + dir.relativize(golden));
             }
