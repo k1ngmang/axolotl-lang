@@ -1,0 +1,21 @@
+package app
+
+enum Color { RED, GREEN, BLUE }
+
+private enum Mode { ON, OFF, }
+
+fn describe(color: Color) -> String {
+    if (color == Color.RED) {
+        return "warm"
+    }
+    return "cool"
+}
+
+fn main() {
+    println(describe(Color.RED) + describe(Color.BLUE))
+    println(Color.valueOf("GREEN").ordinal())
+    for (color in Color.values()) {
+        System.out.print(color.name() + " ")
+    }
+    println(Mode.ON)
+}

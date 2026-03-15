@@ -106,6 +106,11 @@ and is created like a data class: `Counter("c", 1)`; it may implement interfaces
 A file whose name is a type it declares, such as `Counter.axl` above, is that type. Its other
 declarations are static members: `Counter.start("c")`.
 
+## Enumerations
+
+`enum Color { RED, GREEN, BLUE }` is a Java enum with constants only, nested like a data class:
+`Color.RED`, `Color.values()`.
+
 ## `if` as a value and `throw`
 
 `if (c) a else b` gives `a` or `b`; both branches are expressions (not braces, which start a lambda),

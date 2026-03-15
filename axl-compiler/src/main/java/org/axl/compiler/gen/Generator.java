@@ -143,6 +143,8 @@ public final class Generator {
                 case Decl.Value value -> emitValue(value);
                 case Decl.Function fn -> emitFunction(fn, true);
                 case Decl.ClassDecl classDecl -> emitClass(classDecl);
+                case Decl.EnumDecl enumeration -> em.line(enumeration.pos().line(), visibility(enumeration) + " enum "
+                        + enumeration.name() + " { " + String.join(", ", enumeration.constants()) + " }");
                 case Decl.DataClass data -> emitDataClass(data);
                 case Decl.Interface iface -> emitInterface(iface);
             }

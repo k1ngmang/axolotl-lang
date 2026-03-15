@@ -86,6 +86,7 @@ topLevel
     | valDecl SEMI?
     | dataClassDecl
     | classDecl
+    | enumDecl
     | interfaceDecl
     | SEMI
     ;
@@ -98,6 +99,10 @@ dataClassDecl
 
 field
     : VAL identifier COLON type
+    ;
+
+enumDecl
+    : PRIVATE? ENUM identifier LBRACE (identifier (COMMA identifier)* COMMA?)? RBRACE
     ;
 
 // A class with state: constructor parameters and properties are fields, functions are methods.
@@ -301,6 +306,7 @@ WHILE   : 'while';
 IS        : 'is';
 WHEN      : 'when';
 CLASS     : 'class';
+ENUM      : 'enum';
 INTERFACE : 'interface';
 SEALED    : 'sealed';
 FOR     : 'for';

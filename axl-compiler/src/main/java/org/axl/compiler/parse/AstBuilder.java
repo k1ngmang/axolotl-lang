@@ -48,6 +48,11 @@ final class AstBuilder {
                 DataClassDeclContext data = top.dataClassDecl();
                 decls.add(new Decl.DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
                         name(data.identifier()), fields(data.field()), types(data.type())));
+            } else if (top.enumDecl() != null) {
+                EnumDeclContext enumeration = top.enumDecl();
+                decls.add(new Decl.EnumDecl(pos(enumeration.start), pos(enumeration.identifier(0).start), enumeration.PRIVATE() != null,
+                        name(enumeration.identifier(0)),
+                        enumeration.identifier().stream().skip(1).map(AstBuilder::name).toList()));
             } else if (top.classDecl() != null) {
                 decls.add(classDecl(top.classDecl()));
             } else if (top.interfaceDecl() != null) {

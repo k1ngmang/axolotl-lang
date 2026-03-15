@@ -40,6 +40,7 @@ final class Symbols {
                 case Decl.Function fn -> result.add(new Symbol(fn.name(), Kind.FUNCTION, fn.namePos(), fn.returnType(), fn, null));
                 case Decl.Value value -> result.add(new Symbol(value.name(), Kind.VALUE, value.namePos(), value.type(), null, null));
                 case Decl.ClassDecl classDecl -> { }
+                case Decl.EnumDecl enumeration -> { }
                 case Decl.DataClass data -> result.add(new Symbol(data.name(), Kind.DECLARED_TYPE, data.namePos(), null, null, null));
                 case Decl.Interface iface -> result.add(new Symbol(iface.name(), Kind.DECLARED_TYPE, iface.namePos(), null, null, null));
             }

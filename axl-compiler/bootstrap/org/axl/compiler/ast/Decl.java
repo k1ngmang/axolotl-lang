@@ -48,6 +48,12 @@ import java.util.List;
             List<Property> properties,
             List<Function> methods,
             List<TypeRef> supertypes) implements Decl {}
+    public record EnumDecl(
+            Pos pos,
+            Pos namePos,
+            boolean isPrivate,
+            String name,
+            List<String> constants) implements Decl {}
     public record Property(
             Pos pos,
             Pos namePos,

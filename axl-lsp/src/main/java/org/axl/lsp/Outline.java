@@ -30,6 +30,7 @@ final class Outline {
         return switch (decl) {
             case Decl.Function fn -> symbol(document, fn.namePos(), fn.name(), SymbolKind.Function, List.of());
             case Decl.Value value -> symbol(document, value.namePos(), value.name(), SymbolKind.Constant, List.of());
+            case Decl.EnumDecl enumeration -> symbol(document, enumeration.namePos(), enumeration.name(), SymbolKind.Enum, List.of());
             case Decl.ClassDecl classDecl -> symbol(document, classDecl.namePos(), classDecl.name(), SymbolKind.Class,
                     classDecl.methods().stream().map(m -> symbol(document, m.namePos(), m.name(), SymbolKind.Method, List.of())).toList());
             case Decl.DataClass data -> symbol(document, data.namePos(), data.name(), SymbolKind.Class,

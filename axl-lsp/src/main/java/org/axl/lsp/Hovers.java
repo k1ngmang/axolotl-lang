@@ -86,6 +86,7 @@ final class Hovers {
             case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + classDecl.parameters().stream()
                     .map(p -> (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(classDecl.supertypes());
+            case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name();
             case Decl.Function fn -> signature(fn);
             case Decl.Value value -> "val " + value.name();
         };

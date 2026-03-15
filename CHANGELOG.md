@@ -138,3 +138,4 @@ Left as they are: a nested class whose name is all capitals before a `try` (`Out
 - `when` with type tests and constants, as a statement, after `return` or as a value.
 - `class` with parameters, properties and methods, and files that are the type they declare.
 - `if (c) a else b` as a value, and `throw`.
+- `enum` with constants.

@@ -70,6 +70,15 @@ data class ClassDecl(
     val supertypes: List<TypeRef>
 ) : Decl
 
+/** An enumeration of constants without members. */
+data class EnumDecl(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val name: String,
+    val constants: List<String>
+) : Decl
+
 data class Property(
     val pos: Pos,
     val namePos: Pos,

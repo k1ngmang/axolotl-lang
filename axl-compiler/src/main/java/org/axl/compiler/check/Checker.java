@@ -175,7 +175,8 @@ public final class Checker {
                             "`" + value.name() + "` is already declared at line " + existing.pos().line());
                 }
                 scope.names.put(value.name(), new Symbol(Kind.TOP_LEVEL, value.pos()));
-            } else if (decl instanceof Decl.DataClass || decl instanceof Decl.Interface || decl instanceof Decl.ClassDecl) {
+            } else if (decl instanceof Decl.DataClass || decl instanceof Decl.Interface || decl instanceof Decl.ClassDecl
+                    || decl instanceof Decl.EnumDecl) {
                 checkTypeName(decl);
             } else {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos()));
@@ -198,6 +199,7 @@ public final class Checker {
                 case Decl.Value value -> topLevelValue(value);
                 case Decl.Function fn -> function(fn);
                 case Decl.ClassDecl classDecl -> classDecl(classDecl);
+                case Decl.EnumDecl enumeration -> { }
                 case Decl.DataClass data -> members(data.fields(), "field");
                 case Decl.Interface iface -> members(iface.members(), "member");
             }
