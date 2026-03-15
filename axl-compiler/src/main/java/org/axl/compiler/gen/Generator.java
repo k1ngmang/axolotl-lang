@@ -381,7 +381,7 @@ public final class Generator {
                 int line = local.pos().line();
                 Expr init = local.init();
                 TypeRef localType = local.type() != null ? local.type() : typeOf(init);
-                withCopies(line, Captures.in(init, analysis, inlinesElvis(init)), () -> {
+                withCopies(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
                     String value = init instanceof Expr.Try t ? unwrapTry(line, t)
                             : value(line, init, local.type() == null ? null : nullableType(local.type()));
                     String modifiers = local.mutable() ? "" : "final ";
@@ -391,7 +391,7 @@ public final class Generator {
                 localTypes.put(local.name(), localType);
             }
             case Stmt.Assign assign -> withCopies(assign.pos().line(),
-                    Captures.in(assign.value(), analysis, inlinesElvis(assign.value())), () -> {
+                    Captures.capturedIn(assign.value(), analysis, inlinesElvis(assign.value())), () -> {
                 int line = assign.pos().line();
                 boolean valueLifts = Lifts.needed(assign.value());
                 String target = assignTarget(line, assign.target(), valueLifts);
@@ -413,7 +413,7 @@ public final class Generator {
                 if (ret.value() == null) {
                     em.line(ret.pos().line(), "return;");
                 } else {
-                    withCopies(ret.pos().line(), Captures.in(ret.value(), analysis, inlinesElvis(ret.value())), () ->
+                    withCopies(ret.pos().line(), Captures.capturedIn(ret.value(), analysis, inlinesElvis(ret.value())), () ->
                             em.line(ret.pos().line(), "return " + value(ret.pos().line(), ret.value(), returnType) + ";"));
                 }
             }
@@ -465,7 +465,7 @@ public final class Generator {
      */
     private void emitIf(Stmt.If ifStmt, String prefix) {
         int line = ifStmt.pos().line();
-        List<String> captured = Captures.in(ifStmt.condition(), analysis);
+        List<String> captured = Captures.capturedIn(ifStmt.condition(), analysis);
         boolean prelude = !captured.isEmpty() || Lifts.needed(ifStmt.condition());
         if (!prefix.isEmpty() && prelude) {
             em.line(line, prefix + "{");
@@ -502,7 +502,7 @@ public final class Generator {
 
     private boolean splitsCondition(Stmt.If ifStmt) {
         boolean simpleAnd = ifStmt.elseBranch() == null && ifStmt.condition() instanceof Expr.Binary b && b.op().equals("&&");
-        return !simpleAnd && Captures.in(ifStmt.condition(), analysis).isEmpty()
+        return !simpleAnd && Captures.capturedIn(ifStmt.condition(), analysis).isEmpty()
                 && ifStmt.condition() instanceof Expr.Binary b && (b.op().equals("&&") || b.op().equals("||"))
                 && Lifts.needed(b.right());
     }
@@ -581,14 +581,14 @@ public final class Generator {
 
     private void emitWhile(Stmt.While loop) {
         int line = loop.pos().line();
-        if (Captures.in(loop.condition(), analysis).isEmpty() && !Lifts.needed(loop.condition())) {
+        if (Captures.capturedIn(loop.condition(), analysis).isEmpty() && !Lifts.needed(loop.condition())) {
             em.line(line, "while (" + expr(loop.condition()) + ") {");
             narrowed(whenTrue(loop.condition()), () -> block(loop.body()));
         } else {
             // Copies and lifted `try`s must run on every iteration, before the condition.
             em.line(line, "while (true) {");
             em.indent();
-            if (Captures.in(loop.condition(), analysis).isEmpty() && loop.condition() instanceof Expr.Binary b
+            if (Captures.capturedIn(loop.condition(), analysis).isEmpty() && loop.condition() instanceof Expr.Binary b
                     && (b.op().equals("&&") || b.op().equals("||")) && Lifts.needed(b.right())) {
                 // Separate checks keep what the left side checks known in the body, as in shortCircuitIf.
                 String left = lifted(line, b.left()).code();
@@ -827,7 +827,7 @@ public final class Generator {
 
     /** Copies `var`s that lambdas of this statement capture into fresh finals, then emits it. */
     private void withCopies(int line, Expr expr, Runnable emit) {
-        withCopies(line, Captures.in(expr, analysis), emit);
+        withCopies(line, Captures.capturedIn(expr, analysis), emit);
     }
 
     private void withCopies(int line, List<String> captured, Runnable emit) {

@@ -1,0 +1,177 @@
+package org.axl.compiler.gen
+
+import java.util.ArrayList
+import java.util.LinkedHashSet
+import java.util.List
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Stmt
+import org.axl.compiler.check.Analysis
+
+/**
+ * Finds `var` locals referenced inside the lambdas that `?:`, `?.` and `attempt` expand to.
+ * Java lambdas only capture effectively final variables, so those need a final copy.
+ */
+class Captures(val analysis: Analysis) {
+
+    val names: LinkedHashSet<String> = LinkedHashSet<String>()
+
+    // Depth of the block lambdas being looked into.
+    var lambdaBodies: Int = 0
+
+    fn visit(expr: Expr, inLambda: Boolean) {
+        when (expr) {
+            is Expr.Literal -> { }
+            is Expr.Name -> {
+                if (inLambda && analysis.mutableRefs().contains(expr)) {
+                    names.add(expr.name())
+                }
+            }
+            is Expr.Member -> chain(Chains.flatten(expr), inLambda)
+            is Expr.Call -> {
+                if (expr.target() != null) {
+                    chain(Chains.flatten(expr), inLambda)
+                } else {
+                    visitAll(expr.args(), inLambda)
+                }
+            }
+            is Expr.GenericNew -> visitAll(expr.args(), inLambda)
+            is Expr.MethodRef -> visit(expr.target(), inLambda)
+            is Expr.NotNull -> visit(expr.target(), inLambda)
+            is Expr.Unary -> visit(expr.operand(), inLambda)
+            is Expr.Binary -> {
+                visit(expr.left(), inLambda)
+                visit(expr.right(), inLambda)
+            }
+            is Expr.Elvis -> {
+                visit(expr.left(), inLambda)
+                // A right side that needs statements becomes an `if`, not a lambda.
+                visit(expr.right(), inLambda || !Lifts.needed(expr.right()))
+            }
+            is Expr.Is -> visit(expr.target(), inLambda)
+            is Expr.Conditional -> {
+                visit(expr.condition(), inLambda)
+                visit(expr.then(), inLambda)
+                visit(expr.otherwise(), inLambda)
+            }
+            is Expr.Throw -> visit(expr.value(), inLambda)
+            is Expr.When -> {
+                visit(expr.subject(), inLambda)
+                // Outside a lambda the statements of the arms are emitted, and so copied, one by one.
+                if (lambdaBodies > 0) {
+                    for (arm in expr.arms()) {
+                        statements(arm.body(), inLambda)
+                    }
+                }
+            }
+            is Expr.Paren -> visit(expr.inner(), inLambda)
+            is Expr.Try -> visit(expr.inner(), inLambda)
+            is Expr.Attempt -> {
+                visit(expr.body(), true)
+                visit(expr.handler(), true)
+            }
+            // The statements of a block lambda copy its own locals themselves. A `var` from outside is
+            // captured by the lambda itself, which javac rejects; a copy would hide that behind a stale value.
+            is Expr.Lambda -> {
+                val before = LinkedHashSet<String>(names)
+                lambdaBodies += 1
+                statements(expr.body(), inLambda)
+                lambdaBodies -= 1
+                names.retainAll(before)
+            }
+            is Expr.Pipe -> {
+                visit(expr.source(), inLambda)
+                for (stage in expr.stages()) {
+                    visitAll(stage.args(), inLambda)
+                    val lambda = stage.lambda()
+                    if (lambda != null) {
+                        visit(lambda, inLambda)
+                    }
+                }
+            }
+        }
+    }
+
+    private fn visitAll(exprs: List<Expr>, inLambda: Boolean) {
+        for (expr in exprs) {
+            visit(expr, inLambda)
+        }
+    }
+
+    private fn statements(statements: List<Stmt>, inLambda: Boolean) {
+        for (stmt in statements) {
+            statement(stmt, inLambda)
+        }
+    }
+
+    private fn statement(stmt: Stmt, inLambda: Boolean) {
+        when (stmt) {
+            is Stmt.Local -> visit(stmt.init(), inLambda)
+            is Stmt.Assign -> visit(stmt.value(), inLambda)
+            is Stmt.Return -> {
+                val value = stmt.value()
+                if (value != null) {
+                    visit(value, inLambda)
+                }
+            }
+            is Stmt.If -> {
+                visit(stmt.condition(), inLambda)
+                statement(stmt.then(), inLambda)
+                val otherwise = stmt.elseBranch()
+                if (otherwise != null) {
+                    statement(otherwise, inLambda)
+                }
+            }
+            is Stmt.While -> {
+                visit(stmt.condition(), inLambda)
+                statement(stmt.body(), inLambda)
+            }
+            is Stmt.For -> {
+                visit(stmt.iterable(), inLambda)
+                statement(stmt.body(), inLambda)
+            }
+            is Stmt.ExprStmt -> visit(stmt.expr(), inLambda)
+            is Stmt.Block -> statements(stmt.statements(), inLambda)
+        }
+    }
+
+    private fn chain(chain: Chains.Chain, inLambda: Boolean) {
+        visit(chain.base(), inLambda)
+        var afterSafe = inLambda
+        for (step in chain.steps()) {
+            afterSafe = afterSafe || step.safe()
+            val args = step.args()
+            if (args != null) {
+                visitAll(args, afterSafe)
+            }
+        }
+    }
+}
+
+fn capturedIn(expr: Expr, analysis: Analysis) -> List<String> = capturedIn(expr, analysis, false)
+
+/** rootElvisInlined: a `?:` at the root expands without a lambda. */
+fn capturedIn(expr: Expr, analysis: Analysis, rootElvisInlined: Boolean) -> List<String> {
+    val captures = Captures(analysis)
+    if (rootElvisInlined && expr is Expr.Elvis) {
+        captures.visit(expr.left(), false)
+        captures.visit(expr.right(), false)
+    } else {
+        captures.visit(expr, false)
+    }
+    return ArrayList<String>(captures.names)
+}
+
+/** A safe chain used as a statement expands to `if` checks, so only nested lambdas count. */
+fn inStatementChain(chain: Chains.Chain, analysis: Analysis) -> List<String> {
+    val captures = Captures(analysis)
+    captures.visit(chain.base(), false)
+    for (step in chain.steps()) {
+        val args = step.args()
+        if (args != null) {
+            for (arg in args) {
+                captures.visit(arg, false)
+            }
+        }
+    }
+    return ArrayList<String>(captures.names)
+}

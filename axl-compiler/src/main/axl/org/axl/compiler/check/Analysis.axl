@@ -1,0 +1,24 @@
+package org.axl.compiler.check
+
+import java.util.Map
+import java.util.Set
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.TypeRef
+
+/**
+ * Facts about names the generator relies on.
+ *
+ * implicitIt: lambdas without parameters whose body uses `it`.
+ * mutableRefs: references to `var` locals.
+ * stableNames: references to locals, parameters and top-level values of the file, which no call can
+ * change while an expression is evaluated.
+ * staticNames: references that are not Axolotl declarations: Java classes and packages.
+ * mapResultTypes: element type of the list each `mapResult` stage builds.
+ */
+data class Analysis(
+    val mutableRefs: Set<Expr.Name>,
+    val implicitIt: Set<Expr.Lambda>,
+    val stableNames: Set<Expr.Name>,
+    val staticNames: Set<Expr.Name>,
+    val mapResultTypes: Map<Expr.Stage, TypeRef>
+)
