@@ -39,13 +39,17 @@ final class Symbols {
             switch (decl) {
                 case Decl.Function fn -> result.add(new Symbol(fn.name(), Kind.FUNCTION, fn.namePos(), fn.returnType(), fn, null));
                 case Decl.Value value -> result.add(new Symbol(value.name(), Kind.VALUE, value.namePos(), value.type(), null, null));
-                case Decl.ClassDecl classDecl -> { }
-                case Decl.EnumDecl enumeration -> { }
+                case Decl.ClassDecl classDecl -> result.add(new Symbol(classDecl.name(), Kind.DECLARED_TYPE, classDecl.namePos(), null, null, null));
+                case Decl.EnumDecl enumeration -> result.add(new Symbol(enumeration.name(), Kind.DECLARED_TYPE, enumeration.namePos(), null, null, null));
                 case Decl.DataClass data -> result.add(new Symbol(data.name(), Kind.DECLARED_TYPE, data.namePos(), null, null, null));
                 case Decl.Interface iface -> result.add(new Symbol(iface.name(), Kind.DECLARED_TYPE, iface.namePos(), null, null, null));
             }
         }
         Decl enclosing = enclosingDecl(file, pos);
+        if (enclosing instanceof Decl.ClassDecl classDecl) {
+            classScope(classDecl, result);
+            enclosing = enclosingMethod(classDecl, pos);
+        }
         if (enclosing instanceof Decl.Function fn) {
             for (Expr.Param p : fn.params()) {
                 result.add(new Symbol(p.name(), Kind.PARAMETER, p.pos(), p.type(), fn, null));
@@ -60,6 +64,34 @@ final class Symbols {
             expr(value.init(), pos, null, result);
         }
         return result;
+    }
+
+    /** Inside a class, its fields are visible by name. */
+    private static void classScope(Decl.ClassDecl classDecl, List<Symbol> out) {
+        for (Decl.Property p : classDecl.parameters()) {
+            out.add(property(p));
+        }
+        for (Decl.Property p : classDecl.properties()) {
+            out.add(property(p));
+        }
+        for (Decl.Function method : classDecl.methods()) {
+            out.add(new Symbol(method.name(), Kind.FUNCTION, method.namePos(), method.returnType(), method, null));
+        }
+    }
+
+    private static Symbol property(Decl.Property p) {
+        return new Symbol(p.name(), p.mutable() ? Kind.VARIABLE : Kind.LOCAL, p.namePos(), p.type(), null, null);
+    }
+
+    /** A method covers its text up to the next one; the last also covers the rest of the class. */
+    private static Decl enclosingMethod(Decl.ClassDecl classDecl, Pos pos) {
+        Decl.Function found = null;
+        for (Decl.Function method : classDecl.methods()) {
+            if (before(method.pos(), pos)) {
+                found = method;
+            }
+        }
+        return found;
     }
 
     static Symbol lookup(SourceFile file, Pos pos, String name) {

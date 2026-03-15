@@ -146,7 +146,7 @@ final class JavaModel {
         }
         String pkg = file.packageName() == null ? "" : file.packageName();
         if (file.decls().stream().anyMatch(d -> isType(d) && d.name().equals(name))) {
-            // Data classes and interfaces are nested in the class of their file.
+            // Data classes, classes, enums and interfaces are nested in the class of their file.
             return elements.getTypeElement((pkg.isEmpty() ? file.className() : pkg + "." + file.className()) + "." + name);
         }
         for (String candidate : List.of(pkg.isEmpty() ? name : pkg + "." + name, "java.lang." + name, "axl.lang." + name)) {
@@ -159,7 +159,8 @@ final class JavaModel {
     }
 
     private static boolean isType(Decl decl) {
-        return decl instanceof Decl.DataClass || decl instanceof Decl.Interface;
+        return decl instanceof Decl.DataClass || decl instanceof Decl.Interface || decl instanceof Decl.ClassDecl
+                || decl instanceof Decl.EnumDecl;
     }
 
     TypeElement resolveType(SourceFile file, TypeRef type) {

@@ -21,8 +21,8 @@ import org.eclipse.lsp4j.CompletionItemKind;
 final class Completions {
 
     static final List<String> KEYWORDS = List.of("package", "import", "fn", "val", "var", "private", "return", "if",
-            "else", "while", "for", "when", "is", "data", "class", "interface", "sealed", "try", "attempt", "true", "false",
-            "null");
+            "else", "while", "for", "when", "is", "data", "class", "enum", "interface", "sealed", "throw", "try", "attempt", "true",
+            "false", "null");
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
     static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");

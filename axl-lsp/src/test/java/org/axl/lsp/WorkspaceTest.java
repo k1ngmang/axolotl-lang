@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.MessageActionItem;
@@ -24,6 +25,7 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
+import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,6 +73,30 @@ class WorkspaceTest {
                     println(x + total)
                 }
                 return shape.name()
+            }
+            """;
+
+    private static final String COUNTER = """
+            package app
+
+            enum Color { RED, GREEN, BLUE }
+
+            class Counter(val name: String, var step: Int) {
+                var count: Int = 0
+
+                fn next() -> Int {
+                    count += step
+                    return count
+                }
+
+                fn label() -> String = name
+            }
+
+            fn pick(n: Int) -> Int = if (n > 0) n else throw IllegalStateException("x")
+
+            fn main() {
+                val c = Counter("c", 1)
+                println(c.next())
             }
             """;
 
@@ -615,6 +641,46 @@ class WorkspaceTest {
                 hover(uri, 11, 7));
         assertEquals(List.of(2), definitionLines(uri, 10, 15));
         assertEquals(List.of(6), definitionLines(uri, 11, 7));
+    }
+
+    @Test
+    void outlinesClassMembersAndEnumConstants() throws Exception {
+        String uri = open("Counter.axl", COUNTER);
+        List<DocumentSymbol> symbols = new Outline(workspace).symbols(uri);
+        assertEquals(List.of("Color", "Counter", "pick", "main"), symbols.stream().map(DocumentSymbol::getName).toList());
+        DocumentSymbol color = symbols.get(0);
+        assertEquals(List.of("RED", "GREEN", "BLUE"), color.getChildren().stream().map(DocumentSymbol::getName).toList());
+        assertEquals(SymbolKind.EnumMember, color.getChildren().get(1).getKind());
+        assertEquals(new Position(2, 18), color.getChildren().get(1).getSelectionRange().getStart());
+        DocumentSymbol counter = symbols.get(1);
+        assertEquals(List.of("name", "step", "count", "next", "label"),
+                counter.getChildren().stream().map(DocumentSymbol::getName).toList());
+        assertEquals(List.of(SymbolKind.Field, SymbolKind.Field, SymbolKind.Field, SymbolKind.Method, SymbolKind.Method),
+                counter.getChildren().stream().map(DocumentSymbol::getKind).toList());
+    }
+
+    @Test
+    void hoversAndGoesToClassesAndEnums() throws Exception {
+        String uri = open("Counter.axl", COUNTER);
+        assertTrue(hover(uri, 18, 14).contains("class Counter(val name: String, var step: Int)"), hover(uri, 18, 14));
+        assertEquals(List.of(4), definitionLines(uri, 18, 14));
+        assertTrue(hover(uri, 8, 8).contains("var count: Int"), hover(uri, 8, 8));
+        assertEquals(List.of(5), definitionLines(uri, 8, 8));
+    }
+
+    @Test
+    void completesClassMembersAfterADotAndTheNewKeywords() throws Exception {
+        String uri = open("Counter.axl", COUNTER.replace("c.next()", "c.ne"));
+        assertTrue(memberNames(uri, 19, 16).contains("next"), memberNames(uri, 19, 16).toString());
+        List<String> names = new Completions(workspace).complete(uri, 17, 4).stream().map(i -> i.getLabel()).toList();
+        assertTrue(names.containsAll(List.of("enum", "throw", "class", "Counter", "Color")), names.toString());
+    }
+
+    @Test
+    void colorsTheNewKeywords() throws Exception {
+        String uri = open("Counter.axl", COUNTER);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("2:0:4:keyword", "4:0:5:keyword", "15:43:5:keyword")), tokens.toString());
     }
 
     @Test
