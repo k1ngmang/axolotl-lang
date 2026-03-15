@@ -139,3 +139,9 @@ Left as they are: a nested class whose name is all capitals before a `try` (`Out
 - `class` with parameters, properties and methods, and files that are the type they declare.
 - `if (c) a else b` as a value, and `throw`.
 - `enum` with constants.
+
+## Compiler written in Axolotl
+
+- The syntax tree, the checks (`Checker`, `InitOrder`, `TypeInference` and others), the code generator and the builder of the syntax tree are `.axl` files in `axl-compiler/src/main/axl`; the Java they translate to is checked in under `axl-compiler/bootstrap`.
+- `./gradlew check` rebuilds the compiler from that snapshot and fails unless it translates its own sources to the same files (`verifyBootstrap`); `./gradlew updateBootstrap` replaces the snapshot. See `docs/self-hosting.md`.
+- `SourceParser` (it subclasses ANTLR classes), `Translator` and the small records of the public API stay Java.

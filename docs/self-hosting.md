@@ -1,7 +1,10 @@
 # The compiler written in Axolotl
 
-Parts of the compiler are written in Axolotl: the `.axl` files in `axl-compiler/src/main/axl`. The
-rest stays in Java, in particular the ANTLR parser. The Java that the compiler makes from those files
+Most of the compiler is written in Axolotl: the `.axl` files in `axl-compiler/src/main/axl` hold the
+syntax tree, the checks, the code generator and the builder that turns the ANTLR tree into the syntax
+tree. The rest stays in Java: the ANTLR parser and the code that drives it (`SourceParser`, which
+subclasses ANTLR classes), the entry point `Translator` and the small records of the public API, which
+many Java tools use. The Java that the compiler makes from those files
 is kept in `axl-compiler/bootstrap` and compiled with the hand-written Java, so building the compiler
 needs no compiler.
 
