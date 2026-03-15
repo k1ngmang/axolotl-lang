@@ -19,14 +19,17 @@ axl-compiler/
 Change an `.axl` file, then:
 
 ```
-./gradlew :axl-cli:installDist      # builds a compiler from the current snapshot
-./gradlew updateBootstrap           # translates src/main/axl with it and replaces the snapshot
+./gradlew updateBootstrap           # translates src/main/axl with the compiler built from the snapshot
 ./gradlew check                     # builds again from the new snapshot
 ```
 
 `check` runs `verifyBootstrap`: the compiler built from the snapshot translates `src/main/axl` again
 and the result must be the same files. When the snapshot is not a fixpoint, run `updateBootstrap`
 once more until it is.
+
+Before it replaces the snapshot, `updateBootstrap` compiles the translation with the hand-written Java
+alone, so deleting or renaming an `.axl` file that other files still use fails there instead of
+leaving a snapshot that does not compile.
 
 A change that makes the compiler reject or translate its own sources differently needs two steps:
 first a version of the Java that still accepts the old sources, then the new sources.

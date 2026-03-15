@@ -55,8 +55,22 @@ val translateCompiler by tasks.registering(JavaExec::class) {
     })
 }
 
+// Compiles the translation with the hand-written Java of the compiler and nothing of the snapshot it
+// replaces: translateCompiler links against the old classes, so a deleted or renamed .axl file would
+// otherwise leave a snapshot that does not compile.
+val compileTranslation by tasks.registering(JavaCompile::class) {
+    description = "Checks that the translated compiler compiles without the current snapshot."
+    val compiler = project(":axl-compiler")
+    source(translateCompiler.map { it.outputs.files.singleFile.resolve("java") })
+    source(compiler.layout.projectDirectory.dir("src/main/java"))
+    source(compiler.tasks.named("generateGrammarSource"))
+    classpath = compiler.configurations["compileClasspath"]
+    destinationDirectory = layout.buildDirectory.dir("bootstrap-classes")
+}
+
 tasks.register<Sync>("updateBootstrap") {
     description = "Replaces axl-compiler/bootstrap with the translation of the compiler's Axolotl sources."
+    dependsOn(compileTranslation)
     from(translateCompiler.map { it.outputs.files.singleFile.resolve("java") }) {
         include("**/*.java")
     }
@@ -65,14 +79,15 @@ tasks.register<Sync>("updateBootstrap") {
 
 val verifyBootstrap by tasks.registering {
     description = "Checks that axl-compiler/bootstrap is what this build of the compiler translates its sources to."
-    dependsOn(translateCompiler)
+    dependsOn(translateCompiler, compileTranslation)
+    mustRunAfter("updateBootstrap")
     val translated = layout.buildDirectory.dir("bootstrap/java")
     val snapshot = rootProject.layout.projectDirectory.dir("axl-compiler/bootstrap")
     doLast {
         val expected = translated.get().asFile.walkTopDown().filter { it.isFile && it.extension == "java" }
-            .associate { it.relativeTo(translated.get().asFile).path to it.readText() }
+            .associate { it.relativeTo(translated.get().asFile).path to it.readText().replace("\r\n", "\n") }
         val actual = snapshot.asFile.walkTopDown().filter { it.isFile && it.extension == "java" }
-            .associate { it.relativeTo(snapshot.asFile).path to it.readText() }
+            .associate { it.relativeTo(snapshot.asFile).path to it.readText().replace("\r\n", "\n") }
         val differing = (expected.keys + actual.keys).filter { expected[it] != actual[it] }.sorted()
         if (differing.isNotEmpty()) {
             throw GradleException("axl-compiler/bootstrap is out of date: ${differing.joinToString()}; run ./gradlew updateBootstrap")
