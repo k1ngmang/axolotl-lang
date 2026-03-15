@@ -1,0 +1,171 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.HashSet
+import java.util.List
+import java.util.Map
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Import
+import org.axl.compiler.ast.Pos
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.TypeRef
+
+/**
+ * The type of a top-level `val` without a written type, from what the file itself says: literals,
+ * operators, constructors, other values and the result types of its functions. Anything that needs
+ * the classpath is left to javac (see JavaTypes).
+ */
+class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
+
+    val inProgress: HashSet<String> = HashSet<String>()
+
+    fn value(value: Decl.Value) -> TypeRef? {
+        if (value.type() != null) {
+            return value.type()
+        }
+        if (known.containsKey(value.name())) {
+            return known.get(value.name())
+        }
+        if (!inProgress.add(value.name())) {
+            return null
+        }
+        val type = of(value.init())
+        inProgress.remove(value.name())
+        return type
+    }
+
+    fn of(expr: Expr) -> TypeRef? = when (expr) {
+        is Expr.Literal -> literal(expr)
+        is Expr.Paren -> of(expr.inner())
+        is Expr.Unary -> if (expr.op().equals("!")) simple("Boolean", expr.pos()) else of(expr.operand())
+        is Expr.Binary -> binary(expr)
+        is Expr.Elvis -> elvis(expr)
+        is Expr.Is -> simple("Boolean", expr.pos())
+        is Expr.Name -> topLevelValue(expr.name())
+        is Expr.Call -> if (expr.target() == null) call(expr) else null
+        is Expr.GenericNew -> if (expr.typeArgs().isEmpty()) null else TypeRef(expr.pos(), expr.type(), expr.typeArgs(), false)
+        is Expr.NotNull -> nonNull(of(expr.target()))
+        else -> null
+    }
+
+    private fn literal(l: Expr.Literal) -> TypeRef? {
+        val text = l.text()
+        if (text.startsWith("\"")) {
+            return simple("String", l.pos())
+        }
+        if (text.equals("true") || text.equals("false")) {
+            return simple("Boolean", l.pos())
+        }
+        if (text.equals("null") || text.startsWith("'")) {
+            return null
+        }
+        val last = Character.toLowerCase(text.charAt(text.length() - 1))
+        if (last == 'l') {
+            return simple("Long", l.pos())
+        }
+        val hex = text.startsWith("0x") || text.startsWith("0X")
+        if (!hex && (text.contains(".") || text.contains("e") || text.contains("E") || last == 'd')) {
+            return if (last == 'f') null else simple("Double", l.pos())
+        }
+        return if (last == 'f' && !hex) null else simple("Int", l.pos())
+    }
+
+    private fn binary(b: Expr.Binary) -> TypeRef? {
+        if (comparisons.contains(b.op())) {
+            return simple("Boolean", b.pos())
+        }
+        val left = of(b.left())
+        val right = of(b.right())
+        if (b.op().equals("+") && (isString(left) || isString(right))) {
+            return simple("String", b.pos())
+        }
+        if (left == null || right == null || !numbers.contains(left.name()) || !numbers.contains(right.name())) {
+            return null
+        }
+        return if (numbers.indexOf(left.name()) >= numbers.indexOf(right.name())) nonNull(left) else nonNull(right)
+    }
+
+    /** `a ?: b` has the type of `b` when both sides agree; otherwise javac decides. */
+    private fn elvis(e: Expr.Elvis) -> TypeRef? {
+        val right = of(e.right())
+        val left = of(e.left())
+        return if (right != null && left != null && sameType(left, right)) right else null
+    }
+
+    private fn call(c: Expr.Call) -> TypeRef? {
+        val candidates = ArrayList<Decl.Function>()
+        for (decl in file.decls()) {
+            if (decl is Decl.Function && decl.name().equals(c.name()) && decl.params().size() == c.args().size()) {
+                candidates.add(decl)
+            }
+        }
+        if (candidates.size() == 1) {
+            return candidates.getFirst().returnType()
+        }
+        if (candidates.size() > 1 || isImportedFunction(c.name())) {
+            return null
+        }
+        if (Character.isUpperCase(c.name().charAt(0)) && !c.name().equals("Ok") && !c.name().equals("Err")) {
+            return simple(c.name(), c.pos())
+        }
+        return null
+    }
+
+    private fn isImportedFunction(name: String) -> Boolean =
+        file.imports().stream().anyMatch({ i -> i.kind() != Import.Kind.TYPE && i.simpleName().equals(name) })
+
+    private fn topLevelValue(name: String) -> TypeRef? {
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && decl.name().equals(name)) {
+                return value(decl)
+            }
+        }
+        return null
+    }
+}
+
+private val numbers: List<String> = List.of("Int", "Long", "Double")
+
+private val comparisons: List<String> = List.of("==", "!=", "<", "<=", ">", ">=", "&&", "||")
+
+/** Infers every untyped top-level value it can; the result maps value names to types. */
+fn inferAll(file: SourceFile, known: Map<String, TypeRef>) {
+    val inference = TypeInference(file, known)
+    for (decl in file.decls()) {
+        if (decl is Decl.Value && decl.type() == null) {
+            val type = inference.value(decl)
+            if (type != null) {
+                known.put(decl.name(), type)
+            }
+        }
+    }
+}
+
+/** The type of an expression of the file as far as the file alone tells, or null. */
+fn typeOf(file: SourceFile, expr: Expr) -> TypeRef? = TypeInference(file, HashMap<String, TypeRef>()).of(expr)
+
+private fn sameType(a: TypeRef, b: TypeRef) -> Boolean {
+    if (!a.name().equals(b.name()) || a.args().size() != b.args().size()) {
+        return false
+    }
+    var i = 0
+    while (i < a.args().size()) {
+        val left = a.args().get(i)
+        val right = b.args().get(i)
+        if (!sameType(left, right) || left.nullable() != right.nullable()) {
+            return false
+        }
+        i += 1
+    }
+    return true
+}
+
+private fn isString(type: TypeRef?) -> Boolean =
+    type != null && (type.name().equals("String") || type.name().equals("java.lang.String"))
+
+private fn nonNull(type: TypeRef?) -> TypeRef? =
+    if (type == null) null else TypeRef(type.pos(), type.name(), type.args(), false)
+
+private fn simple(name: String, pos: Pos) -> TypeRef = TypeRef(pos, name, ArrayList<TypeRef>(), false)
