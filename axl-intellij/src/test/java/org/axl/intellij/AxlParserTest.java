@@ -111,11 +111,48 @@ public class AxlParserTest extends BasePlatformTestCase {
 
     public void testParsesTheConformanceCasesOfTheNewSyntax() throws IOException {
         for (String name : List.of("for_loops/src/app/Main", "data_classes/src/app/Shapes", "data_classes/src/app/Main",
-                "is_smart_cast/src/app/Main", "when_expressions/src/app/Main")) {
+                "is_smart_cast/src/app/Main", "when_expressions/src/app/Main", "classes/src/app/Counter",
+                "classes/src/app/Main", "enums/src/app/Main", "conditional_and_throw/src/app/Main",
+                "if_expression_braces/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
         }
+    }
+
+    public void testParsesClassesEnumsConditionalsAndThrow() {
+        PsiFile file = myFixture.configureByText("Kinds.axl", """
+                package app
+
+                private enum Mode { ON, OFF, }
+
+                class Counter(val name: String, var step: Int) : Named {
+                    var count: Int = 0
+                    private val label: String = "c"
+                    fn next() -> Int = when (step) {
+                        1 -> count
+                        else -> throw IllegalStateException("x")
+                    }
+                    fn sign() -> String = if (step > 0) "positive" else "other"
+                }
+
+                class Empty
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ENUM).length);
+        assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.CLASS).length);
+        assertEquals(2, PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlElementTypes.ENUM_CONSTANT).length);
+        assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.THROW).length);
+        assertEquals(1, PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlElementTypes.CONDITIONAL).length);
+    }
+
+    public void testReadsAnIfWithBracesAsAStatement() {
+        PsiFile file = myFixture.configureByText("Stmt.axl", "package app\n\nfn f(n: Int) {\n    if (n > 0) {\n        println(n)\n    }\n}\n");
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(0, PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlElementTypes.CONDITIONAL).length);
     }
 
     public void testEndsATypeTestAtALineBreak() {
@@ -140,6 +177,11 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertErrors("data class P(x: Int)\n");
         assertErrors("data class P(val x: Int\n");
         assertErrors("interface I { fn f() {} }\n");
+        assertErrors("class C(x: Int)\n");
+        assertErrors("class C {\n    data\n}\n");
+        assertErrors("enum E { A B }\n");
+        assertErrors("enum E { A\n");
+        assertErrors("fn f(n: Int) = if (n > 0) 1\n");
         assertErrors("fn f(xs: List<Int>) {\n    for (x xs) {\n    }\n}\n");
         assertErrors("fn f(xs: List<Int>) {\n    for (x in xs) println(x)\n}\n");
         assertErrors("fn f(n: Int) = when (n) {\n    foo -> 1\n}\n");

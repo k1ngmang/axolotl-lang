@@ -89,12 +89,16 @@ public final class AxlParser implements PsiParser {
             consume(SEMI);
         } else if (atDataClass()) {
             dataClass();
+        } else if (at(CLASS) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(CLASS)) {
+            classDeclaration();
+        } else if (at(ENUM) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(ENUM)) {
+            enumDeclaration();
         } else if (atInterface()) {
             interfaceDeclaration();
         } else if (at(SEMI)) {
             b.advanceLexer();
         } else {
-            skip("`fn`, `val`, `data class` or `interface` expected");
+            skip("`fn`, `val`, `data class`, `class`, `enum` or `interface` expected");
         }
     }
 
@@ -126,13 +130,69 @@ public final class AxlParser implements PsiParser {
         if (expect(LPAREN, "`(` expected")) {
             if (!at(RPAREN)) {
                 do {
-                    field();
+                    field(false);
                 } while (consume(COMMA));
             }
             expect(RPAREN, "`)` expected");
         }
         supertypes();
         m.done(AxlElementTypes.DATA_CLASS);
+    }
+
+    /** `class Counter(val name: String, var step: Int) : Named { var count: Int = 0; fn next() -> Int { ... } }` */
+    private void classDeclaration() {
+        PsiBuilder.Marker m = b.mark();
+        consume(PRIVATE);
+        b.advanceLexer();
+        expect(IDENTIFIER, "class name expected");
+        if (consume(LPAREN)) {
+            if (!at(RPAREN)) {
+                do {
+                    field(true);
+                } while (consume(COMMA));
+            }
+            expect(RPAREN, "`)` expected");
+        }
+        supertypes();
+        if (consume(LBRACE)) {
+            while (!at(RBRACE) && !b.eof()) {
+                classMember();
+            }
+            expect(RBRACE, "`}` expected");
+        }
+        m.done(AxlElementTypes.CLASS);
+    }
+
+    private void classMember() {
+        int word = at(PRIVATE) ? 1 : 0;
+        if (b.lookAhead(word) == AxlTokenTypes.of(FN)) {
+            function();
+        } else if (b.lookAhead(word) == AxlTokenTypes.of(VAL) || b.lookAhead(word) == AxlTokenTypes.of(VAR)) {
+            variable(true);
+            consume(SEMI);
+        } else {
+            skip("`val`, `var` or `fn` expected");
+        }
+    }
+
+    /** `enum Color { RED, GREEN }`: constants only, a trailing comma is fine. */
+    private void enumDeclaration() {
+        PsiBuilder.Marker m = b.mark();
+        consume(PRIVATE);
+        b.advanceLexer();
+        expect(IDENTIFIER, "enum name expected");
+        if (expect(LBRACE, "`{` expected")) {
+            while (at(IDENTIFIER)) {
+                PsiBuilder.Marker constant = b.mark();
+                b.advanceLexer();
+                constant.done(AxlElementTypes.ENUM_CONSTANT);
+                if (!consume(COMMA)) {
+                    break;
+                }
+            }
+            expect(RBRACE, "`}` expected");
+        }
+        m.done(AxlElementTypes.ENUM);
     }
 
     private void interfaceDeclaration() {
@@ -145,7 +205,7 @@ public final class AxlParser implements PsiParser {
         if (consume(LBRACE)) {
             while (!at(RBRACE) && !b.eof()) {
                 if (at(VAL)) {
-                    field();
+                    field(false);
                 } else {
                     skip("`val` expected");
                 }
@@ -164,10 +224,11 @@ public final class AxlParser implements PsiParser {
         }
     }
 
-    /** `val name: Type`, a component of a data class or a value an interface requires. */
-    private void field() {
+    /** `val name: Type`, a component of a data class or a value an interface requires; a class takes `var` too. */
+    private void field(boolean allowVar) {
         PsiBuilder.Marker m = b.mark();
-        if (!expect(VAL, "`val` expected")) {
+        if (!consume(VAL) && !(allowVar && consume(VAR))) {
+            b.error(allowVar ? "`val` or `var` expected" : "`val` expected");
             m.drop();
             return;
         }
@@ -243,8 +304,13 @@ public final class AxlParser implements PsiParser {
     }
 
     private void variable() {
+        variable(false);
+    }
+
+    /** A `private` before `var` is only a class property, not a local or a top-level value. */
+    private void variable(boolean property) {
         PsiBuilder.Marker m = b.mark();
-        if (consume(PRIVATE) && !at(VAL)) {
+        if (consume(PRIVATE) && !at(VAL) && !(property && at(VAR))) {
             b.error("`val` expected");
         }
         b.advanceLexer();
@@ -383,7 +449,7 @@ public final class AxlParser implements PsiParser {
     private boolean startsExpression() {
         return at(IDENTIFIER) || at(INT_LITERAL) || at(FLOAT_LITERAL) || at(STRING_LITERAL) || at(CHAR_LITERAL)
                 || at(TRUE) || at(FALSE) || at(NULL) || at(LPAREN) || at(LBRACE) || at(BANG) || at(BANGBANG)
-                || at(MINUS) || at(PLUS) || at(TRY) || at(ATTEMPT) || at(WHEN);
+                || at(MINUS) || at(PLUS) || at(TRY) || at(ATTEMPT) || at(WHEN) || at(THROW) || at(IF);
     }
 
     private void expression() {
@@ -478,6 +544,11 @@ public final class AxlParser implements PsiParser {
             b.advanceLexer();
             prefix();
             m.done(AxlElementTypes.TRY);
+        } else if (at(THROW)) {
+            PsiBuilder.Marker m = b.mark();
+            b.advanceLexer();
+            prefix();
+            m.done(AxlElementTypes.THROW);
         } else if (at(ATTEMPT)) {
             PsiBuilder.Marker m = b.mark();
             b.advanceLexer();
@@ -559,8 +630,39 @@ public final class AxlParser implements PsiParser {
         if (at(WHEN)) {
             return whenExpression();
         }
+        if (at(IF) && ifExpressionAhead()) {
+            return conditional();
+        }
         b.error("expression expected");
         return null;
+    }
+
+    /** `if (c) a else b` is a value; `if (c) { ... }` is a statement, told apart by the token after the condition. */
+    private boolean ifExpressionAhead() {
+        if (b.lookAhead(1) != AxlTokenTypes.of(LPAREN)) {
+            return false;
+        }
+        int depth = 0;
+        for (int i = 1; b.lookAhead(i) != null; i++) {
+            if (b.lookAhead(i) == AxlTokenTypes.of(LPAREN)) {
+                depth++;
+            } else if (b.lookAhead(i) == AxlTokenTypes.of(RPAREN) && --depth == 0) {
+                return b.lookAhead(i + 1) != AxlTokenTypes.of(LBRACE);
+            }
+        }
+        return false;
+    }
+
+    private PsiBuilder.Marker conditional() {
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        condition();
+        expression();
+        if (expect(ELSE, "`else` expected")) {
+            expression();
+        }
+        m.done(AxlElementTypes.CONDITIONAL);
+        return m;
     }
 
     private boolean atLiteral() {

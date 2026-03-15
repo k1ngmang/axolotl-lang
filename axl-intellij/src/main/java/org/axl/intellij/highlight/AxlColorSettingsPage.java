@@ -50,6 +50,16 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
 
                 data class Circle(val radius: Double) : Shape
 
+                enum Color { RED, GREEN }
+
+                class Counter(val name: String, var step: Int) {
+                    var count: Int = 0
+                    fn next() -> Int {
+                        count += step
+                        return count
+                    }
+                }
+
                 fn <fn>area</fn>(shape: Shape) -> Double = when (shape) {
                     is Circle -> 3.14 * shape.radius() * shape.radius()
                     else -> 0.0

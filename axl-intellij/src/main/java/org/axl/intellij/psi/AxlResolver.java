@@ -401,6 +401,9 @@ public final class AxlResolver {
                 result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(parent, AxlVariable.class));
             } else if (parent instanceof AxlFunction function) {
                 result.addAll(function.parameters());
+            } else if (parent instanceof AxlTypeDeclaration declaration && type == AxlElementTypes.CLASS) {
+                result.addAll(declaration.fields());
+                result.addAll(declaration.methods());
             }
             child = parent;
         }

@@ -36,6 +36,19 @@ public class AxlLexerTest extends BasePlatformTestCase {
         assertHighlightingMatchesFreshLexing();
     }
 
+    public void testHighlightsTheKeywordsOfClassesEnumsAndThrow() {
+        String text = "class enum throw";
+        AxlLexer lexer = new AxlLexer();
+        lexer.start(text, 0, text.length(), 0);
+        int keywords = 0;
+        for (; lexer.getTokenType() != null; lexer.advance()) {
+            if (AxlTokenTypes.KEYWORDS.contains(lexer.getTokenType())) {
+                keywords++;
+            }
+        }
+        assertEquals(3, keywords);
+    }
+
     public void testHighlightsTheKeywordsOfLoopsDataClassesAndWhen() {
         String text = "for is when class interface sealed";
         AxlLexer lexer = new AxlLexer();

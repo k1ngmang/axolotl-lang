@@ -42,8 +42,9 @@ public final class AxlTokenTypes {
             of(AxolotlLexer.FN), of(AxolotlLexer.VAL), of(AxolotlLexer.VAR), of(AxolotlLexer.PRIVATE),
             of(AxolotlLexer.RETURN), of(AxolotlLexer.IF), of(AxolotlLexer.ELSE), of(AxolotlLexer.WHILE),
             of(AxolotlLexer.FOR), of(AxolotlLexer.WHEN), of(AxolotlLexer.IS), of(AxolotlLexer.CLASS),
-            of(AxolotlLexer.INTERFACE), of(AxolotlLexer.SEALED), of(AxolotlLexer.TRY), of(AxolotlLexer.ATTEMPT),
-            of(AxolotlLexer.TRUE), of(AxolotlLexer.FALSE), of(AxolotlLexer.NULL));
+            of(AxolotlLexer.ENUM), of(AxolotlLexer.INTERFACE), of(AxolotlLexer.SEALED), of(AxolotlLexer.THROW),
+            of(AxolotlLexer.TRY), of(AxolotlLexer.ATTEMPT), of(AxolotlLexer.TRUE), of(AxolotlLexer.FALSE),
+            of(AxolotlLexer.NULL));
     public static final TokenSet NULL_OPERATORS = TokenSet.create(of(AxolotlLexer.SAFE_DOT), of(AxolotlLexer.ELVIS));
     public static final TokenSet ASSIGN_OPERATORS = TokenSet.create(of(AxolotlLexer.ASSIGN), of(AxolotlLexer.PLUS_ASSIGN),
             of(AxolotlLexer.MINUS_ASSIGN), of(AxolotlLexer.STAR_ASSIGN), of(AxolotlLexer.SLASH_ASSIGN),

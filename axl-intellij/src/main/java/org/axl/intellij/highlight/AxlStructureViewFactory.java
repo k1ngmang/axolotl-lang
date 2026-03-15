@@ -19,7 +19,7 @@ import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 
-/** Top-level functions, values, data classes and interfaces of a file, and the fields of the latter two. */
+/** Top-level functions, values and types of a file, and the fields, constants and methods of the types. */
 public final class AxlStructureViewFactory implements PsiStructureViewFactory {
 
     @Override
@@ -71,6 +71,7 @@ public final class AxlStructureViewFactory implements PsiStructureViewFactory {
             List<TreeElement> children = new ArrayList<>();
             if (element instanceof AxlTypeDeclaration declaration) {
                 declaration.fields().forEach(field -> children.add(new Element(field)));
+                declaration.methods().forEach(method -> children.add(new Element(method)));
             } else if (element instanceof AxlFile file) {
                 for (var child : file.getChildren()) {
                     if (child instanceof AxlFunction || child instanceof AxlVariable || child instanceof AxlTypeDeclaration) {

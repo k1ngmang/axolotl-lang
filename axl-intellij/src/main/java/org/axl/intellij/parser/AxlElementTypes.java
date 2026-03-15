@@ -45,6 +45,11 @@ public final class AxlElementTypes {
     public static final IElementType LOOP_VARIABLE = type("LOOP_VARIABLE");
     public static final IElementType DATA_CLASS = type("DATA_CLASS");
     public static final IElementType INTERFACE = type("INTERFACE");
+    public static final IElementType CLASS = type("CLASS");
+    public static final IElementType ENUM = type("ENUM");
+    public static final IElementType ENUM_CONSTANT = type("ENUM_CONSTANT");
+    public static final IElementType THROW = type("THROW");
+    public static final IElementType CONDITIONAL = type("CONDITIONAL");
     public static final IElementType FIELD = type("FIELD");
     public static final IElementType IS_CHECK = type("IS_CHECK");
     public static final IElementType WHEN = type("WHEN");

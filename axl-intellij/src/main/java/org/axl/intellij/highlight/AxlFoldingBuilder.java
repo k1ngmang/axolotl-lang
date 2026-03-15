@@ -15,7 +15,7 @@ import org.axl.intellij.psi.AxlImport;
 import org.axl.intellij.psi.AxlPsiElement;
 import org.jetbrains.annotations.NotNull;
 
-/** Folds blocks, lambdas, the bodies of `when` and `interface`, block comments and the import list. */
+/** Folds blocks, lambdas, the bodies of `when`, `interface`, `class` and `enum`, block comments and the import list. */
 public final class AxlFoldingBuilder extends FoldingBuilderEx {
 
     @Override
@@ -41,13 +41,14 @@ public final class AxlFoldingBuilder extends FoldingBuilderEx {
         return regions.toArray(FoldingDescriptor.EMPTY_ARRAY);
     }
 
-    /** The braces and what they enclose; the head of a `when` or an `interface` stays visible. */
+    /** The braces and what they enclose; the head of a `when` or a type stays visible. */
     private static TextRange bodyOf(AxlPsiElement element) {
         var type = element.getNode().getElementType();
         if (type == AxlElementTypes.BLOCK || type == AxlElementTypes.LAMBDA) {
             return element.getTextRange();
         }
-        if (type == AxlElementTypes.WHEN || type == AxlElementTypes.INTERFACE) {
+        if (type == AxlElementTypes.WHEN || type == AxlElementTypes.INTERFACE || type == AxlElementTypes.CLASS
+                || type == AxlElementTypes.ENUM) {
             ASTNode brace = element.getNode().findChildByType(AxlTokenTypes.LBRACE);
             return brace == null ? null : new TextRange(brace.getStartOffset(), element.getTextRange().getEndOffset());
         }

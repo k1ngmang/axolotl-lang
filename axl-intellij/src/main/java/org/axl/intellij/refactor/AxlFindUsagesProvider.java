@@ -37,7 +37,7 @@ public final class AxlFindUsagesProvider implements FindUsagesProvider {
             return "function";
         }
         if (element instanceof AxlTypeDeclaration declaration) {
-            return declaration.isInterface() ? "interface" : "data class";
+            return declaration.keyword();
         }
         return element instanceof AxlVariable variable && !variable.isTopLevel() ? "variable" : "value";
     }

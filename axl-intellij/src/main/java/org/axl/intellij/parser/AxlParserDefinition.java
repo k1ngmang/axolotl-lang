@@ -62,10 +62,12 @@ public final class AxlParserDefinition implements ParserDefinition {
             return new AxlFunction(node);
         }
         if (type == AxlElementTypes.VARIABLE || type == AxlElementTypes.PARAMETER || type == AxlElementTypes.LAMBDA_PARAMETER
-                || type == AxlElementTypes.LOOP_VARIABLE || type == AxlElementTypes.FIELD) {
+                || type == AxlElementTypes.LOOP_VARIABLE || type == AxlElementTypes.FIELD
+                || type == AxlElementTypes.ENUM_CONSTANT) {
             return new AxlVariable(node);
         }
-        if (type == AxlElementTypes.DATA_CLASS || type == AxlElementTypes.INTERFACE) {
+        if (type == AxlElementTypes.DATA_CLASS || type == AxlElementTypes.INTERFACE || type == AxlElementTypes.CLASS
+                || type == AxlElementTypes.ENUM) {
             return new AxlTypeDeclaration(node);
         }
         if (type == AxlElementTypes.REFERENCE) {

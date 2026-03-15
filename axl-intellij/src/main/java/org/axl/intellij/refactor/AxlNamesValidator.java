@@ -16,7 +16,7 @@ import org.jetbrains.annotations.NotNull;
 public final class AxlNamesValidator implements NamesValidator {
 
     private static final Set<String> KEYWORDS = Set.of("package", "import", "fn", "val", "var", "private", "return",
-            "if", "else", "while", "for", "is", "when", "class", "interface", "try", "attempt", "true", "false", "null",
+            "if", "else", "while", "for", "is", "when", "class", "enum", "interface", "throw", "try", "attempt", "true", "false", "null",
             "yield", "record", "sealed", "permits", "_");
 
     @Override

@@ -472,6 +472,72 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
                 .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
     }
 
+    private static final String COUNTER = """
+            package app
+
+            enum Color { RED, GREEN }
+
+            class Counter(val name: String, var step: Int) {
+                var count: Int = 0
+
+                fn next() -> Int {
+                    count += step
+                    return count
+                }
+            }
+
+            fn sign(n: Int) -> String = if (n > 0) "positive" else "other"
+
+            fn check(n: Int) -> Int = when (n) {
+                1 -> 1
+                else -> throw IllegalStateException("x")
+            }
+
+            fn main() {
+                val c = Counter("c", 1)
+                println(c.next())
+            }
+            """;
+
+    public void testHasNoErrorsInAFileWithClassesEnumsConditionalsAndThrow() {
+        myFixture.configureByText("Counter.axl", COUNTER);
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testListsClassesAndEnumsWithTheirMembers() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Counter.axl", COUNTER);
+        List<AxlTypeDeclaration> declarations = file.typeDeclarations();
+        assertEquals(List.of("Color", "Counter"), declarations.stream().map(AxlTypeDeclaration::getName).toList());
+        assertEquals(List.of("enum", "class"), declarations.stream().map(AxlTypeDeclaration::keyword).toList());
+        assertEquals(List.of("RED", "GREEN"), declarations.getFirst().fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("name", "step", "count"), declarations.get(1).fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("next"), declarations.get(1).methods().stream().map(AxlFunction::getName).toList());
+        assertEquals(List.of("sign", "check", "main"), file.functions().stream().map(AxlFunction::getName).toList());
+    }
+
+    public void testShowsClassMembersAndEnumConstantsInTheStructureView() throws Exception {
+        myFixture.configureByText("Counter.axl", COUNTER);
+        var builder = (TreeBasedStructureViewBuilder) new AxlStructureViewFactory().getStructureViewBuilder(myFixture.getFile());
+        var model = builder.createStructureViewModel(myFixture.getEditor());
+        try {
+            var top = model.getRoot().getChildren();
+            assertEquals(List.of("RED", "GREEN"),
+                    java.util.Arrays.stream(top[0].getChildren()).map(e -> e.getPresentation().getPresentableText()).toList());
+            assertEquals(List.of("name: String", "step: Int", "count: Int", "next() -> Int"),
+                    java.util.Arrays.stream(top[1].getChildren()).map(e -> e.getPresentation().getPresentableText()).toList());
+        } finally {
+            model.dispose();
+        }
+    }
+
+    public void testResolvesTheFieldsOfAClassInItsMethods() {
+        myFixture.configureByText("Counter.axl", COUNTER.replace("count += step", "count += <caret>step"));
+        assertEquals("step", ((AxlVariable) resolveAtCaret()).getName());
+        myFixture.configureByText("Counter.axl", COUNTER.replace("count += step", "<caret>count += step"));
+        assertEquals("count", ((AxlVariable) resolveAtCaret()).getName());
+    }
+
     public void testListsDataClassesAndInterfacesWithTheirFields() {
         AxlFile file = (AxlFile) myFixture.configureByText("Shapes.axl", SHAPES);
         List<AxlTypeDeclaration> declarations = file.typeDeclarations();
