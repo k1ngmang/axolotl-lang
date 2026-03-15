@@ -1,0 +1,62 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.List
+import java.util.Set
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.Stmt
+import org.axl.compiler.ast.TypeRef
+
+/*
+ * Element type of the list `|> mapResult { ... }` builds, found without type inference: from the
+ * written type of the `val` it initializes, or from the `Result<T, E>` of a function of the file
+ * that the lambda calls.
+ */
+
+private val lists: Set<String> = Set.of("List", "java.util.List")
+
+private val results: Set<String> = Set.of("Result", "axl.lang.Result")
+
+fn elementType(stage: Expr.Stage, file: SourceFile, declared: TypeRef?) -> TypeRef? {
+    if (declared != null && lists.contains(declared.name()) && declared.args().size() == 1) {
+        return declared.args().getFirst()
+    }
+    val call = calledFunction(stage)
+    if (call == null) {
+        return null
+    }
+    val candidates = functionsLike(file, call)
+    // With overloads of the same arity the called one is not known here.
+    if (candidates.size() != 1) {
+        return null
+    }
+    val result = candidates.getFirst().returnType()
+    if (result != null && results.contains(result.name()) && result.args().size() == 2) {
+        return result.args().getFirst()
+    }
+    return null
+}
+
+private fn calledFunction(stage: Expr.Stage) -> Expr.Call? {
+    val first = stage.lambda()!!.body().getFirst()
+    if (first !is Stmt.ExprStmt) {
+        return null
+    }
+    val expr = first.expr()
+    if (expr !is Expr.Call || expr.target() != null) {
+        return null
+    }
+    return expr
+}
+
+private fn functionsLike(file: SourceFile, call: Expr.Call) -> List<Decl.Function> {
+    val found = ArrayList<Decl.Function>()
+    for (decl in file.decls()) {
+        if (decl is Decl.Function && decl.name().equals(call.name()) && decl.params().size() == call.args().size()) {
+            found.add(decl)
+        }
+    }
+    return found
+}

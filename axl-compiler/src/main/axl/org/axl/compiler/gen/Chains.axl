@@ -1,0 +1,37 @@
+package org.axl.compiler.gen
+
+import java.util.ArrayList
+import java.util.List
+import org.axl.compiler.ast.Expr
+
+/* A run of member accesses and calls such as `a?.b().c`, seen from its base outwards. */
+
+/** args is null for a field access. */
+data class Step(val name: String, val args: List<Expr>?, val safe: Boolean, val line: Int)
+
+data class Chain(val base: Expr, val steps: List<Step>)
+
+fn flatten(expr: Expr) -> Chain = when (expr) {
+    is Expr.Member -> extend(flatten(expr.target()), Step(expr.name(), null, expr.safe(), expr.pos().line()))
+    is Expr.Call -> ofCall(expr)
+    else -> Chain(expr, ArrayList<Step>())
+}
+
+private fn ofCall(call: Expr.Call) -> Chain {
+    val target = call.target()
+    if (target == null) {
+        return Chain(call, ArrayList<Step>())
+    }
+    return extend(flatten(target), Step(call.name(), call.args(), call.safe(), call.pos().line()))
+}
+
+private fn extend(chain: Chain, step: Step) -> Chain {
+    val steps = ArrayList<Step>(chain.steps())
+    steps.add(step)
+    return Chain(chain.base(), steps)
+}
+
+fn hasSafeStep(expr: Expr) -> Boolean {
+    val isAccess = expr is Expr.Member || (expr is Expr.Call && expr.target() != null)
+    return isAccess && flatten(expr).steps().stream().anyMatch({ it.safe() })
+}

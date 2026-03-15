@@ -1,0 +1,55 @@
+package org.axl.compiler.check;
+import axl.lang.*;
+import org.jspecify.annotations.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+import org.axl.compiler.ast.Decl;
+import org.axl.compiler.ast.Expr;
+import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.ast.Stmt;
+import org.axl.compiler.ast.TypeRef;
+
+@NullMarked public final class MapResultTypes {
+    private MapResultTypes() {}
+    private static final Set<String> lists = Set.of("List", "java.util.List");
+    private static final Set<String> results = Set.of("Result", "axl.lang.Result");
+    public static @Nullable TypeRef elementType(Expr.Stage stage, SourceFile file, @Nullable TypeRef declared) {
+        if (declared != null && lists.contains(declared.name()) && declared.args().size() == 1) {
+            return declared.args().getFirst();
+        }
+        final var call = calledFunction(stage);
+        if (call == null) {
+            return null;
+        }
+        final var candidates = functionsLike(file, call);
+        if (candidates.size() != 1) {
+            return null;
+        }
+        final var result = candidates.getFirst().returnType();
+        if (result != null && results.contains(result.name()) && result.args().size() == 2) {
+            return result.args().getFirst();
+        }
+        return null;
+    }
+    private static Expr.@Nullable Call calledFunction(Expr.Stage stage) {
+        final var first = java.util.Objects.requireNonNull(stage.lambda()).body().getFirst();
+        if (!(first instanceof Stmt.ExprStmt $s1)) {
+            return null;
+        }
+        final var expr = $s1.expr();
+        if (!(expr instanceof Expr.Call $s2) || $s2.target() != null) {
+            return null;
+        }
+        return $s2;
+    }
+    private static List<Decl.Function> functionsLike(SourceFile file, Expr.Call call) {
+        final var found = new ArrayList<Decl.Function>();
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Function $s1 && $s1.name().equals(call.name()) && $s1.params().size() == call.args().size()) {
+                found.add($s1);
+            }
+        }
+        return found;
+    }
+}

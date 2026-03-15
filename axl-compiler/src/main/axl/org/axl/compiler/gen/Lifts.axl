@@ -1,0 +1,53 @@
+package org.axl.compiler.gen
+
+import org.axl.compiler.ast.Expr
+
+/*
+ * Finds expressions that must be split into statements: a `try` or a `mapResult` stage returns from
+ * the function, which an expression cannot do. Lambdas never contain them; the checker rejects that.
+ * A `?.` chain passed to a call is split off too: as an argument, Java cannot infer the type of its
+ * `Nulls.map` and overloads such as `println(String)` and `println(char[])` become ambiguous. So is
+ * the left side of `a?.b ?: 0`, for the same reason with the number overloads of Nulls.or.
+ */
+
+/** Operands that become statements of their own. */
+fn hoisted(expr: Expr) -> Boolean = needed(expr) || Chains.hasSafeStep(expr)
+
+fn numberAfterSafeCall(elvis: Expr.Elvis) -> Boolean = Chains.hasSafeStep(elvis.left()) && isNumber(elvis.right())
+
+fn isNumber(expr: Expr) -> Boolean {
+    val digit = expr is Expr.Literal && Character.isDigit(expr.text().charAt(0))
+    val negative = expr is Expr.Unary && expr.op().equals("-") && expr.operand() is Expr.Literal
+    return digit || negative
+}
+
+fn needed(expr: Expr) -> Boolean = when (expr) {
+    is Expr.Try -> true
+    is Expr.Pipe -> needed(expr.source()) || expr.stages().stream().anyMatch({ stage ->
+        stage.name().equals("mapResult") || stage.args().stream().anyMatch({ needed(it) })
+    })
+    is Expr.Member -> needed(expr.target())
+    is Expr.Call -> neededInCall(expr)
+    is Expr.GenericNew -> expr.args().stream().anyMatch({ hoisted(it) })
+    is Expr.MethodRef -> needed(expr.target())
+    is Expr.NotNull -> needed(expr.target())
+    is Expr.Unary -> needed(expr.operand())
+    is Expr.Binary -> needed(expr.left()) || needed(expr.right())
+    is Expr.Elvis -> needed(expr.left()) || needed(expr.right()) || numberAfterSafeCall(expr)
+    is Expr.Is -> needed(expr.target())
+    is Expr.Conditional -> needed(expr.condition()) || needed(expr.then()) || needed(expr.otherwise())
+    is Expr.Throw -> needed(expr.value())
+    // A switch with statements in its arms cannot be written inside an expression.
+    is Expr.When -> true
+    is Expr.Paren -> needed(expr.inner())
+    is Expr.Literal -> false
+    is Expr.Name -> false
+    is Expr.Attempt -> false
+    is Expr.Lambda -> false
+}
+
+private fn neededInCall(call: Expr.Call) -> Boolean {
+    val target = call.target()
+    val inTarget = target != null && needed(target)
+    return inTarget || call.args().stream().anyMatch({ hoisted(it) })
+}
