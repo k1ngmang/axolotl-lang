@@ -49,3 +49,9 @@ fn lambda(xs: java.util.List<Shape>) {
 fn numbers(n: Int) -> String = when (n) {
     1 -> "one"
 }
+
+fn guarded(n: Int) -> Result<String, String> = attempt when (n) { 0 -> "zero" else -> "n" } else e -> "error"
+
+fn appended(sb: StringBuilder?, n: Int) {
+    sb?.append(when (n) { 0 -> "zero" else -> "n" })
+}

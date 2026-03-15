@@ -112,6 +112,7 @@ class Checker(val file: SourceFile) {
     var lastInLambda: Stmt? = null
     var lambdaDepth: Int = 0
     var safeTailDepth: Int = 0
+    var attemptDepth: Int = 0
     // The written type of the `val` whose initializer is being checked, for `mapResult`.
     var declaredType: TypeRef? = null
 
@@ -614,6 +615,7 @@ class Checker(val file: SourceFile) {
     /** The body and the handler of `attempt` run inside lambdas. */
     private fn attemptExpr(e: Expr.Attempt) {
         lambdaDepth = lambdaDepth + 1
+        attemptDepth = attemptDepth + 1
         expr(e.body())
         scope = Scope(scope, false)
         val errorName = e.errorName()
@@ -623,6 +625,7 @@ class Checker(val file: SourceFile) {
         }
         expr(e.handler())
         pop()
+        attemptDepth = attemptDepth - 1
         lambdaDepth = lambdaDepth - 1
     }
 
@@ -662,6 +665,12 @@ class Checker(val file: SourceFile) {
         } else if (expressionLambdas > 0) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside a lambda of one expression; " +
                 "give the lambda statements and write `return when ...`")
+        } else if (attemptDepth > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside `attempt`; " +
+                "compute it in a `val` first")
+        } else if (safeTailDepth > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be an argument after `?.`; " +
+                "compute it in a `val` first")
         }
     }
 
@@ -812,11 +821,18 @@ class Checker(val file: SourceFile) {
         } else {
             val outerLast = lastInLambda
             val outerExpressionLambdas = expressionLambdas
+            val outerAttempts = attemptDepth
+            val outerSafeTails = safeTailDepth
+            // The statements of a block lambda are written in a method body of their own.
             expressionLambdas = 0
+            attemptDepth = 0
+            safeTailDepth = 0
             lastInLambda = lastOf(body)
             statements(body)
             lastInLambda = outerLast
             expressionLambdas = outerExpressionLambdas
+            attemptDepth = outerAttempts
+            safeTailDepth = outerSafeTails
         }
         lambdaDepth = lambdaDepth - 1
         pop()

@@ -38,6 +38,7 @@ import org.axl.compiler.ast.TypeRef;
     public @Nullable Stmt lastInLambda;
     public int lambdaDepth;
     public int safeTailDepth;
+    public int attemptDepth;
     public @Nullable TypeRef declaredType;
     public Checker(SourceFile file) {
         this.file = file;
@@ -58,6 +59,7 @@ import org.axl.compiler.ast.TypeRef;
         this.lastInLambda = null;
         this.lambdaDepth = 0;
         this.safeTailDepth = 0;
+        this.attemptDepth = 0;
         this.declaredType = null;
     }
     public void run() {
@@ -594,6 +596,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void attemptExpr(Expr.Attempt e) {
         lambdaDepth = lambdaDepth + 1;
+        attemptDepth = attemptDepth + 1;
         expr(e.body());
         scope = new Scope(scope, false);
         final var errorName = e.errorName();
@@ -603,6 +606,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         expr(e.handler());
         pop();
+        attemptDepth = attemptDepth - 1;
         lambdaDepth = lambdaDepth - 1;
     }
     private void whenExpr(Expr.When w) {
@@ -639,6 +643,12 @@ import org.axl.compiler.ast.TypeRef;
         } else if (expressionLambdas > 0) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside a lambda of one expression; " +
                     "give the lambda statements and write `return when ...`");
+        } else if (attemptDepth > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside `attempt`; " +
+                    "compute it in a `val` first");
+        } else if (safeTailDepth > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be an argument after `?.`; " +
+                    "compute it in a `val` first");
         }
     }
     private void checkArm(Expr.Arm arm, boolean gives, boolean returns) {
@@ -780,11 +790,17 @@ import org.axl.compiler.ast.TypeRef;
         } else {
             final var outerLast = lastInLambda;
             final var outerExpressionLambdas = expressionLambdas;
+            final var outerAttempts = attemptDepth;
+            final var outerSafeTails = safeTailDepth;
             expressionLambdas = 0;
+            attemptDepth = 0;
+            safeTailDepth = 0;
             lastInLambda = lastOf(body);
             statements(body);
             lastInLambda = outerLast;
             expressionLambdas = outerExpressionLambdas;
+            attemptDepth = outerAttempts;
+            safeTailDepth = outerSafeTails;
         }
         lambdaDepth = lambdaDepth - 1;
         pop();

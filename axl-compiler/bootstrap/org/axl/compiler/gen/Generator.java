@@ -48,6 +48,7 @@ import org.axl.compiler.check.Whens;
     public Map<String, String> smart;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public int patternCount;
+    public List<Expr> whenValues;
     public int tempCount;
     public int nullCount;
     public int exceptionCount;
@@ -67,6 +68,7 @@ import org.axl.compiler.check.Whens;
         this.smart = new HashMap<String, String>();
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.patternCount = 0;
+        this.whenValues = List.of();
         this.tempCount = 0;
         this.nullCount = 0;
         this.exceptionCount = 0;
@@ -578,9 +580,12 @@ import org.axl.compiler.check.Whens;
         final var whole = nameBinding(bindingName, subjectCode);
         em.line(line, head + "switch (" + subjectCode + ") {");
         em.indent();
+        final var outerValues = whenValues;
+        whenValues = (form == WhenForm.VALUE ? armValues(w) : List.of());
         for (final var arm : w.arms()) {
             narrowed(whole, () -> emitArm(arm, narrowedName, form));
         }
+        whenValues = outerValues;
         em.dedent();
         em.line(w.end().line(), (form == WhenForm.VALUE ? "};" : "}"));
     }
@@ -616,7 +621,8 @@ import org.axl.compiler.check.Whens;
                 return;
             }
             if (!Lifts.needed(single)) {
-                em.line(line, label + " -> " + narrowedValue(narrowing, () -> expr(single)) + ";");
+                final var code = narrowedValue(narrowing, () -> expr(single));
+                em.line(line, label + " -> " + boxedBranch(code, single, whenValues) + ";");
                 return;
             }
         }
@@ -633,7 +639,8 @@ import org.axl.compiler.check.Whens;
             final var stmt = body.get(i);
             final var last = i == body.size() - 1;
             if (form == WhenForm.VALUE && last && stmt instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
-                em.line($s1.pos().line(), "yield " + lifted($s1.pos().line(), $s1.expr()).code() + ";");
+                final var code = lifted($s1.pos().line(), $s1.expr()).code();
+                em.line($s1.pos().line(), "yield " + boxedBranch(code, $s1.expr(), whenValues) + ";");
             } else {
                 statement(stmt);
             }
@@ -873,10 +880,48 @@ import org.axl.compiler.check.Whens;
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()));
     }
     private String conditionalCode(Expr.Conditional c, boolean inLambda) {
-        final var condition = exprIn(c.condition(), inLambda);
+        return conditional(exprIn(c.condition(), inLambda), c, inLambda);
+    }
+    private String conditional(String condition, Expr.Conditional c, boolean inLambda) {
+        final var branches = List.of(c.then(), c.otherwise());
         final var thenCode = narrowedValue(whenTrue(c.condition()), () -> exprIn(c.then(), inLambda));
         final var otherwise = narrowedValue(whenFalse(c.condition()), () -> exprIn(c.otherwise(), inLambda));
-        return "(" + condition + " ? " + thenCode + " : " + otherwise + ")";
+        return "(" + condition + " ? " + boxedBranch(thenCode, c.then(), branches) + " : " +
+                boxedBranch(otherwise, c.otherwise(), branches) +
+                ")";
+    }
+    private String boxedBranch(String code, Expr branch, List<Expr> branches) {
+        final var type = primitiveType(branch);
+        final var noneNull = branches.stream().noneMatch(b -> mayBeNull(b));
+        if (type == null || noneNull) {
+            return code;
+        }
+        return boxClass(type, branches) + ".valueOf(" + code + ")";
+    }
+    private @Nullable String primitiveType(Expr e) {
+        final var type = typeOf(e);
+        if (type == null || type.nullable() || !BOXED_NAMES.containsKey(type.name())) {
+            return null;
+        }
+        return type.name();
+    }
+    private boolean mayBeNull(Expr e) {
+        final var type = typeOf(e);
+        if (type != null) {
+            return type.nullable();
+        }
+        final var inner = withoutParens(e);
+        return !(inner instanceof Expr.Binary $s1) && !(inner instanceof Expr.Unary $s2) && !(inner instanceof Expr.Literal $s3) && !(inner instanceof Expr.Is $s4);
+    }
+    private String boxClass(String type, List<Expr> branches) {
+        var widest = type;
+        for (final var b : branches) {
+            final var other = typeOf(b);
+            if (other != null && WIDENING.contains(type) && WIDENING.indexOf(other.name()) > WIDENING.indexOf(widest)) {
+                widest = other.name();
+            }
+        }
+        return BOXED_NAMES.getOrDefault(widest, "Object");
     }
     private String parenCode(Expr.Paren p, boolean inLambda) {
         if (becomesCall(p.inner())) {
@@ -903,6 +948,10 @@ import org.axl.compiler.check.Whens;
         final var variable = "$s" + newPattern();
         patternVariables.put(check, variable);
         final var test = exprIn($s1, inLambda) + " instanceof " + type + " " + variable;
+        return (check.negated() ? "!(" + test + ")" : test);
+    }
+    private String liftedTypeCheck(int line, Expr.Is check) {
+        final var test = lifted(line, check.target()).code() + " instanceof " + boxedType(check.type());
         return (check.negated() ? "!(" + test + ")" : test);
     }
     private Map<String, String> whenTrue(Expr condition) {
@@ -998,7 +1047,7 @@ import org.axl.compiler.check.Whens;
     }
     private String stepOnLine(Chains.Step step, boolean inLambda, List<Chains.Step> steps, int index, int baseLine) {
         final var text = stepText(step, inLambda);
-        final var previous = (index == 0 ? baseLine : steps.get(index - 1).line());
+        final var previous = (index == 0 ? Integer.valueOf(baseLine) : steps.get(index - 1).line());
         return (step.line() > previous ? Emitter.continued(step.line(), text) : text);
     }
     private String stepText(Chains.Step step, boolean inLambda) {
@@ -1113,6 +1162,12 @@ import org.axl.compiler.check.Whens;
             }
             case Expr.Pipe $s12 -> {
                 return pipeLifted(line, $s12);
+            }
+            case Expr.Conditional $s13 -> {
+                return new Lifted(conditional(lifted(line, $s13.condition()).code(), $s13, false), false);
+            }
+            case Expr.Is $s14 -> {
+                return new Lifted(liftedTypeCheck(line, $s14), false);
             }
             default -> {
                 throw new IllegalStateException("nothing to lift in " + e);
@@ -1751,6 +1806,17 @@ import org.axl.compiler.check.Whens;
             return $s1.expr();
         }
         throw new IllegalStateException();
+    }
+    private static List<Expr> armValues(Expr.When w) {
+        final var values = new ArrayList<Expr>();
+        for (final var arm : w.arms()) {
+            final var body = arm.body();
+            final var last = (body.isEmpty() ? null : body.getLast());
+            if (last instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
+                values.add($s1.expr());
+            }
+        }
+        return values;
     }
     private static @Nullable Expr lambdaExpression(List<Stmt> body) {
         if (body.size() != 1) {

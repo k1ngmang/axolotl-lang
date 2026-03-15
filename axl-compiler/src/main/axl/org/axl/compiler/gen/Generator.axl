@@ -79,6 +79,9 @@ class Generator(
     val patternVariables: IdentityHashMap<Expr.Is, String> = IdentityHashMap<Expr.Is, String>()
     var patternCount: Int = 0
 
+    // The values of the branches of the `when` being emitted as a value, for boxedBranch.
+    var whenValues: List<Expr> = List.of()
+
     // Per function: counters of generated names and the copies of captured `var`s.
     var tempCount: Int = 0
     var nullCount: Int = 0
@@ -625,9 +628,12 @@ class Generator(
         val whole = nameBinding(bindingName, subjectCode)
         em.line(line, head + "switch (" + subjectCode + ") {")
         em.indent()
+        val outerValues = whenValues
+        whenValues = if (form == WhenForm.VALUE) armValues(w) else List.of()
         for (arm in w.arms()) {
             narrowed(whole, { -> emitArm(arm, narrowedName, form) })
         }
+        whenValues = outerValues
         em.dedent()
         em.line(w.end().line(), if (form == WhenForm.VALUE) "};" else "}")
     }
@@ -666,7 +672,8 @@ class Generator(
                 return
             }
             if (!Lifts.needed(single)) {
-                em.line(line, label + " -> " + narrowedValue(narrowing, { -> expr(single) }) + ";")
+                val code = narrowedValue(narrowing, { -> expr(single) })
+                em.line(line, label + " -> " + boxedBranch(code, single, whenValues) + ";")
                 return
             }
         }
@@ -684,7 +691,8 @@ class Generator(
             val stmt = body.get(i)
             val last = i == body.size() - 1
             if (form == WhenForm.VALUE && last && stmt is Stmt.ExprStmt && stmt.expr() !is Expr.Throw) {
-                em.line(stmt.pos().line(), "yield " + lifted(stmt.pos().line(), stmt.expr()).code() + ";")
+                val code = lifted(stmt.pos().line(), stmt.expr()).code()
+                em.line(stmt.pos().line(), "yield " + boxedBranch(code, stmt.expr(), whenValues) + ";")
             } else {
                 statement(stmt)
             }
@@ -932,11 +940,60 @@ class Generator(
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()))
     }
 
-    private fn conditionalCode(c: Expr.Conditional, inLambda: Boolean) -> String {
-        val condition = exprIn(c.condition(), inLambda)
+    private fn conditionalCode(c: Expr.Conditional, inLambda: Boolean) -> String =
+        conditional(exprIn(c.condition(), inLambda), c, inLambda)
+
+    /** The branches are evaluated only when chosen, so they stay expressions; the checker keeps `try` out. */
+    private fn conditional(condition: String, c: Expr.Conditional, inLambda: Boolean) -> String {
+        val branches = List.of(c.then(), c.otherwise())
         val thenCode = narrowedValue(whenTrue(c.condition()), { -> exprIn(c.then(), inLambda) })
         val otherwise = narrowedValue(whenFalse(c.condition()), { -> exprIn(c.otherwise(), inLambda) })
-        return "(" + condition + " ? " + thenCode + " : " + otherwise + ")"
+        return "(" + condition + " ? " + boxedBranch(thenCode, c.then(), branches) + " : " +
+            boxedBranch(otherwise, c.otherwise(), branches) + ")"
+    }
+
+    /**
+     * Java unboxes all branches of a conditional or a switch when one of them is a primitive, which
+     * fails on a null in another: `c ? maybe() : 0` is an int. Boxing the primitive keeps the null.
+     */
+    private fn boxedBranch(code: String, branch: Expr, branches: List<Expr>) -> String {
+        val type = primitiveType(branch)
+        val noneNull = branches |> noneMatch { b -> mayBeNull(b) }
+        if (type == null || noneNull) {
+            return code
+        }
+        return boxClass(type, branches) + ".valueOf(" + code + ")"
+    }
+
+    /** The Axolotl name of the primitive type of an expression, if the code says it is one. */
+    private fn primitiveType(e: Expr) -> String? {
+        val type = typeOf(e)
+        if (type == null || type.nullable() || !BOXED_NAMES.containsKey(type.name())) {
+            return null
+        }
+        return type.name()
+    }
+
+    /** Whether an expression may give null as far as the code tells; operators always give a value. */
+    private fn mayBeNull(e: Expr) -> Boolean {
+        val type = typeOf(e)
+        if (type != null) {
+            return type.nullable()
+        }
+        val inner = withoutParens(e)
+        return inner !is Expr.Binary && inner !is Expr.Unary && inner !is Expr.Literal && inner !is Expr.Is
+    }
+
+    /** The wrapper of the widest number among the branches, so that `Long?` and `0` both become Long. */
+    private fn boxClass(type: String, branches: List<Expr>) -> String {
+        var widest = type
+        for (b in branches) {
+            val other = typeOf(b)
+            if (other != null && WIDENING.contains(type) && WIDENING.indexOf(other.name()) > WIDENING.indexOf(widest)) {
+                widest = other.name()
+            }
+        }
+        return BOXED_NAMES.getOrDefault(widest, "Object")
     }
 
     // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
@@ -969,6 +1026,11 @@ class Generator(
         val variable = "$s" + newPattern()
         patternVariables.put(check, variable)
         val test = exprIn(target, inLambda) + " instanceof " + type + " " + variable
+        return if (check.negated()) "!(" + test + ")" else test
+    }
+
+    private fn liftedTypeCheck(line: Int, check: Expr.Is) -> String {
+        val test = lifted(line, check.target()).code() + " instanceof " + boxedType(check.type())
         return if (check.negated()) "!(" + test + ")" else test
     }
 
@@ -1189,6 +1251,8 @@ class Generator(
             is Expr.MethodRef -> Lifted(lifted(line, e.target()).code() + "::" + e.name(), false)
             is Expr.NotNull -> Lifted("java.util.Objects.requireNonNull(" + lifted(line, e.target()).code() + ")", false)
             is Expr.Pipe -> pipeLifted(line, e)
+            is Expr.Conditional -> Lifted(conditional(lifted(line, e.condition()).code(), e, false), false)
+            is Expr.Is -> Lifted(liftedTypeCheck(line, e), false)
             else -> throw IllegalStateException("nothing to lift in " + e)
         }
     }
@@ -1853,6 +1917,19 @@ private fn firstExpression(body: List<Stmt>) -> Expr {
         return first.expr()
     }
     throw IllegalStateException()
+}
+
+/** The value each branch of a `when` gives: its last expression, unless it throws. */
+private fn armValues(w: Expr.When) -> List<Expr> {
+    val values = ArrayList<Expr>()
+    for (arm in w.arms()) {
+        val body = arm.body()
+        val last = if (body.isEmpty()) null else body.getLast()
+        if (last is Stmt.ExprStmt && last.expr() !is Expr.Throw) {
+            values.add(last.expr())
+        }
+    }
+    return values
 }
 
 /** The expression of a body that is nothing else, other than a `throw`. */
