@@ -106,6 +106,18 @@ and is created like a data class: `Counter("c", 1)`; it may implement interfaces
 A file whose name is a type it declares, such as `Counter.axl` above, is that type. Its other
 declarations are static members: `Counter.start("c")`.
 
+## `if` as a value and `throw`
+
+`if (c) a else b` gives `a` or `b`; both branches are expressions (not braces, which start a lambda),
+and `try` and `when` that give values cannot be in them. After `if`, a value whose type was tested
+is narrowed as in a statement.
+
+```axl
+fn sign(n: Int) -> String = if (n < 0) "negative" else if (n == 0) "zero" else "positive"
+```
+
+`throw e` stands as a statement or as the value of a branch of a `when`: `else -> throw IllegalStateException("x")`.
+
 ## Type tests and `when`
 
 `x is Circle` and `x !is Circle` test the type of a value. A `val` or parameter that has been tested

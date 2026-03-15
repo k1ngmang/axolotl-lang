@@ -76,6 +76,12 @@ final class Captures {
                 visit(e.right(), inLambda || !Lifts.needed(e.right()));
             }
             case Expr.Is i -> visit(i.target(), inLambda);
+            case Expr.Conditional c -> {
+                visit(c.condition(), inLambda);
+                visit(c.then(), inLambda);
+                visit(c.otherwise(), inLambda);
+            }
+            case Expr.Throw t -> visit(t.value(), inLambda);
             case Expr.When w -> {
                 visit(w.subject(), inLambda);
                 // Outside a lambda the statements of the arms are emitted, and so copied, one by one.

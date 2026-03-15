@@ -255,6 +255,12 @@ final class Symbols {
                 expr(e.right(), pos, fn, out);
             }
             case Expr.Is i -> expr(i.target(), pos, fn, out);
+            case Expr.Conditional c -> {
+                expr(c.condition(), pos, fn, out);
+                expr(c.then(), pos, fn, out);
+                expr(c.otherwise(), pos, fn, out);
+            }
+            case Expr.Throw t -> expr(t.value(), pos, fn, out);
             case Expr.When w -> {
                 expr(w.subject(), pos, fn, out);
                 if (w.bindingName() != null && before(w.bindingPos(), pos) && before(pos, w.end())) {

@@ -24,6 +24,8 @@ import java.util.List;
             Pos end) implements Expr {}
     public record Arm(Pos pos, List<Cond> conditions, List<Stmt> body, boolean block) {}
     public record Cond(Pos pos, @Nullable TypeRef type, @Nullable Literal constant) {}
+    public record Conditional(Pos pos, Expr condition, Expr then, Expr otherwise) implements Expr {}
+    public record Throw(Pos pos, Expr value) implements Expr {}
     public record Elvis(Pos pos, Expr left, Expr right) implements Expr {}
     public record Paren(Pos pos, Expr inner) implements Expr {}
     public record Try(Pos pos, Expr inner) implements Expr {}

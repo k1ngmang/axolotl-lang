@@ -1,0 +1,44 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+
+data class Square(val side: Double) : Shape
+
+fn sign(n: Int) -> String = if (n < 0) "negative" else if (n == 0) "zero" else "positive"
+
+fn describe(shape: Shape) -> String =
+    if (shape is Circle) "circle " + shape.radius() else "other"
+
+fn area(shape: Shape) -> Double = when (shape) {
+    is Circle -> 3.0 * shape.radius() * shape.radius()
+    is Square -> shape.side() * shape.side()
+}
+
+fn checked(shape: Shape?) -> Double {
+    if (shape == null) {
+        throw IllegalArgumentException("no shape")
+    }
+    return area(shape)
+}
+
+fn kind(n: Int) -> String = when (n) {
+    1 -> "one"
+    2 -> "two"
+    else -> throw IllegalStateException("unexpected " + n)
+}
+
+fn main() {
+    println(sign(-3) + sign(0) + sign(4))
+    println(describe(Circle(1.0)) + ", " + describe(Square(2.0)))
+    println(checked(Square(3.0)))
+    println(kind(2))
+    val failing: java.util.function.Supplier<String> = { throw IllegalStateException("late") }
+    try0(failing)
+}
+
+fn try0(supplier: java.util.function.Supplier<String>) {
+    val result = attempt supplier.get() else e -> "caught " + e.getMessage()
+    println(result)
+}

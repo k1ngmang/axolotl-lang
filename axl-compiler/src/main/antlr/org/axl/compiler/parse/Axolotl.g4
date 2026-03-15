@@ -40,6 +40,30 @@ grammar Axolotl;
         }
     }
 
+    // `if (c) a else b` gives a value; `if (c) { ... }` is a statement. Telling them apart by the
+    // token after the condition keeps the parser from reading a whole `if` to find out.
+    private boolean ifExpressionAhead() {
+        if (_input.LT(1).getType() != IF || _input.LT(2).getType() != LPAREN) {
+            return false;
+        }
+        int depth = 0;
+        for (int i = 2; ; i++) {
+            Token t = _input.LT(i);
+            switch (t.getType()) {
+                case LPAREN -> depth++;
+                case RPAREN -> {
+                    if (--depth == 0) {
+                        return _input.LT(i + 1).getType() != LBRACE;
+                    }
+                }
+                case Token.EOF -> {
+                    return false;
+                }
+                default -> { }
+            }
+        }
+    }
+
     private static boolean startsUpper(Token t) {
         return t.getType() == IDENTIFIER && Character.isUpperCase(t.getText().charAt(0));
     }
@@ -187,6 +211,7 @@ prefixExpression
     : (BANG | BANGBANG | MINUS | PLUS) prefixExpression                     # unaryExpression
     | TRY prefixExpression                                                  # tryExpression
     | ATTEMPT expression ELSE (identifier ARROW)? expression                # attemptExpression
+    | THROW prefixExpression                                                # throwExpression
     | postfixExpression                                                     # postfixAlt
     ;
 
@@ -212,6 +237,7 @@ primary
     | LPAREN expression RPAREN                                      # parenPrimary
     | lambda                                                        # lambdaPrimary
     | whenExpression                                                # whenPrimary
+    | {ifExpressionAhead()}? IF LPAREN expression RPAREN expression ELSE expression   # ifPrimary
     ;
 
 // `when (x) { is Circle -> x.radius(); 1, 2 -> "few"; else -> { ... } }`
@@ -279,6 +305,7 @@ INTERFACE : 'interface';
 SEALED    : 'sealed';
 FOR     : 'for';
 TRY     : 'try';
+THROW   : 'throw';
 ATTEMPT : 'attempt';
 TRUE    : 'true';
 FALSE   : 'false';

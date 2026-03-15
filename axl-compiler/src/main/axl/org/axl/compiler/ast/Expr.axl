@@ -50,6 +50,12 @@ data class Arm(val pos: Pos, val conditions: List<Cond>, val body: List<Stmt>, v
 /** `is Type` when type is set, otherwise the literal constant. */
 data class Cond(val pos: Pos, val type: TypeRef?, val constant: Literal?)
 
+/** `if (condition) then else otherwise` giving a value. */
+data class Conditional(val pos: Pos, val condition: Expr, val then: Expr, val otherwise: Expr) : Expr
+
+/** `throw value`, as a statement or as the value of a branch of a `when`. */
+data class Throw(val pos: Pos, val value: Expr) : Expr
+
 data class Elvis(val pos: Pos, val left: Expr, val right: Expr) : Expr
 
 data class Paren(val pos: Pos, val inner: Expr) : Expr

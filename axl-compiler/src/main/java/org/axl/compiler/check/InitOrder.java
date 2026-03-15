@@ -83,6 +83,12 @@ final class InitOrder {
                 names(e.right(), hidden, out);
             }
             case Expr.Is i -> names(i.target(), hidden, out);
+            case Expr.Conditional c -> {
+                names(c.condition(), hidden, out);
+                names(c.then(), hidden, out);
+                names(c.otherwise(), hidden, out);
+            }
+            case Expr.Throw t -> names(t.value(), hidden, out);
             case Expr.When w -> {
                 names(w.subject(), hidden, out);
                 Set<String> inArms = w.bindingName() == null ? hidden : with(hidden, Set.of(w.bindingName()));

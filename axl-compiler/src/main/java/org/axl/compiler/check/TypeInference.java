@@ -71,6 +71,7 @@ public final class TypeInference {
             case Expr.Binary b -> binary(b);
             case Expr.Elvis e -> elvis(e);
             case Expr.Is i -> simple("Boolean", i.pos());
+            case Expr.Conditional c -> null;
             case Expr.When w -> null;
             case Expr.Name n -> topLevelValue(n.name());
             case Expr.Call c when c.target() == null -> call(c);

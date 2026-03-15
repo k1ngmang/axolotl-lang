@@ -13,7 +13,7 @@ public final class Whens {
     /** The arm's statements with its value, the last expression, returned: `return when (x) {...}`. */
     public static List<Stmt> returning(Expr.Arm arm) {
         List<Stmt> statements = new ArrayList<>(arm.body());
-        if (!statements.isEmpty() && statements.getLast() instanceof Stmt.ExprStmt last) {
+        if (!statements.isEmpty() && statements.getLast() instanceof Stmt.ExprStmt last && !(last.expr() instanceof Expr.Throw)) {
             statements.set(statements.size() - 1, new Stmt.Return(last.pos(), last.expr()));
         }
         return statements;

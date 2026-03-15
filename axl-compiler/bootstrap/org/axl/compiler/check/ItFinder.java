@@ -69,23 +69,29 @@ import org.axl.compiler.ast.Stmt;
             case Expr.Is $s11 -> {
                 return usesIt($s11.target());
             }
-            case Expr.When $s12 -> {
-                return usesIt($s12.subject()) || $s12.arms().stream().anyMatch(arm -> arm.body().stream().anyMatch(it -> usesIt(it)));
+            case Expr.Conditional $s12 -> {
+                return usesIt($s12.condition()) || usesIt($s12.then()) || usesIt($s12.otherwise());
             }
-            case Expr.Paren $s13 -> {
-                return usesIt($s13.inner());
+            case Expr.Throw $s13 -> {
+                return usesIt($s13.value());
             }
-            case Expr.Try $s14 -> {
-                return usesIt($s14.inner());
+            case Expr.When $s14 -> {
+                return usesIt($s14.subject()) || $s14.arms().stream().anyMatch(arm -> arm.body().stream().anyMatch(it -> usesIt(it)));
             }
-            case Expr.Attempt $s15 -> {
-                return usesIt($s15.body()) || (!"it".equals($s15.errorName()) && usesIt($s15.handler()));
+            case Expr.Paren $s15 -> {
+                return usesIt($s15.inner());
             }
-            case Expr.Lambda $s16 -> {
-                return $s16.arrow() && $s16.params().stream().noneMatch(it -> it.name().equals("it")) && $s16.body().stream().anyMatch(it -> usesIt(it));
+            case Expr.Try $s16 -> {
+                return usesIt($s16.inner());
             }
-            case Expr.Pipe $s17 -> {
-                return usesIt($s17.source()) || $s17.stages().stream().anyMatch(stage ->
+            case Expr.Attempt $s17 -> {
+                return usesIt($s17.body()) || (!"it".equals($s17.errorName()) && usesIt($s17.handler()));
+            }
+            case Expr.Lambda $s18 -> {
+                return $s18.arrow() && $s18.params().stream().noneMatch(it -> it.name().equals("it")) && $s18.body().stream().anyMatch(it -> usesIt(it));
+            }
+            case Expr.Pipe $s19 -> {
+                return usesIt($s19.source()) || $s19.stages().stream().anyMatch(stage ->
                         stage.args().stream().anyMatch(it -> usesIt(it)) || (stage.lambda() != null && usesIt(java.util.Objects.requireNonNull(stage.lambda()))));
             }
         }

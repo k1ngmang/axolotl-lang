@@ -31,6 +31,8 @@ fn usesIt(expr: Expr) -> Boolean = when (expr) {
     is Expr.Binary -> usesIt(expr.left()) || usesIt(expr.right())
     is Expr.Elvis -> usesIt(expr.left()) || usesIt(expr.right())
     is Expr.Is -> usesIt(expr.target())
+    is Expr.Conditional -> usesIt(expr.condition()) || usesIt(expr.then()) || usesIt(expr.otherwise())
+    is Expr.Throw -> usesIt(expr.value())
     is Expr.When -> usesIt(expr.subject()) || expr.arms().stream().anyMatch({ arm -> arm.body().stream().anyMatch({ usesIt(it) }) })
     is Expr.Paren -> usesIt(expr.inner())
     is Expr.Try -> usesIt(expr.inner())

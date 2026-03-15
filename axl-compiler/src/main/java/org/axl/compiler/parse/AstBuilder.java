@@ -244,6 +244,7 @@ final class AstBuilder {
                     new Expr.Unary(pos(u.start), "!", prefix(u.prefixExpression())));
             case UnaryExpressionContext u -> new Expr.Unary(pos(u.start), u.start.getText(), prefix(u.prefixExpression()));
             case TryExpressionContext t -> new Expr.Try(pos(t.start), prefix(t.prefixExpression()));
+            case ThrowExpressionContext t -> new Expr.Throw(pos(t.start), prefix(t.prefixExpression()));
             case AttemptExpressionContext a -> new Expr.Attempt(pos(a.start), expr(a.expression(0)),
                     a.identifier() == null ? null : name(a.identifier()),
                     a.identifier() == null ? null : pos(a.identifier().start), expr(a.expression(1)));
@@ -302,6 +303,17 @@ final class AstBuilder {
             case ParenPrimaryContext p -> new Expr.Paren(pos(p.start), expr(p.expression()));
             case LambdaPrimaryContext l -> lambda(l.lambda());
             case WhenPrimaryContext w -> whenExpression(w.whenExpression());
+            case IfPrimaryContext i -> {
+                Expr then = expr(i.expression(1));
+                Expr otherwise = expr(i.expression(2));
+                for (Expr branch : List.of(then, otherwise)) {
+                    if (branch instanceof Expr.Lambda) {
+                        throw new Rejected(branch.pos(), "an `if` that gives a value takes expressions after `if (...)` and `else`, "
+                                + "not braces; put a lambda in parentheses");
+                    }
+                }
+                yield new Expr.Conditional(pos(i.start), expr(i.expression(0)), then, otherwise);
+            }
             case GenericConstructorContext g -> new Expr.GenericNew(pos(g.start), name(g.identifier()),
                     g.typeArgs().type().stream().map(this::type).toList(), arguments(g.arguments()));
             default -> throw new IllegalStateException("unknown primary " + ctx.getClass());

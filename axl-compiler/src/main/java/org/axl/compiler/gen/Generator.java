@@ -431,6 +431,8 @@ public final class Generator {
                 Expr condition = runsWhen(e);
                 if (e instanceof Expr.When w) {
                     emitWhen(line, w, "", WhenForm.STATEMENT);
+                } else if (e instanceof Expr.Throw t) {
+                    withCopies(line, t.value(), () -> em.line(line, "throw " + lifted(line, t.value()).code() + ";"));
                 } else if (condition != null) {
                     // Java takes no `c && f()` or `a ?: f()` as a statement.
                     Expr action = e instanceof Expr.Binary b ? b.right() : ((Expr.Elvis) e).right();
@@ -550,6 +552,7 @@ public final class Generator {
     private static boolean exits(Stmt stmt) {
         return switch (stmt) {
             case Stmt.Return r -> true;
+            case Stmt.ExprStmt e -> e.expr() instanceof Expr.Throw;
             case Stmt.Block block -> !block.statements().isEmpty() && exits(block.statements().getLast());
             case Stmt.If i -> i.elseBranch() != null && exits(i.then()) && exits(i.elseBranch());
             case Stmt.While w -> w.condition() instanceof Expr.Literal l && l.text().equals("true");
@@ -658,6 +661,11 @@ public final class Generator {
 
     private void emitBranch(Expr.Arm arm, String label, Map<String, String> narrowing, WhenForm form) {
         int line = arm.pos().line();
+        if (form == WhenForm.VALUE && !arm.block() && ((Stmt.ExprStmt) arm.body().getFirst()).expr() instanceof Expr.Throw thrown
+                && !Lifts.needed(thrown.value())) {
+            em.line(line, label + " -> throw " + narrowed(narrowing, () -> expr(thrown.value())) + ";");
+            return;
+        }
         if (form == WhenForm.VALUE && !arm.block() && !Lifts.needed(((Stmt.ExprStmt) arm.body().getFirst()).expr())) {
             Expr value = ((Stmt.ExprStmt) arm.body().getFirst()).expr();
             em.line(line, label + " -> " + narrowed(narrowing, () -> expr(value)) + ";");
@@ -668,7 +676,7 @@ public final class Generator {
         narrowed(narrowing, () -> {
             List<Stmt> body = form == WhenForm.RESULT ? Whens.returning(arm) : arm.body();
             for (int i = 0; i < body.size(); i++) {
-                if (form == WhenForm.VALUE && i == body.size() - 1) {
+                if (form == WhenForm.VALUE && i == body.size() - 1 && !(((Stmt.ExprStmt) body.get(i)).expr() instanceof Expr.Throw)) {
                     Expr value = ((Stmt.ExprStmt) body.get(i)).expr();
                     em.line(body.get(i).pos().line(), "yield " + lifted(body.get(i).pos().line(), value).code() + ";");
                 } else {
@@ -906,6 +914,13 @@ public final class Generator {
                 yield joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()));
             }
             case Expr.Is i -> typeCheck(i, inLambda);
+            case Expr.Conditional c -> {
+                String condition = expr(c.condition(), inLambda);
+                String then = narrowed(whenTrue(c.condition()), () -> expr(c.then(), inLambda));
+                String otherwise = narrowed(whenFalse(c.condition()), () -> expr(c.otherwise(), inLambda));
+                yield "(" + condition + " ? " + then + " : " + otherwise + ")";
+            }
+            case Expr.Throw t -> throw new IllegalStateException("throw at " + t.pos() + " cannot be an expression");
             case Expr.Elvis e -> elvis(e, expr(e.left(), inLambda));
             // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.
             case Expr.Paren p when becomesCall(p.inner()) -> expr(p.inner(), inLambda);
@@ -1105,7 +1120,7 @@ public final class Generator {
         List<Stmt> body = lambda.body();
         Map<String, String> outerCopies = copies;
         copies = Map.of();
-        if (body.size() == 1 && body.getFirst() instanceof Stmt.ExprStmt single) {
+        if (body.size() == 1 && body.getFirst() instanceof Stmt.ExprStmt single && !(single.expr() instanceof Expr.Throw)) {
             int bodyLine = startLine(single.expr());
             String code = expr(single.expr());
             copies = outerCopies;

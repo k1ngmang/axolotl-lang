@@ -112,6 +112,9 @@ public final class Checker {
     // Lambda depth inside the innermost `when` that gives a value, or -1.
     private int valueWhenDepth = -1;
     private int expressionLambdas;
+    // Inside the branches of an `if` that gives a value.
+    private int conditionalDepth;
+    private final Set<Expr.Throw> allowedThrows = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Expr.Name> staticNames = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Map<Expr.Stage, TypeRef> mapResultTypes = new IdentityHashMap<>();
     private Scope scope;
@@ -377,6 +380,9 @@ public final class Checker {
                 if (unparenthesized(exprStmt.expr()) instanceof Expr.When w) {
                     whenResults.put(w, false);
                 }
+                if (exprStmt.expr() instanceof Expr.Throw t) {
+                    allowedThrows.add(t);
+                }
                 if (exprStmt.expr() instanceof Expr.Lambda lambda) {
                     error(lambda.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; "
                             + "to run these statements, remove the braces");
@@ -427,7 +433,10 @@ public final class Checker {
 
     /** `try` and `mapResult` return from the function, so they need one that returns `Result`. */
     private void checkTryPlace(Pos pos, String what) {
-        if (valueWhenDepth == lambdaDepth) {
+        if (conditionalDepth > 0) {
+            error(pos, ErrorCode.TRY_IN_EXPRESSION, what + " cannot be used in an `if` that gives a value; "
+                    + "write an `if` statement");
+        } else if (valueWhenDepth == lambdaDepth) {
             error(pos, ErrorCode.TRY_IN_EXPRESSION, what + " cannot be used in a `when` that gives a value, since it "
                     + "would return from the function in the middle of the `when`; write the `when` as a statement "
                     + "or as `return when ...`");
@@ -458,6 +467,7 @@ public final class Checker {
             case Expr.Try t -> true;
             case Expr.Pipe p -> true;
             case Expr.Elvis e -> doesSomething(e.right());
+            case Expr.Throw t -> true;
             case Expr.When w -> true;
             case Expr.Attempt a -> true;
             case Expr.NotNull n -> true;
@@ -522,6 +532,20 @@ public final class Checker {
                 expr(e.right());
             }
             case Expr.Is i -> expr(i.target());
+            case Expr.Conditional c -> {
+                expr(c.condition());
+                conditionalDepth++;
+                expr(c.then());
+                expr(c.otherwise());
+                conditionalDepth--;
+            }
+            case Expr.Throw t -> {
+                if (!allowedThrows.contains(t)) {
+                    error(t.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, "
+                            + "not inside an expression");
+                }
+                expr(t.value());
+            }
             case Expr.When w -> when(w);
             case Expr.Paren p -> expr(p.inner());
             case Expr.Try t -> {
@@ -551,6 +575,8 @@ public final class Checker {
         boolean gives = result == null;
         if (gives && function == null) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value must be inside a function");
+        } else if (gives && conditionalDepth > 0) {
+            error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside an `if` that gives a value");
         } else if (gives && expressionLambdas > 0) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` that gives a value cannot be inside a lambda of one expression; "
                     + "give the lambda statements and write `return when ...`");
@@ -580,6 +606,9 @@ public final class Checker {
                 scope = new Scope(scope, false);
                 for (int i = 0; i < body.size(); i++) {
                     if (i == body.size() - 1 && body.get(i) instanceof Stmt.ExprStmt value) {
+                        if (value.expr() instanceof Expr.Throw t) {
+                            allowedThrows.add(t);
+                        }
                         expr(value.expr());
                     } else {
                         statement(body.get(i));
@@ -691,6 +720,9 @@ public final class Checker {
                 && !(single.expr() instanceof Expr.Try)) {
             // A lambda of one expression returns its value, so the expression need not do anything.
             expressionLambdas++;
+            if (single.expr() instanceof Expr.Throw t) {
+                allowedThrows.add(t);
+            }
             expr(single.expr());
             expressionLambdas--;
         } else {
