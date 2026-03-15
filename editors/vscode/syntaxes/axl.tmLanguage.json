@@ -55,6 +55,20 @@
           }
         },
         {
+          "match": "\\b(class)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.type.axl" },
+            "2": { "name": "entity.name.type.class.axl" }
+          }
+        },
+        {
+          "match": "\\b(enum)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
+          "captures": {
+            "1": { "name": "keyword.declaration.type.axl" },
+            "2": { "name": "entity.name.type.enum.axl" }
+          }
+        },
+        {
           "match": "\\b(interface)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.type.axl" },
@@ -88,7 +102,7 @@
     },
     "keywords": {
       "patterns": [
-        { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|try|attempt)\\b" },
+        { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|throw|try|attempt)\\b" },
         { "name": "keyword.control.axl", "match": "!\\s*is\\b" },
         { "name": "storage.modifier.axl", "match": "\\b(private|sealed)\\b" },
         { "name": "constant.language.axl", "match": "\\b(true|false|null)\\b" }
