@@ -95,7 +95,7 @@ public final class Generator {
         Generator generator = new Generator(file, analysis, options, valueTypes, Set.of());
         generator.emitFile();
         return new GeneratedUnit(sourcePath, file.packageName(), file.className(), generator.em.text(),
-                new LineMap(sourcePath, generator.em.lineMap()));
+                new LineMap(sourcePath, generator.em.lineNumbers().stream().mapToInt(Integer::intValue).toArray()));
     }
 
     /**
@@ -108,7 +108,7 @@ public final class Generator {
         Generator generator = new Generator(file, analysis, options, valueTypes, probed);
         generator.emitFile();
         return new GeneratedUnit(file.className() + ".axl", file.packageName(), file.className(), generator.em.text(),
-                new LineMap(file.className() + ".axl", generator.em.lineMap()));
+                new LineMap(file.className() + ".axl", generator.em.lineNumbers().stream().mapToInt(Integer::intValue).toArray()));
     }
 
     /** The Java form of a written type. */
