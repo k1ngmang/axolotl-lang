@@ -81,10 +81,13 @@ Change `greet` so that it forgets the null check:
 fn greet(name: String?) -> String = "Hello, " + name.trim()
 ```
 
-`./gradlew run` now fails at the `.axl` line:
+`./gradlew run` now fails at the `.axl` line (Gradle prints the absolute path of the file):
 
 ```
-src/main/axl/app/Main.axl:3: error: value `name` may be null: use `?.`, `?:` or check `if (name != null)`
+/home/me/hello-axl/src/main/axl/app/Main.axl:3: error: value `name` may be null: use `?.`, `?:` or check `if (name != null)`
+fn greet(name: String?) -> String = "Hello, " + name.trim()
+                                                     ^
+1 error
 ```
 
 Undo the change before going on.
