@@ -79,13 +79,24 @@ final class AxlPositionManager implements PositionManager {
 
     @Override
     public @NotNull List<ReferenceType> getAllClasses(@NotNull SourcePosition position) throws NoDataException {
-        return process.getVirtualMachineProxy().classesByName(className(position));
+        String fileClass = className(position);
+        return process.getVirtualMachineProxy().allClasses().stream()
+                .filter(type -> isCompiledFrom(type.name(), fileClass))
+                .toList();
+    }
+
+    /** Classes declared in an .axl file are nested in its file class, e.g. `app.Shapes$Counter`. */
+    static boolean isCompiledFrom(String className, String fileClass) {
+        return className.equals(fileClass) || className.startsWith(fileClass + "$");
     }
 
     @Override
     public @NotNull List<Location> locationsOfLine(@NotNull ReferenceType type, @NotNull SourcePosition position)
             throws NoDataException {
         AxlFile file = axlFile(position);
+        if (!isCompiledFrom(type.name(), className(position))) {
+            return List.of();
+        }
         try {
             return type.locationsOfLine(STRATUM, file.getName(), position.getLine() + 1);
         } catch (AbsentInformationException e) {
@@ -96,7 +107,8 @@ final class AxlPositionManager implements PositionManager {
     @Override
     public ClassPrepareRequest createPrepareRequest(@NotNull ClassPrepareRequestor requestor, @NotNull SourcePosition position)
             throws NoDataException {
-        return process.getRequestsManager().createClassPrepareRequest(requestor, className(position));
+        // The pattern also matches unrelated classes such as `app.MainTest`; locationsOfLine skips them.
+        return process.getRequestsManager().createClassPrepareRequest(requestor, className(position) + "*");
     }
 
     @Override
