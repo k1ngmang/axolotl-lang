@@ -73,6 +73,10 @@ axl check src/main/axl src/main/java     # print errors only
 axl retrace trace.txt -cp out/classes    # rewrite a stack trace to .axl lines
 ```
 
+`axl build` removes the `.java`, `.axlmap` and `.class` files it generated for `.axl` files that
+were deleted since its previous run with the same source directory; it keeps a list of them in
+`.axl-build` in the directory of the generated sources.
+
 Common options: `--no-null-checks` skips Error Prone and NullAway, `--strict-null` turns on
 [strict null mode](language.md#java-code-without-nullness-annotations), `--inline-elvis` expands a
 statement-level `?:` without a lambda.

@@ -52,7 +52,7 @@ public final class SmapInjector {
         LineMap lineMap = LineMap.fromJson(Files.readString(mapFile, StandardCharsets.UTF_8));
         String smap = Smap.of(lineMap, javaName).format();
         int changed = 0;
-        for (Path classFile : classesOf(topLevel, javaName)) {
+        for (Path classFile : classFilesOf(topLevel)) {
             byte[] original = Files.readAllBytes(classFile);
             byte[] updated = withSmap(original, smap);
             if (!Arrays.equals(original, updated)) {
@@ -63,8 +63,9 @@ public final class SmapInjector {
         return changed;
     }
 
-    /** The top-level class and the classes javac compiled from the same Java file. */
-    private static List<Path> classesOf(Path topLevel, String javaName) throws IOException {
+    /** The top-level class file and the class files javac compiled from the same Java file. */
+    public static List<Path> classFilesOf(Path topLevel) throws IOException {
+        String javaName = simpleName(topLevel) + ".java";
         String nestedPrefix = simpleName(topLevel) + "$";
         List<Path> result = new ArrayList<>();
         result.add(topLevel);

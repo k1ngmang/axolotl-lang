@@ -246,6 +246,43 @@ class CliTest {
     }
 
     @Test
+    void buildRemovesOutputsOfDeletedSourcesOnly(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        Files.writeString(app.resolve("Old.axl"), "package app\n\nfn x() -> Int = 1\n\nclass Box(val v: Int)\n");
+        Path out = tmp.resolve("out");
+        String src = tmp.resolve("src").toString();
+        assertEquals(0, axl("build", src, "-d", out.toString(), "--no-null-checks"), err.toString());
+        assertTrue(Files.exists(out.resolve("app/Old$Box.class")));
+        Files.writeString(out.resolve("app/Mine.java"), "user file");
+        Files.writeString(out.resolve("app/Mine.axlmap"), "{\"source\": \"app/Elsewhere.axl\", \"lines\": []}");
+
+        Files.delete(app.resolve("Old.axl"));
+        assertEquals(0, axl("build", src, "-d", out.toString(), "--no-null-checks"), err.toString());
+
+        for (String name : List.of("Old.class", "Old$Box.class", "Old.java", "Old.axlmap")) {
+            assertTrue(Files.notExists(out.resolve("app").resolve(name)), name);
+        }
+        assertTrue(Files.exists(out.resolve("app/Main.class")));
+        assertTrue(Files.exists(out.resolve("app/Mine.java")));
+        assertTrue(Files.exists(out.resolve("app/Mine.axlmap")));
+    }
+
+    @Test
+    void buildKeepsOutputsOfAnotherSourceDirectory(@TempDir Path tmp) throws Exception {
+        Path one = Files.createDirectories(tmp.resolve("one/app"));
+        Path two = Files.createDirectories(tmp.resolve("two/app"));
+        Files.writeString(one.resolve("A.axl"), "package app\n\nfn a() -> Int = 1\n");
+        Files.writeString(two.resolve("B.axl"), "package app\n\nfn b() -> Int = 2\n");
+        String out = tmp.resolve("out").toString();
+        assertEquals(0, axl("build", tmp.resolve("one").toString(), "-d", out, "--no-null-checks"), err.toString());
+        assertEquals(0, axl("build", tmp.resolve("two").toString(), "-d", out, "--no-null-checks"), err.toString());
+        assertEquals(0, axl("build", tmp.resolve("two").toString(), "-d", out, "--no-null-checks"), err.toString());
+        assertTrue(Files.exists(tmp.resolve("out/app/A.class")));
+        assertTrue(Files.exists(tmp.resolve("out/app/B.class")));
+    }
+
+    @Test
     void buildsWithTheOutputInTheSourceDirectoryOrAbove(@TempDir Path tmp) throws Exception {
         Path app = Files.createDirectories(tmp.resolve("src/app"));
         Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(Names.name())\n}\n");

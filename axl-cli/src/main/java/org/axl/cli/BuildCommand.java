@@ -45,6 +45,7 @@ final class BuildCommand implements Callable<Integer> {
             return 2;
         }
         Path generated = generatedDir != null ? generatedDir : classesDir;
+        StaleOutputs.remove(sourceDir, generated, classesDir);
         AxlBuild.Result result = new AxlBuild(sourceDir, generated, classesDir)
                 .classpath(classpath)
                 .nullChecks(!noNullChecks)
@@ -53,6 +54,7 @@ final class BuildCommand implements Callable<Integer> {
                 .display(Paths::display)
                 .run();
         report(result.diagnostics());
+        StaleOutputs.record(sourceDir, generated);
         if (result.success() && !noSmap) {
             SmapInjector.inject(classesDir, generated);
         }
