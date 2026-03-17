@@ -2,7 +2,9 @@ package org.axl.cli;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
@@ -23,6 +25,16 @@ public final class Main {
         CommandLine commandLine = new CommandLine(new Main());
         // Everything after the .axl file belongs to the program, options included.
         commandLine.getSubcommands().get("run").setStopAtPositional(true);
+        // picocli's own converter hides the InvalidPathException in a message.
+        commandLine.registerConverter(Path.class, text -> Path.of(text));
+        CommandLine.IParameterExceptionHandler usage = commandLine.getParameterExceptionHandler();
+        commandLine.setParameterExceptionHandler((e, args) -> {
+            if (!(e.getCause() instanceof InvalidPathException invalid)) {
+                return usage.handleParseException(e, args);
+            }
+            e.getCommandLine().getErr().println(invalidPathMessage(invalid));
+            return 2;
+        });
         commandLine.setExecutionExceptionHandler((e, cl, parsed) -> {
             Exception cause = e instanceof UncheckedIOException unchecked ? unchecked.getCause() : e;
             if (!(cause instanceof IOException)) {
@@ -32,5 +44,15 @@ public final class Main {
             return 2;
         });
         return commandLine;
+    }
+
+    /** Usually a non-ASCII file name under a locale whose encoding cannot represent it. */
+    static String invalidPathMessage(InvalidPathException e) {
+        String message = "axl: invalid path: " + e.getReason();
+        String encoding = System.getProperty("sun.jnu.encoding", "");
+        if (!encoding.equalsIgnoreCase("UTF-8")) {
+            message += " (file names are read as " + encoding + "; a UTF-8 locale such as LANG=C.UTF-8 avoids this)";
+        }
+        return message;
     }
 }

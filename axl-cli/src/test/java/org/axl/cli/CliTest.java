@@ -298,6 +298,32 @@ class CliTest {
     }
 
     @Test
+    void warnsAboutMissingClasspathEntries(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        Path missing = tmp.resolve("missing.jar");
+        assertEquals(0, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("out").toString(),
+                "-cp", missing.toString(), "--no-null-checks"), err.toString());
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("axl: warning: classpath entry not found: " + missing),
+                err.toString());
+    }
+
+    @Test
+    void reportsAnInvalidPathWithoutTheUsage() {
+        assertEquals(2, axl("build", "bad\0dir", "-d", "out"));
+        String printed = err.toString(StandardCharsets.UTF_8);
+        assertTrue(printed.startsWith("axl: invalid path: "), printed);
+        assertTrue(!printed.contains("Usage:"), printed);
+    }
+
+    @Test
+    void runRejectsFilesThatAreNotAxl(@TempDir Path tmp) throws Exception {
+        Path java = Files.writeString(tmp.resolve("Util.java"), "class Util {}\n");
+        assertEquals(2, axl("run", java.toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("axl: not an .axl file: " + java), err.toString());
+    }
+
+    @Test
     void sourceRootStripsPackageDirectories() {
         Path file = Path.of("/work/src/app/util/Main.axl");
         assertEquals(Path.of("/work/src"), RunCommand.sourceRoot(file, "app.util"));

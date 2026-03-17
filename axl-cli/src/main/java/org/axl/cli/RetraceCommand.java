@@ -30,6 +30,7 @@ final class RetraceCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws IOException {
+        Paths.warnAboutMissingEntries(classpath);
         String trace;
         if (input != null) {
             trace = Files.readString(input, StandardCharsets.UTF_8);

@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
+import java.util.List;
 import java.util.stream.Stream;
 
 final class Paths {
@@ -19,6 +20,15 @@ final class Paths {
         }
         System.err.println("axl: " + (Files.exists(dir) ? "not a directory: " : "no such directory: ") + dir);
         return false;
+    }
+
+    /** Missing entries are not an error, as for javac, but are most likely a typo. */
+    static void warnAboutMissingEntries(List<Path> classpath) {
+        for (Path entry : classpath) {
+            if (!Files.exists(entry)) {
+                System.err.println("axl: warning: classpath entry not found: " + entry);
+            }
+        }
     }
 
     /** Deletes a temporary directory and everything in it. */

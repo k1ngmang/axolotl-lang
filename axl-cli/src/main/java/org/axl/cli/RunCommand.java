@@ -50,6 +50,10 @@ final class RunCommand implements Callable<Integer> {
             System.err.println("axl: no such file: " + file);
             return 2;
         }
+        if (!file.getFileName().toString().endsWith(".axl")) {
+            System.err.println("axl: not an .axl file: " + file);
+            return 2;
+        }
         String text;
         try {
             text = Files.readString(file, StandardCharsets.UTF_8);

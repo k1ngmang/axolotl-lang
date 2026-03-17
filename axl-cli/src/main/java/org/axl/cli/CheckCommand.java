@@ -35,6 +35,7 @@ final class CheckCommand implements Callable<Integer> {
         if (!sourceDirs.stream().allMatch(Paths::isDirectory)) {
             return 2;
         }
+        Paths.warnAboutMissingEntries(classpath);
         Path work = WorkDirectories.create(WorkDirectories.CHECK);
         try {
             AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
