@@ -20,10 +20,16 @@ final class Fixture {
             }
 
             fn main() {
-                val text = "4" + "2"
+                val text = Joiner("4").join("2")
                 println(parse(text))
                 println(sum("1", "2"))
                 println(parse("x"))
+            }
+
+            class Joiner(val head: String) {
+                fn join(tail: String) -> String {
+                    return head + tail
+                }
             }
             """;
 

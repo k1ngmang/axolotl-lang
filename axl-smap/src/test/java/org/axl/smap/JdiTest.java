@@ -30,16 +30,21 @@ class JdiTest {
 
     @Test
     void breakpointOnAxlLine(@TempDir Path tmp) throws Exception {
-        stopAt(tmp, 13);
+        stopAt(tmp, "app.Main", 13);
     }
 
     /** `try` inside an expression expands to several Java lines; all of them belong to the .axl line. */
     @Test
     void breakpointOnLineWithLiftedTry(@TempDir Path tmp) throws Exception {
-        stopAt(tmp, 8);
+        stopAt(tmp, "app.Main", 8);
     }
 
-    private void stopAt(Path tmp, int axlLine) throws Exception {
+    @Test
+    void breakpointInMethodOfNestedClass(@TempDir Path tmp) throws Exception {
+        stopAt(tmp, "app.Main$Joiner", 20);
+    }
+
+    private void stopAt(Path tmp, String className, int axlLine) throws Exception {
         Fixture fixture = new Fixture(tmp);
         fixture.inject();
         String classpath = fixture.classes + File.pathSeparator + RuntimeClasspath.entries().getFirst();
@@ -51,7 +56,7 @@ class JdiTest {
         VirtualMachine vm = connector.launch(args);
         try {
             ClassPrepareRequest prepare = vm.eventRequestManager().createClassPrepareRequest();
-            prepare.addClassFilter("app.Main");
+            prepare.addClassFilter(className);
             prepare.enable();
 
             Location stoppedAt = null;
