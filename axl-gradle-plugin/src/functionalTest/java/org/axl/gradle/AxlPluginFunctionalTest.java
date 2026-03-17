@@ -264,7 +264,8 @@ class AxlPluginFunctionalTest {
     @Test
     void addsSmapAndShowsAxlLinesInFailedTests() throws IOException {
         Files.writeString(project.resolve("core/src/main/axl/core/Numbers.axl"),
-                "package core\n\nfn number(text: String) -> Int {\n    return Integer.parseInt(text)\n}\n");
+                "package core\n\nfn number(text: String) -> Int {\n    return Integer.parseInt(text)\n}\n"
+                        + "\nclass Digits(val text: String) {\n    fn count() -> Int = text.length()\n}\n");
         Files.writeString(project.resolve("core/src/test/java/core/NumbersTest.java"), """
                 package core;
 
@@ -281,8 +282,10 @@ class AxlPluginFunctionalTest {
         assertTrue(result.getOutput().contains("NumbersTest > fails() FAILED"), result.getOutput());
         String report = Files.readString(project.resolve("core/build/test-results/test/TEST-core.NumbersTest.xml"));
         assertTrue(report.contains("at core.Numbers.number(Numbers.axl:4)"), report);
-        byte[] classFile = Files.readAllBytes(project.resolve("core/build/classes/java/main/core/Numbers.class"));
-        assertTrue(new String(classFile, java.nio.charset.StandardCharsets.ISO_8859_1).contains("*S Axolotl"));
+        for (String name : List.of("Numbers.class", "Numbers$Digits.class")) {
+            byte[] classFile = Files.readAllBytes(project.resolve("core/build/classes/java/main/core/" + name));
+            assertTrue(new String(classFile, java.nio.charset.StandardCharsets.ISO_8859_1).contains("*S Axolotl"), name);
+        }
     }
 
     @Test
