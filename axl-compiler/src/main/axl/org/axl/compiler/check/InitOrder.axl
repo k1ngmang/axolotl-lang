@@ -11,12 +11,16 @@ import org.axl.compiler.ast.Stmt
 
 /**
  * Top-level values are static fields set in declaration order, so a value that reads a later one,
- * directly or through functions of the file, sees null or zero.
+ * directly or through functions of the file, sees null or zero. The properties of a class are set in
+ * order in its constructor, after its parameters, and the same holds for them.
  */
 class InitOrder(val file: SourceFile) {
 
     // Functions and values already followed while one initializer is checked; a cycle reads nothing new.
     val visited: HashSet<String> = HashSet<String>()
+
+    // The class whose code is being followed: its methods are called by their names alone.
+    var owner: Decl.ClassDecl? = null
 
     fn problems() -> List<Problem> {
         val values = ArrayList<Decl.Value>()
@@ -40,6 +44,45 @@ class InitOrder(val file: SourceFile) {
         return problems
     }
 
+    fn propertyProblems() -> List<PropertyProblem> {
+        val problems = ArrayList<PropertyProblem>()
+        for (decl in file.decls()) {
+            if (decl is Decl.ClassDecl) {
+                classProblems(decl, problems)
+            }
+        }
+        return problems
+    }
+
+    private fn classProblems(c: Decl.ClassDecl, problems: List<PropertyProblem>) {
+        val properties = c.properties()
+        var i = 0
+        while (i < properties.size()) {
+            val init = properties.get(i).init()
+            if (init != null) {
+                val read = HashSet<String>()
+                visited.clear()
+                owner = c
+                names(init, Set.of(), read)
+                owner = null
+                val later = firstProperty(properties.subList(i, properties.size()), read)
+                if (later != null) {
+                    problems.add(PropertyProblem(properties.get(i), later))
+                }
+            }
+            i += 1
+        }
+    }
+
+    private fn firstProperty(properties: List<Decl.Property>, read: Set<String>) -> String? {
+        for (p in properties) {
+            if (read.contains(p.name())) {
+                return p.name()
+            }
+        }
+        return null
+    }
+
     private fn firstRead(values: List<Decl.Value>, read: Set<String>) -> String? {
         for (value in values) {
             if (read.contains(value.name())) {
@@ -59,7 +102,7 @@ class InitOrder(val file: SourceFile) {
             is Expr.Name -> read(expr.name(), hidden, out)
             is Expr.Call -> callNames(expr, hidden, out)
             is Expr.Member -> {
-                if (isThisClass(expr.target())) {
+                if (isThisClass(expr.target()) || isThis(expr.target())) {
                     read(expr.name(), Set.of(), out)
                 } else {
                     names(expr.target(), hidden, out)
@@ -105,12 +148,91 @@ class InitOrder(val file: SourceFile) {
             if (!hidden.contains(call.name())) {
                 function(call.name(), out)
             }
-        } else if (isThisClass(target)) {
+        } else if (isThisClass(target) || isThis(target)) {
             function(call.name(), out)
         } else {
             names(target, hidden, out)
+            // `Box().size()` runs a method of a class of this file on the object it creates.
+            val created = constructed(target)
+            if (created != null) {
+                method(created, call.name(), out)
+            }
+            // `make().get()` calls the lambda that `make` returns.
+            val returned = returnedLambda(target)
+            if (returned != null) {
+                lambdaBody(returned, Set.of(), out)
+            }
         }
         arguments(call.args(), hidden, out)
+    }
+
+    /** The class of this file that an expression creates an object of, if it is a constructor call. */
+    private fn constructed(e: Expr) -> Decl.ClassDecl? {
+        val inner = unparenthesized(e)
+        if (inner is Expr.Call && inner.target() == null) {
+            return classNamed(inner.name())
+        }
+        return null
+    }
+
+    private fn returnedLambda(e: Expr) -> Expr.Lambda? {
+        val inner = unparenthesized(e)
+        if (inner !is Expr.Call || inner.target() != null) {
+            return null
+        }
+        val c = owner
+        val functions = ArrayList<Decl.Function>()
+        if (c != null) {
+            functions.addAll(c.methods())
+        }
+        for (decl in file.decls()) {
+            if (decl is Decl.Function) {
+                functions.add(decl)
+            }
+        }
+        for (f in functions) {
+            val body = f.exprBody()
+            if (f.name().equals(inner.name()) && body != null && unparenthesized(body) is Expr.Lambda) {
+                return lambdaOf(body)
+            }
+        }
+        return null
+    }
+
+    private fn classNamed(name: String) -> Decl.ClassDecl? {
+        for (decl in file.decls()) {
+            if (decl is Decl.ClassDecl && decl.name().equals(name)) {
+                return decl
+            }
+        }
+        return null
+    }
+
+    /** Creating an object runs the initializers of its properties. */
+    private fn constructor(c: Decl.ClassDecl, out: Set<String>) {
+        if (!visited.add("new " + c.name())) {
+            return
+        }
+        val outer = owner
+        owner = c
+        for (p in c.properties()) {
+            val init = p.init()
+            if (init != null) {
+                names(init, Set.of(), out)
+            }
+        }
+        owner = outer
+    }
+
+    private fn method(c: Decl.ClassDecl, name: String, out: Set<String>) {
+        val outer = owner
+        owner = c
+        for (m in c.methods()) {
+            if (m.name().equals(name) && visited.add("method " + c.name() + "." + name)) {
+                body(m, out)
+            }
+        }
+        owner = outer
     }
 
     private fn whenNames(w: Expr.When, hidden: Set<String>, out: Set<String>) {
@@ -179,22 +301,41 @@ class InitOrder(val file: SourceFile) {
     }
 
     private fn function(name: String, out: Set<String>) {
+        val c = owner
+        if (c != null && hasMethod(c, name)) {
+            method(c, name, out)
+            return
+        }
+        val created = classNamed(name)
+        if (created != null) {
+            constructor(created, out)
+            return
+        }
         if (!visited.add("fn " + name)) {
             return
         }
+        // Outside the class a function of the file is called by its name; inside, a method would be.
+        val outer = owner
+        owner = null
         for (decl in file.decls()) {
             if (decl is Decl.Function && decl.name().equals(name)) {
-                val scope = HashSet<String>()
-                for (param in decl.params()) {
-                    scope.add(param.name())
-                }
-                val exprBody = decl.exprBody()
-                if (exprBody != null) {
-                    names(exprBody, scope, out)
-                } else {
-                    statements(decl.body()!!.statements(), scope, out)
-                }
+                body(decl, out)
             }
+        }
+        owner = outer
+    }
+
+    private fn body(f: Decl.Function, out: Set<String>) {
+        val scope = HashSet<String>()
+        for (param in f.params()) {
+            scope.add(param.name())
+        }
+        val exprBody = f.exprBody()
+        val block = f.body()
+        if (exprBody != null) {
+            names(exprBody, scope, out)
+        } else if (block != null) {
+            statements(block.statements(), scope, out)
         }
     }
 
@@ -266,7 +407,21 @@ class InitOrder(val file: SourceFile) {
 /** A value and a later value it reads while it is initialized. */
 data class Problem(val value: Decl.Value, val later: String)
 
+/** A property of a class and a later property it reads while it is initialized. */
+data class PropertyProblem(val property: Decl.Property, val later: String)
+
 fn check(file: SourceFile) -> List<Problem> = InitOrder(file).problems()
+
+fn checkProperties(file: SourceFile) -> List<PropertyProblem> = InitOrder(file).propertyProblems()
+
+private fn hasMethod(c: Decl.ClassDecl, name: String) -> Boolean = c.methods() |> anyMatch { m -> m.name().equals(name) }
+
+private fn lambdaOf(expr: Expr) -> Expr.Lambda? {
+    val inner = unparenthesized(expr)
+    return if (inner is Expr.Lambda) inner else null
+}
+
+private fn isThis(expr: Expr) -> Boolean = expr is Expr.Name && expr.name().equals("this")
 
 private fn unparenthesized(expr: Expr) -> Expr = if (expr is Expr.Paren) expr.inner() else expr
 

@@ -13,9 +13,11 @@ import org.axl.compiler.ast.Stmt;
 @NullMarked public final class InitOrder {
     public final SourceFile file;
     public final HashSet<String> visited;
+    public Decl.@Nullable ClassDecl owner;
     public InitOrder(SourceFile file) {
         this.file = file;
         this.visited = new HashSet<String>();
+        this.owner = null;
     }
     public List<Problem> problems() {
         final var values = new ArrayList<Decl.Value>();
@@ -38,6 +40,42 @@ import org.axl.compiler.ast.Stmt;
         }
         return problems;
     }
+    public List<PropertyProblem> propertyProblems() {
+        final var problems = new ArrayList<PropertyProblem>();
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.ClassDecl $s1) {
+                classProblems($s1, problems);
+            }
+        }
+        return problems;
+    }
+    private void classProblems(Decl.ClassDecl c, List<PropertyProblem> problems) {
+        final var properties = c.properties();
+        var i = 0;
+        while (i < properties.size()) {
+            final var init = properties.get(i).init();
+            if (init != null) {
+                final var read = new HashSet<String>();
+                visited.clear();
+                owner = c;
+                names(init, Set.of(), read);
+                owner = null;
+                final var later = firstProperty(properties.subList(i, properties.size()), read);
+                if (later != null) {
+                    problems.add(new PropertyProblem(properties.get(i), later));
+                }
+            }
+            i += 1;
+        }
+    }
+    private @Nullable String firstProperty(List<Decl.Property> properties, Set<String> read) {
+        for (final var p : properties) {
+            if (read.contains(p.name())) {
+                return p.name();
+            }
+        }
+        return null;
+    }
     private @Nullable String firstRead(List<Decl.Value> values, Set<String> read) {
         for (final var value : values) {
             if (read.contains(value.name())) {
@@ -55,7 +93,7 @@ import org.axl.compiler.ast.Stmt;
                 callNames($s2, hidden, out);
             }
             case Expr.Member $s3 -> {
-                if (isThisClass($s3.target())) {
+                if (isThisClass($s3.target()) || isThis($s3.target())) {
                     read($s3.name(), Set.of(), out);
                 } else {
                     names($s3.target(), hidden, out);
@@ -121,12 +159,82 @@ import org.axl.compiler.ast.Stmt;
             if (!hidden.contains(call.name())) {
                 function(call.name(), out);
             }
-        } else if (isThisClass(target)) {
+        } else if (isThisClass(target) || isThis(target)) {
             function(call.name(), out);
         } else {
             names(target, hidden, out);
+            final var created = constructed(target);
+            if (created != null) {
+                method(created, call.name(), out);
+            }
+            final var returned = returnedLambda(target);
+            if (returned != null) {
+                lambdaBody(returned, Set.of(), out);
+            }
         }
         arguments(call.args(), hidden, out);
+    }
+    private Decl.@Nullable ClassDecl constructed(Expr e) {
+        final var inner = unparenthesized(e);
+        if (inner instanceof Expr.Call $s1 && $s1.target() == null) {
+            return classNamed($s1.name());
+        }
+        return null;
+    }
+    private Expr.@Nullable Lambda returnedLambda(Expr e) {
+        final var inner = unparenthesized(e);
+        if (!(inner instanceof Expr.Call $s1) || $s1.target() != null) {
+            return null;
+        }
+        final var c = owner;
+        final var functions = new ArrayList<Decl.Function>();
+        if (c != null) {
+            functions.addAll(c.methods());
+        }
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Function $s2) {
+                functions.add($s2);
+            }
+        }
+        for (final var f : functions) {
+            final var body = f.exprBody();
+            if (f.name().equals($s1.name()) && body != null && unparenthesized(body) instanceof Expr.Lambda) {
+                return lambdaOf(body);
+            }
+        }
+        return null;
+    }
+    private Decl.@Nullable ClassDecl classNamed(String name) {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.ClassDecl $s1 && $s1.name().equals(name)) {
+                return $s1;
+            }
+        }
+        return null;
+    }
+    private void constructor(Decl.ClassDecl c, Set<String> out) {
+        if (!visited.add("new " + c.name())) {
+            return;
+        }
+        final var outer = owner;
+        owner = c;
+        for (final var p : c.properties()) {
+            final var init = p.init();
+            if (init != null) {
+                names(init, Set.of(), out);
+            }
+        }
+        owner = outer;
+    }
+    private void method(Decl.ClassDecl c, String name, Set<String> out) {
+        final var outer = owner;
+        owner = c;
+        for (final var m : c.methods()) {
+            if (m.name().equals(name) && visited.add("method " + c.name() + "." + name)) {
+                body(m, out);
+            }
+        }
+        owner = outer;
     }
     private void whenNames(Expr.When w, Set<String> hidden, Set<String> out) {
         names(w.subject(), hidden, out);
@@ -187,22 +295,39 @@ import org.axl.compiler.ast.Stmt;
         statements(lambda.body(), scope, out);
     }
     private void function(String name, Set<String> out) {
+        final var c = owner;
+        if (c != null && hasMethod(c, name)) {
+            method(c, name, out);
+            return;
+        }
+        final var created = classNamed(name);
+        if (created != null) {
+            constructor(created, out);
+            return;
+        }
         if (!visited.add("fn " + name)) {
             return;
         }
+        final var outer = owner;
+        owner = null;
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Function $s1 && $s1.name().equals(name)) {
-                final var scope = new HashSet<String>();
-                for (final var param : $s1.params()) {
-                    scope.add(param.name());
-                }
-                final var exprBody = $s1.exprBody();
-                if (exprBody != null) {
-                    names(exprBody, scope, out);
-                } else {
-                    statements(java.util.Objects.requireNonNull($s1.body()).statements(), scope, out);
-                }
+                body($s1, out);
             }
+        }
+        owner = outer;
+    }
+    private void body(Decl.Function f, Set<String> out) {
+        final var scope = new HashSet<String>();
+        for (final var param : f.params()) {
+            scope.add(param.name());
+        }
+        final var exprBody = f.exprBody();
+        final var block = f.body();
+        if (exprBody != null) {
+            names(exprBody, scope, out);
+        } else if (block != null) {
+            statements(block.statements(), scope, out);
         }
     }
     private boolean isThisClass(Expr target) {
@@ -268,8 +393,22 @@ import org.axl.compiler.ast.Stmt;
         }
     }
     public record Problem(Decl.Value value, String later) {}
+    public record PropertyProblem(Decl.Property property, String later) {}
     public static List<Problem> check(SourceFile file) {
         return new InitOrder(file).problems();
+    }
+    public static List<PropertyProblem> checkProperties(SourceFile file) {
+        return new InitOrder(file).propertyProblems();
+    }
+    private static boolean hasMethod(Decl.ClassDecl c, String name) {
+        return c.methods().stream().anyMatch(m -> m.name().equals(name));
+    }
+    private static Expr.@Nullable Lambda lambdaOf(Expr expr) {
+        final var inner = unparenthesized(expr);
+        return (inner instanceof Expr.Lambda $s1 ? $s1 : null);
+    }
+    private static boolean isThis(Expr expr) {
+        return expr instanceof Expr.Name $s1 && $s1.name().equals("this");
     }
     private static Expr unparenthesized(Expr expr) {
         return (expr instanceof Expr.Paren $s1 ? $s1.inner() : expr);

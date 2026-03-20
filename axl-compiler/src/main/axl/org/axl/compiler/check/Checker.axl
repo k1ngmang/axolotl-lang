@@ -225,6 +225,13 @@ class Checker(val file: SourceFile) {
                 "`, which is declared " + position + "; top-level values are set in order, so declare `" +
                 problem.later() + "` first")
         }
+        for (problem in InitOrder.checkProperties(file)) {
+            val property = problem.property()
+            val position = if (problem.later().equals(property.name())) "by itself" else "later"
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" +
+                problem.later() + "`, which is declared " + position + "; properties are set in order, so declare `" +
+                problem.later() + "` first")
+        }
     }
 
     private fn classDecl(c: Decl.ClassDecl) {

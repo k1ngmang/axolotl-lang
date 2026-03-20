@@ -185,6 +185,17 @@ import org.axl.compiler.ast.TypeRef;
                     problem.later() +
                     "` first");
         }
+        for (final var problem : InitOrder.checkProperties(file)) {
+            final var property = problem.property();
+            final var position = (problem.later().equals(property.name()) ? "by itself" : "later");
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" +
+                    problem.later() +
+                    "`, which is declared " +
+                    position +
+                    "; properties are set in order, so declare `" +
+                    problem.later() +
+                    "` first");
+        }
     }
     private void classDecl(Decl.ClassDecl c) {
         scope = new Scope(scope, false);

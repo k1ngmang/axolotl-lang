@@ -1,0 +1,15 @@
+package app
+
+class Config(val name: String) {
+    val label: String = compute()
+    val title: String = name + "!"
+
+    fn compute() -> String = "cfg " + title.length()
+}
+
+class Box(val v: String) {
+    val label: String = prefix + v
+}
+
+val box: Box = Box("x")
+val prefix: String = "abc".trim()
