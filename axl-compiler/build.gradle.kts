@@ -2,6 +2,7 @@ plugins {
     `java-library`
     `maven-publish`
     antlr
+    idea
 }
 
 dependencies {
@@ -22,6 +23,13 @@ configurations.api {
 // Java generated from src/main/axl by an earlier compiler; see docs/self-hosting.md.
 sourceSets.main {
     java.srcDir("bootstrap")
+}
+
+// IntelliJ then warns before the snapshot is edited by hand.
+idea {
+    module {
+        generatedSourceDirs.add(file("bootstrap"))
+    }
 }
 
 tasks.generateGrammarSource {
