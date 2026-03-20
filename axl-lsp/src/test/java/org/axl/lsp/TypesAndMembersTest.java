@@ -161,6 +161,74 @@ class TypesAndMembersTest {
         assertTrue(WorkspaceTest.semanticTokens(workspace.document(uri)).contains("3:20009:1:number"));
     }
 
+    private static final String MORE = """
+
+            fn side(o: Shape) -> Double = if (o is Square) o.side() else 0.0
+
+            fn twice(n: Int) -> String = when (val m = n * 2) {
+                2 -> "two" + m
+                else -> "m" + m
+            }
+
+            fn first(s: Square) -> String? = s.label()
+
+            fn useFirst(s: Square) -> Int {
+                val f = first(s)
+                return 1
+            }
+            """;
+
+    @Test
+    void narrowsAfterAnIfThatLeavesRightOfAndAndInIfValues() throws Exception {
+        String text = SHAPES + MORE;
+        String uri = open("Shapes.axl", text);
+        assertContains(hoverAt(uri, text, "\"radius \" + |shape.radius()"), "shape: Circle");
+        assertTrue(membersAt(uri, text, "\"radius \" + shape.|radius()").contains("radius"));
+        assertContains(hoverAt(uri, text, "&& |shape.label()"), "shape: Square");
+        assertTrue(membersAt(uri, text, "&& shape.|label()").contains("label"));
+        assertContains(hoverAt(uri, text, "return |shape.label()!!"), "shape: Square");
+        assertContains(hoverAt(uri, text, "|o.side() else"), "o: Square");
+        assertTrue(membersAt(uri, text, "o.|side() else").contains("side"));
+        assertContains(hoverAt(uri, text, "return |\"x\""), "Generated Java");
+    }
+
+    @Test
+    void typesWhenBindingsAndLoopVariablesInAxolotlNames() throws Exception {
+        String text = SHAPES + MORE;
+        String uri = open("Shapes.axl", text);
+        assertContains(hoverAt(uri, text, "when (val |m = n * 2)"), "val m: Int");
+        assertContains(hoverAt(uri, text, "\"two\" + |m"), "val m: Int");
+        assertContains(hoverAt(uri, text, "for (|x in xs)"), "val x: Int");
+        assertEquals(List.of("Shapes.axl:41:9"), definitionsAt(uri, text, "for (|x in xs)"));
+        assertContains(hoverAt(uri, text, "val |xs = "), "val xs: List<Int>");
+        assertContains(hoverAt(uri, text, "val |c = Circle"), "val c: Circle");
+        assertContains(hoverAt(uri, text, "val |f = first(s)"), "val f: String?");
+    }
+
+    /** The line and UTF-16 column of the `|` in a snippet of a text. */
+    private static int[] at(String text, String snippet) {
+        int offset = text.indexOf(snippet.replace("|", ""));
+        assertTrue(offset >= 0, snippet);
+        offset += snippet.indexOf('|');
+        int line = (int) text.substring(0, offset).chars().filter(c -> c == '\n').count();
+        return new int[] {line, offset - text.lastIndexOf('\n', offset - 1) - 1};
+    }
+
+    private String hoverAt(String uri, String text, String snippet) {
+        int[] position = at(text, snippet);
+        return hover(uri, position[0], position[1]);
+    }
+
+    private List<String> membersAt(String uri, String text, String snippet) {
+        int[] position = at(text, snippet);
+        return memberNames(uri, position[0], position[1]);
+    }
+
+    private List<String> definitionsAt(String uri, String text, String snippet) {
+        int[] position = at(text, snippet);
+        return definitions(uri, position[0], position[1]);
+    }
+
     private String hover(String uri, int line, int character) {
         Hover hover = new Hovers(workspace).hover(uri, line, character);
         return hover == null ? "" : hover.getContents().getRight().getValue();

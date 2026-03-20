@@ -229,7 +229,7 @@ class LanguageServerTest {
         diagnosticsWhere(List::isEmpty);
         String hover = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(uri()),
                 new Position(6, 8))).get(30, TimeUnit.SECONDS).getContents().getRight().getValue();
-        assertTrue(hover.contains("val n: Integer"), hover);
+        assertTrue(hover.contains("val n: Int"), hover);
         assertTrue(hover.contains("final var $t1 = parse(s);"), hover);
         assertTrue(hover.contains("final var n = Result.unwrap($t1);"), hover);
     }
@@ -242,7 +242,7 @@ class LanguageServerTest {
         diagnosticsWhere(d -> true);
         String hover = server.getTextDocumentService().hover(new HoverParams(new TextDocumentIdentifier(uri()),
                 new Position(4, 12))).get(60, TimeUnit.SECONDS).getContents().getRight().getValue();
-        assertTrue(hover.contains("val x: int"), hover);
+        assertTrue(hover.contains("val x: Int"), hover);
     }
 
     @Test

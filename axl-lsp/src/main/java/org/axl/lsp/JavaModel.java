@@ -26,6 +26,7 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.ExecutableType;
@@ -182,11 +183,12 @@ final class JavaModel {
     }
 
     /**
-     * The type javac gives a local or lambda parameter in the generated method of a function, or with
-     * function null, in the initializers of top-level values. Of several with the name, the one
-     * generated from the declaration's line wins.
+     * The declaration javac sees for a local or lambda parameter in the generated method of a
+     * function, or with function null, in the initializers of top-level values. Of several with the
+     * name, the one generated from the declaration's line wins. A `when` binding has a generated
+     * name, which starts with `$e`.
      */
-    TypeMirror localType(SourceFile file, String function, int paramCount, String local, int axlLine) {
+    private TreePath localPath(SourceFile file, String function, int paramCount, Symbols.Symbol local) {
         String qualified = file.packageName() == null || file.packageName().isEmpty()
                 ? file.className() : file.packageName() + "." + file.className();
         CompilationUnitTree unit = generated.get(qualified);
@@ -195,10 +197,12 @@ final class JavaModel {
         }
         GeneratedUnit translation = translations.get(qualified);
         boolean main = "main".equals(function) && paramCount == 0;
+        boolean binding = local.origin() == Symbols.Origin.WHEN_BINDING;
+        int axlLine = local.pos().line();
         var scanner = new TreePathScanner<Void, Void>() {
             private boolean inFunction = function == null;
-            private TypeMirror first;
-            private TypeMirror onLine;
+            private TreePath first;
+            private TreePath onLine;
 
             @Override
             public Void visitMethod(MethodTree method, Void unused) {
@@ -211,14 +215,15 @@ final class JavaModel {
 
             @Override
             public Void visitVariable(VariableTree variable, Void unused) {
-                if (inFunction && variable.getName().contentEquals(local)) {
-                    TypeMirror type = trees.getTypeMirror(new TreePath(getCurrentPath(), variable));
+                String name = variable.getName().toString();
+                if (inFunction && (binding ? name.startsWith("$e") : name.equals(local.name()))) {
+                    TreePath path = new TreePath(getCurrentPath(), variable);
                     long start = trees.getSourcePositions().getStartPosition(unit, variable);
                     if (onLine == null && translation.lineMap().axlLine((int) unit.getLineMap().getLineNumber(start)) == axlLine) {
-                        onLine = type;
+                        onLine = path;
                     }
-                    if (first == null) {
-                        first = type;
+                    if (first == null && !binding) {
+                        first = path;
                     }
                 }
                 return super.visitVariable(variable, unused);
@@ -234,12 +239,31 @@ final class JavaModel {
             TypeElement owner = resolveType(file, file.className());
             return owner == null ? null : memberType(owner.asType(), symbol.name(), null);
         }
+        TreePath path = localPath(file, symbol);
+        return path == null ? null : trees.getTypeMirror(path);
+    }
+
+    /** Whether a local without a written type holds the result of a method whose result may be null. */
+    boolean isNullable(SourceFile file, Symbols.Symbol symbol) {
+        TreePath path = localPath(file, symbol);
+        if (path == null || !(path.getLeaf() instanceof VariableTree variable) || variable.getInitializer() == null) {
+            return false;
+        }
+        Element called = trees.getElement(new TreePath(path, variable.getInitializer()));
+        return called instanceof ExecutableElement method && isNullable(method.getReturnType());
+    }
+
+    private TreePath localPath(SourceFile file, Symbols.Symbol symbol) {
         if (!List.of(Symbols.Kind.PARAMETER, Symbols.Kind.LOCAL, Symbols.Kind.VARIABLE).contains(symbol.kind())) {
             return null;
         }
         Decl.Function fn = symbol.function();
-        return fn == null ? localType(file, null, 0, symbol.name(), symbol.pos().line())
-                : localType(file, fn.name(), fn.params().size(), symbol.name(), symbol.pos().line());
+        return fn == null ? localPath(file, null, 0, symbol) : localPath(file, fn.name(), fn.params().size(), symbol);
+    }
+
+    static boolean isNullable(TypeMirror type) {
+        return type != null && type.getAnnotationMirrors().stream()
+                .anyMatch(a -> a.getAnnotationType().asElement().getSimpleName().contentEquals("Nullable"));
     }
 
     /** The class of a type, of the bound of a type variable or wildcard; null for primitives. */
@@ -346,9 +370,26 @@ final class JavaModel {
         return AXL_NAMES.getOrDefault(name, name);
     }
 
-    /** A type as hovers show it; `?` when it is unknown. */
+    /**
+     * A type as Axolotl writes it, for hovers: `Int` for `int` and `Integer`, nested classes by their
+     * simple name, `?` after a type that may be null; a single `?` when it is unknown.
+     */
     static String display(TypeMirror type) {
-        return type == null || type.getKind() == TypeKind.ERROR ? "?" : simple(type.toString());
+        if (type == null || type.getKind() == TypeKind.ERROR) {
+            return "?";
+        }
+        String text = switch (type) {
+            case DeclaredType declared -> {
+                String name = declared.asElement().getSimpleName().toString();
+                String arguments = declared.getTypeArguments().isEmpty() ? ""
+                        : declared.getTypeArguments().stream().map(JavaModel::display).collect(Collectors.joining(", ", "<", ">"));
+                yield AXL_NAMES.getOrDefault(name, name) + arguments;
+            }
+            case ArrayType array -> display(array.getComponentType()) + "[]";
+            case WildcardType wildcard -> wildcard.getExtendsBound() != null ? display(wildcard.getExtendsBound()) : "?";
+            default -> AXL_NAMES.getOrDefault(type.toString(), simple(type.toString()));
+        };
+        return isNullable(type) && !text.endsWith("?") ? text + "?" : text;
     }
 
     static String simple(String type) {

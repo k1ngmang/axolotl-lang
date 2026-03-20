@@ -256,9 +256,9 @@ class WorkspaceTest {
                     java.util.List.of(1) |> forEach { println(it) }
                 }
                 """);
-        assertTrue(hover(uri, 8, 16).contains("val t: int"), hover(uri, 8, 16));
+        assertTrue(hover(uri, 8, 16).contains("val t: Int"), hover(uri, 8, 16));
         assertTrue(hover(uri, 4, 12).contains("val t: String"), hover(uri, 4, 12));
-        assertTrue(hover(uri, 11, 46).contains("it: Integer"), hover(uri, 11, 46));
+        assertTrue(hover(uri, 11, 46).contains("it: Int"), hover(uri, 11, 46));
     }
 
     @Test

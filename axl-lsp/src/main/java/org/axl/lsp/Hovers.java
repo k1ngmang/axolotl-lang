@@ -75,7 +75,9 @@ final class Hovers {
         if (symbol.type() != null) {
             return typeText(symbol.type());
         }
-        return JavaModel.display(workspace.javaModel(document.module).typeOf(document.ast, symbol));
+        JavaModel java = workspace.javaModel(document.module);
+        String text = JavaModel.display(java.typeOf(document.ast, symbol));
+        return !text.endsWith("?") && java.isNullable(document.ast, symbol) ? text + "?" : text;
     }
 
     private static String declaration(Decl decl) {
