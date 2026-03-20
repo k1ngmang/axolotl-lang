@@ -20,7 +20,17 @@ final class Symbols {
      * type is null when it is not written in the source; function is set for functions and their
      * locals, and null for the lambda parameters of a top-level value.
      */
-    record Symbol(String name, Kind kind, Pos pos, TypeRef type, Decl.Function function, Import imported) {}
+    record Symbol(String name, Kind kind, Pos pos, TypeRef type, Decl.Function function, Import imported, Origin origin) {
+        Symbol(String name, Kind kind, Pos pos, TypeRef type, Decl.Function function, Import imported) {
+            this(name, kind, pos, type, function, imported, Origin.DECLARED);
+        }
+    }
+
+    /** How a symbol came to be: declared, a declared one read as the type a test narrowed it to, or the binding of a `when`. */
+    enum Origin { DECLARED, NARROWED, WHEN_BINDING }
+
+    /** A name a condition tests and the type it has where the condition has the outcome asked for. */
+    private record Test(String name, TypeRef type) {}
 
     private Symbols() {}
 
@@ -195,24 +205,14 @@ final class Symbols {
                     out.add(new Symbol(local.name(), local.mutable() ? Kind.VARIABLE : Kind.LOCAL, local.namePos(),
                             local.type(), fn, null));
                 }
-                case Stmt.If ifStmt -> {
-                    expr(ifStmt.condition(), pos, fn, out);
-                    if (ifStmt.condition() instanceof Expr.Is is && !is.negated() && is.target() instanceof Expr.Name name
-                            && inside(ifStmt.then(), pos)) {
-                        narrow(name.name(), is.type(), out);
-                    }
-                    block(ifStmt.then(), pos, fn, out);
-                    if (ifStmt.elseBranch() != null) {
-                        statements(List.of(ifStmt.elseBranch()), pos, fn, out);
-                    }
-                }
+                case Stmt.If ifStmt -> ifStatement(ifStmt, pos, fn, out);
                 case Stmt.While loop -> {
                     expr(loop.condition(), pos, fn, out);
                     block(loop.body(), pos, fn, out);
                 }
                 case Stmt.For loop -> {
                     expr(loop.iterable(), pos, fn, out);
-                    if (before(loop.body().pos(), pos) && before(pos, loop.body().end())) {
+                    if (loop.namePos().equals(pos) || before(loop.body().pos(), pos) && before(pos, loop.body().end())) {
                         out.add(new Symbol(loop.name(), Kind.LOCAL, loop.namePos(), null, fn, null));
                     }
                     block(loop.body(), pos, fn, out);
@@ -227,10 +227,46 @@ final class Symbols {
                 case Stmt.ExprStmt e -> expr(e.expr(), pos, fn, out);
             }
             if (i + 1 < statements.size() && before(statements.get(i + 1).pos(), pos)) {
-                // An `attempt` error name is visible only in its own statement.
-                out.subList(start, out.size()).removeIf(s -> s.kind() == Kind.PARAMETER);
+                // An `attempt` error name and the narrowing by a test in an expression hold only in their own statement.
+                out.subList(start, out.size()).removeIf(s -> s.kind() == Kind.PARAMETER || s.origin() == Origin.NARROWED);
+                if (stmt instanceof Stmt.If ifStmt && ifStmt.elseBranch() == null && leaves(ifStmt.then())) {
+                    tests(ifStmt.condition(), false).forEach(t -> narrow(t.name(), t.type(), out));
+                }
             }
         }
+    }
+
+    /** The branch where the condition holds sees what it tests, the other branch what it rules out. */
+    private static void ifStatement(Stmt.If ifStmt, Pos pos, Decl.Function fn, List<Symbol> out) {
+        expr(ifStmt.condition(), pos, fn, out);
+        if (inside(ifStmt.then(), pos)) {
+            tests(ifStmt.condition(), true).forEach(t -> narrow(t.name(), t.type(), out));
+            block(ifStmt.then(), pos, fn, out);
+        } else if (ifStmt.elseBranch() != null && before(ifStmt.elseBranch().pos(), pos)) {
+            tests(ifStmt.condition(), false).forEach(t -> narrow(t.name(), t.type(), out));
+            statements(List.of(ifStmt.elseBranch()), pos, fn, out);
+        }
+    }
+
+    /** A block that ends with `return` or `throw`, after which the code runs only when its condition failed. */
+    private static boolean leaves(Stmt.Block block) {
+        Stmt last = block.statements().isEmpty() ? null : block.statements().getLast();
+        return last instanceof Stmt.Return || last instanceof Stmt.ExprStmt e && e.expr() instanceof Expr.Throw;
+    }
+
+    /** The names a condition tests with `is` and their types, where the condition holds or, with holds false, fails. */
+    private static List<Test> tests(Expr condition, boolean holds) {
+        return switch (condition) {
+            case Expr.Paren p -> tests(p.inner(), holds);
+            case Expr.Is is when is.negated() != holds && is.target() instanceof Expr.Name name -> List.of(new Test(name.name(), is.type()));
+            case Expr.Unary u when u.op().equals("!") -> tests(u.operand(), !holds);
+            case Expr.Binary b when b.op().equals(holds ? "&&" : "||") -> {
+                List<Test> both = new ArrayList<>(tests(b.left(), holds));
+                both.addAll(tests(b.right(), holds));
+                yield both;
+            }
+            default -> List.of();
+        };
     }
 
     private static void block(Stmt.Block block, Pos pos, Decl.Function fn, List<Symbol> out) {
@@ -243,12 +279,17 @@ final class Symbols {
         return before(block.pos(), pos) && before(pos, block.end());
     }
 
-    /** Where a test `x is T` holds, `x` reads as a T: the nearest visible `x` is shadowed by one with that type. */
+    /**
+     * Where a test `x is T` holds, `x` reads as a T: the nearest visible `x` is shadowed by one with
+     * that type. A `var` may change after the test and keeps its type.
+     */
     private static void narrow(String name, TypeRef type, List<Symbol> out) {
         for (int i = out.size() - 1; i >= 0; i--) {
             Symbol symbol = out.get(i);
             if (symbol.name().equals(name)) {
-                out.add(new Symbol(name, symbol.kind(), symbol.pos(), type, symbol.function(), symbol.imported()));
+                if (symbol.kind() != Kind.VARIABLE) {
+                    out.add(new Symbol(name, symbol.kind(), symbol.pos(), type, symbol.function(), symbol.imported(), Origin.NARROWED));
+                }
                 return;
             }
         }
@@ -281,6 +322,10 @@ final class Symbols {
             case Expr.Unary u -> expr(u.operand(), pos, fn, out);
             case Expr.Binary b -> {
                 expr(b.left(), pos, fn, out);
+                boolean and = b.op().equals("&&");
+                if ((and || b.op().equals("||")) && before(start(b.right()), pos)) {
+                    tests(b.left(), and).forEach(t -> narrow(t.name(), t.type(), out));
+                }
                 expr(b.right(), pos, fn, out);
             }
             case Expr.Elvis e -> {
@@ -290,6 +335,9 @@ final class Symbols {
             case Expr.Is i -> expr(i.target(), pos, fn, out);
             case Expr.Conditional c -> {
                 expr(c.condition(), pos, fn, out);
+                if (before(start(c.then()), pos)) {
+                    tests(c.condition(), !before(start(c.otherwise()), pos)).forEach(t -> narrow(t.name(), t.type(), out));
+                }
                 expr(c.then(), pos, fn, out);
                 expr(c.otherwise(), pos, fn, out);
             }
@@ -297,7 +345,7 @@ final class Symbols {
             case Expr.When w -> {
                 expr(w.subject(), pos, fn, out);
                 if (w.bindingName() != null && before(w.bindingPos(), pos) && before(pos, w.end())) {
-                    out.add(new Symbol(w.bindingName(), Kind.LOCAL, w.bindingPos(), null, fn, null));
+                    out.add(new Symbol(w.bindingName(), Kind.LOCAL, w.bindingPos(), null, fn, null, Origin.WHEN_BINDING));
                 }
                 List<Expr.Arm> arms = w.arms();
                 for (int i = 0; i < arms.size(); i++) {
@@ -329,6 +377,23 @@ final class Symbols {
             case Expr.Literal l -> { }
             case Expr.Name n -> { }
         }
+    }
+
+    /** Where an expression starts; operators and member accesses are positioned after their left side. */
+    private static Pos start(Expr expr) {
+        Expr left = switch (expr) {
+            case Expr.Binary b -> b.left();
+            case Expr.Member m -> m.target();
+            case Expr.Call c -> c.target();
+            case Expr.NotNull n -> n.target();
+            case Expr.Is i -> i.target();
+            case Expr.Elvis e -> e.left();
+            case Expr.MethodRef r -> r.target();
+            case Expr.Pipe p -> p.source();
+            default -> null;
+        };
+        Pos leftStart = left == null ? expr.pos() : start(left);
+        return before(leftStart, expr.pos()) ? leftStart : expr.pos();
     }
 
     /** In an arm `is T ->`, the subject reads as a T. */
