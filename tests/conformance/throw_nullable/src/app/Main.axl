@@ -1,0 +1,8 @@
+package app
+
+fn maybeError(flag: Boolean) -> RuntimeException? = if (flag) null else RuntimeException("x")
+
+fn fail(flag: Boolean) {
+    val e = maybeError(flag)
+    throw e
+}

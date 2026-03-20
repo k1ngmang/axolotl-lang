@@ -433,6 +433,8 @@ final class NullChecker implements TaskListener {
         /** Each branch starts from what was known before the switch; what follows may come from any of them. */
         private Void cases(ExpressionTree selector, List<? extends CaseTree> cases) {
             scan(selector, null);
+            // NullAway checks the selector, but not for values from Java code without annotations.
+            report(selector, origin(selector), true, describe(selector) + ", but `when` needs a value to test; " + FIX);
             Map<Element, Origin> entry = new HashMap<>(state);
             boolean hasDefault = cases.stream().anyMatch(c -> c.getLabels().stream().anyMatch(l -> l instanceof DefaultCaseLabelTree));
             Map<Element, Origin> result = hasDefault ? null : entry;
@@ -461,6 +463,8 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitEnhancedForLoop(EnhancedForLoopTree loop, Void unused) {
             scan(loop.getExpression(), null);
+            report(loop.getExpression(), origin(loop.getExpression()), true,
+                    describe(loop.getExpression()) + ", but `for` needs something to go through; " + FIX);
             Element variable = trees.getElement(new TreePath(getCurrentPath(), loop.getVariable()));
             Shape loopElements = elementShape(loop.getExpression());
             if (variable != null) {
@@ -542,6 +546,15 @@ final class NullChecker implements TaskListener {
             scan(binary.getRightOperand(), null);
             checkUnboxing(binary.getRightOperand(), true);
             state = before;
+            return null;
+        }
+
+        /** NullAway does not check what is thrown, and throwing null throws a NullPointerException. */
+        @Override
+        public Void visitThrow(ThrowTree tree, Void unused) {
+            super.visitThrow(tree, unused);
+            report(tree.getExpression(), origin(tree.getExpression()), false,
+                    describe(tree.getExpression()) + ", but `throw` needs an exception; " + FIX);
             return null;
         }
 
@@ -1404,7 +1417,9 @@ final class NullChecker implements TaskListener {
                 return "the value is `null`";
             }
             if (e instanceof IdentifierTree identifier) {
-                String name = "`" + identifier.getName() + "` may be null";
+                // `$e1` holds the subject of `when (val x = ...)`.
+                String name = identifier.getName().toString().matches("\\$e\\d+") ? "the subject of this `when` may be null"
+                        : "`" + identifier.getName() + "` may be null";
                 return switch (origin) {
                     case PLATFORM -> name + ": it holds a value from Java code without nullness annotations";
                     case HIDDEN -> name + ": it holds a value of a type argument written with `?`";

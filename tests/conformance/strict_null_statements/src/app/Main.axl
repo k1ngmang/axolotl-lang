@@ -1,0 +1,14 @@
+package app
+
+import java.io.File
+
+fn kind() -> Int = when (System.getenv("NO_SUCH_VARIABLE")) {
+    "a" -> 1
+    else -> 2
+}
+
+fn names() {
+    for (name in File("missing").list()) {
+        println(name)
+    }
+}
