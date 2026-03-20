@@ -39,6 +39,7 @@ import org.axl.compiler.ast.TypeRef;
     public int lambdaDepth;
     public int safeTailDepth;
     public int attemptDepth;
+    public Decl.@Nullable ClassDecl currentClass;
     public @Nullable TypeRef declaredType;
     public Checker(SourceFile file) {
         this.file = file;
@@ -60,6 +61,7 @@ import org.axl.compiler.ast.TypeRef;
         this.lambdaDepth = 0;
         this.safeTailDepth = 0;
         this.attemptDepth = 0;
+        this.currentClass = null;
         this.declaredType = null;
     }
     public void run() {
@@ -201,6 +203,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void classDecl(Decl.ClassDecl c) {
+        currentClass = c;
         scope = new Scope(scope, false);
         for (final var p : c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type());
@@ -222,6 +225,7 @@ import org.axl.compiler.ast.TypeRef;
             function(m);
         }
         pop();
+        currentClass = null;
     }
     private Kind fieldKind(Decl.Property p) {
         return (p.mutable() ? Kind.MUTABLE_FIELD : Kind.FIELD);
@@ -803,7 +807,9 @@ import org.axl.compiler.ast.TypeRef;
             error(stage.pos(), ErrorCode.PIPE_STAGE, "the lambda of `mapResult` must be a single expression");
             return;
         }
-        final var element = MapResultTypes.elementType(stage, file, declared);
+        final var owner = currentClass;
+        final List<Decl.Function> methods = (owner == null ? List.of() : owner.methods());
+        final var element = MapResultTypes.elementType(stage, file, methods, declared);
         if (element == null) {
             error(stage.pos(), ErrorCode.TYPE_REQUIRED, "`mapResult` needs the element type: call a function of this file " +
                     "that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`");

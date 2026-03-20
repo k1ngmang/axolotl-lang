@@ -113,6 +113,7 @@ class Checker(val file: SourceFile) {
     var lambdaDepth: Int = 0
     var safeTailDepth: Int = 0
     var attemptDepth: Int = 0
+    var currentClass: Decl.ClassDecl? = null
     // The written type of the `val` whose initializer is being checked, for `mapResult`.
     var declaredType: TypeRef? = null
 
@@ -238,6 +239,7 @@ class Checker(val file: SourceFile) {
     }
 
     private fn classDecl(c: Decl.ClassDecl) {
+        currentClass = c
         scope = Scope(scope, false)
         for (p in c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type())
@@ -259,6 +261,7 @@ class Checker(val file: SourceFile) {
             function(m)
         }
         pop()
+        currentClass = null
     }
 
     private fn fieldKind(p: Decl.Property) -> Kind = if (p.mutable()) Kind.MUTABLE_FIELD else Kind.FIELD
@@ -832,7 +835,9 @@ class Checker(val file: SourceFile) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "the lambda of `mapResult` must be a single expression")
             return
         }
-        val element = MapResultTypes.elementType(stage, file, declared)
+        val owner = currentClass
+        val methods: List<Decl.Function> = if (owner == null) List.of() else owner.methods()
+        val element = MapResultTypes.elementType(stage, file, methods, declared)
         if (element == null) {
             error(stage.pos(), ErrorCode.TYPE_REQUIRED, "`mapResult` needs the element type: call a function of this file " +
                 "that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`")

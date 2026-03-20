@@ -14,7 +14,7 @@ import org.axl.compiler.ast.TypeRef;
     private MapResultTypes() {}
     private static final Set<String> lists = Set.of("List", "java.util.List");
     private static final Set<String> results = Set.of("Result", "axl.lang.Result");
-    public static @Nullable TypeRef elementType(Expr.Stage stage, SourceFile file, @Nullable TypeRef declared) {
+    public static @Nullable TypeRef elementType(Expr.Stage stage, SourceFile file, List<Decl.Function> methods, @Nullable TypeRef declared) {
         if (declared != null && lists.contains(declared.name()) && declared.args().size() == 1) {
             return declared.args().getFirst();
         }
@@ -22,7 +22,7 @@ import org.axl.compiler.ast.TypeRef;
         if (call == null) {
             return null;
         }
-        final var candidates = functionsLike(file, call);
+        final var candidates = functionsLike(file, methods, call);
         if (candidates.size() != 1) {
             return null;
         }
@@ -43,8 +43,16 @@ import org.axl.compiler.ast.TypeRef;
         }
         return $s2;
     }
-    private static List<Decl.Function> functionsLike(SourceFile file, Expr.Call call) {
+    private static List<Decl.Function> functionsLike(SourceFile file, List<Decl.Function> methods, Expr.Call call) {
         final var found = new ArrayList<Decl.Function>();
+        for (final var m : methods) {
+            if (m.name().equals(call.name())) {
+                found.add(m);
+            }
+        }
+        if (!found.isEmpty()) {
+            return found.stream().filter(m -> m.params().size() == call.args().size()).toList();
+        }
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Function $s1 && $s1.name().equals(call.name()) && $s1.params().size() == call.args().size()) {
                 found.add($s1);

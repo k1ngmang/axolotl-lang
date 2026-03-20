@@ -11,15 +11,15 @@ import org.axl.compiler.ast.TypeRef
 
 /*
  * Element type of the list `|> mapResult { ... }` builds, found without type inference: from the
- * written type of the `val` it initializes, or from the `Result<T, E>` of a function of the file
- * that the lambda calls.
+ * written type of the `val` it initializes, or from the `Result<T, E>` of a function of the file or
+ * a method of the class that the lambda calls.
  */
 
 private val lists: Set<String> = Set.of("List", "java.util.List")
 
 private val results: Set<String> = Set.of("Result", "axl.lang.Result")
 
-fn elementType(stage: Expr.Stage, file: SourceFile, declared: TypeRef?) -> TypeRef? {
+fn elementType(stage: Expr.Stage, file: SourceFile, methods: List<Decl.Function>, declared: TypeRef?) -> TypeRef? {
     if (declared != null && lists.contains(declared.name()) && declared.args().size() == 1) {
         return declared.args().getFirst()
     }
@@ -27,7 +27,7 @@ fn elementType(stage: Expr.Stage, file: SourceFile, declared: TypeRef?) -> TypeR
     if (call == null) {
         return null
     }
-    val candidates = functionsLike(file, call)
+    val candidates = functionsLike(file, methods, call)
     // With overloads of the same arity the called one is not known here.
     if (candidates.size() != 1) {
         return null
@@ -51,8 +51,17 @@ private fn calledFunction(stage: Expr.Stage) -> Expr.Call? {
     return expr
 }
 
-private fn functionsLike(file: SourceFile, call: Expr.Call) -> List<Decl.Function> {
+private fn functionsLike(file: SourceFile, methods: List<Decl.Function>, call: Expr.Call) -> List<Decl.Function> {
     val found = ArrayList<Decl.Function>()
+    // Java looks for a method of the class first, by name alone.
+    for (m in methods) {
+        if (m.name().equals(call.name())) {
+            found.add(m)
+        }
+    }
+    if (!found.isEmpty()) {
+        return found |> filter { m -> m.params().size() == call.args().size() }
+    }
     for (decl in file.decls()) {
         if (decl is Decl.Function && decl.name().equals(call.name()) && decl.params().size() == call.args().size()) {
             found.add(decl)
