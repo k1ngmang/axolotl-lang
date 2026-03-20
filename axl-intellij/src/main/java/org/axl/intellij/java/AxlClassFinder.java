@@ -6,6 +6,7 @@ import com.intellij.psi.PsiElementFinder;
 import com.intellij.psi.PsiPackage;
 import com.intellij.psi.search.GlobalSearchScope;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import org.axl.intellij.psi.AxlFile;
@@ -28,8 +29,16 @@ public final class AxlClassFinder extends PsiElementFinder {
 
     @Override
     public PsiClass @NotNull [] findClasses(@NotNull String qualifiedName, @NotNull GlobalSearchScope scope) {
-        return AxlFiles.byQualifiedName(project, qualifiedName, scope).stream()
+        PsiClass[] classes = AxlFiles.byQualifiedName(project, qualifiedName, scope).stream()
                 .map(AxlLightClasses::classOf).filter(Objects::nonNull).toArray(PsiClass[]::new);
+        int dot = qualifiedName.lastIndexOf('.');
+        if (classes.length > 0 || dot < 0) {
+            return classes;
+        }
+        // Types declared in a file are nested in its class: `app.Shapes.Circle`.
+        String name = qualifiedName.substring(dot + 1);
+        return Arrays.stream(findClasses(qualifiedName.substring(0, dot), scope))
+                .map(outer -> outer.findInnerClassByName(name, false)).filter(Objects::nonNull).toArray(PsiClass[]::new);
     }
 
     @Override

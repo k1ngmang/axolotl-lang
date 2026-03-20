@@ -10,7 +10,9 @@ import com.intellij.util.Processor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Stream;
 import org.axl.intellij.psi.AxlFile;
+import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.jetbrains.annotations.NotNull;
 
 /** Class, method and field names of .axl files, for Java completion and Go to Class. */
@@ -24,13 +26,25 @@ public final class AxlShortNamesCache extends PsiShortNamesCache {
 
     @Override
     public PsiClass @NotNull [] getClassesByName(@NotNull String name, @NotNull GlobalSearchScope scope) {
-        return AxlFiles.byClassName(project, name, scope).stream()
-                .map(AxlLightClasses::classOf).filter(Objects::nonNull).toArray(PsiClass[]::new);
+        List<PsiClass> result = new ArrayList<>();
+        AxlFiles.byClassName(project, name, scope).stream().map(AxlLightClasses::classOf).filter(Objects::nonNull).forEach(result::add);
+        for (AxlFile file : AxlFiles.all(project, scope)) {
+            nestedTypes(file).filter(d -> name.equals(d.getName()))
+                    .map(AxlLightClasses::classOf).filter(Objects::nonNull).forEach(result::add);
+        }
+        return result.toArray(PsiClass[]::new);
     }
 
     @Override
     public String @NotNull [] getAllClassNames() {
-        return AxlFiles.all(project, GlobalSearchScope.allScope(project)).stream().map(AxlFile::className).toArray(String[]::new);
+        List<AxlFile> files = AxlFiles.all(project, GlobalSearchScope.allScope(project));
+        return Stream.concat(files.stream().map(AxlFile::className), files.stream().flatMap(AxlShortNamesCache::nestedTypes)
+                .map(AxlTypeDeclaration::getName)).filter(Objects::nonNull).distinct().toArray(String[]::new);
+    }
+
+    /** The types of a file that are nested in its class, which are all but the one the file is named after. */
+    private static Stream<AxlTypeDeclaration> nestedTypes(AxlFile file) {
+        return file.typeDeclarations().stream().filter(d -> !file.className().equals(d.getName()));
     }
 
     @Override
