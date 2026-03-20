@@ -1,0 +1,10 @@
+package app
+
+sealed interface Shape {
+    val name: String
+    val tags: java.util.List<String>
+}
+
+data class Circle(val name: String?, val tags: java.util.List<String>) : Shape
+
+data class Dot(val tags: java.util.List<String?>) : Shape

@@ -1,0 +1,139 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.HashSet
+import java.util.List
+import java.util.Map
+import java.util.Set
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Pos
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.TypeRef
+
+/*
+ * A data class or class that implements an interface of its file gives each value the interface
+ * requires. Java checks that a method exists, but not the nullness of its type: a `String?` field
+ * would let the interface return null where it promises a `String`.
+ */
+
+data class Mismatch(val pos: Pos, val message: String)
+
+/** A value a type gives, with where it is declared. */
+data class Given(val pos: Pos, val type: TypeRef?)
+
+fn check(file: SourceFile) -> List<Mismatch> {
+    val problems = ArrayList<Mismatch>()
+    for (decl in file.decls()) {
+        if (decl is Decl.DataClass) {
+            implementer(file, decl, fieldsOf(decl.fields()), decl.supertypes(), problems)
+        } else if (decl is Decl.ClassDecl) {
+            implementer(file, decl, propertiesOf(decl), decl.supertypes(), problems)
+        }
+    }
+    return problems
+}
+
+private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, supertypes: List<TypeRef>,
+                       problems: List<Mismatch>) {
+    for (iface in interfaces(file, supertypes, HashSet<String>())) {
+        for (member in iface.members()) {
+            // The parser requires the type of a member, so it is never missing here.
+            val required = member.type()!!
+            val field = given.get(member.name())
+            if (field == null) {
+                problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` does not give `val " + member.name() + ": " +
+                    text(required) + "`, which the interface `" + iface.name() + "` requires; add it to its parameters"))
+            } else {
+                compare(member.name(), field, required, iface, problems)
+            }
+        }
+    }
+}
+
+private fn compare(name: String, field: Given, required: TypeRef, iface: Decl.Interface, problems: List<Mismatch>) {
+    val type = field.type()
+    if (type != null && !fits(type, required)) {
+        problems.add(Mismatch(field.pos(), "`" + name + "` is `" + text(type) + "` here, but the interface `" +
+            iface.name() + "` requires `val " + name + ": " + text(required) + "`"))
+    }
+}
+
+/** The values the interfaces of the file among the supertypes require. */
+fn requiredValues(file: SourceFile, supertypes: List<TypeRef>) -> List<Expr.Param> {
+    val values = ArrayList<Expr.Param>()
+    for (iface in interfaces(file, supertypes, HashSet<String>())) {
+        values.addAll(iface.members())
+    }
+    return values
+}
+
+/** The interfaces of the file among the supertypes, with the interfaces they extend. */
+private fn interfaces(file: SourceFile, supertypes: List<TypeRef>, seen: Set<String>) -> List<Decl.Interface> {
+    val result = ArrayList<Decl.Interface>()
+    for (type in supertypes) {
+        for (decl in file.decls()) {
+            if (decl is Decl.Interface && decl.name().equals(type.name()) && seen.add(decl.name())) {
+                result.add(decl)
+                result.addAll(interfaces(file, decl.supertypes(), seen))
+            }
+        }
+    }
+    return result
+}
+
+/** A value may be narrower than required, `String` for `String?`, but its type arguments must match. */
+private fn fits(given: TypeRef, required: TypeRef) -> Boolean {
+    if (given.nullable() && !required.nullable()) {
+        return false
+    }
+    return given.name().equals(required.name()) && sameArgs(given.args(), required.args())
+}
+
+private fn sameArgs(given: List<TypeRef>, required: List<TypeRef>) -> Boolean {
+    if (given.size() != required.size()) {
+        return false
+    }
+    var i = 0
+    while (i < given.size()) {
+        val a = given.get(i)
+        val b = required.get(i)
+        if (a.nullable() != b.nullable() || !a.name().equals(b.name()) || !sameArgs(a.args(), b.args())) {
+            return false
+        }
+        i += 1
+    }
+    return true
+}
+
+private fn fieldsOf(fields: List<Expr.Param>) -> Map<String, Given> {
+    val given = HashMap<String, Given>()
+    for (f in fields) {
+        given.put(f.name(), Given(f.pos(), f.type()))
+    }
+    return given
+}
+
+private fn propertiesOf(c: Decl.ClassDecl) -> Map<String, Given> {
+    val given = HashMap<String, Given>()
+    for (p in c.parameters()) {
+        given.put(p.name(), Given(p.namePos(), p.type()))
+    }
+    for (p in c.properties()) {
+        given.put(p.name(), Given(p.namePos(), p.type()))
+    }
+    // A method without parameters gives the value as well.
+    for (m in c.methods()) {
+        if (m.params().isEmpty()) {
+            given.put(m.name(), Given(m.namePos(), m.returnType()))
+        }
+    }
+    return given
+}
+
+private fn text(type: TypeRef) -> String {
+    val args = type.args() |> map { a -> text(a) }
+    val written = if (args.isEmpty()) type.name() else type.name() + "<" + String.join(", ", args) + ">"
+    return if (type.nullable()) written + "?" else written
+}

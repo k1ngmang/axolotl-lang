@@ -1,0 +1,3 @@
+AXL017 app/Main.axl:8:19: error: `name` is `String?` here, but the interface `Shape` requires `val name: String`
+AXL017 app/Main.axl:10:12: error: `Dot` does not give `val name: String`, which the interface `Shape` requires; add it to its parameters
+AXL017 app/Main.axl:10:16: error: `tags` is `java.util.List<String?>` here, but the interface `Shape` requires `val tags: java.util.List<String>`

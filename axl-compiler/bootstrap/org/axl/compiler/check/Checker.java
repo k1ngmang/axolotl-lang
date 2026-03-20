@@ -89,6 +89,9 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         checkInitOrder();
+        for (final var mismatch : Implementations.check(file)) {
+            error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message());
+        }
     }
     private void checkFileName() {
         final var name = file.className();

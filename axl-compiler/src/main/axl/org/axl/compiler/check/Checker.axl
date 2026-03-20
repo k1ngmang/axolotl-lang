@@ -132,6 +132,9 @@ class Checker(val file: SourceFile) {
             }
         }
         checkInitOrder()
+        for (mismatch in Implementations.check(file)) {
+            error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message())
+        }
     }
 
     private fn checkFileName() {
