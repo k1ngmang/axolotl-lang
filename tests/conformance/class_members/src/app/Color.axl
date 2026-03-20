@@ -1,0 +1,6 @@
+package app
+
+// A file named like its enum is that enum; the rest of the file follows the constants.
+enum Color { RED, GREEN, BLUE }
+
+fn warm(c: Color) -> Boolean = c == Color.RED

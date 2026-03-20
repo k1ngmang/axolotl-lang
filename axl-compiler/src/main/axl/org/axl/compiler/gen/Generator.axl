@@ -87,6 +87,9 @@ class Generator(
     // The type of the subject of the `when` being emitted, if the code says.
     var subjectTypeOf: TypeRef? = null
 
+    // The class whose members are being emitted, where a method hides a function of the same name.
+    var currentClass: Decl.ClassDecl? = null
+
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
 
@@ -194,7 +197,7 @@ class Generator(
     /** A data class or interface named like the file is the class of the file; the rest of the file is in it. */
     private fn typeOfFile() -> Decl? {
         for (d in file.decls()) {
-            if (d.name().equals(file.className()) && (d is Decl.DataClass || d is Decl.Interface || d is Decl.ClassDecl)) {
+            if (d.name().equals(file.className()) && isTypeDecl(d)) {
                 return d
             }
         }
@@ -214,6 +217,9 @@ class Generator(
             em.line(line, "@NullMarked public final class " + fileType.name() +
                 typeList(" implements ", fileType.supertypes()) + " {")
             emitClassMembers(fileType)
+        } else if (fileType is Decl.EnumDecl) {
+            // The rest of the file follows the constants, which a `;` ends.
+            em.line(line, "@NullMarked public enum " + fileType.name() + " { " + String.join(", ", fileType.constants()) + ";")
         } else {
             throw IllegalStateException()
         }
@@ -230,8 +236,12 @@ class Generator(
     /** Fields, the constructor and the methods, inside the class that is open. */
     private fn emitClassMembers(classDecl: Decl.ClassDecl) {
         em.indent()
-        // Properties are set after the parameters, in the constructor, since they may read them.
-        val inConstructor = !classDecl.parameters().isEmpty()
+        val outerClass = currentClass
+        currentClass = classDecl
+        // Properties are set after the parameters, in the constructor, since they may read them; so are
+        // properties whose value needs statements before it.
+        val lifting = classDecl.properties() |> anyMatch { p -> Lifts.needed(propertyInit(p)) }
+        val inConstructor = !classDecl.parameters().isEmpty() || lifting
         for (p in classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";")
         }
@@ -251,6 +261,7 @@ class Generator(
         }
         overridden = outerOverridden
         emitAccessors(classDecl)
+        currentClass = outerClass
         em.dedent()
     }
 
@@ -262,9 +273,11 @@ class Generator(
         for (p in classDecl.parameters()) {
             em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";")
         }
+        // One method body: the temporaries of the properties must not clash.
+        resetCounters()
         for (p in classDecl.properties()) {
-            resetCounters()
-            em.line(p.pos().line(), "this." + p.name() + " = " + expr(propertyInit(p)) + ";")
+            val stored = nullableType(propertyType(p))
+            em.line(p.pos().line(), "this." + p.name() + " = " + valueCode(p.pos().line(), propertyInit(p), stored) + ";")
         }
         em.dedent()
         em.line(line, "}")
@@ -825,7 +838,7 @@ class Generator(
                 em.line(line, label + " -> throw " + narrowedValue(narrowing, { -> expr(single.value()) }) + ";")
                 return
             }
-            if (!Lifts.needed(single)) {
+            if (!Lifts.needed(single) && Captures.capturedIn(single, analysis).isEmpty()) {
                 val code = narrowedValue(narrowing, { -> expr(single) })
                 em.line(line, label + " -> " + boxedBranch(code, single, whenValues) + ";")
                 return
@@ -845,8 +858,11 @@ class Generator(
             val stmt = body.get(i)
             val last = i == body.size() - 1
             if (form == WhenForm.VALUE && last && stmt is Stmt.ExprStmt && stmt.expr() !is Expr.Throw) {
-                val code = lifted(stmt.pos().line(), stmt.expr()).code()
-                em.line(stmt.pos().line(), "yield " + boxedBranch(code, stmt.expr(), whenValues) + ";")
+                val valueLine = stmt.pos().line()
+                withCopies(valueLine, stmt.expr(), { ->
+                    val code = lifted(valueLine, stmt.expr()).code()
+                    em.line(valueLine, "yield " + boxedBranch(code, stmt.expr(), whenValues) + ";")
+                })
             } else {
                 statement(stmt)
             }
@@ -1286,7 +1302,26 @@ class Generator(
         if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
             return "new " + c.name() + "(" + args + ")"
         }
+        if (callsHiddenFunction(c)) {
+            return file.className() + "." + c.name() + "(" + args + ")"
+        }
         return c.name() + "(" + args + ")"
+    }
+
+    /**
+     * Java finds a method of the class by its name before it looks outside, so a function of the file
+     * with the name of a method but other parameters is named with its class.
+     */
+    private fn callsHiddenFunction(c: Expr.Call) -> Boolean {
+        val owner = currentClass
+        if (owner == null || owner.name().equals(file.className())) {
+            return false
+        }
+        val arity = c.args().size()
+        val methods = owner.methods() |> filter { m -> m.name().equals(c.name()) }
+        val method = methods |> anyMatch { m -> m.params().size() == arity }
+        val function = file.decls() |> anyMatch { d -> d is Decl.Function && d.name().equals(c.name()) && d.params().size() == arity }
+        return !methods.isEmpty() && !method && function
     }
 
     /** Each `?.` wraps the rest of the chain, so the first null skips everything after it. */
@@ -2099,6 +2134,9 @@ private fn testsObjects(w: Expr.When) -> Boolean {
     }
     return false
 }
+
+private fn isTypeDecl(d: Decl) -> Boolean =
+    d is Decl.DataClass || d is Decl.Interface || d is Decl.ClassDecl || d is Decl.EnumDecl
 
 private fn isResultType(type: TypeRef) -> Boolean = type.name().equals("Result") || type.name().equals("axl.lang.Result")
 

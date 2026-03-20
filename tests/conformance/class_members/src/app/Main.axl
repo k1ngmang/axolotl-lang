@@ -1,0 +1,38 @@
+package app
+
+fn one(s: String) -> Result<Int, String> = if (s.isEmpty()) Err("empty") else Ok(s.length())
+
+fn describe(n: Int) -> String = "n=" + n
+
+class Box(val v: Int, val text: String?) {
+    // Needs statements before its value, so it is set in the constructor.
+    val size: Int = text?.length() ?: 0
+
+    // Calls the function of the file, which the method of the same name hides in Java.
+    fn describe() -> String = describe(v)
+
+    fn parse(xs: java.util.List<String>) -> Result<java.util.List<Int>, String> {
+        val sizes = xs |> mapResult { item(it) }
+        return Ok(sizes)
+    }
+
+    fn item(s: String) -> Result<Int, String> = one(s)
+}
+
+// The lambda of `?:` sees a copy of the `var` taken in the branch.
+fn label(k: Int, s: String?) -> String {
+    var count = 1
+    count += 1
+    return when (k) {
+        1 -> s ?: "count=" + count
+        else -> "other"
+    }
+}
+
+fn main() {
+    val box = Box(1, "abc")
+    println(box.describe() + " " + box.size)
+    println(box.parse(java.util.List.of("a", "bb")))
+    println(label(1, null))
+    println(Color.warm(Color.RED))
+}

@@ -52,6 +52,7 @@ import org.axl.compiler.check.Whens;
     public int patternCount;
     public List<String> overridden;
     public @Nullable TypeRef subjectTypeOf;
+    public Decl.@Nullable ClassDecl currentClass;
     public String elseLabel;
     public List<Expr> whenValues;
     public int tempCount;
@@ -75,6 +76,7 @@ import org.axl.compiler.check.Whens;
         this.patternCount = 0;
         this.overridden = List.of();
         this.subjectTypeOf = null;
+        this.currentClass = null;
         this.elseLabel = "default";
         this.whenValues = List.of();
         this.tempCount = 0;
@@ -175,7 +177,7 @@ import org.axl.compiler.check.Whens;
     }
     private @Nullable Decl typeOfFile() {
         for (final var d : file.decls()) {
-            if (d.name().equals(file.className()) && (d instanceof Decl.DataClass $s1 || d instanceof Decl.Interface $s2 || d instanceof Decl.ClassDecl $s3)) {
+            if (d.name().equals(file.className()) && isTypeDecl(d)) {
                 return d;
             }
         }
@@ -197,6 +199,8 @@ import org.axl.compiler.check.Whens;
                     typeList(" implements ", $s3.supertypes()) +
                     " {");
             emitClassMembers($s3);
+        } else if (fileType instanceof Decl.EnumDecl $s4) {
+            em.line(line, "@NullMarked public enum " + $s4.name() + " { " + String.join(", ", $s4.constants()) + ";");
         } else {
             throw new IllegalStateException();
         }
@@ -211,7 +215,10 @@ import org.axl.compiler.check.Whens;
     }
     private void emitClassMembers(Decl.ClassDecl classDecl) {
         em.indent();
-        final var inConstructor = !classDecl.parameters().isEmpty();
+        final var outerClass = currentClass;
+        currentClass = classDecl;
+        final var lifting = classDecl.properties().stream().anyMatch(p -> Lifts.needed(propertyInit(p)));
+        final var inConstructor = !classDecl.parameters().isEmpty() || lifting;
         for (final var p : classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";");
         }
@@ -231,6 +238,7 @@ import org.axl.compiler.check.Whens;
         }
         overridden = outerOverridden;
         emitAccessors(classDecl);
+        currentClass = outerClass;
         em.dedent();
     }
     private void emitConstructor(Decl.ClassDecl classDecl) {
@@ -241,9 +249,10 @@ import org.axl.compiler.check.Whens;
         for (final var p : classDecl.parameters()) {
             em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";");
         }
+        resetCounters();
         for (final var p : classDecl.properties()) {
-            resetCounters();
-            em.line(p.pos().line(), "this." + p.name() + " = " + expr(propertyInit(p)) + ";");
+            final var stored = nullableType(propertyType(p));
+            em.line(p.pos().line(), "this." + p.name() + " = " + valueCode(p.pos().line(), propertyInit(p), stored) + ";");
         }
         em.dedent();
         em.line(line, "}");
@@ -752,7 +761,7 @@ import org.axl.compiler.check.Whens;
                 em.line(line, label + " -> throw " + narrowedValue(narrowing, () -> expr($s1.value())) + ";");
                 return;
             }
-            if (!Lifts.needed(single)) {
+            if (!Lifts.needed(single) && Captures.capturedIn(single, analysis).isEmpty()) {
                 final var code = narrowedValue(narrowing, () -> expr(single));
                 em.line(line, label + " -> " + boxedBranch(code, single, whenValues) + ";");
                 return;
@@ -771,8 +780,11 @@ import org.axl.compiler.check.Whens;
             final var stmt = body.get(i);
             final var last = i == body.size() - 1;
             if (form == WhenForm.VALUE && last && stmt instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
-                final var code = lifted($s1.pos().line(), $s1.expr()).code();
-                em.line($s1.pos().line(), "yield " + boxedBranch(code, $s1.expr(), whenValues) + ";");
+                final var valueLine = $s1.pos().line();
+                withCopies(valueLine, $s1.expr(), () -> {
+                    final var code = lifted(valueLine, $s1.expr()).code();
+                    em.line(valueLine, "yield " + boxedBranch(code, $s1.expr(), whenValues) + ";");
+                });
             } else {
                 statement(stmt);
             }
@@ -1168,7 +1180,21 @@ import org.axl.compiler.check.Whens;
         if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
             return "new " + c.name() + "(" + args + ")";
         }
+        if (callsHiddenFunction(c)) {
+            return file.className() + "." + c.name() + "(" + args + ")";
+        }
         return c.name() + "(" + args + ")";
+    }
+    private boolean callsHiddenFunction(Expr.Call c) {
+        final var owner = currentClass;
+        if (owner == null || owner.name().equals(file.className())) {
+            return false;
+        }
+        final var arity = c.args().size();
+        final var methods = owner.methods().stream().filter(m -> m.name().equals(c.name())).toList();
+        final var method = methods.stream().anyMatch(m -> m.params().size() == arity);
+        final var function = file.decls().stream().anyMatch(d -> d instanceof Decl.Function $s1 && $s1.name().equals(c.name()) && $s1.params().size() == arity);
+        return !methods.isEmpty() && !method && function;
     }
     private String chainCode(Chains.Chain chain, boolean inLambda) {
         return chainFrom(exprIn(chain.base(), inLambda), chain.steps(), 0, inLambda, startLine(chain.base()));
@@ -1960,6 +1986,9 @@ import org.axl.compiler.check.Whens;
             }
         }
         return false;
+    }
+    private static boolean isTypeDecl(Decl d) {
+        return d instanceof Decl.DataClass $s1 || d instanceof Decl.Interface $s2 || d instanceof Decl.ClassDecl $s3 || d instanceof Decl.EnumDecl $s4;
     }
     private static boolean isResultType(TypeRef type) {
         return type.name().equals("Result") || type.name().equals("axl.lang.Result");
