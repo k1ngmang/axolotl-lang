@@ -22,11 +22,14 @@ import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.axl.compiler.parse.AxolotlLexer;
+import org.axl.intellij.java.AxlLightClasses;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
 import org.jetbrains.annotations.Nullable;
@@ -118,7 +121,7 @@ public final class AxlResolver {
     /** Methods and fields of a class by name; members of Axolotl files resolve to their declarations. */
     static List<PsiElement> members(PsiClass cls, String name) {
         LinkedHashSet<PsiElement> result = new LinkedHashSet<>();
-        for (PsiMethod method : cls.findMethodsByName(name, true)) {
+        for (PsiMethod method : withoutOverridden(cls.findMethodsByName(name, true))) {
             result.add(source(method));
         }
         PsiField field = cls.findFieldByName(name, true);
@@ -126,6 +129,23 @@ public final class AxlResolver {
             result.add(source(field));
         }
         return new ArrayList<>(result);
+    }
+
+    /** A method and the ones it overrides are one method: `ArrayList.add` and `List.add`. */
+    private static List<PsiMethod> withoutOverridden(PsiMethod[] methods) {
+        Set<PsiMethod> overridden = new HashSet<>();
+        for (PsiMethod method : methods) {
+            overridden.addAll(Arrays.asList(method.findSuperMethods()));
+        }
+        return Arrays.stream(methods).filter(m -> !overridden.contains(m)).toList();
+    }
+
+    /** The class Java sees for an Axolotl type declaration or a Java class; null for other elements. */
+    static @Nullable PsiClass asClass(@Nullable PsiElement element) {
+        if (element instanceof AxlTypeDeclaration declaration) {
+            return AxlLightClasses.classOf(declaration);
+        }
+        return element instanceof PsiClass cls ? cls : null;
     }
 
     /**
@@ -274,6 +294,8 @@ public final class AxlResolver {
             case AxlFunction function when call -> function.returnType() == null ? null : javaType(function.returnType());
             case PsiMethod method when call -> declaredType(method.getReturnType());
             case PsiClass cls when call -> JavaPsiFacade.getElementFactory(argument.getProject()).createType(cls);
+            case AxlTypeDeclaration declaration when call && asClass(declaration) != null ->
+                    JavaPsiFacade.getElementFactory(argument.getProject()).createType(asClass(declaration));
             case null, default -> null;
         };
     }
@@ -334,17 +356,30 @@ public final class AxlResolver {
         } else if (expression.getNode().getElementType() == AxlElementTypes.CALL
                 && expression.getFirstChild() instanceof AxlReferenceExpression callee && callee.getReference() != null) {
             target = callee.getReference().resolve();
-            if (target instanceof PsiClass constructed) {
+            PsiClass constructed = asClass(target);
+            if (constructed != null) {
                 return constructed;
             }
         }
         return switch (target) {
-            case AxlVariable variable -> variable.type() != null ? classOf(variable.type()) : initializerType(variable);
+            case AxlVariable variable -> variableType(expression, variable);
             case AxlFunction function -> function.returnType() == null ? null : classOf(function.returnType());
             case PsiField field -> classOf(field.getType());
             case PsiMethod method -> classOf(method.getReturnType());
             case null, default -> null;
         };
+    }
+
+    /** An enum constant has its enum's type; a narrowed value the type it was tested for; others the written or inferred one. */
+    private static @Nullable PsiClass variableType(PsiElement place, AxlVariable variable) {
+        if (variable.getParent() instanceof AxlTypeDeclaration declaration && declaration.isEnum()) {
+            return asClass(declaration);
+        }
+        AxlType narrowed = AxlNarrowing.typeAt(place, variable);
+        if (narrowed != null) {
+            return classOf(narrowed);
+        }
+        return variable.type() != null ? classOf(variable.type()) : initializerType(variable);
     }
 
     /** The class of a value without a written type, from its initializer; `val a = a` refers to itself. */
@@ -361,7 +396,7 @@ public final class AxlResolver {
         }
         AxlReferenceExpression reference = type.reference();
         PsiElement target = reference == null || reference.getReference() == null ? null : reference.getReference().resolve();
-        return target instanceof PsiClass cls ? cls : null;
+        return asClass(target);
     }
 
     private static @Nullable PsiClass classOf(@Nullable PsiType type) {

@@ -5,7 +5,10 @@ import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiField;
+import com.intellij.psi.PsiFile;
+import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
+import com.intellij.psi.PsiReference;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
@@ -69,6 +72,25 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
                 c.step = 5
                 val d = start("d")
                 println(d.count)
+            }
+            """;
+
+    static final String MAIN = """
+            package app
+            import app.Shapes.Circle
+            import app.Shapes.Color
+            import app.Shapes.Shape
+
+            fn main() {
+                val c = Circle("m", 3.0)
+                println(c.radius())
+                val counter = Counter.start("x")
+                println(counter.next())
+                val shape: Shape = c
+                val color = Color.GREEN
+                println(color.ordinal() + Shapes.area(shape))
+                val k = Counter("k", 2)
+                println(k.count)
             }
             """;
 
@@ -155,6 +177,110 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         PsiElement radius = circle.findMethodsByName("radius", false)[0].getNavigationElement();
         assertEquals("radius", ((AxlTypeDeclaration) radius.getParent()).fields().get(1).getName());
         assertEquals("RED", findClass("app.Shapes.Color").findFieldByName("RED", false).getNavigationElement().getText());
+    }
+
+    public void testResolvesMembersOfClassesDataClassesAndEnums() {
+        AxlFile counter = (AxlFile) myFixture.configureByText("Counter.axl", COUNTER);
+        AxlTypeDeclaration counterType = counter.typeDeclarations().getFirst();
+        assertSame(counterType.methods().getFirst(), resolveAt("println(c.|next())"));
+        assertSame(counterType.fields().get(1), resolveAt("c.|step = 5"));
+        assertSame(counterType.fields().get(2), resolveAt("println(d.|count)"));
+        PsiElement add = resolveAt("history.|add(count)");
+        assertEquals("java.util.ArrayList", ((PsiMethod) add).getContainingClass().getQualifiedName());
+
+        AxlFile shapes = (AxlFile) myFixture.configureByText("Shapes.axl", SHAPES);
+        AxlTypeDeclaration circle = shapes.typeDeclarations().get(1);
+        AxlTypeDeclaration color = shapes.typeDeclarations().get(3);
+        assertSame(circle.fields().get(1), resolveAt("println(c.|radius())"));
+        assertSame(circle.fields().get(1), resolveAt("3.14 * shape.|radius()"));
+        assertSame(shapes.typeDeclarations().get(2).fields().get(1), resolveAt("is Square -> shape.|side()"));
+        assertSame(color.fields().getFirst(), resolveAt("Color.|RED"));
+        assertEquals("name", ((PsiMethod) resolveAt("color.|name()")).getName());
+    }
+
+    public void testNarrowsAfterTestsThatLeaveAndRightOfAnd() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Tests.axl", SHAPES + """
+
+                fn describe(shape: Shape) -> String {
+                    if (shape !is Circle) {
+                        return "not round"
+                    }
+                    return "radius " + shape.radius()
+                }
+
+                fn label(shape: Shape) -> String {
+                    if (shape is Square && shape.label() != null) {
+                        return shape.label()!!
+                    }
+                    return "x"
+                }
+
+                fn side(o: Shape) -> Double = if (o is Square) o.side() else 0.0
+                """);
+        AxlTypeDeclaration square = file.typeDeclarations().get(2);
+        assertSame(file.typeDeclarations().get(1).fields().get(1), resolveAt("\"radius \" + shape.|radius()"));
+        assertSame(square.fields().get(2), resolveAt("&& shape.|label()"));
+        assertSame(square.fields().get(2), resolveAt("return shape.|label()!!"));
+        assertSame(square.fields().get(1), resolveAt("o.|side() else"));
+    }
+
+    public void testResolvesTypesAndMembersOfOtherFiles() {
+        AxlFile shapes = (AxlFile) myFixture.addFileToProject("app/Shapes.axl", SHAPES);
+        AxlFile counter = (AxlFile) myFixture.addFileToProject("app/Counter.axl", COUNTER);
+        PsiFile main = myFixture.addFileToProject("app/Main.axl", MAIN);
+        myFixture.configureFromExistingVirtualFile(main.getVirtualFile());
+        AxlTypeDeclaration circle = shapes.typeDeclarations().get(1);
+        assertSame(circle, resolveAt("import app.Shapes.|Circle").getNavigationElement());
+        assertSame(circle, resolveAt("= |Circle(\"m\"").getNavigationElement());
+        assertSame(circle.fields().get(1), resolveAt("c.|radius()"));
+        assertSame(shapes.typeDeclarations().getFirst(), resolveAt("val shape: |Shape").getNavigationElement());
+        assertSame(shapes.typeDeclarations().get(3).fields().get(1), resolveAt("Color.|GREEN"));
+        AxlTypeDeclaration counterType = counter.typeDeclarations().getFirst();
+        assertSame(counterType.methods().getFirst(), resolveAt("counter.|next()"));
+        assertSame(counterType.fields().get(2), resolveAt("k.|count"));
+    }
+
+    public void testFindsAndRenamesMemberAccesses() {
+        AxlFile counter = (AxlFile) myFixture.configureByText("Counter.axl", COUNTER);
+        AxlTypeDeclaration counterType = counter.typeDeclarations().getFirst();
+        assertEquals(1, myFixture.findUsages(counterType.methods().getFirst()).size());
+        assertEquals(2, myFixture.findUsages(counterType.fields().get(1)).size());
+        myFixture.renameElement(counterType.fields().get(2), "total");
+        String text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("println(d.total)") && text.contains("total += step"));
+
+        AxlFile shapes = (AxlFile) myFixture.configureByText("Shapes.axl", SHAPES);
+        assertEquals(1, myFixture.findUsages(shapes.typeDeclarations().get(3).fields().getFirst()).size());
+        myFixture.renameElement(shapes.typeDeclarations().get(1).fields().get(1), "r");
+        text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("println(c.r())") && text.contains("shape.r() * shape.r()"));
+    }
+
+    public void testCompletesMembersOfAxolotlTypes() {
+        assertCompletes(SHAPES.replace("println(c.radius())", "println(c.<caret>)"), "radius", "name");
+        assertCompletes(SHAPES.replace("val color = Color.RED", "val color = Color.<caret>"), "RED", "values");
+        assertCompletes(SHAPES.replace("3.14 * shape.radius()", "3.14 * shape.<caret>"), "radius");
+        assertCompletes(COUNTER.replace("println(d.count)", "println(d.<caret>)"), "count", "next");
+    }
+
+    private void assertCompletes(String text, String... names) {
+        myFixture.configureByText("Complete.axl", text);
+        myFixture.completeBasic();
+        List<String> found = myFixture.getLookupElementStrings();
+        assertNotNull(found);
+        assertTrue(found.toString(), found.containsAll(List.of(names)));
+    }
+
+    /** What the reference at the `|` of a snippet of the current file resolves to. */
+    private PsiElement resolveAt(String snippet) {
+        String text = myFixture.getFile().getText();
+        int start = text.indexOf(snippet.replace("|", ""));
+        assertTrue(snippet, start >= 0);
+        PsiReference reference = myFixture.getFile().findReferenceAt(start + snippet.indexOf('|'));
+        assertNotNull(snippet, reference);
+        PsiElement target = reference.resolve();
+        assertNotNull(snippet, target);
+        return target;
     }
 
     private PsiClass findClass(String name) {

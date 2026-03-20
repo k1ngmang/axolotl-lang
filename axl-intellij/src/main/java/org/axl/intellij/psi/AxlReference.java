@@ -47,8 +47,11 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             PsiElement member = AxlResolver.inPackage(ref, pkg, name);
             return member == null ? List.of() : List.of(member);
         }
-        if (owner instanceof PsiClass cls) {
-            return AxlResolver.overloadsFor(ref, AxlResolver.members(cls, name));
+        PsiClass cls = AxlResolver.asClass(owner);
+        if (cls != null) {
+            List<PsiElement> members = AxlResolver.overloadsFor(ref, AxlResolver.members(cls, name));
+            PsiClass nested = members.isEmpty() ? cls.findInnerClassByName(name, true) : null;
+            return nested != null ? List.of(nested) : members;
         }
         PsiClass type = AxlResolver.typeOf(qualifier);
         return type == null ? List.of() : AxlResolver.overloadsFor(ref, AxlResolver.members(type, name));
@@ -73,8 +76,9 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         if (owner instanceof PsiPackage pkg) {
             return packageVariants(pkg, ref.getResolveScope());
         }
-        boolean statics = owner instanceof PsiClass;
-        PsiClass cls = owner instanceof PsiClass c ? c : AxlResolver.typeOf(qualifier);
+        PsiClass named = AxlResolver.asClass(owner);
+        boolean statics = named != null;
+        PsiClass cls = named != null ? named : AxlResolver.typeOf(qualifier);
         if (cls == null) {
             return new Object[0];
         }

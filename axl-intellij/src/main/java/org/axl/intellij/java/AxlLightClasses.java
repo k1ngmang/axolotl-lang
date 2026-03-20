@@ -1,6 +1,7 @@
 package org.axl.intellij.java;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
@@ -54,8 +55,9 @@ public final class AxlLightClasses {
     private AxlLightClasses() {}
 
     public static @Nullable PsiClass classOf(AxlFile file) {
-        return CachedValuesManager.getCachedValue(file, () ->
-                CachedValueProvider.Result.create(build(file), file, PsiModificationTracker.MODIFICATION_COUNT));
+        // Files whose functions take each other's types would build each other's classes forever.
+        return CachedValuesManager.getCachedValue(file, () -> CachedValueProvider.Result.create(
+                RecursionManager.doPreventingRecursion(file, false, () -> build(file)), file, PsiModificationTracker.MODIFICATION_COUNT));
     }
 
     /** The class of a type declaration: the class of its file when the file is named like it, otherwise nested in that class. */
@@ -236,13 +238,24 @@ public final class AxlLightClasses {
         PsiParameter[] parameters = method.getParameterList().getParameters();
         for (int i = 0; i < parameters.length; i++) {
             AxlType type = function.parameters().get(i).type();
-            PsiType expected = type == null ? null : AxlResolver.javaType(type);
-            if (expected != null
-                    && !expected.getCanonicalText().equals(TypeConversionUtil.erasure(parameters[i].getType()).getCanonicalText())) {
+            String expected = type == null ? null : erasedName(type);
+            if (expected != null && !expected.equals(TypeConversionUtil.erasure(parameters[i].getType()).getCanonicalText())) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** The qualified name of a written type; a type of the file itself is named without building its class. */
+    private static @Nullable String erasedName(AxlType type) {
+        var reference = type.reference();
+        PsiElement target = reference == null || reference.getReference() == null ? null : reference.getReference().resolve();
+        if (target instanceof AxlTypeDeclaration declaration && declaration.getContainingFile() instanceof AxlFile file) {
+            String name = declaration.getName();
+            return file.className().equals(name) ? file.qualifiedClassName() : file.qualifiedClassName() + "." + name;
+        }
+        PsiType java = AxlResolver.javaType(type);
+        return java == null ? null : java.getCanonicalText();
     }
 
     /** The light method of a function or method, which Java code calls. */
