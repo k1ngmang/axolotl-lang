@@ -737,18 +737,48 @@ class Checker(val file: SourceFile) {
                 sawElse = true
             }
             for (condition in arm.conditions()) {
+                // `null ->` may stand next to type tests: it is the one value they do not match.
                 if (condition.type() != null) {
                     types = true
-                } else {
+                } else if (!isNullConstant(condition)) {
                     constants = true
                 }
             }
         }
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both")
-        } else if (constants && needsElse && !sawElse) {
+        } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` over constants that gives a value needs an `else` branch")
         }
+    }
+
+    /** Whether the constants are all the constants of an enum of this file, which leaves nothing for `else`. */
+    private fn coversEnum(w: Expr.When) -> Boolean {
+        val named = HashSet<String>()
+        for (arm in w.arms()) {
+            for (condition in arm.conditions()) {
+                val constant = condition.constant()
+                if (constant != null) {
+                    named.add(constant.text())
+                }
+            }
+        }
+        for (decl in file.decls()) {
+            if (decl is Decl.EnumDecl && !decl.constants().isEmpty() && namesAll(decl, named)) {
+                return true
+            }
+        }
+        return false
+    }
+
+    private fn namesAll(e: Decl.EnumDecl, named: Set<String>) -> Boolean {
+        val allowed = HashSet<String>()
+        for (c in e.constants()) {
+            allowed.add(c)
+            allowed.add(e.name() + "." + c)
+        }
+        val covered = e.constants() |> allMatch { c -> named.contains(e.name() + "." + c) || named.contains(c) }
+        return covered && allowed.containsAll(named)
     }
 
     private fn pipeExpr(p: Expr.Pipe) {
@@ -956,6 +986,11 @@ fn check(file: SourceFile, diagnostics: List<AxlDiagnostic>) -> Analysis {
     diagnostics.addAll(checker.diagnostics)
     return Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
         checker.mapResultTypes)
+}
+
+private fn isNullConstant(c: Expr.Cond) -> Boolean {
+    val constant = c.constant()
+    return constant != null && constant.text().equals("null")
 }
 
 private fn isTypeDecl(decl: Decl) -> Boolean =

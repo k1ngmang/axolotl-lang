@@ -256,7 +256,8 @@ whenArm
 
 whenCondition
     : IS qualifiedName
-    | literal
+    | MINUS? literal
+    | qualifiedName
     ;
 
 typeArgs

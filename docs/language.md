@@ -158,7 +158,10 @@ fn size(n: Int) -> String = when (n) {
 It becomes a Java `switch`. The subject of `is` branches is narrowed in each branch (`when (val e = f())`
 names a subject that is not already a name). A branch is an expression or, after `->`, a block whose last
 expression is the value. Branches with `is` must cover a sealed interface or end with `else`; a `when`
-over constants that gives a value needs an `else`. A `when` stands as a statement, after `return` or as
+over constants that gives a value needs an `else`, unless it names every constant of an enum of the file.
+Constants are literals, negative numbers or names of constants such as `Color.RED`; a `Long`, `Double` or
+`Boolean` subject is compared branch by branch. A subject that may be null goes to `else`, or to a
+`null ->` branch, which may also stand next to `is` branches. A `when` stands as a statement, after `return` or as
 the body of a function, or gives a value (`val x = when ...`); only the last form cannot contain `try` or
 `return`, and none of them can be the single expression of a lambda or of a top-level value.
 

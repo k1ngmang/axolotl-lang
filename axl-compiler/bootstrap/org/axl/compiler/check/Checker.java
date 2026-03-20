@@ -718,16 +718,42 @@ import org.axl.compiler.ast.TypeRef;
             for (final var condition : arm.conditions()) {
                 if (condition.type() != null) {
                     types = true;
-                } else {
+                } else if (!isNullConstant(condition)) {
                     constants = true;
                 }
             }
         }
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both");
-        } else if (constants && needsElse && !sawElse) {
+        } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` over constants that gives a value needs an `else` branch");
         }
+    }
+    private boolean coversEnum(Expr.When w) {
+        final var named = new HashSet<String>();
+        for (final var arm : w.arms()) {
+            for (final var condition : arm.conditions()) {
+                final var constant = condition.constant();
+                if (constant != null) {
+                    named.add(constant.text());
+                }
+            }
+        }
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.EnumDecl $s1 && !$s1.constants().isEmpty() && namesAll($s1, named)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    private boolean namesAll(Decl.EnumDecl e, Set<String> named) {
+        final var allowed = new HashSet<String>();
+        for (final var c : e.constants()) {
+            allowed.add(c);
+            allowed.add(e.name() + "." + c);
+        }
+        final var covered = e.constants().stream().allMatch(c -> named.contains(e.name() + "." + c) || named.contains(c));
+        return covered && allowed.containsAll(named);
     }
     private void pipeExpr(Expr.Pipe p) {
         final var declared = declaredType;
@@ -969,6 +995,10 @@ import org.axl.compiler.ast.TypeRef;
         diagnostics.addAll(checker.diagnostics);
         return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
                 checker.mapResultTypes);
+    }
+    private static boolean isNullConstant(Expr.Cond c) {
+        final var constant = c.constant();
+        return constant != null && constant.text().equals("null");
     }
     private static boolean isTypeDecl(Decl decl) {
         return decl instanceof Decl.DataClass $s1 || decl instanceof Decl.Interface $s2 || decl instanceof Decl.ClassDecl $s3 || decl instanceof Decl.EnumDecl $s4;

@@ -47,7 +47,7 @@ data class When(
 /** A block arm has its statements in body; an expression arm has one expression statement. */
 data class Arm(val pos: Pos, val conditions: List<Cond>, val body: List<Stmt>, val block: Boolean)
 
-/** `is Type` when type is set, otherwise the literal constant. */
+/** `is Type` when type is set, otherwise the constant: a literal, a negative number or a constant's name. */
 data class Cond(val pos: Pos, val type: TypeRef?, val constant: Literal?)
 
 /** `if (condition) then else otherwise` giving a value. */

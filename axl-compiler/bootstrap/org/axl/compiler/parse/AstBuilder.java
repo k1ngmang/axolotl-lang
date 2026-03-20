@@ -547,7 +547,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             final var type = condition.qualifiedName();
             return new Cond(pos(condition.start), new TypeRef(pos(type.start), type.getText(), List.of(), false), null);
         }
-        return new Cond(pos(condition.start), null, new Literal(pos(condition.start), condition.literal().getText()));
+        return new Cond(pos(condition.start), null, new Literal(pos(condition.start), condition.getText()));
     }
     private static Expr.Lambda buildLambda(LambdaContext ctx) {
         final var params = new ArrayList<Expr.Param>();

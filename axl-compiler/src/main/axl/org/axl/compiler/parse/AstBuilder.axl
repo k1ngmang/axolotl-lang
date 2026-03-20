@@ -525,7 +525,8 @@ private fn buildCondition(condition: WhenConditionContext) -> Expr.Cond {
         val type = condition.qualifiedName()
         return Cond(pos(condition.start), TypeRef(pos(type.start), type.getText(), List.of(), false), null)
     }
-    return Cond(pos(condition.start), null, Literal(pos(condition.start), condition.literal().getText()))
+    // A literal, a negative number or the name of a constant such as `Color.RED`, as Java writes them too.
+    return Cond(pos(condition.start), null, Literal(pos(condition.start), condition.getText()))
 }
 
 private fn buildLambda(ctx: LambdaContext) -> Expr.Lambda {

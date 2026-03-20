@@ -1,0 +1,63 @@
+package app
+
+enum Color { RED, GREEN, BLUE }
+
+sealed interface Shape
+data class Circle(val radius: Double) : Shape
+data class Square(val side: Double) : Shape
+
+fn big(n: Long) -> String = when (n) {
+    1L, 2L -> "small"
+    1000000000000L -> "huge"
+    else -> "other"
+}
+
+fn half(d: Double) -> String = when (d) {
+    0.5 -> "half"
+    else -> "not half"
+}
+
+fn yes(b: Boolean) -> String = when (b) {
+    true -> "yes"
+    else -> "no"
+}
+
+fn sign(n: Int) -> String = when (n) {
+    -1 -> "minus"
+    0 -> "zero"
+    else -> "plus"
+}
+
+// Every constant of the enum is named, so no `else` is needed.
+fn warm(c: Color) -> Boolean = when (c) {
+    Color.RED -> true
+    GREEN, BLUE -> false
+}
+
+// Null goes to `else`, and `null ->` names it next to type tests.
+fn size(n: Int?) -> String = when (n) {
+    0 -> "none"
+    else -> "some"
+}
+
+fn length(s: String?) -> Int = when (s) {
+    is String -> s.length()
+    else -> -1
+}
+
+fn area(shape: Shape?) -> Double = when (shape) {
+    is Circle -> shape.radius()
+    is Square -> shape.side() * shape.side()
+    null -> 0.0
+}
+
+fn main() {
+    println(big(2L) + " " + big(1000000000000L) + " " + big(7L))
+    println(half(0.5) + " " + half(1.0))
+    println(yes(true) + " " + yes(false))
+    println(sign(-1) + " " + sign(0) + " " + sign(5))
+    println("" + warm(Color.RED) + " " + warm(Color.BLUE))
+    println(size(null) + " " + size(0))
+    println("" + length(null) + " " + length("abc"))
+    println("" + area(null) + " " + area(Square(2.0)))
+}

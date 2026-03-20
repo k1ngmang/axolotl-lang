@@ -25,6 +25,9 @@ final class Messages {
     private static final Pattern MAP_RESULT_ELEMENT = Pattern.compile(
             "^incompatible types: (?:axl\\.lang\\.)?Result<(.+?),.+> cannot be converted to (?:axl\\.lang\\.)?Result<(.+),\\?>$");
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
+    private static final Pattern NULLABLE_SELECTOR = Pattern.compile("^switch selector expression '(.+?)' is @Nullable");
+    private static final Pattern NULLABLE_ITERABLE = Pattern.compile("^enhanced-for expression '?(.+?)'? is @Nullable");
+    private static final Pattern GENERATED_OR_SUBJECT = Pattern.compile("\\$e\\d+");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
     private static final Pattern NO_INSTANCE = Pattern.compile(
@@ -232,6 +235,18 @@ final class Messages {
                     + " may be null, but the parameter does not accept null: use `?:` or " + check);
         }
         String plain = NULLAWAY_LINK.matcher(message.substring("[NullAway] ".length())).replaceAll("");
+        Matcher selector = NULLABLE_SELECTOR.matcher(plain);
+        if (selector.find()) {
+            String subject = GENERATED_OR_SUBJECT.matcher(selector.group(1)).matches() ? "the subject of this `when`"
+                    : "`" + selector.group(1) + "`";
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, subject + " may be null, but no branch takes null; "
+                    + "add a `null ->` branch or check it for null first");
+        }
+        Matcher iterated = NULLABLE_ITERABLE.matcher(plain);
+        if (iterated.find()) {
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`" + iterated.group(1) + "` may be null, but `for` "
+                    + "needs something to go through; use `?:`, a null check or `!!`");
+        }
         if (plain.startsWith("returning @Nullable expression from method with @NonNull return type")) {
             if (text.contains("Nulls.or(")) {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "the fallback of `?:` may be null, but the value "

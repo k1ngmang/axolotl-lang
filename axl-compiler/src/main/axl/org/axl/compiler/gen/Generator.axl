@@ -84,6 +84,9 @@ class Generator(
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
     var overridden: List<String> = List.of()
 
+    // The label of the `else` branch of the `when` being emitted.
+    var elseLabel: String = "default"
+
     // The values of the branches of the `when` being emitted as a value, for boxedBranch.
     var whenValues: List<Expr> = List.of()
 
@@ -650,8 +653,10 @@ class Generator(
     private fn emitWhen(line: Int, w: Expr.When, head: String, form: WhenForm) {
         val subject = ArrayList<String>()
         val bindingName = w.bindingName()
+        val subjectType = typeOf(w.subject())
+        val byIndex = switchesByIndex(w, subjectType)
         withCopies(line, w.subject(), { ->
-            if (bindingName != null) {
+            if (bindingName != null || byIndex) {
                 val name = "$e" + newPattern()
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";")
                 subject.add(name)
@@ -663,14 +668,27 @@ class Generator(
         // The name the branches narrow: a bound name, or a subject that is a name that never changes.
         val narrowedName = bindingName ?: narrowableName(withoutParens(w.subject()))
         val whole = nameBinding(bindingName, subjectCode)
-        em.line(line, head + "switch (" + subjectCode + ") {")
+        val mayBeNull = subjectType != null && subjectType.nullable()
+        val selector = if (byIndex) armIndex(subjectCode, w, mayBeNull) else subjectCode
+        em.line(line, head + "switch (" + selector + ") {")
         em.indent()
         val outerValues = whenValues
+        val outerElse = elseLabel
         whenValues = if (form == WhenForm.VALUE) armValues(w) else List.of()
-        for (arm in w.arms()) {
-            narrowed(whole, { -> emitArm(arm, narrowedName, form) })
+        elseLabel = elseLabelOf(w, subjectType, byIndex)
+        var i = 0
+        while (i < w.arms().size()) {
+            val arm = w.arms().get(i)
+            val index = if (byIndex) i else -1
+            narrowed(whole, { -> emitArm(arm, narrowedName, form, index) })
+            i += 1
         }
         whenValues = outerValues
+        elseLabel = outerElse
+        if (form == WhenForm.RESULT && needsUnreachableDefault(w)) {
+            // The checker found the constants to be all those of an enum, which a switch statement does not see.
+            em.line(w.end().line(), "default -> throw new IllegalStateException();")
+        }
         em.dedent()
         em.line(w.end().line(), if (form == WhenForm.VALUE) "};" else "}")
     }
@@ -682,21 +700,85 @@ class Generator(
         return null
     }
 
-    private fn emitArm(arm: Expr.Arm, narrowedName: String?, form: WhenForm) {
+    /**
+     * Java switches on numbers that fit an int, strings, enums and types only: a `when` over a Long,
+     * Double or Boolean switches on the number of the branch that matches.
+     */
+    private fn switchesByIndex(w: Expr.When, subjectType: TypeRef?) -> Boolean {
+        if (subjectType != null && Set.of("Long", "Double", "Float", "Boolean").contains(subjectType.name())) {
+            return true
+        }
+        for (arm in w.arms()) {
+            for (condition in arm.conditions()) {
+                val constant = condition.constant()
+                if (constant != null && notSwitchable(constant.text())) {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /** `t == 1L || t == 2L ? 0 : t == 5L ? 1 : -1`, with null going to the `else` branch. */
+    private fn armIndex(subject: String, w: Expr.When, mayBeNull: Boolean) -> String {
+        val sb = StringBuilder()
+        if (mayBeNull) {
+            sb.append(subject).append(" == null ? -1 : ")
+        }
+        var i = 0
+        while (i < w.arms().size()) {
+            val conditions = w.arms().get(i).conditions()
+            if (!conditions.isEmpty()) {
+                val tests = conditions |> map { c -> subject + " == " + literal(constantOf(c).text()) }
+                sb.append(String.join(" || ", tests)).append(" ? ").append(i).append(" : ")
+            }
+            i += 1
+        }
+        return sb.append("-1").toString()
+    }
+
+    /** A nullable subject goes to `else`, as Java sends null to no other branch than `case null`. */
+    private fn elseLabelOf(w: Expr.When, subjectType: TypeRef?, byIndex: Boolean) -> String {
+        if (byIndex || subjectType != null && !subjectType.nullable()) {
+            return "default"
+        }
+        // Without a written type the subject may be a primitive, which `case null` does not compile for;
+        // type tests, strings and enum constants need an object.
+        if (subjectType == null && !testsObjects(w)) {
+            return "default"
+        }
+        if (subjectType == null) {
+            return "case null, default"
+        }
+        // `is String` on a `String?` takes every value but null, so `else` is left with null alone.
+        val covered = w.arms() |> anyMatch { a -> a.conditions() |> anyMatch { c -> testsType(c, subjectType) } }
+        return if (covered) "case null" else "case null, default"
+    }
+
+    private fn emitArm(arm: Expr.Arm, narrowedName: String?, form: WhenForm, index: Int) {
         val conditions = arm.conditions()
         if (conditions.isEmpty()) {
-            emitBranch(arm, "default", Map.of(), form)
+            emitBranch(arm, elseLabel, Map.of(), form)
             return
         }
-        if (conditions.getFirst().type() == null) {
+        if (index >= 0) {
+            emitBranch(arm, "case " + index, Map.of(), form)
+            return
+        }
+        val testsTypes = conditions |> anyMatch { c -> c.type() != null }
+        if (!testsTypes) {
             val constants = conditions |> map { c -> literal(constantOf(c).text()) }
             emitBranch(arm, "case " + String.join(", ", constants), Map.of(), form)
             return
         }
         for (condition in conditions) {
-            val variable = "$s" + newPattern()
-            val narrowing = nameBinding(narrowedName, variable)
-            emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form)
+            if (condition.type() == null) {
+                emitBranch(arm, "case null", Map.of(), form)
+            } else {
+                val variable = "$s" + newPattern()
+                val narrowing = nameBinding(narrowedName, variable)
+                emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form)
+            }
         }
     }
 
@@ -1953,6 +2035,48 @@ private fn firstExpression(body: List<Stmt>) -> Expr {
         return first.expr()
     }
     throw IllegalStateException()
+}
+
+private fn testsObjects(w: Expr.When) -> Boolean {
+    for (arm in w.arms()) {
+        for (c in arm.conditions()) {
+            val constant = c.constant()
+            if (c.type() != null) {
+                return true
+            }
+            if (constant != null && (constant.text().startsWith("\"") || Character.isLetter(constant.text().charAt(0)))) {
+                return !constant.text().equals("true") && !constant.text().equals("false")
+            }
+        }
+    }
+    return false
+}
+
+private fn needsUnreachableDefault(w: Expr.When) -> Boolean {
+    val hasElse = w.arms() |> anyMatch { a -> a.conditions().isEmpty() }
+    val testsTypes = w.arms() |> anyMatch { a -> a.conditions() |> anyMatch { c -> c.type() != null } }
+    return !hasElse && !testsTypes
+}
+
+/** Literals of the types a Java switch cannot test: long, floating point and boolean. */
+private fn notSwitchable(text: String) -> Boolean {
+    if (text.equals("true") || text.equals("false")) {
+        return true
+    }
+    val number = text.startsWith("-") || Character.isDigit(text.charAt(0))
+    if (!number) {
+        return false
+    }
+    val lower = text.toLowerCase(Locale.ROOT)
+    if (lower.contains("0x")) {
+        return lower.endsWith("l")
+    }
+    return lower.endsWith("l") || lower.endsWith("f") || lower.endsWith("d") || lower.contains(".") || lower.contains("e")
+}
+
+private fn testsType(c: Expr.Cond, subjectType: TypeRef) -> Boolean {
+    val type = c.type()
+    return type != null && type.name().equals(subjectType.name())
 }
 
 /** The value each branch of a `when` gives: its last expression, unless it throws. */

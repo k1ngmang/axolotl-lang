@@ -51,6 +51,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public int patternCount;
     public List<String> overridden;
+    public String elseLabel;
     public List<Expr> whenValues;
     public int tempCount;
     public int nullCount;
@@ -72,6 +73,7 @@ import org.axl.compiler.check.Whens;
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.patternCount = 0;
         this.overridden = List.of();
+        this.elseLabel = "default";
         this.whenValues = List.of();
         this.tempCount = 0;
         this.nullCount = 0;
@@ -602,8 +604,10 @@ import org.axl.compiler.check.Whens;
     private void emitWhen(int line, Expr.When w, String head, WhenForm form) {
         final var subject = new ArrayList<String>();
         final var bindingName = w.bindingName();
+        final var subjectType = typeOf(w.subject());
+        final var byIndex = switchesByIndex(w, subjectType);
         withCopies(line, w.subject(), () -> {
-            if (bindingName != null) {
+            if (bindingName != null || byIndex) {
                 final var name = "$e" + newPattern();
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";");
                 subject.add(name);
@@ -614,14 +618,26 @@ import org.axl.compiler.check.Whens;
         final var subjectCode = subject.getFirst();
         final var narrowedName = Nulls.or(bindingName, () -> narrowableName(withoutParens(w.subject())));
         final var whole = nameBinding(bindingName, subjectCode);
-        em.line(line, head + "switch (" + subjectCode + ") {");
+        final var mayBeNull = subjectType != null && subjectType.nullable();
+        final var selector = (byIndex ? armIndex(subjectCode, w, mayBeNull) : subjectCode);
+        em.line(line, head + "switch (" + selector + ") {");
         em.indent();
         final var outerValues = whenValues;
+        final var outerElse = elseLabel;
         whenValues = (form == WhenForm.VALUE ? armValues(w) : List.of());
-        for (final var arm : w.arms()) {
-            narrowed(whole, () -> emitArm(arm, narrowedName, form));
+        elseLabel = elseLabelOf(w, subjectType, byIndex);
+        var i = 0;
+        while (i < w.arms().size()) {
+            final var arm = w.arms().get(i);
+            final var index = (byIndex ? i : -1);
+            narrowed(whole, () -> emitArm(arm, narrowedName, form, index));
+            i += 1;
         }
         whenValues = outerValues;
+        elseLabel = outerElse;
+        if (form == WhenForm.RESULT && needsUnreachableDefault(w)) {
+            em.line(w.end().line(), "default -> throw new IllegalStateException();");
+        }
         em.dedent();
         em.line(w.end().line(), (form == WhenForm.VALUE ? "};" : "}"));
     }
@@ -631,21 +647,73 @@ import org.axl.compiler.check.Whens;
         }
         return null;
     }
-    private void emitArm(Expr.Arm arm, @Nullable String narrowedName, WhenForm form) {
+    private boolean switchesByIndex(Expr.When w, @Nullable TypeRef subjectType) {
+        if (subjectType != null && Set.of("Long", "Double", "Float", "Boolean").contains(subjectType.name())) {
+            return true;
+        }
+        for (final var arm : w.arms()) {
+            for (final var condition : arm.conditions()) {
+                final var constant = condition.constant();
+                if (constant != null && notSwitchable(constant.text())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    private String armIndex(String subject, Expr.When w, boolean mayBeNull) {
+        final var sb = new StringBuilder();
+        if (mayBeNull) {
+            sb.append(subject).append(" == null ? -1 : ");
+        }
+        var i = 0;
+        while (i < w.arms().size()) {
+            final var conditions = w.arms().get(i).conditions();
+            if (!conditions.isEmpty()) {
+                final var tests = conditions.stream().map(Nulls.nonNull(c -> subject + " == " + literal(constantOf(c).text()))).toList();
+                sb.append(String.join(" || ", tests)).append(" ? ").append(i).append(" : ");
+            }
+            i += 1;
+        }
+        return sb.append("-1").toString();
+    }
+    private String elseLabelOf(Expr.When w, @Nullable TypeRef subjectType, boolean byIndex) {
+        if (byIndex || subjectType != null && !subjectType.nullable()) {
+            return "default";
+        }
+        if (subjectType == null && !testsObjects(w)) {
+            return "default";
+        }
+        if (subjectType == null) {
+            return "case null, default";
+        }
+        final var covered = w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> testsType(c, subjectType)));
+        return (covered ? "case null" : "case null, default");
+    }
+    private void emitArm(Expr.Arm arm, @Nullable String narrowedName, WhenForm form, int index) {
         final var conditions = arm.conditions();
         if (conditions.isEmpty()) {
-            emitBranch(arm, "default", Map.of(), form);
+            emitBranch(arm, elseLabel, Map.of(), form);
             return;
         }
-        if (conditions.getFirst().type() == null) {
+        if (index >= 0) {
+            emitBranch(arm, "case " + index, Map.of(), form);
+            return;
+        }
+        final var testsTypes = conditions.stream().anyMatch(c -> c.type() != null);
+        if (!testsTypes) {
             final var constants = conditions.stream().map(Nulls.nonNull(c -> literal(constantOf(c).text()))).toList();
             emitBranch(arm, "case " + String.join(", ", constants), Map.of(), form);
             return;
         }
         for (final var condition : conditions) {
-            final var variable = "$s" + newPattern();
-            final var narrowing = nameBinding(narrowedName, variable);
-            emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form);
+            if (condition.type() == null) {
+                emitBranch(arm, "case null", Map.of(), form);
+            } else {
+                final var variable = "$s" + newPattern();
+                final var narrowing = nameBinding(narrowedName, variable);
+                emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form);
+            }
         }
     }
     private void emitBranch(Expr.Arm arm, String label, Map<String, String> narrowing, WhenForm form) {
@@ -1580,7 +1648,7 @@ import org.axl.compiler.check.Whens;
             case "map" -> {
                 sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))");
             }
-            default -> {
+            case null, default -> {
                 sb.append('.').append(name).append('(').append(lambdaText).append(')');
             }
         }
@@ -1842,6 +1910,43 @@ import org.axl.compiler.check.Whens;
             return $s1.expr();
         }
         throw new IllegalStateException();
+    }
+    private static boolean testsObjects(Expr.When w) {
+        for (final var arm : w.arms()) {
+            for (final var c : arm.conditions()) {
+                final var constant = c.constant();
+                if (c.type() != null) {
+                    return true;
+                }
+                if (constant != null && (constant.text().startsWith("\"") || Character.isLetter(constant.text().charAt(0)))) {
+                    return !constant.text().equals("true") && !constant.text().equals("false");
+                }
+            }
+        }
+        return false;
+    }
+    private static boolean needsUnreachableDefault(Expr.When w) {
+        final var hasElse = w.arms().stream().anyMatch(a -> a.conditions().isEmpty());
+        final var testsTypes = w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> c.type() != null));
+        return !hasElse && !testsTypes;
+    }
+    private static boolean notSwitchable(String text) {
+        if (text.equals("true") || text.equals("false")) {
+            return true;
+        }
+        final var number = text.startsWith("-") || Character.isDigit(text.charAt(0));
+        if (!number) {
+            return false;
+        }
+        final var lower = text.toLowerCase(Locale.ROOT);
+        if (lower.contains("0x")) {
+            return lower.endsWith("l");
+        }
+        return lower.endsWith("l") || lower.endsWith("f") || lower.endsWith("d") || lower.contains(".") || lower.contains("e");
+    }
+    private static boolean testsType(Expr.Cond c, TypeRef subjectType) {
+        final var type = c.type();
+        return type != null && type.name().equals(subjectType.name());
     }
     private static List<Expr> armValues(Expr.When w) {
         final var values = new ArrayList<Expr>();
