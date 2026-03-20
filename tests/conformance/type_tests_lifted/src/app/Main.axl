@@ -1,0 +1,44 @@
+package app
+
+sealed interface Shape
+data class Circle(val radius: Double) : Shape
+data class Square(val side: Double) : Shape
+
+fn check(r: Double) -> Result<Boolean, String> = if (r >= 0.0) Ok(r > 1.0) else Err("negative")
+
+// A primitive type in a type test means its wrapper.
+fn kind(o: Object) -> String = when (o) {
+    is Int -> "int " + o
+    is String -> "string " + o
+    else -> "other"
+}
+
+// `is Ok` keeps the type arguments of the Result it tests.
+fn next(r: Result<Int, String>) -> Int = when (r) {
+    is Ok -> r.value() + 1
+    is Err -> r.error().length()
+}
+
+// What the left side tests holds in a right side that needs statements.
+fn big(shape: Shape) -> Result<String, String> {
+    if (shape is Circle && try check(shape.radius())) {
+        return Ok("big circle " + shape.radius())
+    }
+    return Ok("other")
+}
+
+fn radius(shape: Shape) -> Result<String, String> {
+    if (shape !is Circle || try check(-1.0)) {
+        return Ok("not round")
+    }
+    return Ok("r=" + shape.radius())
+}
+
+fn main() {
+    println(kind(1) + ", " + kind("a"))
+    println(next(Ok(5)))
+    println(big(Circle(2.0)))
+    println(big(Square(1.0)))
+    println(radius(Square(1.0)))
+    println(radius(Circle(1.0)))
+}

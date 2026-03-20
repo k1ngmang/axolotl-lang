@@ -1,0 +1,6 @@
+int 1, string a
+6
+Ok[value=big circle 2.0]
+Ok[value=other]
+Ok[value=not round]
+Err[error=negative]

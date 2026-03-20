@@ -51,6 +51,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public int patternCount;
     public List<String> overridden;
+    public @Nullable TypeRef subjectTypeOf;
     public String elseLabel;
     public List<Expr> whenValues;
     public int tempCount;
@@ -73,6 +74,7 @@ import org.axl.compiler.check.Whens;
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.patternCount = 0;
         this.overridden = List.of();
+        this.subjectTypeOf = null;
         this.elseLabel = "default";
         this.whenValues = List.of();
         this.tempCount = 0;
@@ -451,6 +453,10 @@ import org.axl.compiler.check.Whens;
     }
     private void ifStatement(Stmt.If ifStmt) {
         final var split = shortCircuitWithLift(ifStmt.condition());
+        if (split != null && leavesOnEither(ifStmt, split)) {
+            exitingOr(ifStmt, split);
+            return;
+        }
         if (split != null && splitsCondition(ifStmt)) {
             shortCircuitIf(ifStmt, split);
             return;
@@ -500,8 +506,10 @@ import org.axl.compiler.check.Whens;
             em.line(line, "if (" + lifted(line, nested.left()).code() + ") {");
             em.indent();
             final var inner = new If(ifStmt.pos(), nested.right(), ifStmt.then(), null);
-            emitIf(inner, "");
-            em.line(blockEnd(inner), "}");
+            narrowed(whenTrue(nested.left()), () -> {
+                emitIf(inner, "");
+                em.line(blockEnd(inner), "}");
+            });
             em.dedent();
             return;
         }
@@ -535,10 +543,11 @@ import org.axl.compiler.check.Whens;
         final var left = lifted(line, b.left()).code();
         em.line(line, "if (" + ((and ? left : negated(left))) + ") {");
         em.indent();
-        final var right = lifted(line, b.right()).code();
+        final var right = narrowedValue(rightNarrowing(b), () -> lifted(line, b.right()).code());
         em.line(line, "if (" + ((and ? right : negated(right))) + ") {");
         if (inside != null) {
-            emitBlock(inside);
+            final var holds = (and ? whenTrue(b) : whenFalse(b));
+            narrowed(holds, () -> emitBlock(inside));
         }
         final var closing = (inside == null ? line : inside.end().line());
         if (inside == null || !exits(inside)) {
@@ -554,6 +563,21 @@ import org.axl.compiler.check.Whens;
         }
         em.dedent();
         em.line(blockEnd(ifStmt), "} while (false);");
+    }
+    private boolean leavesOnEither(Stmt.If ifStmt, Expr.Binary b) {
+        final var simple = b.op().equals("||") && ifStmt.elseBranch() == null;
+        return simple && exits(ifStmt.then()) && Captures.capturedIn(b, analysis).isEmpty();
+    }
+    private void exitingOr(Stmt.If ifStmt, Expr.Binary b) {
+        final var line = ifStmt.pos().line();
+        em.line(line, "if (" + lifted(line, b.left()).code() + ") {");
+        narrowed(whenTrue(b.left()), () -> emitBlock(ifStmt.then()));
+        em.line(ifStmt.then().end().line(), "}");
+        smart = union(smart, whenFalse(b.left()));
+        em.line(line, "if (" + lifted(line, b.right()).code() + ") {");
+        narrowed(whenTrue(b.right()), () -> emitBlock(ifStmt.then()));
+        em.line(ifStmt.then().end().line(), "}");
+        smart = union(smart, whenFalse(b.right()));
     }
     private Map<String, String> narrowedAfter(Stmt.If ifStmt) {
         final var thenExits = exits(ifStmt.then());
@@ -595,7 +619,8 @@ import org.axl.compiler.check.Whens;
         if (!and) {
             em.indent();
         }
-        em.line(line, "if (" + negated(lifted(line, b.right()).code()) + ") break;");
+        final var right = narrowedValue(rightNarrowing(b), () -> lifted(line, b.right()).code());
+        em.line(line, "if (" + negated(right) + ") break;");
         if (!and) {
             em.dedent();
             em.line(line, "}");
@@ -626,6 +651,8 @@ import org.axl.compiler.check.Whens;
         final var outerElse = elseLabel;
         whenValues = (form == WhenForm.VALUE ? armValues(w) : List.of());
         elseLabel = elseLabelOf(w, subjectType, byIndex);
+        final var outerSubject = subjectTypeOf;
+        subjectTypeOf = subjectType;
         var i = 0;
         while (i < w.arms().size()) {
             final var arm = w.arms().get(i);
@@ -635,6 +662,7 @@ import org.axl.compiler.check.Whens;
         }
         whenValues = outerValues;
         elseLabel = outerElse;
+        subjectTypeOf = outerSubject;
         if (form == WhenForm.RESULT && needsUnreachableDefault(w)) {
             em.line(w.end().line(), "default -> throw new IllegalStateException();");
         }
@@ -712,7 +740,7 @@ import org.axl.compiler.check.Whens;
             } else {
                 final var variable = "$s" + newPattern();
                 final var narrowing = nameBinding(narrowedName, variable);
-                emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form);
+                emitBranch(arm, "case " + testedType(conditionType(condition), subjectTypeOf) + " " + variable, narrowing, form);
             }
         }
     }
@@ -1043,7 +1071,7 @@ import org.axl.compiler.check.Whens;
         return exceptionCount;
     }
     private String typeCheck(Expr.Is check, boolean inLambda) {
-        final var type = javaType(check.type());
+        final var type = testedType(check.type(), typeOf(check.target()));
         final var target = check.target();
         if (!(target instanceof Expr.Name $s1) || !neverChanges($s1)) {
             final var plainTest = exprIn(target, inLambda) + " instanceof " + type;
@@ -1055,8 +1083,16 @@ import org.axl.compiler.check.Whens;
         return (check.negated() ? "!(" + test + ")" : test);
     }
     private String liftedTypeCheck(int line, Expr.Is check) {
-        final var test = lifted(line, check.target()).code() + " instanceof " + boxedType(check.type());
+        final var test = lifted(line, check.target()).code() + " instanceof " + testedType(check.type(), typeOf(check.target()));
         return (check.negated() ? "!(" + test + ")" : test);
+    }
+    private String testedType(TypeRef tested, @Nullable TypeRef subject) {
+        final var name = tested.name();
+        final var ownArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err");
+        if (ownArguments && subject != null && subject.args().size() == 2 && isResultType(subject)) {
+            return name + "<" + boxedType(subject.args().get(0)) + ", " + boxedType(subject.args().get(1)) + ">";
+        }
+        return boxedType(tested);
     }
     private Map<String, String> whenTrue(Expr condition) {
         if (condition instanceof Expr.Is $s1) {
@@ -1924,6 +1960,9 @@ import org.axl.compiler.check.Whens;
             }
         }
         return false;
+    }
+    private static boolean isResultType(TypeRef type) {
+        return type.name().equals("Result") || type.name().equals("axl.lang.Result");
     }
     private static boolean needsUnreachableDefault(Expr.When w) {
         final var hasElse = w.arms().stream().anyMatch(a -> a.conditions().isEmpty());

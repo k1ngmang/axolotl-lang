@@ -84,6 +84,9 @@ class Generator(
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
     var overridden: List<String> = List.of()
 
+    // The type of the subject of the `when` being emitted, if the code says.
+    var subjectTypeOf: TypeRef? = null
+
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
 
@@ -473,6 +476,10 @@ class Generator(
 
     private fn ifStatement(ifStmt: Stmt.If) {
         val split = shortCircuitWithLift(ifStmt.condition())
+        if (split != null && leavesOnEither(ifStmt, split)) {
+            exitingOr(ifStmt, split)
+            return
+        }
         if (split != null && splitsCondition(ifStmt)) {
             shortCircuitIf(ifStmt, split)
             return
@@ -530,8 +537,10 @@ class Generator(
             em.line(line, "if (" + lifted(line, nested.left()).code() + ") {")
             em.indent()
             val inner = If(ifStmt.pos(), nested.right(), ifStmt.then(), null)
-            emitIf(inner, "")
-            em.line(blockEnd(inner), "}")
+            narrowed(whenTrue(nested.left()), { ->
+                emitIf(inner, "")
+                em.line(blockEnd(inner), "}")
+            })
             em.dedent()
             return
         }
@@ -572,10 +581,11 @@ class Generator(
         val left = lifted(line, b.left()).code()
         em.line(line, "if (" + (if (and) left else negated(left)) + ") {")
         em.indent()
-        val right = lifted(line, b.right()).code()
+        val right = narrowedValue(rightNarrowing(b), { -> lifted(line, b.right()).code() })
         em.line(line, "if (" + (if (and) right else negated(right)) + ") {")
         if (inside != null) {
-            emitBlock(inside)
+            val holds = if (and) whenTrue(b) else whenFalse(b)
+            narrowed(holds, { -> emitBlock(inside) })
         }
         val closing = if (inside == null) line else inside.end().line()
         if (inside == null || !exits(inside)) {
@@ -591,6 +601,27 @@ class Generator(
         }
         em.dedent()
         em.line(blockEnd(ifStmt), "} while (false);")
+    }
+
+    private fn leavesOnEither(ifStmt: Stmt.If, b: Expr.Binary) -> Boolean {
+        val simple = b.op().equals("||") && ifStmt.elseBranch() == null
+        return simple && exits(ifStmt.then()) && Captures.capturedIn(b, analysis).isEmpty()
+    }
+
+    /**
+     * `if (x !is T || try bad()) { return }`: one `if` for each side, each leaving with the body, so
+     * that what the left side tested still holds after them, as after a single `if`.
+     */
+    private fn exitingOr(ifStmt: Stmt.If, b: Expr.Binary) {
+        val line = ifStmt.pos().line()
+        em.line(line, "if (" + lifted(line, b.left()).code() + ") {")
+        narrowed(whenTrue(b.left()), { -> emitBlock(ifStmt.then()) })
+        em.line(ifStmt.then().end().line(), "}")
+        smart = union(smart, whenFalse(b.left()))
+        em.line(line, "if (" + lifted(line, b.right()).code() + ") {")
+        narrowed(whenTrue(b.right()), { -> emitBlock(ifStmt.then()) })
+        em.line(ifStmt.then().end().line(), "}")
+        smart = union(smart, whenFalse(b.right()))
     }
 
     /** After `if (x !is T) { return }` the names stay narrowed, as Java introduces them. */
@@ -638,7 +669,8 @@ class Generator(
         if (!and) {
             em.indent()
         }
-        em.line(line, "if (" + negated(lifted(line, b.right()).code()) + ") break;")
+        val right = narrowedValue(rightNarrowing(b), { -> lifted(line, b.right()).code() })
+        em.line(line, "if (" + negated(right) + ") break;")
         if (!and) {
             em.dedent()
             em.line(line, "}")
@@ -676,6 +708,8 @@ class Generator(
         val outerElse = elseLabel
         whenValues = if (form == WhenForm.VALUE) armValues(w) else List.of()
         elseLabel = elseLabelOf(w, subjectType, byIndex)
+        val outerSubject = subjectTypeOf
+        subjectTypeOf = subjectType
         var i = 0
         while (i < w.arms().size()) {
             val arm = w.arms().get(i)
@@ -685,6 +719,7 @@ class Generator(
         }
         whenValues = outerValues
         elseLabel = outerElse
+        subjectTypeOf = outerSubject
         if (form == WhenForm.RESULT && needsUnreachableDefault(w)) {
             // The checker found the constants to be all those of an enum, which a switch statement does not see.
             em.line(w.end().line(), "default -> throw new IllegalStateException();")
@@ -777,7 +812,7 @@ class Generator(
             } else {
                 val variable = "$s" + newPattern()
                 val narrowing = nameBinding(narrowedName, variable)
-                emitBranch(arm, "case " + javaType(conditionType(condition)) + " " + variable, narrowing, form)
+                emitBranch(arm, "case " + testedType(conditionType(condition), subjectTypeOf) + " " + variable, narrowing, form)
             }
         }
     }
@@ -1136,7 +1171,7 @@ class Generator(
 
     /** `x instanceof T $s1` when `x` can be narrowed, which a name that never changes can. */
     private fn typeCheck(check: Expr.Is, inLambda: Boolean) -> String {
-        val type = javaType(check.type())
+        val type = testedType(check.type(), typeOf(check.target()))
         val target = check.target()
         if (target !is Expr.Name || !neverChanges(target)) {
             val plainTest = exprIn(target, inLambda) + " instanceof " + type
@@ -1149,8 +1184,21 @@ class Generator(
     }
 
     private fn liftedTypeCheck(line: Int, check: Expr.Is) -> String {
-        val test = lifted(line, check.target()).code() + " instanceof " + boxedType(check.type())
+        val test = lifted(line, check.target()).code() + " instanceof " + testedType(check.type(), typeOf(check.target()))
         return if (check.negated()) "!(" + test + ")" else test
+    }
+
+    /**
+     * A type test names a wrapper for a primitive, and `is Ok` on a `Result<Int, String>` keeps its
+     * type arguments, which Java would otherwise lose: `Ok<Integer, String>`.
+     */
+    private fn testedType(tested: TypeRef, subject: TypeRef?) -> String {
+        val name = tested.name()
+        val ownArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err")
+        if (ownArguments && subject != null && subject.args().size() == 2 && isResultType(subject)) {
+            return name + "<" + boxedType(subject.args().get(0)) + ", " + boxedType(subject.args().get(1)) + ">"
+        }
+        return boxedType(tested)
     }
 
     /** The names a condition narrows where it is true. */
@@ -2051,6 +2099,8 @@ private fn testsObjects(w: Expr.When) -> Boolean {
     }
     return false
 }
+
+private fn isResultType(type: TypeRef) -> Boolean = type.name().equals("Result") || type.name().equals("axl.lang.Result")
 
 private fn needsUnreachableDefault(w: Expr.When) -> Boolean {
     val hasElse = w.arms() |> anyMatch { a -> a.conditions().isEmpty() }

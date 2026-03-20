@@ -37,16 +37,14 @@ import org.jspecify.annotations.*;
         return new Ok<>(Nulls.or(s, () -> "none"));
     }
     public static Result<Integer, String> guard(@Nullable String s) {
-        do {
-            if (!(s == null)) {
-                final var $t1 = bad(s);
-                if ($t1.isErr()) return Result.propagate($t1);
-                if (!(Result.unwrap($t1))) {
-                    break;
-                }
-            }
+        if (s == null) {
             return new Ok<>(0);
-        } while (false);
+        }
+        final var $t1 = bad(s);
+        if ($t1.isErr()) return Result.propagate($t1);
+        if (Result.unwrap($t1)) {
+            return new Ok<>(0);
+        }
         return new Ok<>(s.length());
     }
     public static Result<String, String> either(@Nullable String s) {
