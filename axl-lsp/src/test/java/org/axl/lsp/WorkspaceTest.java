@@ -703,7 +703,7 @@ class WorkspaceTest {
     }
 
     /** Semantic tokens as line:start:length:type. */
-    private static List<String> semanticTokens(Document document) {
+    static List<String> semanticTokens(Document document) {
         List<Integer> data = SemanticTokensProvider.tokens(document).getData();
         List<String> result = new ArrayList<>();
         int line = 0;

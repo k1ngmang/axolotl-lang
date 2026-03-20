@@ -9,6 +9,7 @@ import java.util.Locale;
 import java.util.function.Function;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.WritableToken;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
@@ -28,6 +29,8 @@ final class Document {
     final Path path;
     final String text;
     final List<String> lines;
+    // Lines without characters outside the BMP, where code point and UTF-16 columns are the same.
+    private final boolean[] bmpOnly;
     final List<? extends Token> tokens;
     /** Null when the text has syntax errors. */
     final SourceFile ast;
@@ -43,7 +46,11 @@ final class Document {
         this.path = Path.of(URI.create(uri));
         this.text = text;
         this.lines = lines(text);
-        this.tokens = new AxolotlLexer(CharStreams.fromString(text)).getAllTokens();
+        this.bmpOnly = new boolean[lines.size()];
+        for (int i = 0; i < lines.size(); i++) {
+            bmpOnly[i] = lines.get(i).chars().noneMatch(c -> Character.isSurrogate((char) c));
+        }
+        this.tokens = indexed(new AxolotlLexer(CharStreams.fromString(text)).getAllTokens());
         String className = Translator.className(path.getFileName().toString());
         this.ast = SourceParser.parse(uri, className, text).file();
         String packageName = ast != null && ast.packageName() != null ? ast.packageName() : "";
@@ -52,6 +59,14 @@ final class Document {
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
         this.options = options(module, drafts.apply(module));
         this.translation = Translator.translate(sourcePath, uri, text, options);
+    }
+
+    /** Tokens that know their place in the list, so that their neighbours are found without a search. */
+    private static List<? extends Token> indexed(List<? extends Token> tokens) {
+        for (int i = 0; i < tokens.size(); i++) {
+            ((WritableToken) tokens.get(i)).setTokenIndex(i);
+        }
+        return tokens;
     }
 
     /** Types of top-level values that depend on Java code or other files come from javac, only when needed. */
@@ -131,7 +146,7 @@ final class Document {
      * code points, LSP counts UTF-16 units; they differ after emoji and other non-BMP characters.
      */
     int utf16Column(int line, int codePointColumn) {
-        if (line < 0 || line >= lines.size() || codePointColumn < 0) {
+        if (line < 0 || line >= lines.size() || codePointColumn < 0 || bmpOnly[line]) {
             return codePointColumn;
         }
         String text = lines.get(line);
@@ -143,7 +158,7 @@ final class Document {
 
     /** The 0-based code point column of a UTF-16 offset in a line; a negative offset stays outside the line. */
     int codePointColumn(int line, int utf16Column) {
-        if (line < 0 || line >= lines.size() || utf16Column < 0) {
+        if (line < 0 || line >= lines.size() || utf16Column < 0 || bmpOnly[line]) {
             return utf16Column;
         }
         String text = lines.get(line);
@@ -220,7 +235,7 @@ final class Document {
         List<String> types = new ArrayList<>();
         List<Token> argument = new ArrayList<>();
         int depth = 0;
-        for (Token token : tokens.subList(tokens.indexOf(open) + 1, tokens.size())) {
+        for (Token token : tokens.subList(open.getTokenIndex() + 1, tokens.size())) {
             if (token.getChannel() != Token.DEFAULT_CHANNEL) {
                 continue;
             }
@@ -262,7 +277,7 @@ final class Document {
 
     /** The default-channel token after the given one, or null. */
     Token next(Token token) {
-        for (int i = tokens.indexOf(token) + 1; i > 0 && i < tokens.size(); i++) {
+        for (int i = token.getTokenIndex() + 1; i > 0 && i < tokens.size(); i++) {
             if (tokens.get(i).getChannel() == Token.DEFAULT_CHANNEL) {
                 return tokens.get(i);
             }
@@ -272,13 +287,9 @@ final class Document {
 
     /** The default-channel token before the given one, or null. */
     Token previous(Token token) {
-        Token previous = null;
-        for (Token t : tokens) {
-            if (t == token) {
-                return previous;
-            }
-            if (t.getChannel() == Token.DEFAULT_CHANNEL) {
-                previous = t;
+        for (int i = token.getTokenIndex() - 1; i >= 0; i--) {
+            if (tokens.get(i).getChannel() == Token.DEFAULT_CHANNEL) {
+                return tokens.get(i);
             }
         }
         return null;

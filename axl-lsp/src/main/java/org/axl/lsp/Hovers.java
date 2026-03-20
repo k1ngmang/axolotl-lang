@@ -15,6 +15,9 @@ import org.eclipse.lsp4j.MarkupKind;
 /** The declaration or inferred type of a name, and the Java generated from the line. */
 final class Hovers {
 
+    private static final int MAX_JAVA_LINES = 20;
+    private static final int MAX_JAVA_LINE = 200;
+
     private final Workspace workspace;
 
     Hovers(Workspace workspace) {
@@ -108,7 +111,10 @@ final class Hovers {
         return type.name() + args + (type.nullable() ? "?" : "");
     }
 
-    /** All Java lines generated from one .axl line, without their indentation. */
+    /**
+     * The Java lines generated from one .axl line, without their indentation, cut to a size that a
+     * hover can show: a long line would otherwise be sent and rendered whole.
+     */
     static String generatedJava(GeneratedUnit unit, int axlLine) {
         if (unit == null) {
             return "";
@@ -116,9 +122,15 @@ final class Hovers {
         String[] lines = unit.javaSource().split("\n");
         List<String> result = new ArrayList<>();
         for (int javaLine = 1; javaLine <= lines.length; javaLine++) {
-            if (unit.lineMap().axlLine(javaLine) == axlLine) {
-                result.add(lines[javaLine - 1].strip());
+            if (unit.lineMap().axlLine(javaLine) != axlLine) {
+                continue;
             }
+            if (result.size() == MAX_JAVA_LINES) {
+                result.add("...");
+                break;
+            }
+            String line = lines[javaLine - 1].strip();
+            result.add(line.length() > MAX_JAVA_LINE ? line.substring(0, MAX_JAVA_LINE) + " ..." : line);
         }
         return String.join("\n", result);
     }

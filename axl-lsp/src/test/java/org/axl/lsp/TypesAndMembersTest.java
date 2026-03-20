@@ -151,6 +151,16 @@ class TypesAndMembersTest {
         assertEquals(List.of(), new Definitions(workspace).definition(uri, -1, -1));
     }
 
+    @Test
+    void cutsTheGeneratedJavaOfALongLine() throws Exception {
+        String uri = open("Big.axl", "package app\n\nfn t(n: Int) -> Int = when (n) {\n    1 -> 1"
+                + " + 1".repeat(5000) + "\n    else -> 2\n}\n");
+        String hover = hover(uri, 3, 9000);
+        assertTrue(hover.length() < 1000, hover.length() + " characters");
+        assertContains(hover, "return 1 + 1");
+        assertTrue(WorkspaceTest.semanticTokens(workspace.document(uri)).contains("3:20009:1:number"));
+    }
+
     private String hover(String uri, int line, int character) {
         Hover hover = new Hovers(workspace).hover(uri, line, character);
         return hover == null ? "" : hover.getContents().getRight().getValue();
