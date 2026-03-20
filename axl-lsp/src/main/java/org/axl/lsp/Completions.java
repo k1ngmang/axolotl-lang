@@ -40,7 +40,7 @@ final class Completions {
     List<CompletionItem> complete(String uri, int line, int character) {
         Document current = workspace.document(uri);
         Document parsed = workspace.parsed(uri);
-        if (current == null || line >= current.lines.size()) {
+        if (current == null || line < 0 || character < 0 || line >= current.lines.size()) {
             return List.of();
         }
         String prefix = current.lines.get(line).substring(0, Math.min(character, current.lines.get(line).length()));

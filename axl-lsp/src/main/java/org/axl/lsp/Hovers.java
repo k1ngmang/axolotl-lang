@@ -25,7 +25,7 @@ final class Hovers {
     Hover hover(String uri, int line, int character) {
         Document current = workspace.document(uri);
         Document document = workspace.parsed(uri);
-        if (current == null || document == null) {
+        if (current == null || document == null || line < 0 || character < 0) {
             return null;
         }
         line = current.sameLineIn(document, line);

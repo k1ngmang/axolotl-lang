@@ -32,7 +32,7 @@ final class Definitions {
     List<Location> definition(String uri, int line, int character) {
         Document current = workspace.document(uri);
         Document document = workspace.parsed(uri);
-        if (current == null || document == null) {
+        if (current == null || document == null || line < 0 || character < 0) {
             return List.of();
         }
         line = current.sameLineIn(document, line);

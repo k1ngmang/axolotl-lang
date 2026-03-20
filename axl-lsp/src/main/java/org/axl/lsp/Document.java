@@ -131,7 +131,7 @@ final class Document {
      * code points, LSP counts UTF-16 units; they differ after emoji and other non-BMP characters.
      */
     int utf16Column(int line, int codePointColumn) {
-        if (line < 0 || line >= lines.size()) {
+        if (line < 0 || line >= lines.size() || codePointColumn < 0) {
             return codePointColumn;
         }
         String text = lines.get(line);
@@ -141,9 +141,9 @@ final class Document {
                 : text.length() + codePointColumn - length;
     }
 
-    /** The 0-based code point column of a UTF-16 offset in a line. */
+    /** The 0-based code point column of a UTF-16 offset in a line; a negative offset stays outside the line. */
     int codePointColumn(int line, int utf16Column) {
-        if (line < 0 || line >= lines.size()) {
+        if (line < 0 || line >= lines.size() || utf16Column < 0) {
             return utf16Column;
         }
         String text = lines.get(line);
