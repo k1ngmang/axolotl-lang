@@ -590,7 +590,7 @@ import org.axl.compiler.check.Whens;
         em.line(w.end().line(), (form == WhenForm.VALUE ? "};" : "}"));
     }
     private @Nullable String narrowableName(Expr subject) {
-        if (subject instanceof Expr.Name $s1 && !analysis.mutableRefs().contains($s1) && !analysis.staticNames().contains($s1)) {
+        if (subject instanceof Expr.Name $s1 && neverChanges($s1)) {
             return $s1.name();
         }
         return null;
@@ -941,7 +941,7 @@ import org.axl.compiler.check.Whens;
     private String typeCheck(Expr.Is check, boolean inLambda) {
         final var type = javaType(check.type());
         final var target = check.target();
-        if (!(target instanceof Expr.Name $s1) || analysis.mutableRefs().contains($s1) || analysis.staticNames().contains($s1)) {
+        if (!(target instanceof Expr.Name $s1) || !neverChanges($s1)) {
             final var plainTest = exprIn(target, inLambda) + " instanceof " + type;
             return (check.negated() ? "!(" + plainTest + ")" : plainTest);
         }
@@ -1210,10 +1210,10 @@ import org.axl.compiler.check.Whens;
         return chainLifted(line, Chains.flatten(c));
     }
     private boolean isLocal(Expr target) {
-        if (!(target instanceof Expr.Name $s1)) {
-            return false;
-        }
-        return file.decls().stream().noneMatch(d -> d instanceof Decl.Value $s2 && $s2.name().equals($s1.name()));
+        return target instanceof Expr.Name $s1 && analysis.mutableRefs().contains($s1);
+    }
+    private boolean neverChanges(Expr.Name name) {
+        return analysis.stableNames().contains(name) && !analysis.mutableRefs().contains(name);
     }
     private String assignTarget(int line, Expr target, boolean valueLifts) {
         if (!(target instanceof Expr.Member $s1) || (!valueLifts && !Lifts.needed($s1))) {

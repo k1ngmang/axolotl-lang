@@ -639,7 +639,7 @@ class Generator(
     }
 
     private fn narrowableName(subject: Expr) -> String? {
-        if (subject is Expr.Name && !analysis.mutableRefs().contains(subject) && !analysis.staticNames().contains(subject)) {
+        if (subject is Expr.Name && neverChanges(subject)) {
             return subject.name()
         }
         return null
@@ -1019,7 +1019,7 @@ class Generator(
     private fn typeCheck(check: Expr.Is, inLambda: Boolean) -> String {
         val type = javaType(check.type())
         val target = check.target()
-        if (target !is Expr.Name || analysis.mutableRefs().contains(target) || analysis.staticNames().contains(target)) {
+        if (target !is Expr.Name || !neverChanges(target)) {
             val plainTest = exprIn(target, inLambda) + " instanceof " + type
             return if (check.negated()) "!(" + plainTest + ")" else plainTest
         }
@@ -1297,13 +1297,12 @@ class Generator(
         return chainLifted(line, Chains.flatten(c))
     }
 
-    /** A local, which no call can change; top-level values cannot be shadowed, so a name of one is not. */
-    private fn isLocal(target: Expr) -> Boolean {
-        if (target !is Expr.Name) {
-            return false
-        }
-        return file.decls() |> noneMatch { d -> d is Decl.Value && d.name().equals(target.name()) }
-    }
+    /** A `var` local, which no call can change, unlike a property of a class. */
+    private fn isLocal(target: Expr) -> Boolean = target is Expr.Name && analysis.mutableRefs().contains(target)
+
+    /** A `val`, parameter or `val` property: a `var` may change between a type test and a use. */
+    private fn neverChanges(name: Expr.Name) -> Boolean =
+        analysis.stableNames().contains(name) && !analysis.mutableRefs().contains(name)
 
     /** Java evaluates the object of `a.f = v` before `v`, so before a `try` in `v`. */
     private fn assignTarget(line: Int, target: Expr, valueLifts: Boolean) -> String {

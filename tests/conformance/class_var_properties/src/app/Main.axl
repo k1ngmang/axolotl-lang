@@ -1,0 +1,42 @@
+package app
+
+sealed interface Node
+data class Leaf(val text: String) : Node
+data class Pair(val left: Node, val right: Node) : Node
+
+// A `var` property is tested but not narrowed: it may change before it is read again.
+class Holder(var node: Node) {
+    var count: Int = 0
+
+    fn swap() {
+        if (node is Leaf) {
+            node = Leaf("new")
+        }
+    }
+
+    fn bump() -> Result<Int, String> {
+        count += 10
+        return Ok(1)
+    }
+
+    // The property is read before `bump` runs and changes it.
+    fn add() -> Result<Int, String> {
+        count += try bump()
+        return Ok(count)
+    }
+
+    fn describe() -> String {
+        val current = node
+        return when (current) {
+            is Leaf -> current.text()
+            is Pair -> "pair"
+        }
+    }
+}
+
+fn main() {
+    val h = Holder(Leaf("old"))
+    h.swap()
+    println(h.describe())
+    println(h.add())
+}
