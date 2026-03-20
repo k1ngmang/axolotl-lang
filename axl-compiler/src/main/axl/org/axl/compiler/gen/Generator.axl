@@ -2,6 +2,7 @@ package org.axl.compiler.gen
 
 import java.util.ArrayList
 import java.util.HashMap
+import java.util.HashSet
 import java.util.IdentityHashMap
 import java.util.LinkedHashSet
 import java.util.List
@@ -33,6 +34,7 @@ import org.axl.compiler.ast.Stmt.Return
 import org.axl.compiler.ast.TypeRef
 import org.axl.compiler.check.Analysis
 import org.axl.compiler.check.Checker
+import org.axl.compiler.check.Implementations
 import org.axl.compiler.check.TypeInference
 import org.axl.compiler.check.Whens
 
@@ -78,6 +80,9 @@ class Generator(
     var smart: Map<String, String> = HashMap<String, String>()
     val patternVariables: IdentityHashMap<Expr.Is, String> = IdentityHashMap<Expr.Is, String>()
     var patternCount: Int = 0
+
+    // Names of the values the interfaces of the class being emitted require, which its methods may give.
+    var overridden: List<String> = List.of()
 
     // The values of the branches of the `when` being emitted as a value, for boxedBranch.
     var whenValues: List<Expr> = List.of()
@@ -232,10 +237,14 @@ class Generator(
         if (inConstructor) {
             emitConstructor(classDecl)
         }
+        val outerOverridden = overridden
+        overridden = Implementations.requiredValues(file, classDecl.supertypes()) |> map { m -> m.name() }
         for (method in classDecl.methods()) {
             resetCounters()
             emitFunction(method, false)
         }
+        overridden = outerOverridden
+        emitAccessors(classDecl)
         em.dedent()
     }
 
@@ -253,6 +262,33 @@ class Generator(
         }
         em.dedent()
         em.line(line, "}")
+    }
+
+    /** A record has a method for each field; a class gets one for each value its interfaces require. */
+    private fn emitAccessors(classDecl: Decl.ClassDecl) {
+        val written = HashSet<String>()
+        for (member in Implementations.requiredValues(file, classDecl.supertypes())) {
+            val property = propertyNamed(classDecl, member.name())
+            val ownMethod = classDecl.methods() |> anyMatch { m -> m.name().equals(member.name()) && m.params().isEmpty() }
+            if (property != null && !ownMethod && written.add(member.name())) {
+                em.line(property.pos().line(), "@Override public " + javaType(propertyType(property)) + " " +
+                    member.name() + "() { return " + member.name() + "; }")
+            }
+        }
+    }
+
+    private fn propertyNamed(classDecl: Decl.ClassDecl, name: String) -> Decl.Property? {
+        for (p in classDecl.parameters()) {
+            if (p.name().equals(name)) {
+                return p
+            }
+        }
+        for (p in classDecl.properties()) {
+            if (p.name().equals(name)) {
+                return p
+            }
+        }
+        return null
     }
 
     private fn field(p: Decl.Property) -> String {
@@ -326,7 +362,8 @@ class Generator(
         val declaredReturn = f.returnType()
         val resultType = if (declaredReturn == null) "void" else javaType(declaredReturn)
         val modifier = if (isStatic) " static " else " "
-        em.line(f.pos().line(), visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
+        val annotation = if (!isStatic && f.params().isEmpty() && overridden.contains(f.name())) "@Override " else ""
+        em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
         localTypes.clear()
         for (p in f.params()) {

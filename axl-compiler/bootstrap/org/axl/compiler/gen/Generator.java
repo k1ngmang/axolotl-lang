@@ -3,6 +3,7 @@ import axl.lang.*;
 import org.jspecify.annotations.*;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,6 +35,7 @@ import org.axl.compiler.ast.Stmt.Return;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.check.Analysis;
 import org.axl.compiler.check.Checker;
+import org.axl.compiler.check.Implementations;
 import org.axl.compiler.check.TypeInference;
 import org.axl.compiler.check.Whens;
 
@@ -48,6 +50,7 @@ import org.axl.compiler.check.Whens;
     public Map<String, String> smart;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public int patternCount;
+    public List<String> overridden;
     public List<Expr> whenValues;
     public int tempCount;
     public int nullCount;
@@ -68,6 +71,7 @@ import org.axl.compiler.check.Whens;
         this.smart = new HashMap<String, String>();
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.patternCount = 0;
+        this.overridden = List.of();
         this.whenValues = List.of();
         this.tempCount = 0;
         this.nullCount = 0;
@@ -215,10 +219,14 @@ import org.axl.compiler.check.Whens;
         if (inConstructor) {
             emitConstructor(classDecl);
         }
+        final var outerOverridden = overridden;
+        overridden = Implementations.requiredValues(file, classDecl.supertypes()).stream().map(Nulls.nonNull(m -> m.name())).toList();
         for (final var method : classDecl.methods()) {
             resetCounters();
             emitFunction(method, false);
         }
+        overridden = outerOverridden;
+        emitAccessors(classDecl);
         em.dedent();
     }
     private void emitConstructor(Decl.ClassDecl classDecl) {
@@ -235,6 +243,33 @@ import org.axl.compiler.check.Whens;
         }
         em.dedent();
         em.line(line, "}");
+    }
+    private void emitAccessors(Decl.ClassDecl classDecl) {
+        final var written = new HashSet<String>();
+        for (final var member : Implementations.requiredValues(file, classDecl.supertypes())) {
+            final var property = propertyNamed(classDecl, member.name());
+            final var ownMethod = classDecl.methods().stream().anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
+            if (property != null && !ownMethod && written.add(member.name())) {
+                em.line(property.pos().line(), "@Override public " + javaType(propertyType(property)) + " " +
+                        member.name() +
+                        "() { return " +
+                        member.name() +
+                        "; }");
+            }
+        }
+    }
+    private Decl.@Nullable Property propertyNamed(Decl.ClassDecl classDecl, String name) {
+        for (final var p : classDecl.parameters()) {
+            if (p.name().equals(name)) {
+                return p;
+            }
+        }
+        for (final var p : classDecl.properties()) {
+            if (p.name().equals(name)) {
+                return p;
+            }
+        }
+        return null;
     }
     private String field(Decl.Property p) {
         final var visibility = (p.isPrivate() ? "private" : "public");
@@ -300,7 +335,8 @@ import org.axl.compiler.check.Whens;
         final var declaredReturn = f.returnType();
         final var resultType = (declaredReturn == null ? "void" : javaType(declaredReturn));
         final var modifier = (isStatic ? " static " : " ");
-        em.line(f.pos().line(), visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
+        final var annotation = (!isStatic && f.params().isEmpty() && overridden.contains(f.name()) ? "@Override " : "");
+        em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
         returnType = (declaredReturn == null ? null : nullableType(declaredReturn));
         localTypes.clear();
         for (final var p : f.params()) {

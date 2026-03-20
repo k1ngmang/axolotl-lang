@@ -1,0 +1,23 @@
+package app
+
+interface Named {
+    val name: String
+}
+
+sealed interface Animal : Named {
+    val legs: Int
+}
+
+// A class gives the values of its interfaces with its properties or with methods.
+class Dog(val name: String) : Animal {
+    fn legs() -> Int = 4
+}
+
+class Bird(val name: String, var legs: Int) : Animal
+
+fn describe(animal: Animal) -> String = animal.name() + " has " + animal.legs() + " legs"
+
+fn main() {
+    println(describe(Dog("rex")))
+    println(describe(Bird("tweety", 2)))
+}
