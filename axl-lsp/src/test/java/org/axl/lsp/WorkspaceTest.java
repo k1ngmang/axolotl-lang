@@ -606,9 +606,11 @@ class WorkspaceTest {
 
     @Test
     void completesTheKeywordsOfLoopsDataClassesAndWhen() throws Exception {
-        String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n");
+        String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 0).stream().map(CompletionItem::getLabel).toList();
-        assertTrue(labels.containsAll(List.of("for", "when", "is", "data", "class", "interface", "sealed")), labels.toString());
+        assertTrue(labels.containsAll(List.of("for", "when", "throw")), labels.toString());
+        labels = new Completions(workspace).complete(uri, 6, 0).stream().map(CompletionItem::getLabel).toList();
+        assertTrue(labels.containsAll(List.of("data", "class", "interface", "sealed")), labels.toString());
     }
 
     @Test
@@ -673,7 +675,7 @@ class WorkspaceTest {
         String uri = open("Counter.axl", COUNTER.replace("c.next()", "c.ne"));
         assertTrue(memberNames(uri, 19, 16).contains("next"), memberNames(uri, 19, 16).toString());
         List<String> names = new Completions(workspace).complete(uri, 17, 4).stream().map(i -> i.getLabel()).toList();
-        assertTrue(names.containsAll(List.of("enum", "throw", "class", "Counter", "Color")), names.toString());
+        assertTrue(names.containsAll(List.of("enum", "class", "Counter", "Color")), names.toString());
     }
 
     @Test

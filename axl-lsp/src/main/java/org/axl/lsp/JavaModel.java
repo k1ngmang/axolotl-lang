@@ -19,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.lang.model.element.Element;
@@ -146,9 +147,14 @@ final class JavaModel {
             }
         }
         String pkg = file.packageName() == null ? "" : file.packageName();
+        String fileClass = pkg.isEmpty() ? file.className() : pkg + "." + file.className();
+        if (name.equals(file.className())) {
+            // A file named like a type it declares is that type.
+            return elements.getTypeElement(fileClass);
+        }
         if (file.decls().stream().anyMatch(d -> isType(d) && d.name().equals(name))) {
-            // Data classes, classes, enums and interfaces are nested in the class of their file.
-            return elements.getTypeElement((pkg.isEmpty() ? file.className() : pkg + "." + file.className()) + "." + name);
+            // The other data classes, classes, enums and interfaces are nested in the class of their file.
+            return elements.getTypeElement(fileClass + "." + name);
         }
         for (String candidate : List.of(pkg.isEmpty() ? name : pkg + "." + name, "java.lang." + name, "axl.lang." + name)) {
             TypeElement type = elements.getTypeElement(candidate);
@@ -276,15 +282,24 @@ final class JavaModel {
         };
     }
 
-    /** Public fields, methods and nested classes of a type, static or instance ones. */
+    /**
+     * Public fields, methods and nested classes of a type, static or instance ones. Nested classes of
+     * supertypes and static members that the type's own ones of the same name hide are left out,
+     * such as `Enum.EnumDesc` and `Enum.valueOf(Class, String)` for an enum.
+     */
     List<Element> members(TypeElement type, boolean statics) {
+        List<? extends Element> all = elements.getAllMembers(type);
+        Set<String> own = all.stream().filter(m -> m.getEnclosingElement().equals(type))
+                .map(m -> m.getSimpleName().toString()).collect(Collectors.toSet());
         Map<String, Element> result = new LinkedHashMap<>();
-        for (Element member : elements.getAllMembers(type)) {
+        for (Element member : all) {
             boolean isStatic = member.getModifiers().contains(Modifier.STATIC);
+            boolean inherited = !member.getEnclosingElement().equals(type);
             boolean usable = member.getModifiers().contains(Modifier.PUBLIC)
                     && (member.getKind() == ElementKind.METHOD || member.getKind() == ElementKind.FIELD
-                    || member.getKind() == ElementKind.ENUM_CONSTANT || member instanceof TypeElement);
-            if (usable && isStatic == statics) {
+                    || member.getKind() == ElementKind.ENUM_CONSTANT || member instanceof TypeElement && !inherited);
+            boolean hidden = isStatic && inherited && own.contains(member.getSimpleName().toString());
+            if (usable && !hidden && isStatic == statics) {
                 result.putIfAbsent(signature(member), member);
             }
         }

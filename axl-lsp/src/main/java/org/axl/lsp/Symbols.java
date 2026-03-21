@@ -179,6 +179,11 @@ final class Symbols {
         return score;
     }
 
+    /** The name of the class whose text holds pos, or null. */
+    static String enclosingClass(SourceFile file, Pos pos) {
+        return enclosingDecl(file, pos) instanceof Decl.ClassDecl classDecl ? classDecl.name() : null;
+    }
+
     /** A declaration covers its text up to the next declaration. */
     private static Decl enclosingDecl(SourceFile file, Pos pos) {
         List<Decl> decls = file.decls();
