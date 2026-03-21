@@ -44,6 +44,12 @@
           "command": "axl.openGeneratedJava",
           "when": "editorLangId == axl"
         }
+      ],
+      "commandPalette": [
+        {
+          "command": "axl.openGeneratedJava",
+          "when": "editorLangId == axl"
+        }
       ]
     },
     "configuration": {
