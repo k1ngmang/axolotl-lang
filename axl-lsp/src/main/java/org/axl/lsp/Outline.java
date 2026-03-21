@@ -1,13 +1,10 @@
 package org.axl.lsp;
 
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Pos;
-import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.SymbolKind;
@@ -59,34 +56,22 @@ final class Outline {
         return result;
     }
 
-    /** The AST keeps only the names of constants, so they are found among the tokens after the braces open. */
     private static List<DocumentSymbol> constants(Document document, Decl.EnumDecl enumeration) {
+        List<Pos> positions = document.constantPositions(enumeration);
         List<DocumentSymbol> result = new ArrayList<>();
-        Iterator<String> names = enumeration.constants().iterator();
-        boolean open = false;
-        for (Token token : document.tokens) {
-            if (token.getChannel() != Token.DEFAULT_CHANNEL || !names.hasNext()) {
-                continue;
-            }
-            if (!open) {
-                open = token.getType() == AxolotlLexer.LBRACE && Symbols.before(enumeration.namePos(), Document.start(token));
-            } else if (token.getType() == AxolotlLexer.IDENTIFIER) {
-                String name = names.next();
-                result.add(symbol(document, Document.start(token), name, SymbolKind.EnumMember, List.of()));
-            }
+        for (int i = 0; i < positions.size(); i++) {
+            result.add(symbol(document, positions.get(i), enumeration.constants().get(i), SymbolKind.EnumMember, List.of()));
         }
         return result;
     }
 
     private static List<DocumentSymbol> fields(Document document, List<Expr.Param> fields) {
-        return fields.stream().map(f -> symbol(document, nameIn(document, f), f.name(), SymbolKind.Field, List.of())).toList();
+        return fields.stream().map(f -> symbol(document, fieldName(document, f), f.name(), SymbolKind.Field, List.of())).toList();
     }
 
-    /** A field is positioned at its `val`; its name follows on the same line. */
-    private static Pos nameIn(Document document, Expr.Param field) {
-        String line = document.lines.get(field.pos().line() - 1);
-        int from = document.position(field.pos()).getCharacter();
-        return new Pos(field.pos().line(), line.codePointCount(0, line.indexOf(field.name(), from)) + 1);
+    /** A field is positioned at its `val`, which may hold the letters of its name: `val a`. */
+    static Pos fieldName(Document document, Expr.Param field) {
+        return document.nameAfter(field.pos(), field.name());
     }
 
     private static DocumentSymbol symbol(Document document, Pos namePos, String name, SymbolKind kind,

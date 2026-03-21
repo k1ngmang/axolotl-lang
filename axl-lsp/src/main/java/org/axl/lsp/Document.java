@@ -275,6 +275,36 @@ final class Document {
         };
     }
 
+    /**
+     * Where a name first appears from a position on, such as the name of a data class field after
+     * its `val`; the position itself when it does not.
+     */
+    Pos nameAfter(Pos from, String name) {
+        for (Token token : tokens) {
+            if (token.getType() == AxolotlLexer.IDENTIFIER && token.getText().equals(name) && Symbols.before(from, start(token))) {
+                return start(token);
+            }
+        }
+        return from;
+    }
+
+    /** The positions of the constants of an enum, whose names the AST keeps without them, from the tokens after its brace. */
+    List<Pos> constantPositions(Decl.EnumDecl enumeration) {
+        List<Pos> result = new ArrayList<>();
+        boolean open = false;
+        for (Token token : tokens) {
+            if (token.getChannel() != Token.DEFAULT_CHANNEL || result.size() == enumeration.constants().size()) {
+                continue;
+            }
+            if (!open) {
+                open = token.getType() == AxolotlLexer.LBRACE && Symbols.before(enumeration.namePos(), start(token));
+            } else if (token.getType() == AxolotlLexer.IDENTIFIER) {
+                result.add(start(token));
+            }
+        }
+        return result;
+    }
+
     /** The default-channel token after the given one, or null. */
     Token next(Token token) {
         for (int i = token.getTokenIndex() + 1; i > 0 && i < tokens.size(); i++) {
