@@ -8,8 +8,9 @@ at a time. Nothing has to be converted before it is useful.
 1. Apply the [Gradle](gradle.md) or [Maven](maven.md) plugin. Existing Java code keeps compiling;
    NullAway checks only code inside `@NullMarked` scopes, so unannotated Java is not affected.
 2. Write new code in `src/main/axl`. Java calls it as `Parse.doubled("21")`; it calls Java as is.
-3. Convert utility classes with static methods. In IntelliJ IDEA the intention *Convert Java file to
-   Axolotl* does the mechanical part; check the result for `T?` where values may be null.
+3. Convert utility classes with static methods, records, enums, sealed interfaces and simple classes.
+   In IntelliJ IDEA the intention *Convert Java file to Axolotl* does the mechanical part; check the
+   result for `T?` where values may be null.
 4. Mark the Java code that Axolotl calls with JSpecify `@NullMarked` and `@Nullable`, or turn on
    [strict null mode](language.md#java-code-without-nullness-annotations), so that nulls coming
    from Java are checked too.

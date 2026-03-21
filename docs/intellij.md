@@ -17,7 +17,7 @@ Build it with `./gradlew :axl-intellij:buildPlugin` and install
 | Java interop | Java code sees every `.axl` file as a class (completion, navigation, error highlighting) without a build: the file is translated in memory and exposed through `PsiElementFinder` and `PsiShortNamesCache`. The Java the build generates (`build/generated/axl`, `target/generated-sources/axl`) is excluded from the index. |
 | Run | A run icon next to `fn main()` creates a Java application run configuration for the file's class; with Gradle or Maven delegation the build tool compiles the `.axl` sources first. |
 | Debug | Line breakpoints in `.axl` files, stepping by `.axl` lines and `.axl` positions in frames, through the JSR-45 stratum `Axolotl`. The translator's locals (`$t1`, `$n1`, ...) are labeled "Axolotl internal" in the Variables view. |
-| Tools | *Show Generated Java* (editor popup and Tools menu) opens the translation read-only in a split. The intention *Convert Java file to Axolotl* converts a class with static members. |
+| Tools | *Show Generated Java* (editor popup and Tools menu) opens the translation read-only in a split. The intention *Convert Java file to Axolotl* converts a class with static members and nested records, enums, interfaces and classes, or a single record, enum, interface or class, when each part has a one to one Axolotl form. |
 | Import | Gradle projects with `org.axl.lang` get `src/*/axl` as source roots from the plugin's source sets; Maven projects with `axl-maven-plugin` get `src/main/axl` and `src/test/axl`. |
 
 ## How it is built

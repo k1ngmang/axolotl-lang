@@ -25,12 +25,8 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Is.java", inClass("public static int f(int is) { return is; }"));
         assertRefused("When.java", inClass("public static int f(int when) { return when; }"));
         assertRefused("Sealed.java", inClass("public static int f(int sealed) { return sealed; }"));
-        assertRefused("Each.java", inClass("public static int f(java.util.List<Integer> xs) { int s = 0; "
-                + "for (int x : xs) { s += x; } return s; }"));
-        assertRefused("Instance.java", inClass("public static boolean f(Object o) { return o instanceof String; }"));
         assertRefused("Switch.java", inClass("public static int f(int n) { switch (n) { case 1: return 2; "
                 + "default: return 3; } }"));
-        assertRefused("Rec.java", "package util;\npublic record Rec(int a) {}\n");
         assertRefused("Generic.java", inClass("public static <T> T id(T x) { return x; }"));
         assertRefused("Init.java", inClass("static { System.out.println(\"loaded\"); }"));
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
@@ -205,6 +201,131 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("fn size(xs: List<String>) -> Int {"));
         assertTrue(axl, axl.contains("fn value(e: Entry<String, Integer>) -> Int {"));
         assertRefused("Lists.java", inClass("public static int f(java.util.List<String> a, java.awt.List b) { return 1; }"));
+    }
+
+    public void testConvertsRecordsEnumsSealedInterfacesAndSwitches() {
+        String axl = convert("Shapes.java", """
+                package util;
+
+                public final class Shapes {
+                    private Shapes() {}
+
+                    public sealed interface Shape permits Circle, Square {
+                        String name();
+                    }
+
+                    public record Circle(String name, double radius) implements Shape {}
+
+                    public record Square(String name, double side) implements Shape {}
+
+                    public enum Color { RED, GREEN }
+
+                    public static double area(Shape shape) {
+                        return switch (shape) {
+                            case Circle c -> 3.14 * c.radius() * c.radius();
+                            case Square s -> s.side() * s.side();
+                        };
+                    }
+
+                    public static String size(int n) {
+                        return switch (n) {
+                            case 1, 2 -> "few";
+                            default -> throw new IllegalArgumentException("many");
+                        };
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("sealed interface Shape {\n    val name: String\n}\n"));
+        assertTrue(axl, axl.contains("data class Circle(val name: String, val radius: Double) : Shape\n"));
+        assertTrue(axl, axl.contains("enum Color { RED, GREEN }\n"));
+        assertTrue(axl, axl.contains("""
+                    return when (shape) {
+                        is Circle -> 3.14 * shape.radius() * shape.radius()
+                        is Square -> shape.side() * shape.side()
+                    }
+                """));
+        assertTrue(axl, axl.contains("1, 2 -> \"few\"\n        else -> throw IllegalArgumentException(\"many\")\n"));
+        assertFalse(axl, axl.contains("import util.Shapes"));
+    }
+
+    public void testConvertsATopLevelRecordAndEnum() {
+        assertEquals("package util\n\ndata class Point(val x: Int, val y: Int)\n",
+                convert("Point.java", "package util;\npublic record Point(int x, int y) {}\n"));
+        assertEquals("package util\n\nenum Light { ON, OFF }\n",
+                convert("Light.java", "package util;\npublic enum Light { ON, OFF }\n"));
+    }
+
+    public void testConvertsAClassWithAConstructor() {
+        String axl = convert("Counter.java", """
+                package util;
+
+                public class Counter {
+                    public final String name;
+                    public int step;
+                    private int count = 0;
+
+                    public Counter(String name, int step) {
+                        this.name = name;
+                        this.step = step;
+                    }
+
+                    public int next() {
+                        count += step;
+                        return this.count;
+                    }
+
+                    public static Counter start(String name) {
+                        return new Counter(name, 1);
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("class Counter(val name: String, var step: Int) {\n    private var count: Int = 0\n"));
+        assertTrue(axl, axl.contains("    fn next() -> Int {\n        count += step\n        return count\n    }\n}\n"));
+        assertTrue(axl, axl.contains("\nfn start(name: String) -> Counter {\n    return Counter(name, 1)\n}\n"));
+    }
+
+    public void testConvertsLoopsThrowConditionalsAndTypeTests() {
+        String axl = convert("Flow.java", inClass("""
+                public static int sum(java.util.List<Integer> xs) {
+                    int s = 0;
+                    for (int x : xs) {
+                        s += x;
+                    }
+                    return s > 0 ? s : 0;
+                }
+                public static int length(Object o) {
+                    if (!(o instanceof String text)) {
+                        throw new IllegalArgumentException("not text");
+                    }
+                    return text.length();
+                }
+                public static boolean isText(Object o) {
+                    return o instanceof String;
+                }"""));
+        assertTrue(axl, axl.contains("    for (x in xs) {\n        s += x\n    }\n    return if (s > 0) s else 0\n"));
+        assertTrue(axl, axl.contains("    if (o !is String) {\n        throw IllegalArgumentException(\"not text\")\n    }\n"
+                + "    return o.length()\n"));
+        assertTrue(axl, axl.contains("return o is String\n"));
+    }
+
+    public void testRefusesTypesAndPatternsWithoutAOneToOneForm() {
+        assertRefused("WithMethod.java", "package util;\npublic record WithMethod(int a) { int twice() { return a * 2; } }\n");
+        assertRefused("Args.java", "package util;\npublic enum Args { A(1); Args(int v) {} }\n");
+        assertRefused("Two.java", "package util;\npublic class Two {\n    int a;\n    public Two(int a) { this.a = a; }\n"
+                + "    public Two() { this.a = 1; }\n}\n");
+        assertRefused("Logic.java", "package util;\npublic class Logic {\n    int a;\n"
+                + "    public Logic(int a) { this.a = a * 2; }\n}\n");
+        assertRefused("Reads.java", "package util;\npublic class Reads {\n    int a;\n    int b = a + 1;\n"
+                + "    public Reads(int a) { this.a = a; }\n}\n");
+        assertRefused("Guard.java", inClass("public static int f(Object o) { return switch (o) { "
+                + "case String s when s.isEmpty() -> 0; default -> 1; }; }"));
+        assertRefused("Changes.java", inClass("public static int f(Object o) { if (o instanceof String s) { o = 1; "
+                + "return s.length(); } return 0; }"));
+        assertRefused("Yield.java", inClass("public static int f(int n) { return switch (n) { case 1 -> { yield 2; } "
+                + "default -> 3; }; }"));
+        assertRefused("Inner.java", inClass("class Inner { int a; }"));
+        assertRefused("Hidden.java", "package util;\npublic class Hidden {\n    private final int a;\n"
+                + "    public Hidden(int a) { this.a = a; }\n}\n");
     }
 
     /** A class named after its file, which the helpers below fill in for `CLASS`. */
