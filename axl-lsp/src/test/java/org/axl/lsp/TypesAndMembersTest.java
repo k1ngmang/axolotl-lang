@@ -298,6 +298,15 @@ class TypesAndMembersTest {
         assertEquals(18, symbols.get(1).getChildren().getFirst().getSelectionRange().getStart().getCharacter());
     }
 
+    @Test
+    void publishesEachDiagnosticOnce() throws Exception {
+        String uri = open("Twice.axl", "package app\n\nfn f(n: Int) = when (n) {\n    1, 2 -> 1; 3 -> 2\n"
+                + "    else -> throw IllegalStateException(\"x\")\n}\n");
+        List<Diagnostic> diagnostics = published.get(uri);
+        assertTrue(!diagnostics.isEmpty());
+        assertEquals(diagnostics.size(), diagnostics.stream().distinct().count(), diagnostics.toString());
+    }
+
     private void assertMembers(String file, String text, String snippet, String member) throws Exception {
         String uri = open(file, text);
         List<String> members = membersAt(uri, text, snippet);

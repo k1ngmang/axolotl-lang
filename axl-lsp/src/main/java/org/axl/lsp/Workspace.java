@@ -431,7 +431,8 @@ final class Workspace {
         if (!document.translation.hasErrors() && compiled != null) {
             all.addAll(movedTo(document, compiled));
         }
-        List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).toList();
+        // The translator may report the same problem twice, such as for both branches of one arm.
+        List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).distinct().toList();
         client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
     }
 
