@@ -1,6 +1,7 @@
 package org.axl.intellij;
 
 import com.intellij.lang.annotation.HighlightSeverity;
+import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
@@ -17,6 +18,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import org.axl.intellij.highlight.AxlSyntaxHighlighter;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.jetbrains.annotations.NotNull;
@@ -280,6 +282,19 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         List<String> found = myFixture.getLookupElementStrings();
         assertNotNull(found);
         return found;
+    }
+
+    public void testHighlightsTypeDeclarationsAndEnumConstants() {
+        myFixture.configureByText("Shapes.axl", SHAPES);
+        String text = myFixture.getFile().getText();
+        List<String> types = highlighted(text, AxlSyntaxHighlighter.TYPE_DECLARATION);
+        assertEquals(List.of("Shape", "Circle", "Square", "Color"), types);
+        assertEquals(List.of("RED", "GREEN", "BLUE"), highlighted(text, AxlSyntaxHighlighter.ENUM_CONSTANT));
+    }
+
+    private List<String> highlighted(String text, TextAttributesKey key) {
+        return myFixture.doHighlighting().stream().filter(h -> h.forcedTextAttributesKey == key)
+                .map(h -> text.substring(h.getStartOffset(), h.getEndOffset())).toList();
     }
 
     private void assertCompletes(String text, String... names) {

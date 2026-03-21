@@ -23,6 +23,8 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
         new AttributesDescriptor("Braces and parentheses//Braces", AxlSyntaxHighlighter.BRACES),
         new AttributesDescriptor("Braces and parentheses//Parentheses", AxlSyntaxHighlighter.PARENTHESES),
         new AttributesDescriptor("Function declaration", AxlSyntaxHighlighter.FUNCTION_DECLARATION),
+        new AttributesDescriptor("Type declaration", AxlSyntaxHighlighter.TYPE_DECLARATION),
+        new AttributesDescriptor("Enum constant", AxlSyntaxHighlighter.ENUM_CONSTANT),
         new AttributesDescriptor("Bad character", AxlSyntaxHighlighter.BAD_CHARACTER),
     };
 
@@ -46,13 +48,13 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
                 fn <fn>greet</fn>(name: String?) -> String =
                     "Hello, " + (name?.trim() ?: "stranger")
 
-                sealed interface Shape
+                sealed interface <type>Shape</type>
 
-                data class Circle(val radius: Double) : Shape
+                data class <type>Circle</type>(val radius: Double) : Shape
 
-                enum Color { RED, GREEN }
+                enum <type>Color</type> { <const>RED</const>, <const>GREEN</const> }
 
-                class Counter(val name: String, var step: Int) {
+                class <type>Counter</type>(val name: String, var step: Int) {
                     var count: Int = 0
                     fn next() -> Int {
                         count += step
@@ -78,7 +80,8 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
 
     @Override
     public Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap() {
-        return Map.of("fn", AxlSyntaxHighlighter.FUNCTION_DECLARATION);
+        return Map.of("fn", AxlSyntaxHighlighter.FUNCTION_DECLARATION, "type", AxlSyntaxHighlighter.TYPE_DECLARATION,
+                "const", AxlSyntaxHighlighter.ENUM_CONSTANT);
     }
 
     @Override

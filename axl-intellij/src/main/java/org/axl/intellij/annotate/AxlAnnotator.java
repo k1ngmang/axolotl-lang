@@ -5,6 +5,7 @@ import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.editor.Document;
+import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiElement;
@@ -20,7 +21,10 @@ import org.axl.intellij.parser.AxlElementTypes;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlNamedElement;
+import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 /**
  * Runs the translator's checks (shadowing, `try` placement, `$` in names, ...) on the file. The
@@ -29,11 +33,25 @@ import org.jetbrains.annotations.NotNull;
  */
 public final class AxlAnnotator implements Annotator {
 
+    /** Functions, types and enum constants where they are declared. */
+    private static @Nullable TextAttributesKey declarationKey(AxlNamedElement named) {
+        if (named instanceof AxlFunction) {
+            return AxlSyntaxHighlighter.FUNCTION_DECLARATION;
+        }
+        if (named instanceof AxlTypeDeclaration) {
+            return AxlSyntaxHighlighter.TYPE_DECLARATION;
+        }
+        boolean constant = named instanceof AxlVariable && named.getParent() instanceof AxlTypeDeclaration type && type.isEnum();
+        return constant ? AxlSyntaxHighlighter.ENUM_CONSTANT : null;
+    }
+
     @Override
     public void annotate(@NotNull PsiElement element, @NotNull AnnotationHolder holder) {
-        if (element instanceof AxlFunction function && function.getNameIdentifier() != null) {
-            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(function.getNameIdentifier())
-                    .textAttributes(AxlSyntaxHighlighter.FUNCTION_DECLARATION).create();
+        if (element instanceof AxlNamedElement named && named.getNameIdentifier() != null) {
+            TextAttributesKey key = declarationKey(named);
+            if (key != null) {
+                holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(named.getNameIdentifier()).textAttributes(key).create();
+            }
         }
         if (element.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD) {
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(element)
