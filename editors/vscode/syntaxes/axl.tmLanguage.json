@@ -47,7 +47,7 @@
           }
         },
         {
-          "match": "\\b(data)\\s+(class)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
+          "match": "\\b(data)\\s+(class)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.type.axl" },
             "2": { "name": "keyword.declaration.type.axl" },
@@ -55,21 +55,33 @@
           }
         },
         {
-          "match": "\\b(class)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
+          "match": "\\b(class)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.type.axl" },
             "2": { "name": "entity.name.type.class.axl" }
           }
         },
         {
-          "match": "\\b(enum)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
+          "begin": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": { "name": "keyword.declaration.type.axl" },
+            "2": { "name": "entity.name.type.enum.axl" }
+          },
+          "end": "\\}",
+          "patterns": [
+            { "include": "#comments" },
+            { "name": "variable.other.enummember.axl", "match": "[\\p{L}_$][\\p{L}\\p{N}_$]*" }
+          ]
+        },
+        {
+          "match": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.type.axl" },
             "2": { "name": "entity.name.type.enum.axl" }
           }
         },
         {
-          "match": "\\b(interface)\\s+(\\p{Lu}[\\p{L}\\p{N}_$]*)",
+          "match": "\\b(interface)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "captures": {
             "1": { "name": "keyword.declaration.type.axl" },
             "2": { "name": "entity.name.type.interface.axl" }
@@ -103,6 +115,11 @@
     "keywords": {
       "patterns": [
         { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|throw|try|attempt)\\b" },
+        { "name": "keyword.control.axl", "match": "^\\s*in\\b(?=\\s+[\\p{L}_$(])" },
+        { "name": "keyword.declaration.function.axl", "match": "\\bfn\\b" },
+        { "name": "keyword.declaration.type.axl", "match": "\\b(data(?=\\s+class\\b)|class|enum|interface)\\b" },
+        { "name": "keyword.declaration.variable.axl", "match": "\\b(val|var)\\b" },
+        { "name": "keyword.other.import.axl", "match": "\\b(package|import)\\b" },
         { "name": "keyword.control.axl", "match": "!\\s*is\\b" },
         { "name": "storage.modifier.axl", "match": "\\b(private|sealed)\\b" },
         { "name": "constant.language.axl", "match": "\\b(true|false|null)\\b" }
@@ -119,6 +136,7 @@
     },
     "types": {
       "patterns": [
+        { "name": "variable.other.constant.axl", "match": "(?<=\\.)\\p{Lu}[\\p{Lu}\\p{N}_]*\\b(?!\\s*[(.<])" },
         { "name": "entity.name.type.axl", "match": "\\b\\p{Lu}[\\p{L}\\p{N}_$]*(\\?(?![.:]))?" }
       ]
     },
