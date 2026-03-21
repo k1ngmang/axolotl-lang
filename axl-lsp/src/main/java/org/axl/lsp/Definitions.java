@@ -23,9 +23,11 @@ import org.eclipse.lsp4j.Range;
 final class Definitions {
 
     private final Workspace workspace;
+    private final Declarations declarations;
 
     Definitions(Workspace workspace) {
         this.workspace = workspace;
+        this.declarations = new Declarations(workspace);
     }
 
     /** While the text does not parse, an earlier version answers for the lines that are unchanged. */
@@ -52,6 +54,11 @@ final class Definitions {
         Supplier<List<String>> argumentTypes = () -> workspace.argumentTypes(document, token);
         Token previous = document.previous(token);
         if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
+            Declarations.Found found = declarations.member(document, token, argumentTypes);
+            if (found != null) {
+                return found.document() == document ? local(current, document, found.pos())
+                        : List.of(location(found.document().path, found.document().position(found.pos())));
+            }
             Token receiver = document.previous(previous);
             if (receiver == null || receiver.getType() != AxolotlLexer.IDENTIFIER) {
                 return List.of();
@@ -115,7 +122,13 @@ final class Definitions {
         return workspace.sourceOf(document.module, sibling) != null ? sibling : null;
     }
 
+    /** The declaration of a class: the type of an .axl file, or the start of its file. */
     private List<Location> classLocation(Module module, String qualifiedName) {
+        Declarations.TypeAt type = declarations.type(module, qualifiedName);
+        if (type != null) {
+            Position position = type.decl() == null ? new Position(0, 0) : type.document().position(type.decl().namePos());
+            return List.of(location(type.document().path, position));
+        }
         Path source = workspace.sourceOf(module, qualifiedName);
         return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.Hover;
 import org.eclipse.lsp4j.MessageActionItem;
 import org.eclipse.lsp4j.MessageParams;
@@ -203,6 +204,109 @@ class TypesAndMembersTest {
         assertContains(hoverAt(uri, text, "val |xs = "), "val xs: List<Int>");
         assertContains(hoverAt(uri, text, "val |c = Circle"), "val c: Circle");
         assertContains(hoverAt(uri, text, "val |f = first(s)"), "val f: String?");
+    }
+
+    @Test
+    void completesMembersOfTheFileClassInItsOwnFile() throws Exception {
+        assertMembers("Counter.axl", COUNTER.replace("println(d.count)", "println(d.co)"), "println(d.co|)", "count");
+        assertMembers("Counter.axl", COUNTER.replace("println(d.count)", "println(Counter.st)"), "Counter.st|", "start");
+        assertMembers("Counter.axl", COUNTER.replace("println(d.count)", "val z: Counter = c\n    z.ne"), "z.ne|", "next");
+        assertMembers("Counter.axl", COUNTER.replace("println(d.count)", "start(\"q\").ne"), "start(\"q\").ne|", "next");
+    }
+
+    @Test
+    void completesMembersAfterAConstructorCallAndThis() throws Exception {
+        assertMembers("Shapes.axl", SHAPES.replace("println(c.radius())", "println(Circle(\"q\", 1.0).ra)"), "1.0).ra|", "radius");
+        assertMembers("Shapes.axl", SHAPES.replace("println(c.radius())", "println(StringBuilder(\"x\").rev)"), "(\"x\").rev|", "reverse");
+        String counter = COUNTER.replace("        return count\n", "        return this.co\n");
+        assertMembers("Counter.axl", counter, "this.co|", "count");
+    }
+
+    @Test
+    void offersTheKeywordsThatFitThePlace() throws Exception {
+        String text = SHAPES.replace("val color = Color.RED", "val w = \n    val color = Color.RED");
+        String uri = open("Shapes.axl", text);
+        List<String> expression = labelsAt(uri, text, "val w = |");
+        assertTrue(expression.containsAll(List.of("if", "when", "null")), expression.toString());
+        assertTrue(expression.stream().noneMatch(List.of("package", "fn", "class", "else", "return")::contains), expression.toString());
+        List<String> topLevel = labelsAt(uri, text, "|fn make()");
+        assertTrue(topLevel.containsAll(List.of("fn", "class", "enum")), topLevel.toString());
+        assertTrue(topLevel.stream().noneMatch(List.of("return", "while", "else")::contains), topLevel.toString());
+        List<String> statement = labelsAt(uri, text, "|    val xs");
+        assertTrue(statement.containsAll(List.of("val", "return", "for")) && !statement.contains("package"), statement.toString());
+    }
+
+    @Test
+    void listsEnumMembersOnce() throws Exception {
+        String text = SHAPES.replace("val color = Color.RED", "val color = Color.R");
+        String uri = open("Shapes.axl", text);
+        List<String> members = membersAt(uri, text, "Color.R|");
+        assertTrue(members.contains("RED") && !members.contains("EnumDesc"), members.toString());
+        assertEquals(1, members.stream().filter("valueOf"::equals).count(), members.toString());
+    }
+
+    @Test
+    void goesToMembersOfAxolotlTypes() throws Exception {
+        String shapes = open("Shapes.axl", SHAPES);
+        assertEquals(List.of("Shapes.axl:6:40"), definitionsAt(shapes, SHAPES, "println(c.|radius())"));
+        assertEquals(List.of("Shapes.axl:7:40"), definitionsAt(shapes, SHAPES, "is Square -> shape.|side()"));
+        assertEquals(List.of("Shapes.axl:9:13"), definitionsAt(shapes, SHAPES, "Color.|RED"));
+        assertEquals(List.of("Shapes.axl:6:22"), definitionsAt(shapes, SHAPES, "e.|name()"));
+        String counter = open("Counter.axl", COUNTER);
+        assertEquals(List.of("Counter.axl:7:7"), definitionsAt(counter, COUNTER, "println(c.|next())"));
+        assertEquals(List.of("Counter.axl:3:36"), definitionsAt(counter, COUNTER, "c.|step = 5"));
+        assertEquals(List.of("Counter.axl:4:8"), definitionsAt(counter, COUNTER, "println(d.|count)"));
+    }
+
+    @Test
+    void goesToTypesAndMembersOfOtherFiles() throws Exception {
+        open("Shapes.axl", SHAPES);
+        open("Counter.axl", COUNTER);
+        String main = open("Main.axl", MAIN);
+        assertEquals(List.of("Shapes.axl:6:11"), definitionsAt(main, MAIN, "import app.Shapes.|Circle"));
+        assertEquals(List.of("Shapes.axl:6:11"), definitionsAt(main, MAIN, "= |Circle(\"m\""));
+        assertEquals(List.of("Shapes.axl:2:17"), definitionsAt(main, MAIN, "val shape: |Shape"));
+        assertEquals(List.of("Shapes.axl:9:18"), definitionsAt(main, MAIN, "Color.|GREEN"));
+        assertEquals(List.of("Shapes.axl:6:40"), definitionsAt(main, MAIN, "c.|radius()"));
+        assertEquals(List.of("Counter.axl:7:7"), definitionsAt(main, MAIN, "counter.|next()"));
+        assertEquals(List.of("Counter.axl:4:8"), definitionsAt(main, MAIN, "k.|count"));
+        assertEquals(List.of("Counter.axl:3:6"), definitionsAt(main, MAIN, "= |Counter.start"));
+    }
+
+    @Test
+    void hoversMembersAndDeclarationsInsideTypes() throws Exception {
+        String shapes = open("Shapes.axl", SHAPES);
+        String counter = open("Counter.axl", COUNTER);
+        String main = open("Main.axl", MAIN);
+        assertContains(hoverAt(counter, COUNTER, "c.|step = 5"), "var step: Int");
+        assertContains(hoverAt(counter, COUNTER, "println(d.|count)"), "var count: Int");
+        assertContains(hoverAt(counter, COUNTER, "println(c.|next())"), "fn next() -> Int");
+        assertContains(hoverAt(shapes, SHAPES, "val |radius: Double"), "val radius: Double");
+        assertContains(hoverAt(shapes, SHAPES, "    val |name: String"), "val name: String");
+        assertContains(hoverAt(shapes, SHAPES, "{ |RED"), "RED: Color");
+        assertContains(hoverAt(shapes, SHAPES, "Color.|RED"), "RED: Color");
+        assertContains(hoverAt(main, MAIN, "= |Counter.start"), "class Counter(val name: String, var step: Int)");
+        assertContains(hoverAt(main, MAIN, "|Shapes.area"), "class Shapes");
+    }
+
+    @Test
+    void outlinesFieldsNamedLikeLettersOfVal() throws Exception {
+        String uri = open("P.axl", "package app\n\ndata class P(val a: Int, val l: Int, val v: String)\n\ninterface I { val a: Int }\n");
+        List<DocumentSymbol> symbols = new Outline(workspace).symbols(uri);
+        assertEquals(List.of(17, 29, 41), symbols.getFirst().getChildren().stream()
+                .map(f -> f.getSelectionRange().getStart().getCharacter()).toList());
+        assertEquals(18, symbols.get(1).getChildren().getFirst().getSelectionRange().getStart().getCharacter());
+    }
+
+    private void assertMembers(String file, String text, String snippet, String member) throws Exception {
+        String uri = open(file, text);
+        List<String> members = membersAt(uri, text, snippet);
+        assertTrue(members.contains(member), snippet + " " + members);
+    }
+
+    private List<String> labelsAt(String uri, String text, String snippet) {
+        int[] position = at(text, snippet);
+        return new Completions(workspace).complete(uri, position[0], position[1]).stream().map(i -> i.getLabel()).toList();
     }
 
     /** The line and UTF-16 column of the `|` in a snippet of a text. */

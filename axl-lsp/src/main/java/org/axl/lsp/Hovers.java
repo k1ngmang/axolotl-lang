@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.GeneratedUnit;
@@ -19,9 +20,11 @@ final class Hovers {
     private static final int MAX_JAVA_LINE = 200;
 
     private final Workspace workspace;
+    private final Declarations declarations;
 
     Hovers(Workspace workspace) {
         this.workspace = workspace;
+        this.declarations = new Declarations(workspace);
     }
 
     /** While the text does not parse, an earlier version answers for the lines that are unchanged. */
@@ -37,18 +40,43 @@ final class Hovers {
         }
         List<String> parts = new ArrayList<>();
         Token token = document.tokenAt(line, character);
-        if (token != null && token.getType() == AxolotlLexer.IDENTIFIER && !isMember(document, token)) {
-            Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), token.getText(),
-                    () -> workspace.argumentTypes(document, token));
-            if (symbol != null) {
-                parts.add("```axl\n" + describe(document, symbol) + "\n```");
-            }
+        String axl = token != null && token.getType() == AxolotlLexer.IDENTIFIER ? axl(document, token) : null;
+        if (axl != null) {
+            parts.add("```axl\n" + axl + "\n```");
         }
         String java = generatedJava(document.translation.unit(), line + 1);
         if (!java.isEmpty()) {
             parts.add("Generated Java:\n```java\n" + java + "\n```");
         }
         return parts.isEmpty() ? null : new Hover(new MarkupContent(MarkupKind.MARKDOWN, String.join("\n\n", parts)));
+    }
+
+    /** A member, a name in scope, a field or constant being declared, or a class of the package; null if none. */
+    private String axl(Document document, Token token) {
+        Supplier<List<String>> argumentTypes = () -> workspace.argumentTypes(document, token);
+        if (isMember(document, token)) {
+            Declarations.Found member = declarations.member(document, token, argumentTypes);
+            return member == null ? null : member.text();
+        }
+        Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), token.getText(), argumentTypes);
+        if (symbol != null) {
+            return describe(document, symbol);
+        }
+        Declarations.Found declared = Declarations.declaredAt(document, token);
+        if (declared != null) {
+            return declared.text();
+        }
+        return siblingClass(document, token.getText());
+    }
+
+    /** A class of another file of the package, such as `Counter` in `Counter.start()`. */
+    private String siblingClass(Document document, String name) {
+        String pkg = document.ast.packageName() == null ? "" : document.ast.packageName();
+        Declarations.TypeAt type = declarations.type(document.module, pkg.isEmpty() ? name : pkg + "." + name);
+        if (type == null) {
+            return null;
+        }
+        return type.decl() != null ? declaration(type.decl()) : "class " + name;
     }
 
     private static boolean isMember(Document document, Token token) {
@@ -80,7 +108,7 @@ final class Hovers {
         return !text.endsWith("?") && java.isNullable(document.ast, symbol) ? text + "?" : text;
     }
 
-    private static String declaration(Decl decl) {
+    static String declaration(Decl decl) {
         String visibility = decl.isPrivate() ? "private " : "";
         return switch (decl) {
             case Decl.DataClass data -> visibility + "data class " + data.name() + data.fields().stream()
