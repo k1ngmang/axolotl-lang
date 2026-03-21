@@ -15,12 +15,9 @@ import org.axl.intellij.parser.AxlElementTypes;
 import org.axl.intellij.psi.AxlReferenceExpression;
 import org.jetbrains.annotations.NotNull;
 
-/** Keywords and prelude functions; names and members come from the references themselves. */
+/** Keywords that fit the place and prelude functions; names and members come from the references themselves. */
 public final class AxlCompletionContributor extends CompletionContributor {
 
-    private static final List<String> KEYWORDS = List.of("val", "var", "fn", "private", "return", "if", "else",
-            "while", "for", "when", "is", "data", "class", "enum", "interface", "sealed", "throw", "try", "attempt", "true", "false", "null",
-            "import", "package");
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
     private static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct",
             "limit", "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
@@ -38,7 +35,7 @@ public final class AxlCompletionContributor extends CompletionContributor {
                 if (position.getParent() instanceof AxlReferenceExpression ref && ref.qualifier() != null) {
                     return;
                 }
-                KEYWORDS.forEach(k -> result.addElement(LookupElementBuilder.create(k).bold()));
+                AxlKeywords.at(position).forEach(k -> result.addElement(LookupElementBuilder.create(k).bold()));
                 PRELUDE.forEach(p -> result.addElement(LookupElementBuilder.create(p).withTailText("()", true)));
             }
         });

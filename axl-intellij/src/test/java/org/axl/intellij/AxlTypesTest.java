@@ -263,6 +263,25 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertCompletes(COUNTER.replace("println(d.count)", "println(d.<caret>)"), "count", "next");
     }
 
+    public void testOffersTheKeywordsThatFitThePlace() {
+        List<String> expression = complete(SHAPES.replace("val color = Color.RED", "val color = <caret>"));
+        assertTrue(expression.toString(), expression.containsAll(List.of("if", "when", "null")));
+        assertFalse(expression.toString(), expression.stream().anyMatch(List.of("package", "fn", "class", "else", "return")::contains));
+        List<String> topLevel = complete(SHAPES.replace("fn main() {", "<caret>\nfn main() {"));
+        assertTrue(topLevel.toString(), topLevel.containsAll(List.of("fn", "class", "enum")));
+        assertFalse(topLevel.toString(), topLevel.stream().anyMatch(List.of("return", "while", "else")::contains));
+        List<String> statement = complete(SHAPES.replace("    val color = Color.RED", "    <caret>\n    val color = Color.RED"));
+        assertTrue(statement.toString(), statement.containsAll(List.of("val", "return", "for")) && !statement.contains("package"));
+    }
+
+    private List<String> complete(String text) {
+        myFixture.configureByText("Keywords.axl", text);
+        myFixture.completeBasic();
+        List<String> found = myFixture.getLookupElementStrings();
+        assertNotNull(found);
+        return found;
+    }
+
     private void assertCompletes(String text, String... names) {
         myFixture.configureByText("Complete.axl", text);
         myFixture.completeBasic();
