@@ -307,6 +307,14 @@ class TypesAndMembersTest {
         assertEquals(diagnostics.size(), diagnostics.stream().distinct().count(), diagnostics.toString());
     }
 
+    @Test
+    void colorsEnumConstantsAsEnumMembers() throws Exception {
+        String uri = open("Shapes.axl", SHAPES);
+        List<String> tokens = WorkspaceTest.semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("9:13:3:enumMember", "9:18:5:enumMember", "35:22:3:enumMember")), tokens.toString());
+        assertTrue(tokens.contains("9:5:5:type"), tokens.toString());
+    }
+
     private void assertMembers(String file, String text, String snippet, String member) throws Exception {
         String uri = open(file, text);
         List<String> members = membersAt(uri, text, snippet);

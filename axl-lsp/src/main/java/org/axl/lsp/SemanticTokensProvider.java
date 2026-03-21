@@ -1,9 +1,14 @@
 package org.axl.lsp;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.antlr.v4.runtime.Token;
+import org.axl.compiler.ast.Decl;
+import org.axl.compiler.ast.Pos;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.SemanticTokens;
 import org.eclipse.lsp4j.SemanticTokensLegend;
@@ -12,7 +17,7 @@ import org.eclipse.lsp4j.SemanticTokensLegend;
 final class SemanticTokensProvider {
 
     static final List<String> TYPES = List.of("keyword", "function", "variable", "parameter", "type", "string",
-            "number", "comment", "operator", "property", "namespace");
+            "number", "comment", "operator", "property", "namespace", "enumMember");
     static final SemanticTokensLegend LEGEND = new SemanticTokensLegend(TYPES, List.of());
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
@@ -23,16 +28,48 @@ final class SemanticTokensProvider {
     private static final Set<Integer> OPERATORS = Set.of(AxolotlLexer.SAFE_DOT, AxolotlLexer.ELVIS, AxolotlLexer.ARROW, AxolotlLexer.PIPE,
             AxolotlLexer.BANGBANG);
 
+    /** The enums of a file: where their constants are declared, and the constants of each by the enum's name. */
+    private record Enums(Set<Pos> declared, Map<String, List<String>> constants) {
+
+        static Enums of(Document document) {
+            Set<Pos> declared = new HashSet<>();
+            Map<String, List<String>> constants = new HashMap<>();
+            if (document.ast != null) {
+                for (Decl decl : document.ast.decls()) {
+                    if (decl instanceof Decl.EnumDecl enumeration) {
+                        declared.addAll(document.constantPositions(enumeration));
+                        constants.put(enumeration.name(), enumeration.constants());
+                    }
+                }
+            }
+            return new Enums(declared, constants);
+        }
+
+        /** A constant where it is declared, or after the name of its enum and a dot: `Color.RED`. */
+        boolean isConstant(List<? extends Token> tokens, int index, Token previous) {
+            if (declared.contains(Document.start(tokens.get(index)))) {
+                return true;
+            }
+            if (previous == null || previous.getType() != AxolotlLexer.DOT) {
+                return false;
+            }
+            int owner = previousIndex(tokens, previousIndex(tokens, index));
+            List<String> names = owner < 0 ? null : constants.get(tokens.get(owner).getText());
+            return names != null && names.contains(tokens.get(index).getText());
+        }
+    }
+
     private SemanticTokensProvider() {}
 
     static SemanticTokens tokens(Document document) {
         List<Integer> data = new ArrayList<>();
         List<? extends Token> tokens = document.tokens;
+        Enums enums = Enums.of(document);
         int lastLine = 0;
         int lastStart = 0;
         for (int i = 0; i < tokens.size(); i++) {
             Token token = tokens.get(i);
-            int type = classify(tokens, i);
+            int type = classify(tokens, i, enums);
             if (type < 0) {
                 continue;
             }
@@ -56,7 +93,7 @@ final class SemanticTokensProvider {
         return new SemanticTokens(data);
     }
 
-    private static int classify(List<? extends Token> tokens, int index) {
+    private static int classify(List<? extends Token> tokens, int index, Enums enums) {
         Token token = tokens.get(index);
         int kind = token.getType();
         if (KEYWORDS.contains(kind)) {
@@ -69,16 +106,19 @@ final class SemanticTokensProvider {
             case AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL -> TYPES.indexOf("string");
             case AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL -> TYPES.indexOf("number");
             case AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT -> TYPES.indexOf("comment");
-            case AxolotlLexer.IDENTIFIER -> TYPES.indexOf(name(tokens, index));
+            case AxolotlLexer.IDENTIFIER -> TYPES.indexOf(name(tokens, index, enums));
             default -> -1;
         };
     }
 
-    private static String name(List<? extends Token> tokens, int index) {
+    private static String name(List<? extends Token> tokens, int index, Enums enums) {
         Token next = neighbour(tokens, index, 1);
         Token previous = neighbour(tokens, index, -1);
         if (isContextualKeyword(tokens, index, next, previous)) {
             return "keyword";
+        }
+        if (enums.isConstant(tokens, index, previous)) {
+            return "enumMember";
         }
         boolean upperCase = Character.isUpperCase(tokens.get(index).getText().charAt(0));
         String qualified = inDeclaredName(tokens, index, next);
