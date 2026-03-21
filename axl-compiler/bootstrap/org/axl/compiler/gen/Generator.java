@@ -52,6 +52,7 @@ import org.axl.compiler.check.Whens;
     public int patternCount;
     public List<String> overridden;
     public @Nullable TypeRef subjectTypeOf;
+    public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
     public String elseLabel;
     public List<Expr> whenValues;
@@ -76,6 +77,7 @@ import org.axl.compiler.check.Whens;
         this.patternCount = 0;
         this.overridden = List.of();
         this.subjectTypeOf = null;
+        this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
         this.elseLabel = "default";
         this.whenValues = List.of();
@@ -1715,6 +1717,66 @@ import org.axl.compiler.check.Whens;
             }
         }
     }
+    private String joinedArgs(List<Expr> args, List<String> codes, int line) {
+        final var sb = new StringBuilder();
+        var previous = line;
+        var i = 0;
+        while (i < codes.size()) {
+            final var argLine = startLine(args.get(i));
+            if (argLine > previous) {
+                sb.append((i > 0 ? "," : "")).append(Emitter.continued(argLine, codes.get(i)));
+            } else {
+                sb.append((i > 0 ? ", " : "")).append(codes.get(i));
+            }
+            previous = argLine;
+            i += 1;
+        }
+        return sb.toString();
+    }
+    private int startLine(Expr e) {
+        final var known = startLines.get(e);
+        if (known != null) {
+            return known;
+        }
+        final var line = firstLine(e);
+        startLines.put(e, line);
+        return line;
+    }
+    private int firstLine(Expr e) {
+        switch (e) {
+            case Expr.Member $s1 -> {
+                return startLine($s1.target());
+            }
+            case Expr.Call $s2 -> {
+                return callStartLine($s2);
+            }
+            case Expr.Binary $s3 -> {
+                return startLine($s3.left());
+            }
+            case Expr.Elvis $s4 -> {
+                return startLine($s4.left());
+            }
+            case Expr.Pipe $s5 -> {
+                return startLine($s5.source());
+            }
+            case Expr.MethodRef $s6 -> {
+                return startLine($s6.target());
+            }
+            case Expr.NotNull $s7 -> {
+                return startLine($s7.target());
+            }
+            default -> {
+                return e.pos().line();
+            }
+        }
+    }
+    private int callStartLine(Expr.Call c) {
+        final var target = c.target();
+        if (target != null) {
+            return startLine(target);
+        }
+        return c.pos().line();
+    }
     private static final Map<String, String> PRIMITIVE_NAMES = Map.of("Int", "int", "Long", "long", "Boolean", "boolean",
             "Double", "double");
     private static final Map<String, String> BOXED_NAMES = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
@@ -2091,62 +2153,11 @@ import org.axl.compiler.check.Whens;
     private static String nameOf(@Nullable TypeRef type) {
         return (type == null ? "" : type.name());
     }
-    private static String joinedArgs(List<Expr> args, List<String> codes, int line) {
-        final var sb = new StringBuilder();
-        var previous = line;
-        var i = 0;
-        while (i < codes.size()) {
-            final var argLine = startLine(args.get(i));
-            if (argLine > previous) {
-                sb.append((i > 0 ? "," : "")).append(Emitter.continued(argLine, codes.get(i)));
-            } else {
-                sb.append((i > 0 ? ", " : "")).append(codes.get(i));
-            }
-            previous = argLine;
-            i += 1;
-        }
-        return sb.toString();
-    }
     private static String joined(String head, String separator, String tail, int headLine, int tailLine) {
         if (tailLine > headLine) {
             return head + separator.stripTrailing() + Emitter.continued(tailLine, tail);
         }
         return head + separator + tail;
-    }
-    private static int startLine(Expr e) {
-        switch (e) {
-            case Expr.Member $s1 -> {
-                return startLine($s1.target());
-            }
-            case Expr.Call $s2 -> {
-                return callStartLine($s2);
-            }
-            case Expr.Binary $s3 -> {
-                return startLine($s3.left());
-            }
-            case Expr.Elvis $s4 -> {
-                return startLine($s4.left());
-            }
-            case Expr.Pipe $s5 -> {
-                return startLine($s5.source());
-            }
-            case Expr.MethodRef $s6 -> {
-                return startLine($s6.target());
-            }
-            case Expr.NotNull $s7 -> {
-                return startLine($s7.target());
-            }
-            default -> {
-                return e.pos().line();
-            }
-        }
-    }
-    private static int callStartLine(Expr.Call c) {
-        final var target = c.target();
-        if (target != null) {
-            return startLine(target);
-        }
-        return c.pos().line();
     }
     private static String parenthesized(String code, Expr source) {
         final var simple = source instanceof Expr.Name $s1 || source instanceof Expr.Call $s2 || source instanceof Expr.Member $s3 || source instanceof Expr.Paren $s4 ||

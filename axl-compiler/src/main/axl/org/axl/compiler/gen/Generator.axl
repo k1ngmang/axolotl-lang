@@ -87,6 +87,9 @@ class Generator(
     // The type of the subject of the `when` being emitted, if the code says.
     var subjectTypeOf: TypeRef? = null
 
+    // Start lines of expressions already asked for.
+    val startLines: IdentityHashMap<Expr, Int> = IdentityHashMap<Expr, Int>()
+
     // The class whose members are being emitted, where a method hides a function of the same name.
     var currentClass: Decl.ClassDecl? = null
 
@@ -1850,6 +1853,54 @@ class Generator(
             else -> sb.append('.').append(name).append('(').append(lambdaText).append(')')
         }
     }
+    /** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */
+    private fn joinedArgs(args: List<Expr>, codes: List<String>, line: Int) -> String {
+        val sb = StringBuilder()
+        var previous = line
+        var i = 0
+        while (i < codes.size()) {
+            val argLine = startLine(args.get(i))
+            if (argLine > previous) {
+                sb.append(if (i > 0) "," else "").append(Emitter.continued(argLine, codes.get(i)))
+            } else {
+                sb.append(if (i > 0) ", " else "").append(codes.get(i))
+            }
+            previous = argLine
+            i += 1
+        }
+        return sb.toString()
+    }
+
+    /** The .axl line an expression starts on; a chain starts with its base. */
+    private fn startLine(e: Expr) -> Int {
+        // A long chain of operators would be walked again from each of its operators.
+        val known = startLines.get(e)
+        if (known != null) {
+            return known
+        }
+        val line = firstLine(e)
+        startLines.put(e, line)
+        return line
+    }
+
+    private fn firstLine(e: Expr) -> Int = when (e) {
+        is Expr.Member -> startLine(e.target())
+        is Expr.Call -> callStartLine(e)
+        is Expr.Binary -> startLine(e.left())
+        is Expr.Elvis -> startLine(e.left())
+        is Expr.Pipe -> startLine(e.source())
+        is Expr.MethodRef -> startLine(e.target())
+        is Expr.NotNull -> startLine(e.target())
+        else -> e.pos().line()
+    }
+
+    private fn callStartLine(c: Expr.Call) -> Int {
+        val target = c.target()
+        if (target != null) {
+            return startLine(target)
+        }
+        return c.pos().line()
+    }
 }
 
 fn generate(sourcePath: String, file: SourceFile, analysis: Analysis, options: Options,
@@ -2248,50 +2299,12 @@ private fn converted(number: String, target: String) -> String {
 
 private fn nameOf(type: TypeRef?) -> String = if (type == null) "" else type.name()
 
-/** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */
-private fn joinedArgs(args: List<Expr>, codes: List<String>, line: Int) -> String {
-    val sb = StringBuilder()
-    var previous = line
-    var i = 0
-    while (i < codes.size()) {
-        val argLine = startLine(args.get(i))
-        if (argLine > previous) {
-            sb.append(if (i > 0) "," else "").append(Emitter.continued(argLine, codes.get(i)))
-        } else {
-            sb.append(if (i > 0) ", " else "").append(codes.get(i))
-        }
-        previous = argLine
-        i += 1
-    }
-    return sb.toString()
-}
-
 /** head, separator and tail, with the tail on a new Java line when it starts a new .axl line. */
 private fn joined(head: String, separator: String, tail: String, headLine: Int, tailLine: Int) -> String {
     if (tailLine > headLine) {
         return head + separator.stripTrailing() + Emitter.continued(tailLine, tail)
     }
     return head + separator + tail
-}
-
-/** The .axl line an expression starts on; a chain starts with its base. */
-private fn startLine(e: Expr) -> Int = when (e) {
-    is Expr.Member -> startLine(e.target())
-    is Expr.Call -> callStartLine(e)
-    is Expr.Binary -> startLine(e.left())
-    is Expr.Elvis -> startLine(e.left())
-    is Expr.Pipe -> startLine(e.source())
-    is Expr.MethodRef -> startLine(e.target())
-    is Expr.NotNull -> startLine(e.target())
-    else -> e.pos().line()
-}
-
-private fn callStartLine(c: Expr.Call) -> Int {
-    val target = c.target()
-    if (target != null) {
-        return startLine(target)
-    }
-    return c.pos().line()
 }
 
 private fn parenthesized(code: String, source: Expr) -> String {
