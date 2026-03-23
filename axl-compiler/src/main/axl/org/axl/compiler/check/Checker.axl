@@ -133,6 +133,7 @@ class Checker(val file: SourceFile) {
             }
         }
         checkInitOrder()
+        checkFileTypeMembers()
         for (mismatch in Implementations.check(file)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message())
         }
@@ -221,6 +222,54 @@ class Checker(val file: SourceFile) {
 
     private fn hasMain() -> Boolean = file.decls() |> anyMatch { d -> d is Decl.Function && isMain(d) }
 
+    /** The type a file is shares its Java class with the values and functions of the file. */
+    private fn checkFileTypeMembers() {
+        for (decl in file.decls()) {
+            if (decl is Decl.ClassDecl && decl.name().equals(file.className())) {
+                classFileMembers(decl)
+            } else if (decl is Decl.DataClass && decl.name().equals(file.className())) {
+                recordFileMembers(decl)
+            }
+        }
+    }
+
+    private fn classFileMembers(c: Decl.ClassDecl) {
+        val properties = HashSet<String>()
+        for (p in c.parameters()) {
+            properties.add(p.name())
+        }
+        for (p in c.properties()) {
+            properties.add(p.name())
+        }
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && properties.contains(decl.name())) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "` is a property of `" + c.name() +
+                    "`, the type of this file, so a value of the file cannot have its name; rename one")
+            } else if (decl is Decl.Function && hasMethodLike(c, decl)) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + c.name() + "`, the type of this file, has a method `" +
+                    decl.name() + "` with as many parameters, so a function of the file cannot have its name; rename one")
+            }
+        }
+    }
+
+    private fn hasMethodLike(c: Decl.ClassDecl, f: Decl.Function) -> Boolean =
+        c.methods() |> anyMatch { m -> m.name().equals(f.name()) && m.params().size() == f.params().size() }
+
+    private fn recordFileMembers(data: Decl.DataClass) {
+        for (decl in file.decls()) {
+            val accessor = decl is Decl.Function && decl.params().isEmpty() && hasField(data, decl.name())
+            if (accessor) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "()` reads the field `" + decl.name() +
+                    "` of `" + data.name() + "`, the type of this file; give the function another name")
+            }
+        }
+    }
+
+    private fn hasField(data: Decl.DataClass, name: String) -> Boolean = data.fields() |> anyMatch { f -> f.name().equals(name) }
+
+    private fn hasTopLevelValue(name: String) -> Boolean =
+        file.decls() |> anyMatch { d -> d is Decl.Value && d.name().equals(name) }
+
     private fn checkInitOrder() {
         for (problem in InitOrder.check(file)) {
             val value = problem.value()
@@ -230,12 +279,19 @@ class Checker(val file: SourceFile) {
                 problem.later() + "` first")
         }
         for (problem in InitOrder.checkProperties(file)) {
-            val property = problem.property()
-            val position = if (problem.later().equals(property.name())) "by itself" else "later"
-            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" +
-                problem.later() + "`, which is declared " + position + "; properties are set in order, so declare `" +
-                problem.later() + "` first")
+            propertyProblem(problem.property(), problem.later())
         }
+    }
+
+    private fn propertyProblem(property: Decl.Property, later: String) {
+        if (later.equals(property.name()) && hasTopLevelValue(property.name())) {
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` reads itself: in a class the " +
+                "name means the property; write `" + file.className() + "." + property.name() + "` for the value of the file")
+            return
+        }
+        val position = if (later.equals(property.name())) "by itself" else "later"
+        error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" + later +
+            "`, which is declared " + position + "; properties are set in order, so declare `" + later + "` first")
     }
 
     private fn classDecl(c: Decl.ClassDecl) {
@@ -935,7 +991,9 @@ class Checker(val file: SourceFile) {
         var s: Scope? = scope
         while (s != null && !s.fileScope) {
             val existing = s.names.get(name)
-            if (existing == null) {
+            // A parameter or local may take the name of a property, which `this.` still reaches.
+            val property = existing != null && s != scope && (existing.kind() == Kind.FIELD || existing.kind() == Kind.MUTABLE_FIELD)
+            if (existing == null || property) {
                 s = s.parent
             } else {
                 if (s == scope) {

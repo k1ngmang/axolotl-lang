@@ -2134,11 +2134,21 @@ private fn asBlock(elseBranch: Stmt?) -> Stmt.Block? {
 /** Java rejects a statement after one that never completes. */
 private fn exits(stmt: Stmt) -> Boolean = when (stmt) {
     is Stmt.Return -> true
-    is Stmt.ExprStmt -> stmt.expr() is Expr.Throw
+    is Stmt.ExprStmt -> stmt.expr() is Expr.Throw || whenLeaves(stmt.expr())
     is Stmt.Block -> !stmt.statements().isEmpty() && exits(stmt.statements().getLast())
     is Stmt.If -> exitsIf(stmt)
     is Stmt.While -> loopsForever(stmt)
     else -> false
+}
+
+/** A `when` with `else` whose every branch leaves. */
+private fn whenLeaves(e: Expr) -> Boolean {
+    if (e !is Expr.When) {
+        return false
+    }
+    val hasElse = e.arms() |> anyMatch { a -> a.conditions().isEmpty() }
+    val allLeave = e.arms() |> allMatch { a -> !a.body().isEmpty() && exits(a.body().getLast()) }
+    return hasElse && allLeave
 }
 
 private fn exitsIf(ifStmt: Stmt.If) -> Boolean {

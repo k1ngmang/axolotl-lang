@@ -1,0 +1,15 @@
+package app
+
+class Counter(val start: Int) {
+    var count: Int = start
+
+    fn reset() {
+        count = start
+    }
+}
+
+val count: Int = 1
+
+fn reset() {
+    println("reset")
+}

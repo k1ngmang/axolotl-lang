@@ -1992,7 +1992,7 @@ import org.axl.compiler.check.Whens;
                 return true;
             }
             case Stmt.ExprStmt $s2 -> {
-                return $s2.expr() instanceof Expr.Throw;
+                return $s2.expr() instanceof Expr.Throw || whenLeaves($s2.expr());
             }
             case Stmt.Block $s3 -> {
                 return !$s3.statements().isEmpty() && exits($s3.statements().getLast());
@@ -2007,6 +2007,14 @@ import org.axl.compiler.check.Whens;
                 return false;
             }
         }
+    }
+    private static boolean whenLeaves(Expr e) {
+        if (!(e instanceof Expr.When $s1)) {
+            return false;
+        }
+        final var hasElse = $s1.arms().stream().anyMatch(a -> a.conditions().isEmpty());
+        final var allLeave = $s1.arms().stream().allMatch(a -> !a.body().isEmpty() && exits(a.body().getLast()));
+        return hasElse && allLeave;
     }
     private static boolean exitsIf(Stmt.If ifStmt) {
         final var elseBranch = ifStmt.elseBranch();

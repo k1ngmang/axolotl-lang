@@ -91,6 +91,7 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         checkInitOrder();
+        checkFileTypeMembers();
         for (final var mismatch : Implementations.check(file)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message());
         }
@@ -179,6 +180,54 @@ import org.axl.compiler.ast.TypeRef;
     private boolean hasMain() {
         return file.decls().stream().anyMatch(d -> d instanceof Decl.Function $s1 && isMain($s1));
     }
+    private void checkFileTypeMembers() {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.ClassDecl $s1 && $s1.name().equals(file.className())) {
+                classFileMembers($s1);
+            } else if (decl instanceof Decl.DataClass $s2 && $s2.name().equals(file.className())) {
+                recordFileMembers($s2);
+            }
+        }
+    }
+    private void classFileMembers(Decl.ClassDecl c) {
+        final var properties = new HashSet<String>();
+        for (final var p : c.parameters()) {
+            properties.add(p.name());
+        }
+        for (final var p : c.properties()) {
+            properties.add(p.name());
+        }
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Value $s1 && properties.contains($s1.name())) {
+                error($s1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + $s1.name() + "` is a property of `" + c.name() +
+                        "`, the type of this file, so a value of the file cannot have its name; rename one");
+            } else if (decl instanceof Decl.Function $s2 && hasMethodLike(c, $s2)) {
+                error($s2.namePos(), ErrorCode.DUPLICATE_NAME, "`" + c.name() + "`, the type of this file, has a method `" +
+                        $s2.name() +
+                        "` with as many parameters, so a function of the file cannot have its name; rename one");
+            }
+        }
+    }
+    private boolean hasMethodLike(Decl.ClassDecl c, Decl.Function f) {
+        return c.methods().stream().anyMatch(m -> m.name().equals(f.name()) && m.params().size() == f.params().size());
+    }
+    private void recordFileMembers(Decl.DataClass data) {
+        for (final var decl : file.decls()) {
+            final var accessor = decl instanceof Decl.Function $s1 && $s1.params().isEmpty() && hasField(data, $s1.name());
+            if (accessor) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "()` reads the field `" + decl.name() +
+                        "` of `" +
+                        data.name() +
+                        "`, the type of this file; give the function another name");
+            }
+        }
+    }
+    private boolean hasField(Decl.DataClass data, String name) {
+        return data.fields().stream().anyMatch(f -> f.name().equals(name));
+    }
+    private boolean hasTopLevelValue(String name) {
+        return file.decls().stream().anyMatch(d -> d instanceof Decl.Value $s1 && $s1.name().equals(name));
+    }
     private void checkInitOrder() {
         for (final var problem : InitOrder.check(file)) {
             final var value = problem.value();
@@ -191,16 +240,26 @@ import org.axl.compiler.ast.TypeRef;
                     "` first");
         }
         for (final var problem : InitOrder.checkProperties(file)) {
-            final var property = problem.property();
-            final var position = (problem.later().equals(property.name()) ? "by itself" : "later");
-            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" +
-                    problem.later() +
-                    "`, which is declared " +
-                    position +
-                    "; properties are set in order, so declare `" +
-                    problem.later() +
-                    "` first");
+            propertyProblem(problem.property(), problem.later());
         }
+    }
+    private void propertyProblem(Decl.Property property, String later) {
+        if (later.equals(property.name()) && hasTopLevelValue(property.name())) {
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` reads itself: in a class the " +
+                    "name means the property; write `" +
+                    file.className() +
+                    "." +
+                    property.name() +
+                    "` for the value of the file");
+            return;
+        }
+        final var position = (later.equals(property.name()) ? "by itself" : "later");
+        error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" + later +
+                "`, which is declared " +
+                position +
+                "; properties are set in order, so declare `" +
+                later +
+                "` first");
     }
     private void classDecl(Decl.ClassDecl c) {
         currentClass = c;
@@ -897,7 +956,8 @@ import org.axl.compiler.ast.TypeRef;
         @Nullable Scope s = scope;
         while (s != null && !s.fileScope) {
             final var existing = s.names.get(name);
-            if (existing == null) {
+            final var property = existing != null && s != scope && (existing.kind() == Kind.FIELD || existing.kind() == Kind.MUTABLE_FIELD);
+            if (existing == null || property) {
                 s = s.parent;
             } else {
                 if (s == scope) {

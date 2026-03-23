@@ -1,0 +1,7 @@
+package app
+
+val limit: Int = 10
+
+class Box(val n: Int) {
+    val limit: Int = limit * 2
+}

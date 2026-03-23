@@ -1,0 +1,4 @@
+AXL010 app/Counter.axl:11:5: error: `count` is a property of `Counter`, the type of this file, so a value of the file cannot have its name; rename one
+AXL010 app/Counter.axl:13:4: error: `Counter`, the type of this file, has a method `reset` with as many parameters, so a function of the file cannot have its name; rename one
+AXL016 app/Main.axl:6:9: error: `limit` reads itself: in a class the name means the property; write `Main.limit` for the value of the file
+AXL010 app/Point.axl:5:4: error: `x()` reads the field `x` of `Point`, the type of this file; give the function another name
