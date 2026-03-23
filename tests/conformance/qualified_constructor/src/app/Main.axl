@@ -5,4 +5,7 @@ fn main() {
     val sb = java.lang.StringBuilder("x")
     sb.append(t.getTime())
     println(sb)
+    // A call may follow the constructor at once.
+    println(java.sql.Timestamp(2000L).getTime())
+    println(java.lang.StringBuilder("ab").reverse())
 }

@@ -1097,9 +1097,9 @@ class Generator(
 
     private fn callExpr(c: Expr.Call, inLambda: Boolean) -> String {
         val target = c.target()
-        val path = if (target == null) null else packagePath(target)
-        if (path != null && isTypeName(c.name())) {
-            return "new " + path + "." + c.name() + "(" + argsCode(c.args(), inLambda, c.pos().line()) + ")"
+        // `java.sql.Timestamp(1L)` and `Shapes.Circle(1.0)` create objects of a class named by its path.
+        if (target != null && isPath(target) && isTypeName(c.name())) {
+            return "new " + exprIn(target, inLambda) + "." + c.name() + "(" + argsCode(c.args(), inLambda, c.pos().line()) + ")"
         }
         if (target != null) {
             return chainCode(Chains.flatten(c), inLambda)
@@ -1328,8 +1328,40 @@ class Generator(
     }
 
     /** Each `?.` wraps the rest of the chain, so the first null skips everything after it. */
-    private fn chainCode(chain: Chains.Chain, inLambda: Boolean) -> String =
-        chainFrom(exprIn(chain.base(), inLambda), chain.steps(), 0, inLambda, startLine(chain.base()))
+    private fn chainCode(chain: Chains.Chain, inLambda: Boolean) -> String {
+        val steps = chain.steps()
+        val created = constructorStep(chain)
+        if (created < 0) {
+            return chainFrom(exprIn(chain.base(), inLambda), steps, 0, inLambda, startLine(chain.base()))
+        }
+        // The steps before the constructor name its class: `java.sql.Timestamp(1L).getTime()`.
+        val path = StringBuilder(exprIn(chain.base(), inLambda))
+        var i = 0
+        while (i < created) {
+            path.append(".").append(steps.get(i).name())
+            i += 1
+        }
+        val step = steps.get(created)
+        val args = argsCode(step.args() ?: List.of(), inLambda, step.line())
+        val prefix = "new " + path + "." + step.name() + "(" + args + ")"
+        return chainFrom(prefix, steps, created + 1, inLambda, startLine(chain.base()))
+    }
+
+    /** The step that creates an object of a class named by the base and the steps before it, or -1. */
+    private fn constructorStep(chain: Chains.Chain) -> Int {
+        if (!isStaticName(chain.base())) {
+            return -1
+        }
+        val steps = chain.steps()
+        var i = 0
+        while (i < steps.size() && steps.get(i).args() == null && !steps.get(i).safe()) {
+            i += 1
+        }
+        if (i < steps.size() && steps.get(i).args() != null && !steps.get(i).safe() && isTypeName(steps.get(i).name())) {
+            return i
+        }
+        return -1
+    }
 
     private fn chainFrom(prefix: String, steps: List<Chains.Step>, index: Int, inLambda: Boolean, baseLine: Int) -> String {
         if (index == steps.size()) {
@@ -1693,18 +1725,6 @@ class Generator(
         val first = indexOfFirstSafe(chain.steps())
         val prefix = liftedPrefix(line, chain, first)
         return Lifted(chainFrom(prefix, chain.steps(), first, false, startLine(chain.base())), false)
-    }
-
-    /** `java.sql` in `java.sql.Timestamp(1L)`, which creates an object as `Timestamp(1L)` would; else null. */
-    private fn packagePath(target: Expr) -> String? {
-        if (target is Expr.Name && analysis.staticNames().contains(target) && Character.isLowerCase(target.name().charAt(0))) {
-            return target.name()
-        }
-        if (target is Expr.Member && !target.safe() && Character.isLowerCase(target.name().charAt(0))) {
-            val path = packagePath(target.target())
-            return if (path == null) null else path + "." + target.name()
-        }
-        return null
     }
 
     /** The chain up to its first `?.`, with the statements its `try`s need. */

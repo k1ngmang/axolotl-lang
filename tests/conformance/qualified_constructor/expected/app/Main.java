@@ -9,5 +9,7 @@ import org.jspecify.annotations.*;
         final var sb = new java.lang.StringBuilder("x");
         sb.append(t.getTime());
         System.out.println(sb);
+        System.out.println(new java.sql.Timestamp(2000L).getTime());
+        System.out.println(new java.lang.StringBuilder("ab").reverse());
     }
 }

@@ -1011,9 +1011,8 @@ import org.axl.compiler.check.Whens;
     }
     private String callExpr(Expr.Call c, boolean inLambda) {
         final var target = c.target();
-        final var path = (target == null ? null : packagePath(target));
-        if (path != null && isTypeName(c.name())) {
-            return "new " + path + "." + c.name() + "(" + argsCode(c.args(), inLambda, c.pos().line()) + ")";
+        if (target != null && isPath(target) && isTypeName(c.name())) {
+            return "new " + exprIn(target, inLambda) + "." + c.name() + "(" + argsCode(c.args(), inLambda, c.pos().line()) + ")";
         }
         if (target != null) {
             return chainCode(Chains.flatten(c), inLambda);
@@ -1199,7 +1198,35 @@ import org.axl.compiler.check.Whens;
         return !methods.isEmpty() && !method && function;
     }
     private String chainCode(Chains.Chain chain, boolean inLambda) {
-        return chainFrom(exprIn(chain.base(), inLambda), chain.steps(), 0, inLambda, startLine(chain.base()));
+        final var steps = chain.steps();
+        final var created = constructorStep(chain);
+        if (created < 0) {
+            return chainFrom(exprIn(chain.base(), inLambda), steps, 0, inLambda, startLine(chain.base()));
+        }
+        final var path = new StringBuilder(exprIn(chain.base(), inLambda));
+        var i = 0;
+        while (i < created) {
+            path.append(".").append(steps.get(i).name());
+            i += 1;
+        }
+        final var step = steps.get(created);
+        final var args = argsCode(Nulls.or(step.args(), () -> List.of()), inLambda, step.line());
+        final var prefix = "new " + path + "." + step.name() + "(" + args + ")";
+        return chainFrom(prefix, steps, created + 1, inLambda, startLine(chain.base()));
+    }
+    private int constructorStep(Chains.Chain chain) {
+        if (!isStaticName(chain.base())) {
+            return -1;
+        }
+        final var steps = chain.steps();
+        var i = 0;
+        while (i < steps.size() && steps.get(i).args() == null && !steps.get(i).safe()) {
+            i += 1;
+        }
+        if (i < steps.size() && steps.get(i).args() != null && !steps.get(i).safe() && isTypeName(steps.get(i).name())) {
+            return i;
+        }
+        return -1;
     }
     private String chainFrom(String prefix, List<Chains.Step> steps, int index, boolean inLambda, int baseLine) {
         if (index == steps.size()) {
@@ -1562,16 +1589,6 @@ import org.axl.compiler.check.Whens;
         final var first = indexOfFirstSafe(chain.steps());
         final var prefix = liftedPrefix(line, chain, first);
         return new Lifted(chainFrom(prefix, chain.steps(), first, false, startLine(chain.base())), false);
-    }
-    private @Nullable String packagePath(Expr target) {
-        if (target instanceof Expr.Name $s1 && analysis.staticNames().contains($s1) && Character.isLowerCase($s1.name().charAt(0))) {
-            return $s1.name();
-        }
-        if (target instanceof Expr.Member $s2 && !$s2.safe() && Character.isLowerCase($s2.name().charAt(0))) {
-            final var path = packagePath($s2.target());
-            return (path == null ? null : path + "." + $s2.name());
-        }
-        return null;
     }
     private String liftedPrefix(int line, Chains.Chain chain, int firstSafe) {
         final var steps = chain.steps();
