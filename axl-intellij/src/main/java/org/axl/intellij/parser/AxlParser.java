@@ -723,8 +723,12 @@ public final class AxlParser implements PsiParser {
     private void whenCondition() {
         if (consume(IS)) {
             typeName();
-        } else if (atLiteral()) {
-            primary();
+        } else if (atLiteral() || at(MINUS) && (b.lookAhead(1) == AxlTokenTypes.of(INT_LITERAL)
+                || b.lookAhead(1) == AxlTokenTypes.of(FLOAT_LITERAL))) {
+            prefix();
+        } else if (at(IDENTIFIER)) {
+            // The name of a constant, such as `Color.RED`.
+            referenceChain();
         } else {
             skip("`is`, a constant or `else` expected");
         }

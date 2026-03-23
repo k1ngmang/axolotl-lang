@@ -113,7 +113,8 @@ public class AxlParserTest extends BasePlatformTestCase {
         for (String name : List.of("for_loops/src/app/Main", "data_classes/src/app/Shapes", "data_classes/src/app/Main",
                 "is_smart_cast/src/app/Main", "when_expressions/src/app/Main", "classes/src/app/Counter",
                 "classes/src/app/Main", "enums/src/app/Main", "conditional_and_throw/src/app/Main",
-                "if_expression_braces/src/app/Main")) {
+                "if_expression_braces/src/app/Main", "when_subjects/src/app/Main", "class_members/src/app/Main",
+                "interface_members/src/app/Main", "value_branches/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -184,7 +185,7 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertErrors("fn f(n: Int) = if (n > 0) 1\n");
         assertErrors("fn f(xs: List<Int>) {\n    for (x xs) {\n    }\n}\n");
         assertErrors("fn f(xs: List<Int>) {\n    for (x in xs) println(x)\n}\n");
-        assertErrors("fn f(n: Int) = when (n) {\n    foo -> 1\n}\n");
+        assertErrors("fn f(n: Int) = when (n) {\n    - foo -> 1\n}\n");
         assertErrors("fn f(n: Int) = when (n) {\n    1 2\n}\n");
         assertErrors("fn f(n: Int) {\n    n is Int = 1\n}\n");
     }
