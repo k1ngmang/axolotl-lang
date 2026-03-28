@@ -28,12 +28,15 @@ class AxlBuildTest {
                 fn main() {
                     println(unused(1))
                 }
+
+                private fn forgotten() -> Int = 2
                 """);
         assertEquals(List.of(
                 "3:13 `never` is never read",
                 "5:19 `a` is never read",
                 "7:4 [ReturnAtTheEndOfVoidFunction] the `return` at the end of this function is unnecessary",
-                "8:15 [EqualsIncompatibleType] Calling equals on incompatible types String and Int"), warnings);
+                "8:15 [EqualsIncompatibleType] Calling equals on incompatible types String and Int",
+                "16:12 `forgotten` is never used"), warnings);
     }
 
     @Test

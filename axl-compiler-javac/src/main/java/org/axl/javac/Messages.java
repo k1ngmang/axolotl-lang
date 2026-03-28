@@ -226,7 +226,7 @@ final class Messages {
             return formatType.replaceFirst(m -> Matcher.quoteReplacement("'" + axlType(m.group(1)) + "' cannot be formatted"));
         }
         return message.replaceFirst("^\\[UnusedVariable] The (?:local variable|parameter|field) '(\\w+)' is never read",
-                "`$1` is never read");
+                "`$1` is never read").replaceFirst("^\\[UnusedMethod] Method '(\\w+)' is never used", "`$1` is never used");
     }
 
     private static Translated nullAway(String message, String text, String[] javaLines) {
