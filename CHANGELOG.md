@@ -145,3 +145,16 @@ Left as they are: a nested class whose name is all capitals before a `try` (`Out
 - The syntax tree, the checks (`Checker`, `InitOrder`, `TypeInference` and others), the code generator and the builder of the syntax tree are `.axl` files in `axl-compiler/src/main/axl`; the Java they translate to is checked in under `axl-compiler/bootstrap`.
 - `./gradlew check` rebuilds the compiler from that snapshot and fails unless it translates its own sources to the same files (`verifyBootstrap`); `./gradlew updateBootstrap` replaces the snapshot. See `docs/self-hosting.md`.
 - `SourceParser` (it subclasses ANTLR classes), `Translator` and the small records of the public API stay Java.
+
+## Fourth audit fixes
+
+A fourth audit checked the new language features, the self-hosted compiler, the editors and the build. Its findings are fixed, each with a conformance case or test, except the few listed at the end.
+
+- Crashes and wrong results: `if` and `is` values inside lifted code, unboxing of a null branch next to a number (`if (c) maybe() else 0`), `var` properties no longer narrowed, `+=` on a property with `try`, `throw` of a nullable value and statements in strict mode.
+- Classes: properties read before they are set (AXL016 follows constructors, methods, `this` and returned lambdas), values an interface requires (AXL017), assignment to a `val` property, reserved and duplicate member names, enums as the type of their file.
+- `when`: `Long`, `Double` and `Boolean` subjects, `null` branches next to type tests, negative and named constants, exhaustive enums, captured variables in value branches, `Result` subjects.
+- Diagnostics: misspelled keywords (`fun`), Java habits (`new`, casts, `let`, `int x`), `when {` without a subject, a missing `->`, `if` statements without braces, errors inside a multi-line `if` value on their own line, no duplicate errors for class parameters, generated names hidden, and more javac messages in Axolotl terms.
+- Build: line endings fixed by `.gitattributes`, `updateBootstrap` compiles the new snapshot before replacing the old one, the long chains in the generator are no longer walked again from each operator.
+- Editors: nested types and constructors in IntelliJ light classes, rename and find usages of members, narrowing, hover, completion and outline for classes, data classes and enums in the language server.
+
+Left as they are: mixing `Int?` and `Long?` branches in one value, `Int? ?: 0L`, and `var x = when` with lambdas in the branches (the message asks for the type).
