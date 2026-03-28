@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val n = 1
+    when {
+        n > 0 -> println(n)
+    }
+}

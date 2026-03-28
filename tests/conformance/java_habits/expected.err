@@ -1,0 +1,8 @@
+AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
+AXL001 app/EmptyArrow.axl:6:13: error: `->` needs a value or a block after it
+AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?
+AXL001 app/JavaType.axl:4:5: error: declare a local with its type after the name: `val count: Int = ...`
+AXL001 app/Let.axl:4:5: error: declare a value with `val`, or a variable with `var`
+AXL001 app/MissingArrow.axl:6:11: error: missing `->` before `println`
+AXL001 app/New.axl:4:14: error: Axolotl creates objects without `new`: `StringBuilder(...)`
+AXL001 app/WhenNoSubject.axl:5:10: error: `when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`

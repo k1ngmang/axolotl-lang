@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    int count = 1
+    println(count)
+}

@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val x: Any = "a"
+    val s = x as String
+    println(s)
+}

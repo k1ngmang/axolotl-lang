@@ -3,6 +3,7 @@ package org.axl.compiler.parse;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -142,18 +143,102 @@ public final class SourceParser {
             case AxolotlParser.LambdaContext lambda -> lambda.statement();
             default -> List.of();
         };
+        int reportedLine = -1;
         for (int i = 1; i < statements.size(); i++) {
             Token end = statements.get(i - 1).getStop();
             Token start = statements.get(i).getStart();
             if (end.getLine() == start.getLine() && end.getType() != AxolotlLexer.SEMI
-                    && start.getType() != AxolotlLexer.SEMI) {
-                diagnostics.add(AxlDiagnostic.error(path, start.getLine(), start.getCharPositionInLine() + 1,
-                        ErrorCode.SYNTAX, "put this statement on its own line, or end the one before it with `;`"));
+                    && start.getType() != AxolotlLexer.SEMI && start.getLine() != reportedLine) {
+                AxlDiagnostic problem = sharedLine(path, statements.get(i - 1).getStart(), end, start);
+                diagnostics.add(problem);
+                // A misspelled or Java-style word splits one line into several statements; report it once.
+                if (!problem.message().startsWith(OWN_LINE)) {
+                    reportedLine = start.getLine();
+                }
             }
         }
         for (int i = 0; i < node.getChildCount(); i++) {
             sharedLines(path, node.getChild(i), diagnostics);
         }
+    }
+
+    private static final List<String> KEYWORDS = List.of("return", "while", "else", "when", "val", "var", "for", "if",
+            "try", "throw", "fn", "class", "enum", "data", "sealed", "interface", "import", "package", "private",
+            "attempt", "null", "true", "false");
+
+    private static final Map<String, String> JAVA_TYPES = Map.of("int", "Int", "long", "Long", "double", "Double",
+            "boolean", "Boolean", "float", "Float", "char", "Character", "String", "String");
+
+    /**
+     * Two statements on one line often come from a word Axolotl does not have: a misspelled keyword, a
+     * Java declaration, a cast or `new`. first and last are the tokens of the earlier statement.
+     */
+    private static final String OWN_LINE = "put this statement on its own line, or end the one before it with `;`";
+
+    private static AxlDiagnostic sharedLine(String path, Token first, Token last, Token next) {
+        String nextGuess = keywordLike(next);
+        if (next.getType() == AxolotlLexer.IDENTIFIER && next.getText().equals("as")) {
+            return error(path, next, "Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`");
+        }
+        if (nextGuess != null) {
+            return error(path, next, "unknown word `" + next.getText() + "`; did you mean `" + nextGuess + "`?");
+        }
+        if (last.getType() == AxolotlLexer.IDENTIFIER && last.getText().equals("new")) {
+            return error(path, last, "Axolotl creates objects without `new`: `" + next.getText() + "(...)`");
+        }
+        String text = first.getText();
+        if (first == last && (text.equals("let") || text.equals("const"))) {
+            return error(path, first, "declare a value with `val`, or a variable with `var`");
+        }
+        if (first == last && JAVA_TYPES.containsKey(text)) {
+            return error(path, first, "declare a local with its type after the name: `val " + next.getText() + ": "
+                    + JAVA_TYPES.get(text) + " = ...`");
+        }
+        String guess = keywordLike(first);
+        if (guess != null) {
+            return error(path, first, "unknown word `" + text + "`; did you mean `" + guess + "`?");
+        }
+        return error(path, next, OWN_LINE);
+    }
+
+    private static AxlDiagnostic error(String path, Token at, String message) {
+        return AxlDiagnostic.error(path, at.getLine(), at.getCharPositionInLine() + 1, ErrorCode.SYNTAX, message);
+    }
+
+    /** The keyword a word is a slip of: one or two letters off, or swapped. */
+    private static String keywordLike(Token token) {
+        if (token.getType() != AxolotlLexer.IDENTIFIER || token.getText().length() < 3) {
+            return null;
+        }
+        String text = token.getText();
+        if (text.equals("fun") || text.equals("def") || text.equals("function")) {
+            return "fn";
+        }
+        for (String keyword : KEYWORDS) {
+            if (keyword.length() >= 3 && distance(text, keyword) <= (keyword.length() > 4 ? 2 : 1)) {
+                return keyword;
+            }
+        }
+        return null;
+    }
+
+    /** Edits that turn one word into the other, a swap of neighbours counting as one. */
+    private static int distance(String a, String b) {
+        int[][] d = new int[a.length() + 1][b.length() + 1];
+        for (int i = 0; i <= a.length(); i++) {
+            for (int j = 0; j <= b.length(); j++) {
+                if (i == 0 || j == 0) {
+                    d[i][j] = i + j;
+                    continue;
+                }
+                int cost = a.charAt(i - 1) == b.charAt(j - 1) ? 0 : 1;
+                d[i][j] = Math.min(Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1), d[i - 1][j - 1] + cost);
+                if (i > 1 && j > 1 && a.charAt(i - 1) == b.charAt(j - 2) && a.charAt(i - 2) == b.charAt(j - 1)) {
+                    d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+                }
+            }
+        }
+        return d[a.length()][b.length()];
     }
 
     private static String doubleProblem(String text) {
@@ -268,7 +353,7 @@ public final class SourceParser {
             case AxolotlLexer.PLUS, AxolotlLexer.MINUS, AxolotlLexer.STAR, AxolotlLexer.SLASH, AxolotlLexer.PERCENT,
                  AxolotlLexer.ANDAND, AxolotlLexer.OROR, AxolotlLexer.ELVIS, AxolotlLexer.EQ, AxolotlLexer.NEQ,
                  AxolotlLexer.LE, AxolotlLexer.GE, AxolotlLexer.ASSIGN, AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT,
-                 AxolotlLexer.PIPE -> true;
+                 AxolotlLexer.PIPE, AxolotlLexer.ARROW -> true;
             default -> false;
         };
     }
@@ -280,6 +365,17 @@ public final class SourceParser {
                     : "unexpected end of file";
         }
         String token = at == null ? "" : at.getText();
+        String guess = at == null ? null : keywordLike(at);
+        if (guess != null) {
+            return "unknown word `" + token + "`; did you mean `" + guess + "`?";
+        }
+        Token previous = at == null ? null : previousToken(tokens, at);
+        if (previous != null && previous.getType() == AxolotlLexer.WHEN && at.getType() == AxolotlLexer.LBRACE) {
+            return "`when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`";
+        }
+        if (!token.equals("->") && (msg.contains("'->'") && !msg.startsWith("missing ") || brokenArm(msg, previous, at))) {
+            return "missing `->` before `" + token + "`";
+        }
         if (msg.startsWith("missing ")) {
             String missing = msg.substring("missing ".length(), msg.indexOf(" at "));
             return "missing " + describe(missing) + " before `" + token + "`";
@@ -290,6 +386,12 @@ public final class SourceParser {
             return expected.startsWith("{") ? "unexpected `" + token + "`" : "unexpected `" + token + "`, expected " + describe(expected);
         }
         return "unexpected `" + token + "`";
+    }
+
+    /** ANTLR gives up on the whole `when` when an arm's condition runs into its value. */
+    private static boolean brokenArm(String msg, Token previous, Token at) {
+        return msg.startsWith("no viable alternative at input 'when") && previous != null
+                && previous.getLine() == at.getLine();
     }
 
     /** A token name or literal from an ANTLR message, as a person would say it. */
@@ -390,10 +492,14 @@ public final class SourceParser {
                         : reportLine < line && nextDeclaration && !unfinished(previous)
                         ? "the declaration is not finished at the end of this line"
                         : previous != null && unfinished(previous) ? "`" + previous.getText() + "` needs "
-                                + (previous.getType() == AxolotlLexer.DOT ? "a name" : "a value") + " after it"
+                                + (previous.getType() == AxolotlLexer.DOT ? "a name"
+                                : previous.getType() == AxolotlLexer.ARROW ? "a value or a block" : "a value") + " after it"
                         : parserMessage(msg, at, tokens);
-                // ANTLR recovery tends to report the same broken line several times.
-                if (diagnostics.stream().noneMatch(d -> d.line() == finalLine)) {
+                // ANTLR recovery tends to report the same broken line several times, and the branches,
+                // braces and end of file after a broken `when` branch.
+                boolean cascade = !diagnostics.isEmpty() && at != null && (at.getType() == AxolotlLexer.ELSE
+                        || at.getType() == AxolotlLexer.ARROW || at.getType() == Token.EOF || at.getType() == AxolotlLexer.RBRACE);
+                if (!cascade && diagnostics.stream().noneMatch(d -> d.line() == finalLine)) {
                     diagnostics.add(AxlDiagnostic.error(path, reportLine, column, ErrorCode.SYNTAX, message));
                 }
             }

@@ -11,7 +11,6 @@ AXL001 app/MissingParen.axl:4:16: error: missing `)` at the end of the line
 AXL001 app/PackageDot.axl:1:12: error: unexpected `.`
 AXL001 app/PlusPlus.axl:5:6: error: Axolotl has no `++`; write `+= 1`
 AXL001 app/UnclosedBrace.axl:4:15: error: unexpected end of file: the `{` at line 3 is not closed
-AXL001 app/UnclosedBrace.axl:5:1: error: unexpected end of file: the `{` at line 3 is not closed
 AXL001 app/UnclosedComment.axl:3:1: error: unclosed comment: add `*/`
 AXL001 app/UnclosedString.axl:4:13: error: unclosed string: add `"` before the end of the line
 AXL001 app/Unfinished.axl:4:16: error: `+` needs a value after it
