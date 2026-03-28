@@ -25,6 +25,9 @@ final class Messages {
     private static final Pattern MAP_RESULT_ELEMENT = Pattern.compile(
             "^incompatible types: (?:axl\\.lang\\.)?Result<(.+?),.+> cannot be converted to (?:axl\\.lang\\.)?Result<(.+),\\?>$");
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
+    // javac reports a second assignment of a final field both ways, once from the plugin's own pass.
+    private static final Pattern FINAL_FIELD = Pattern.compile(
+            "^(?:cannot assign a value to final variable (\\w+)|variable (\\w+) might already have been assigned)$");
     private static final Pattern NULLABLE_SELECTOR = Pattern.compile("^switch selector expression '(.+?)' is @Nullable");
     private static final Pattern NULLABLE_ITERABLE = Pattern.compile("^enhanced-for expression '?(.+?)'? is @Nullable");
     private static final Pattern GENERATED_OR_SUBJECT = Pattern.compile("\\w*\\$e\\d+");
@@ -148,6 +151,11 @@ final class Messages {
         }
         if (message.startsWith("[NullAway] ")) {
             return nullAway(message, text, javaLines);
+        }
+        Matcher finalField = FINAL_FIELD.matcher(message);
+        if (finalField.find()) {
+            String name = finalField.group(1) != null ? finalField.group(1) : finalField.group(2);
+            return new Translated(ErrorCode.ASSIGN_TO_VAL, "cannot assign to the `val` property `" + name + "`; declare it with `var`");
         }
         if (message.startsWith("[ReturnValueIgnored] Return value of 'toList' must be used")) {
             return new Translated(ErrorCode.JAVAC, "the list this pipe builds is not used; end the pipe with `forEach`, "

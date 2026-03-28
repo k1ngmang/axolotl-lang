@@ -243,6 +243,8 @@ primary
     | lambda                                                        # lambdaPrimary
     | whenExpression                                                # whenPrimary
     | {ifExpressionAhead()}? IF LPAREN expression RPAREN expression ELSE expression   # ifPrimary
+    // Rejected with a message: braces make an `if` a statement.
+    | IF LPAREN expression RPAREN block (ELSE (block | expression))?                   # ifBlockPrimary
     ;
 
 // `when (x) { is Circle -> x.radius(); 1, 2 -> "few"; else -> { ... } }`

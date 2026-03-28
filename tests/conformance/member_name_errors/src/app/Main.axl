@@ -1,0 +1,9 @@
+package app
+
+data class Point(val int: Int, val y: Int)
+
+interface Shape {
+    val static: Int
+}
+
+enum Color { RED, default, RED }

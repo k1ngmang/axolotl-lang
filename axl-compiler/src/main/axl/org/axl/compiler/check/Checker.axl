@@ -127,7 +127,7 @@ class Checker(val file: SourceFile) {
                 is Decl.Value -> topLevelValue(decl)
                 is Decl.Function -> function(decl)
                 is Decl.ClassDecl -> classDecl(decl)
-                is Decl.EnumDecl -> { }
+                is Decl.EnumDecl -> enumConstants(decl)
                 is Decl.DataClass -> members(decl.fields(), "field")
                 is Decl.Interface -> members(decl.members(), "member")
             }
@@ -349,6 +349,19 @@ class Checker(val file: SourceFile) {
             } else if (OBJECT_METHOD_NAMES.contains(member.name())) {
                 error(member.pos(), ErrorCode.RESERVED_NAME, "`" + member.name() + "` is a method of every Java object " +
                     "and cannot be the name of a " + what + "; choose another name")
+            } else {
+                checkReserved(member.pos(), member.name())
+            }
+        }
+    }
+
+    private fn enumConstants(e: Decl.EnumDecl) {
+        val seen = HashSet<String>()
+        for (constant in e.constants()) {
+            if (!seen.add(constant)) {
+                error(e.namePos(), ErrorCode.DUPLICATE_NAME, "the constant `" + constant + "` of `" + e.name() + "` is declared twice")
+            } else {
+                checkReserved(e.namePos(), constant)
             }
         }
     }

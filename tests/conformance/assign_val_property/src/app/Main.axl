@@ -1,0 +1,9 @@
+package app
+
+class Counter(val name: String, var step: Int)
+
+fn main() {
+    val c = Counter("a", 1)
+    c.step = 2
+    c.name = "b"
+}

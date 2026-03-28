@@ -81,6 +81,7 @@ import org.axl.compiler.ast.TypeRef;
                     classDecl(decl$3);
                 }
                 case Decl.EnumDecl decl$4 -> {
+                    enumConstants(decl$4);
                 }
                 case Decl.DataClass decl$5 -> {
                     members(decl$5.fields(), "field");
@@ -318,6 +319,18 @@ import org.axl.compiler.ast.TypeRef;
                         "and cannot be the name of a " +
                         what +
                         "; choose another name");
+            } else {
+                checkReserved(member.pos(), member.name());
+            }
+        }
+    }
+    private void enumConstants(Decl.EnumDecl e) {
+        final var seen = new HashSet<String>();
+        for (final var constant : e.constants()) {
+            if (!seen.add(constant)) {
+                error(e.namePos(), ErrorCode.DUPLICATE_NAME, "the constant `" + constant + "` of `" + e.name() + "` is declared twice");
+            } else {
+                checkReserved(e.namePos(), constant);
             }
         }
     }

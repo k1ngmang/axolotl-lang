@@ -1,1 +1,2 @@
 AXL001 app/Main.axl:4:31: error: an `if` that gives a value takes expressions after `if (...)` and `else`, not braces; put a lambda in parentheses
+AXL001 app/Then.axl:3:37: error: an `if` that gives a value takes expressions after `if (...)` and `else`, not braces: `if (c) a else b`; braces make an `if` a statement
