@@ -44,7 +44,8 @@ public final class AxlServer {
             command.add("--add-opens=jdk.compiler/com.sun.tools.javac." + p + "=ALL-UNNAMED");
         }
         command.add("-cp");
-        command.add(libDir().resolve("*").toString());
+        // `*` is a classpath wildcard, not a file name; Windows paths cannot contain it.
+        command.add(libDir() + File.separator + "*");
         command.add(mainClass);
         return command;
     }
