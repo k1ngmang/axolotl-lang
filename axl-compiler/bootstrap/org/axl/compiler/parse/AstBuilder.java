@@ -192,11 +192,11 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var properties = new ArrayList<Property>();
         final var methods = new ArrayList<Decl.Function>();
         for (final var member : ctx.classMember()) {
-            if (member instanceof PropertyMemberContext $s1) {
-                properties.add(new Property(pos($s1.start), pos($s1.identifier().start), $s1.PRIVATE() != null,
-                        nameOf($s1.identifier()), typeOrNull($s1.type()), buildExpr($s1.expression()), $s1.VAR() != null));
-            } else if (member instanceof MethodMemberContext $s2) {
-                methods.add(buildFunction($s2.functionDecl()));
+            if (member instanceof PropertyMemberContext member$1) {
+                properties.add(new Property(pos(member$1.start), pos(member$1.identifier().start), member$1.PRIVATE() != null,
+                        nameOf(member$1.identifier()), typeOrNull(member$1.type()), buildExpr(member$1.expression()), member$1.VAR() != null));
+            } else if (member instanceof MethodMemberContext member$2) {
+                methods.add(buildFunction(member$2.functionDecl()));
             } else {
                 throw new IllegalStateException("unknown member " + member.getClass());
             }
@@ -238,34 +238,34 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     }
     private static @Nullable Stmt buildStatement(StatementContext ctx) {
         switch (ctx) {
-            case ValStatementContext $s1 -> {
-                return buildVal($s1);
+            case ValStatementContext ctx$1 -> {
+                return buildVal(ctx$1);
             }
-            case VarStatementContext $s2 -> {
-                final var decl = $s2.varDecl();
+            case VarStatementContext ctx$2 -> {
+                final var decl = ctx$2.varDecl();
                 return new Local(pos(decl.start), pos(decl.identifier().start), nameOf(decl.identifier()), typeOrNull(decl.type()),
                         buildExpr(decl.expression()), true);
             }
-            case ReturnStatementContext $s3 -> {
-                return buildReturn($s3);
+            case ReturnStatementContext ctx$3 -> {
+                return buildReturn(ctx$3);
             }
-            case IfStatementAltContext $s4 -> {
-                return buildIf($s4.ifStatement());
+            case IfStatementAltContext ctx$4 -> {
+                return buildIf(ctx$4.ifStatement());
             }
-            case WhileStatementContext $s5 -> {
-                return new While(pos($s5.start), buildExpr($s5.expression()), buildBlock($s5.block()));
+            case WhileStatementContext ctx$5 -> {
+                return new While(pos(ctx$5.start), buildExpr(ctx$5.expression()), buildBlock(ctx$5.block()));
             }
-            case ForStatementContext $s6 -> {
-                return new For(pos($s6.start), pos($s6.identifier().start), nameOf($s6.identifier()),
-                        buildExpr($s6.expression()), buildBlock($s6.block()));
+            case ForStatementContext ctx$6 -> {
+                return new For(pos(ctx$6.start), pos(ctx$6.identifier().start), nameOf(ctx$6.identifier()),
+                        buildExpr(ctx$6.expression()), buildBlock(ctx$6.block()));
             }
-            case AssignStatementContext $s7 -> {
-                return buildAssign($s7);
+            case AssignStatementContext ctx$7 -> {
+                return buildAssign(ctx$7);
             }
-            case ExpressionStatementContext $s8 -> {
-                return new ExprStmt(pos($s8.start), buildExpr($s8.expression()));
+            case ExpressionStatementContext ctx$8 -> {
+                return new ExprStmt(pos(ctx$8.start), buildExpr(ctx$8.expression()));
             }
-            case EmptyStatementContext $s9 -> {
+            case EmptyStatementContext ctx$9 -> {
                 return null;
             }
             default -> {
@@ -288,7 +288,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     }
     private static Stmt.Assign buildAssign(AssignStatementContext ctx) {
         final var target = buildPostfix(ctx.postfixExpression());
-        final var assignable = target instanceof Expr.Name $s1 || target instanceof Expr.Member $s2;
+        final var assignable = target instanceof Expr.Name target$1 || target instanceof Expr.Member target$2;
         if (!assignable) {
             throw new Rejected(target.pos(), "only a variable or a field can be assigned");
         }
@@ -368,8 +368,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     private static Expr leftFold(ParserRuleContext ctx, List<Expr> operands) {
         final var operators = new ArrayList<String>();
         for (final var child : ctx.children) {
-            if (child instanceof TerminalNode $s1) {
-                operators.add($s1.getText());
+            if (child instanceof TerminalNode child$1) {
+                operators.add(child$1.getText());
             }
         }
         var result = operands.getFirst();
@@ -382,20 +382,20 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     }
     private static Expr buildPrefix(PrefixExpressionContext ctx) {
         switch (ctx) {
-            case UnaryExpressionContext $s1 -> {
-                return buildUnary($s1);
+            case UnaryExpressionContext ctx$1 -> {
+                return buildUnary(ctx$1);
             }
-            case TryExpressionContext $s2 -> {
-                return new Try(pos($s2.start), buildPrefix($s2.prefixExpression()));
+            case TryExpressionContext ctx$2 -> {
+                return new Try(pos(ctx$2.start), buildPrefix(ctx$2.prefixExpression()));
             }
-            case ThrowExpressionContext $s3 -> {
-                return new Throw(pos($s3.start), buildPrefix($s3.prefixExpression()));
+            case ThrowExpressionContext ctx$3 -> {
+                return new Throw(pos(ctx$3.start), buildPrefix(ctx$3.prefixExpression()));
             }
-            case AttemptExpressionContext $s4 -> {
-                return buildAttempt($s4);
+            case AttemptExpressionContext ctx$4 -> {
+                return buildAttempt(ctx$4);
             }
-            case PostfixAltContext $s5 -> {
-                return buildPostfix($s5.postfixExpression());
+            case PostfixAltContext ctx$5 -> {
+                return buildPostfix(ctx$5.postfixExpression());
             }
             default -> {
                 throw new IllegalStateException("unknown expression " + ctx.getClass());
@@ -416,12 +416,12 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     }
     private static boolean hasSafeStep(Expr e) {
         switch (e) {
-            case Expr.Member $s1 -> {
-                return $s1.safe() || hasSafeStep($s1.target());
+            case Expr.Member e$1 -> {
+                return e$1.safe() || hasSafeStep(e$1.target());
             }
-            case Expr.Call $s2 -> {
-                final var target = $s2.target();
-                return $s2.safe() || (target != null && hasSafeStep(target));
+            case Expr.Call e$2 -> {
+                final var target = e$2.target();
+                return e$2.safe() || (target != null && hasSafeStep(target));
             }
             default -> {
                 return false;
@@ -434,23 +434,23 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         var i = 0;
         while (i < suffixes.size()) {
             final var suffix = suffixes.get(i);
-            if (suffix instanceof MemberSuffixContext $s1) {
+            if (suffix instanceof MemberSuffixContext suffix$1) {
                 final var call = callAfter(suffixes, i);
-                final var member = nameOf($s1.identifier());
-                final var memberPos = pos($s1.identifier().start);
-                final var safe = $s1.SAFE_DOT() != null;
+                final var member = nameOf(suffix$1.identifier());
+                final var memberPos = pos(suffix$1.identifier().start);
+                final var safe = suffix$1.SAFE_DOT() != null;
                 if (call != null) {
                     current = new Call(memberPos, current, member, buildArguments(call.arguments()), safe);
                     i += 1;
                 } else {
                     current = new Member(memberPos, current, member, safe);
                 }
-            } else if (suffix instanceof CallSuffixContext $s2) {
-                current = namedCall(current, $s2);
-            } else if (suffix instanceof MethodRefSuffixContext $s3) {
-                current = new MethodRef(pos($s3.start), current, nameOf($s3.identifier()));
-            } else if (suffix instanceof NotNullSuffixContext $s4) {
-                current = new NotNull(pos($s4.start), current);
+            } else if (suffix instanceof CallSuffixContext suffix$2) {
+                current = namedCall(current, suffix$2);
+            } else if (suffix instanceof MethodRefSuffixContext suffix$3) {
+                current = new MethodRef(pos(suffix$3.start), current, nameOf(suffix$3.identifier()));
+            } else if (suffix instanceof NotNullSuffixContext suffix$4) {
+                current = new NotNull(pos(suffix$4.start), current);
             } else {
                 throw new IllegalStateException("unknown suffix " + suffix.getClass());
             }
@@ -463,16 +463,16 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             return null;
         }
         final var next = suffixes.get(index + 1);
-        if (next instanceof CallSuffixContext $s1) {
-            return $s1;
+        if (next instanceof CallSuffixContext next$1) {
+            return next$1;
         }
         return null;
     }
     private static Expr namedCall(Expr target, CallSuffixContext call) {
-        if (!(target instanceof Expr.Name $s1)) {
+        if (!(target instanceof Expr.Name target$1)) {
             throw new Rejected(pos(call.start), "only a named function can be called");
         }
-        return new Call($s1.pos(), null, $s1.name(), buildArguments(call.arguments()), false);
+        return new Call(target$1.pos(), null, target$1.name(), buildArguments(call.arguments()), false);
     }
     private static List<Expr> buildArguments(@Nullable ArgumentsContext ctx) {
         if (ctx == null) {
@@ -482,26 +482,26 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     }
     private static Expr buildPrimary(PrimaryContext ctx) {
         switch (ctx) {
-            case LiteralPrimaryContext $s1 -> {
-                return new Literal(pos($s1.start), $s1.getText());
+            case LiteralPrimaryContext ctx$1 -> {
+                return new Literal(pos(ctx$1.start), ctx$1.getText());
             }
-            case NamePrimaryContext $s2 -> {
-                return new Name(pos($s2.start), nameOf($s2.identifier()));
+            case NamePrimaryContext ctx$2 -> {
+                return new Name(pos(ctx$2.start), nameOf(ctx$2.identifier()));
             }
-            case ParenPrimaryContext $s3 -> {
-                return new Paren(pos($s3.start), buildExpr($s3.expression()));
+            case ParenPrimaryContext ctx$3 -> {
+                return new Paren(pos(ctx$3.start), buildExpr(ctx$3.expression()));
             }
-            case LambdaPrimaryContext $s4 -> {
-                return buildLambda($s4.lambda());
+            case LambdaPrimaryContext ctx$4 -> {
+                return buildLambda(ctx$4.lambda());
             }
-            case WhenPrimaryContext $s5 -> {
-                return buildWhen($s5.whenExpression());
+            case WhenPrimaryContext ctx$5 -> {
+                return buildWhen(ctx$5.whenExpression());
             }
-            case IfPrimaryContext $s6 -> {
-                return buildConditional($s6);
+            case IfPrimaryContext ctx$6 -> {
+                return buildConditional(ctx$6);
             }
-            case GenericConstructorContext $s7 -> {
-                return buildGenericNew($s7);
+            case GenericConstructorContext ctx$7 -> {
+                return buildGenericNew(ctx$7);
             }
             default -> {
                 throw new IllegalStateException("unknown primary " + ctx.getClass());
@@ -512,8 +512,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var thenExpr = buildExpr(ctx.expression(1));
         final var otherwise = buildExpr(ctx.expression(2));
         for (final var branch : List.of(thenExpr, otherwise)) {
-            if (branch instanceof Expr.Lambda $s1) {
-                throw new Rejected($s1.pos(), "an `if` that gives a value takes expressions after `if (...)` and `else`, " +
+            if (branch instanceof Expr.Lambda branch$1) {
+                throw new Rejected(branch$1.pos(), "an `if` that gives a value takes expressions after `if (...)` and `else`, " +
                         "not braces; put a lambda in parentheses");
             }
         }

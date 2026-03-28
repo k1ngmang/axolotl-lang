@@ -15,8 +15,8 @@ import org.axl.compiler.ast.Stmt.Return;
             return statements;
         }
         final var last = statements.getLast();
-        if (last instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
-            statements.set(statements.size() - 1, new Return($s1.pos(), $s1.expr()));
+        if (last instanceof Stmt.ExprStmt last$1 && !(last$1.expr() instanceof Expr.Throw)) {
+            statements.set(statements.size() - 1, new Return(last$1.pos(), last$1.expr()));
         }
         return statements;
     }

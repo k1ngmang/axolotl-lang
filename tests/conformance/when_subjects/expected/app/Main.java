@@ -80,8 +80,8 @@ import org.jspecify.annotations.*;
     }
     public static int length(@Nullable String s) {
         switch (s) {
-            case String $s1 -> {
-                return $s1.length();
+            case String s$1 -> {
+                return s$1.length();
             }
             case null -> {
                 return -1;
@@ -90,11 +90,11 @@ import org.jspecify.annotations.*;
     }
     public static double area(@Nullable Shape shape) {
         switch (shape) {
-            case Circle $s1 -> {
-                return $s1.radius();
+            case Circle shape$1 -> {
+                return shape$1.radius();
             }
-            case Square $s2 -> {
-                return $s2.side() * $s2.side();
+            case Square shape$2 -> {
+                return shape$2.side() * shape$2.side();
             }
             case null -> {
                 return 0.0;

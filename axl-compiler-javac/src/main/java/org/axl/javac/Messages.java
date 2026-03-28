@@ -27,7 +27,7 @@ final class Messages {
     private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
     private static final Pattern NULLABLE_SELECTOR = Pattern.compile("^switch selector expression '(.+?)' is @Nullable");
     private static final Pattern NULLABLE_ITERABLE = Pattern.compile("^enhanced-for expression '?(.+?)'? is @Nullable");
-    private static final Pattern GENERATED_OR_SUBJECT = Pattern.compile("\\$e\\d+");
+    private static final Pattern GENERATED_OR_SUBJECT = Pattern.compile("\\w*\\$e\\d+");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
     private static final Pattern NO_INSTANCE = Pattern.compile(
@@ -100,8 +100,19 @@ final class Messages {
         return new Translated(translated.code(), hideGenerated(translated.message()));
     }
 
-    private static final Pattern NESTED_TYPE = Pattern.compile("^\\s*(?:(?:public|private|sealed|non-sealed|static)\\s+)*"
-            + "(?:record|interface|class)\\s+(\\w+)");
+    private static final Pattern NESTED_TYPE = Pattern.compile("^\\s*(?:(?:public|private|sealed|non-sealed|static|final)\\s+)*"
+            + "(?:record|interface|class|enum)\\s+(\\w+)");
+
+    private static List<String> nestedTypes(String[] javaLines) {
+        List<String> names = new ArrayList<>();
+        for (String line : javaLines) {
+            Matcher nested = NESTED_TYPE.matcher(line);
+            if (line.startsWith("    ") && !line.startsWith("     ") && nested.find()) {
+                names.add(nested.group(1));
+            }
+        }
+        return names;
+    }
 
     /** The data classes and interfaces of a file are nested in its class, but written without it. */
     private static String withoutFileClass(String message, String[] javaLines) {
@@ -402,7 +413,11 @@ final class Messages {
         if (unknown.find()) {
             String symbol = axlType(unknown.group(2));
             String location = unknown.group(3);
-            boolean inThisFile = location.equals("class " + generatedClass(javaLines));
+            // A name written alone in a method of a class of the file is looked for in that class first.
+            String name = symbol.contains("(") ? symbol.substring(0, symbol.indexOf('(')) : symbol;
+            boolean alone = !text.contains("." + name);
+            boolean inThisFile = location.equals("class " + generatedClass(javaLines))
+                    || alone && location.startsWith("class ") && nestedTypes(javaLines).contains(location.substring("class ".length()));
             if (symbol.equals("stream()") && text.contains(".stream().")) {
                 int ofType = location.indexOf(" of type ");
                 String type = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
@@ -553,7 +568,9 @@ final class Messages {
 
     /** Messages must not show what the translator generated; say what it stands for instead. */
     private static String hideGenerated(String message) {
-        String result = message.replaceAll("`\\$n\\d+` of type `", "the value of type `");
+        // `shape$1` holds `shape` where a type test narrowed it, and `e$e1` the subject `when (val e = ...)` binds.
+        String result = message.replaceAll("\\b([A-Za-z]\\w*)\\$e?\\d+\\b", "$1")
+                .replaceAll("`\\$n\\d+` of type `", "the value of type `");
         Matcher quoted = Pattern.compile("`([^`]*)`|'([^']*)'").matcher(result);
         return quoted.replaceAll(m -> {
             String inner = m.group(1) != null ? m.group(1) : m.group(2);

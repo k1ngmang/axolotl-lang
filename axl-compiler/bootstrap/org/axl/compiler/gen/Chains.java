@@ -11,11 +11,11 @@ import org.axl.compiler.ast.Expr;
     public record Chain(Expr base, List<Step> steps) {}
     public static Chain flatten(Expr expr) {
         switch (expr) {
-            case Expr.Member $s1 -> {
-                return extend(flatten($s1.target()), new Step($s1.name(), null, $s1.safe(), $s1.pos().line()));
+            case Expr.Member expr$1 -> {
+                return extend(flatten(expr$1.target()), new Step(expr$1.name(), null, expr$1.safe(), expr$1.pos().line()));
             }
-            case Expr.Call $s2 -> {
-                return ofCall($s2);
+            case Expr.Call expr$2 -> {
+                return ofCall(expr$2);
             }
             default -> {
                 return new Chain(expr, new ArrayList<Step>());
@@ -35,7 +35,7 @@ import org.axl.compiler.ast.Expr;
         return new Chain(chain.base(), steps);
     }
     public static boolean hasSafeStep(Expr expr) {
-        final var isAccess = expr instanceof Expr.Member $s1 || (expr instanceof Expr.Call $s2 && $s2.target() != null);
+        final var isAccess = expr instanceof Expr.Member expr$1 || (expr instanceof Expr.Call expr$2 && expr$2.target() != null);
         return isAccess && flatten(expr).steps().stream().anyMatch(it -> it.safe());
     }
 }

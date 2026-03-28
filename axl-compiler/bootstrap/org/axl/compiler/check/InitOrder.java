@@ -22,8 +22,8 @@ import org.axl.compiler.ast.Stmt;
     public List<Problem> problems() {
         final var values = new ArrayList<Decl.Value>();
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1) {
-                values.add($s1);
+            if (decl instanceof Decl.Value decl$1) {
+                values.add(decl$1);
             }
         }
         final var problems = new ArrayList<Problem>();
@@ -43,8 +43,8 @@ import org.axl.compiler.ast.Stmt;
     public List<PropertyProblem> propertyProblems() {
         final var problems = new ArrayList<PropertyProblem>();
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.ClassDecl $s1) {
-                classProblems($s1, problems);
+            if (decl instanceof Decl.ClassDecl decl$1) {
+                classProblems(decl$1, problems);
             }
         }
         return problems;
@@ -86,70 +86,70 @@ import org.axl.compiler.ast.Stmt;
     }
     private void names(Expr expr, Set<String> hidden, Set<String> out) {
         switch (expr) {
-            case Expr.Name $s1 -> {
-                read($s1.name(), hidden, out);
+            case Expr.Name expr$1 -> {
+                read(expr$1.name(), hidden, out);
             }
-            case Expr.Call $s2 -> {
-                callNames($s2, hidden, out);
+            case Expr.Call expr$2 -> {
+                callNames(expr$2, hidden, out);
             }
-            case Expr.Member $s3 -> {
-                if (isThisClass($s3.target()) || isThis($s3.target())) {
-                    read($s3.name(), Set.of(), out);
+            case Expr.Member expr$3 -> {
+                if (isThisClass(expr$3.target()) || isThis(expr$3.target())) {
+                    read(expr$3.name(), Set.of(), out);
                 } else {
-                    names($s3.target(), hidden, out);
+                    names(expr$3.target(), hidden, out);
                 }
             }
-            case Expr.GenericNew $s4 -> {
-                arguments($s4.args(), hidden, out);
+            case Expr.GenericNew expr$4 -> {
+                arguments(expr$4.args(), hidden, out);
             }
-            case Expr.MethodRef $s5 -> {
-                names($s5.target(), hidden, out);
+            case Expr.MethodRef expr$5 -> {
+                names(expr$5.target(), hidden, out);
             }
-            case Expr.NotNull $s6 -> {
-                names($s6.target(), hidden, out);
+            case Expr.NotNull expr$6 -> {
+                names(expr$6.target(), hidden, out);
             }
-            case Expr.Unary $s7 -> {
-                names($s7.operand(), hidden, out);
+            case Expr.Unary expr$7 -> {
+                names(expr$7.operand(), hidden, out);
             }
-            case Expr.Binary $s8 -> {
-                names($s8.left(), hidden, out);
-                names($s8.right(), hidden, out);
+            case Expr.Binary expr$8 -> {
+                names(expr$8.left(), hidden, out);
+                names(expr$8.right(), hidden, out);
             }
-            case Expr.Elvis $s9 -> {
-                names($s9.left(), hidden, out);
-                names($s9.right(), hidden, out);
+            case Expr.Elvis expr$9 -> {
+                names(expr$9.left(), hidden, out);
+                names(expr$9.right(), hidden, out);
             }
-            case Expr.Is $s10 -> {
-                names($s10.target(), hidden, out);
+            case Expr.Is expr$10 -> {
+                names(expr$10.target(), hidden, out);
             }
-            case Expr.Conditional $s11 -> {
-                names($s11.condition(), hidden, out);
-                names($s11.then(), hidden, out);
-                names($s11.otherwise(), hidden, out);
+            case Expr.Conditional expr$11 -> {
+                names(expr$11.condition(), hidden, out);
+                names(expr$11.then(), hidden, out);
+                names(expr$11.otherwise(), hidden, out);
             }
-            case Expr.Throw $s12 -> {
-                names($s12.value(), hidden, out);
+            case Expr.Throw expr$12 -> {
+                names(expr$12.value(), hidden, out);
             }
-            case Expr.When $s13 -> {
-                whenNames($s13, hidden, out);
+            case Expr.When expr$13 -> {
+                whenNames(expr$13, hidden, out);
             }
-            case Expr.Paren $s14 -> {
-                names($s14.inner(), hidden, out);
+            case Expr.Paren expr$14 -> {
+                names(expr$14.inner(), hidden, out);
             }
-            case Expr.Try $s15 -> {
-                names($s15.inner(), hidden, out);
+            case Expr.Try expr$15 -> {
+                names(expr$15.inner(), hidden, out);
             }
-            case Expr.Attempt $s16 -> {
-                names($s16.body(), hidden, out);
-                final var errorName = $s16.errorName();
-                names($s16.handler(), (errorName == null ? hidden : with(hidden, Set.of(errorName))), out);
+            case Expr.Attempt expr$16 -> {
+                names(expr$16.body(), hidden, out);
+                final var errorName = expr$16.errorName();
+                names(expr$16.handler(), (errorName == null ? hidden : with(hidden, Set.of(errorName))), out);
             }
-            case Expr.Pipe $s17 -> {
-                pipeNames($s17, hidden, out);
+            case Expr.Pipe expr$17 -> {
+                pipeNames(expr$17, hidden, out);
             }
-            case Expr.Lambda $s18 -> {
+            case Expr.Lambda expr$18 -> {
             }
-            case Expr.Literal $s19 -> {
+            case Expr.Literal expr$19 -> {
             }
         }
     }
@@ -176,14 +176,14 @@ import org.axl.compiler.ast.Stmt;
     }
     private Decl.@Nullable ClassDecl constructed(Expr e) {
         final var inner = unparenthesized(e);
-        if (inner instanceof Expr.Call $s1 && $s1.target() == null) {
-            return classNamed($s1.name());
+        if (inner instanceof Expr.Call inner$1 && inner$1.target() == null) {
+            return classNamed(inner$1.name());
         }
         return null;
     }
     private Expr.@Nullable Lambda returnedLambda(Expr e) {
         final var inner = unparenthesized(e);
-        if (!(inner instanceof Expr.Call $s1) || $s1.target() != null) {
+        if (!(inner instanceof Expr.Call inner$1) || inner$1.target() != null) {
             return null;
         }
         final var c = owner;
@@ -192,13 +192,13 @@ import org.axl.compiler.ast.Stmt;
             functions.addAll(c.methods());
         }
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Function $s2) {
-                functions.add($s2);
+            if (decl instanceof Decl.Function decl$2) {
+                functions.add(decl$2);
             }
         }
         for (final var f : functions) {
             final var body = f.exprBody();
-            if (f.name().equals($s1.name()) && body != null && unparenthesized(body) instanceof Expr.Lambda) {
+            if (f.name().equals(inner$1.name()) && body != null && unparenthesized(body) instanceof Expr.Lambda) {
                 return lambdaOf(body);
             }
         }
@@ -206,8 +206,8 @@ import org.axl.compiler.ast.Stmt;
     }
     private Decl.@Nullable ClassDecl classNamed(String name) {
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.ClassDecl $s1 && $s1.name().equals(name)) {
-                return $s1;
+            if (decl instanceof Decl.ClassDecl decl$1 && decl$1.name().equals(name)) {
+                return decl$1;
             }
         }
         return null;
@@ -259,10 +259,10 @@ import org.axl.compiler.ast.Stmt;
     private void arguments(List<Expr> args, Set<String> hidden, Set<String> out) {
         for (final var arg : args) {
             final var inner = unparenthesized(arg);
-            if (inner instanceof Expr.Lambda $s1) {
-                lambdaBody($s1, hidden, out);
-            } else if (inner instanceof Expr.MethodRef $s2 && isThisClass($s2.target())) {
-                function($s2.name(), out);
+            if (inner instanceof Expr.Lambda inner$1) {
+                lambdaBody(inner$1, hidden, out);
+            } else if (inner instanceof Expr.MethodRef inner$2 && isThisClass(inner$2.target())) {
+                function(inner$2.name(), out);
             } else {
                 names(arg, hidden, out);
             }
@@ -274,12 +274,12 @@ import org.axl.compiler.ast.Stmt;
         }
         out.add(name);
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1 && $s1.name().equals(name) && visited.add("val " + name)) {
-                final var init = unparenthesized($s1.init());
-                if (init instanceof Expr.Lambda $s2) {
-                    lambdaBody($s2, Set.of(), out);
-                } else if (init instanceof Expr.MethodRef $s3 && isThisClass($s3.target())) {
-                    function($s3.name(), out);
+            if (decl instanceof Decl.Value decl$1 && decl$1.name().equals(name) && visited.add("val " + name)) {
+                final var init = unparenthesized(decl$1.init());
+                if (init instanceof Expr.Lambda init$2) {
+                    lambdaBody(init$2, Set.of(), out);
+                } else if (init instanceof Expr.MethodRef init$3 && isThisClass(init$3.target())) {
+                    function(init$3.name(), out);
                 }
             }
         }
@@ -311,8 +311,8 @@ import org.axl.compiler.ast.Stmt;
         final var outer = owner;
         owner = null;
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Function $s1 && $s1.name().equals(name)) {
-                body($s1, out);
+            if (decl instanceof Decl.Function decl$1 && decl$1.name().equals(name)) {
+                body(decl$1, out);
             }
         }
         owner = outer;
@@ -343,52 +343,52 @@ import org.axl.compiler.ast.Stmt;
         final var scope = new HashSet<String>(hidden);
         for (final var stmt : statements) {
             statement(stmt, scope, out);
-            if (stmt instanceof Stmt.Local $s1) {
-                scope.add($s1.name());
+            if (stmt instanceof Stmt.Local stmt$1) {
+                scope.add(stmt$1.name());
             }
         }
     }
     private void statement(Stmt stmt, Set<String> hidden, Set<String> out) {
         switch (stmt) {
-            case Stmt.Local $s1 -> {
-                final var init = unparenthesized($s1.init());
-                if (init instanceof Expr.Lambda $s2) {
-                    lambdaBody($s2, hidden, out);
+            case Stmt.Local stmt$1 -> {
+                final var init = unparenthesized(stmt$1.init());
+                if (init instanceof Expr.Lambda init$2) {
+                    lambdaBody(init$2, hidden, out);
                 } else {
-                    names($s1.init(), hidden, out);
+                    names(stmt$1.init(), hidden, out);
                 }
             }
-            case Stmt.Assign $s3 -> {
-                names($s3.target(), hidden, out);
-                names($s3.value(), hidden, out);
+            case Stmt.Assign stmt$3 -> {
+                names(stmt$3.target(), hidden, out);
+                names(stmt$3.value(), hidden, out);
             }
-            case Stmt.Return $s4 -> {
-                final var value = $s4.value();
+            case Stmt.Return stmt$4 -> {
+                final var value = stmt$4.value();
                 if (value != null) {
                     names(value, hidden, out);
                 }
             }
-            case Stmt.If $s5 -> {
-                names($s5.condition(), hidden, out);
-                statement($s5.then(), hidden, out);
-                final var otherwise = $s5.elseBranch();
+            case Stmt.If stmt$5 -> {
+                names(stmt$5.condition(), hidden, out);
+                statement(stmt$5.then(), hidden, out);
+                final var otherwise = stmt$5.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise, hidden, out);
                 }
             }
-            case Stmt.While $s6 -> {
-                names($s6.condition(), hidden, out);
-                statement($s6.body(), hidden, out);
+            case Stmt.While stmt$6 -> {
+                names(stmt$6.condition(), hidden, out);
+                statement(stmt$6.body(), hidden, out);
             }
-            case Stmt.For $s7 -> {
-                names($s7.iterable(), hidden, out);
-                statement($s7.body(), with(hidden, Set.of($s7.name())), out);
+            case Stmt.For stmt$7 -> {
+                names(stmt$7.iterable(), hidden, out);
+                statement(stmt$7.body(), with(hidden, Set.of(stmt$7.name())), out);
             }
-            case Stmt.ExprStmt $s8 -> {
-                names($s8.expr(), hidden, out);
+            case Stmt.ExprStmt stmt$8 -> {
+                names(stmt$8.expr(), hidden, out);
             }
-            case Stmt.Block $s9 -> {
-                statements($s9.statements(), hidden, out);
+            case Stmt.Block stmt$9 -> {
+                statements(stmt$9.statements(), hidden, out);
             }
         }
     }
@@ -405,21 +405,21 @@ import org.axl.compiler.ast.Stmt;
     }
     private static Expr.@Nullable Lambda lambdaOf(Expr expr) {
         final var inner = unparenthesized(expr);
-        return (inner instanceof Expr.Lambda $s1 ? $s1 : null);
+        return (inner instanceof Expr.Lambda inner$1 ? inner$1 : null);
     }
     private static boolean isThis(Expr expr) {
-        return expr instanceof Expr.Name $s1 && $s1.name().equals("this");
+        return expr instanceof Expr.Name expr$1 && expr$1.name().equals("this");
     }
     private static Expr unparenthesized(Expr expr) {
-        return (expr instanceof Expr.Paren $s1 ? $s1.inner() : expr);
+        return (expr instanceof Expr.Paren expr$1 ? expr$1.inner() : expr);
     }
     private static @Nullable String dotted(Expr expr) {
-        if (expr instanceof Expr.Name $s1) {
-            return $s1.name();
+        if (expr instanceof Expr.Name expr$1) {
+            return expr$1.name();
         }
-        if (expr instanceof Expr.Member $s2 && !$s2.safe()) {
-            final var target = dotted($s2.target());
-            return (target == null ? null : target + "." + $s2.name());
+        if (expr instanceof Expr.Member expr$2 && !expr$2.safe()) {
+            final var target = dotted(expr$2.target());
+            return (target == null ? null : target + "." + expr$2.name());
         }
         return null;
     }

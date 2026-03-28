@@ -71,22 +71,22 @@ import org.axl.compiler.ast.TypeRef;
         declareTopLevel();
         for (final var decl : file.decls()) {
             switch (decl) {
-                case Decl.Value $s1 -> {
-                    topLevelValue($s1);
+                case Decl.Value decl$1 -> {
+                    topLevelValue(decl$1);
                 }
-                case Decl.Function $s2 -> {
-                    function($s2);
+                case Decl.Function decl$2 -> {
+                    function(decl$2);
                 }
-                case Decl.ClassDecl $s3 -> {
-                    classDecl($s3);
+                case Decl.ClassDecl decl$3 -> {
+                    classDecl(decl$3);
                 }
-                case Decl.EnumDecl $s4 -> {
+                case Decl.EnumDecl decl$4 -> {
                 }
-                case Decl.DataClass $s5 -> {
-                    members($s5.fields(), "field");
+                case Decl.DataClass decl$5 -> {
+                    members(decl$5.fields(), "field");
                 }
-                case Decl.Interface $s6 -> {
-                    members($s6.members(), "member");
+                case Decl.Interface decl$6 -> {
+                    members(decl$6.members(), "member");
                 }
             }
         }
@@ -147,24 +147,24 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void declareTopLevel() {
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1) {
-                final var existing = scope.names.get($s1.name());
+            if (decl instanceof Decl.Value decl$1) {
+                final var existing = scope.names.get(decl$1.name());
                 if (existing != null) {
-                    error($s1.namePos(), ErrorCode.DUPLICATE_NAME,
-                            "`" + $s1.name() + "` is already declared at line " + existing.pos().line());
+                    error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME,
+                            "`" + decl$1.name() + "` is already declared at line " + existing.pos().line());
                 }
-                scope.names.put($s1.name(), new Symbol(Kind.TOP_LEVEL, $s1.pos(), null));
+                scope.names.put(decl$1.name(), new Symbol(Kind.TOP_LEVEL, decl$1.pos(), null));
             } else if (isTypeDecl(decl)) {
                 checkTypeName(decl);
             } else {
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos(), null));
             }
             checkReserved(decl.namePos(), decl.name());
-            if (decl instanceof Decl.Function $s2) {
-                checkFunctionName($s2);
+            if (decl instanceof Decl.Function decl$2) {
+                checkFunctionName(decl$2);
             }
-            if (decl instanceof Decl.Value $s3) {
-                checkValueName($s3);
+            if (decl instanceof Decl.Value decl$3) {
+                checkValueName(decl$3);
             }
         }
     }
@@ -178,14 +178,14 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private boolean hasMain() {
-        return file.decls().stream().anyMatch(d -> d instanceof Decl.Function $s1 && isMain($s1));
+        return file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && isMain(d$1));
     }
     private void checkFileTypeMembers() {
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.ClassDecl $s1 && $s1.name().equals(file.className())) {
-                classFileMembers($s1);
-            } else if (decl instanceof Decl.DataClass $s2 && $s2.name().equals(file.className())) {
-                recordFileMembers($s2);
+            if (decl instanceof Decl.ClassDecl decl$1 && decl$1.name().equals(file.className())) {
+                classFileMembers(decl$1);
+            } else if (decl instanceof Decl.DataClass decl$2 && decl$2.name().equals(file.className())) {
+                recordFileMembers(decl$2);
             }
         }
     }
@@ -198,12 +198,12 @@ import org.axl.compiler.ast.TypeRef;
             properties.add(p.name());
         }
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1 && properties.contains($s1.name())) {
-                error($s1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + $s1.name() + "` is a property of `" + c.name() +
+            if (decl instanceof Decl.Value decl$1 && properties.contains(decl$1.name())) {
+                error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl$1.name() + "` is a property of `" + c.name() +
                         "`, the type of this file, so a value of the file cannot have its name; rename one");
-            } else if (decl instanceof Decl.Function $s2 && hasMethodLike(c, $s2)) {
-                error($s2.namePos(), ErrorCode.DUPLICATE_NAME, "`" + c.name() + "`, the type of this file, has a method `" +
-                        $s2.name() +
+            } else if (decl instanceof Decl.Function decl$2 && hasMethodLike(c, decl$2)) {
+                error(decl$2.namePos(), ErrorCode.DUPLICATE_NAME, "`" + c.name() + "`, the type of this file, has a method `" +
+                        decl$2.name() +
                         "` with as many parameters, so a function of the file cannot have its name; rename one");
             }
         }
@@ -213,7 +213,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void recordFileMembers(Decl.DataClass data) {
         for (final var decl : file.decls()) {
-            final var accessor = decl instanceof Decl.Function $s1 && $s1.params().isEmpty() && hasField(data, $s1.name());
+            final var accessor = decl instanceof Decl.Function decl$1 && decl$1.params().isEmpty() && hasField(data, decl$1.name());
             if (accessor) {
                 error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "()` reads the field `" + decl.name() +
                         "` of `" +
@@ -226,7 +226,7 @@ import org.axl.compiler.ast.TypeRef;
         return data.fields().stream().anyMatch(f -> f.name().equals(name));
     }
     private boolean hasTopLevelValue(String name) {
-        return file.decls().stream().anyMatch(d -> d instanceof Decl.Value $s1 && $s1.name().equals(name));
+        return file.decls().stream().anyMatch(d -> d instanceof Decl.Value d$1 && d$1.name().equals(name));
     }
     private void checkInitOrder() {
         for (final var problem : InitOrder.check(file)) {
@@ -293,7 +293,7 @@ import org.axl.compiler.ast.TypeRef;
         scope = java.util.Objects.requireNonNull(scope.parent);
     }
     private boolean fileIsInterface() {
-        return file.decls().stream().anyMatch(d -> d instanceof Decl.Interface $s1 && $s1.name().equals(file.className()));
+        return file.decls().stream().anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.name().equals(file.className()));
     }
     private void checkTypeName(Decl decl) {
         final var name = decl.name();
@@ -323,9 +323,9 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void topLevelValue(Decl.Value value) {
         final var init = value.init();
-        if (init instanceof Expr.Try $s1) {
-            error($s1.pos(), ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, TRY_NEEDS_RESULT);
-            expr($s1.inner());
+        if (init instanceof Expr.Try init$1) {
+            error(init$1.pos(), ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, TRY_NEEDS_RESULT);
+            expr(init$1.inner());
         } else {
             expr(init);
         }
@@ -348,15 +348,15 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void expressionBody(Decl.Function f, Expr body) {
         final var inner = unparenthesized(body);
-        if (inner instanceof Expr.When $s1) {
-            whenResults.put($s1, f.returnType() != null);
+        if (inner instanceof Expr.When inner$1) {
+            whenResults.put(inner$1, f.returnType() != null);
         }
-        if (body instanceof Expr.Try $s2) {
+        if (body instanceof Expr.Try body$2) {
             if (!returnsResult(f)) {
-                statementTry($s2);
+                statementTry(body$2);
             } else {
-                error($s2.pos(), ErrorCode.RETURN_TRY, RETURN_TRY);
-                expr($s2.inner());
+                error(body$2.pos(), ErrorCode.RETURN_TRY, RETURN_TRY);
+                expr(body$2.inner());
             }
             return;
         }
@@ -375,47 +375,47 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void statement(Stmt stmt) {
         switch (stmt) {
-            case Stmt.Local $s1 -> {
-                local($s1);
+            case Stmt.Local stmt$1 -> {
+                local(stmt$1);
             }
-            case Stmt.Assign $s2 -> {
-                assign($s2);
+            case Stmt.Assign stmt$2 -> {
+                assign(stmt$2);
             }
-            case Stmt.Return $s3 -> {
-                returnStatement($s3);
+            case Stmt.Return stmt$3 -> {
+                returnStatement(stmt$3);
             }
-            case Stmt.If $s4 -> {
-                expr($s4.condition());
-                statements($s4.then().statements());
-                final var elseBranch = $s4.elseBranch();
+            case Stmt.If stmt$4 -> {
+                expr(stmt$4.condition());
+                statements(stmt$4.then().statements());
+                final var elseBranch = stmt$4.elseBranch();
                 if (elseBranch != null) {
                     statement(elseBranch);
                 }
             }
-            case Stmt.While $s5 -> {
-                expr($s5.condition());
-                statements($s5.body().statements());
+            case Stmt.While stmt$5 -> {
+                expr(stmt$5.condition());
+                statements(stmt$5.body().statements());
             }
-            case Stmt.For $s6 -> {
-                expr($s6.iterable());
+            case Stmt.For stmt$6 -> {
+                expr(stmt$6.iterable());
                 scope = new Scope(scope, false);
-                declare($s6.namePos(), $s6.name(), Kind.LOCAL, null);
-                statements($s6.body().statements());
+                declare(stmt$6.namePos(), stmt$6.name(), Kind.LOCAL, null);
+                statements(stmt$6.body().statements());
                 pop();
             }
-            case Stmt.ExprStmt $s7 -> {
-                expressionStatement($s7);
+            case Stmt.ExprStmt stmt$7 -> {
+                expressionStatement(stmt$7);
             }
-            case Stmt.Block $s8 -> {
-                statements($s8.statements());
+            case Stmt.Block stmt$8 -> {
+                statements(stmt$8.statements());
             }
         }
     }
     private void local(Stmt.Local stmt) {
         final var init = unparenthesized(stmt.init());
-        if ((init instanceof Expr.Lambda $s1 || isNull(init)) && stmt.type() == null) {
+        if ((init instanceof Expr.Lambda init$1 || isNull(init)) && stmt.type() == null) {
             final var keyword = (stmt.mutable() ? "var" : "val");
-            final var what = (init instanceof Expr.Lambda $s2 ? "a lambda" : "`null`");
+            final var what = (init instanceof Expr.Lambda init$2 ? "a lambda" : "`null`");
             error(stmt.pos(), ErrorCode.TYPE_REQUIRED, "`" + keyword + " " + stmt.name() +
                     "` needs a type when it is initialized with " +
                     what +
@@ -427,8 +427,8 @@ import org.axl.compiler.ast.TypeRef;
         }
         declaredType = stmt.type();
         final var value = stmt.init();
-        if (value instanceof Expr.Try $s3) {
-            statementTry($s3);
+        if (value instanceof Expr.Try value$3) {
+            statementTry(value$3);
         } else {
             expr(value);
         }
@@ -442,13 +442,13 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void assign(Stmt.Assign stmt) {
         final var target = stmt.target();
-        if (target instanceof Expr.Name $s1) {
-            final var symbol = scope.lookup($s1.name());
+        if (target instanceof Expr.Name target$1) {
+            final var symbol = scope.lookup(target$1.name());
             final var notNull = declaredNotNull(symbol);
             if (symbol != null && symbol.kind() != Kind.MUTABLE_LOCAL && symbol.kind() != Kind.MUTABLE_FIELD) {
-                error(stmt.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem($s1.name(), symbol));
+                error(stmt.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(target$1.name(), symbol));
             } else if (notNull != null && isNull(stmt.value())) {
-                error(stmt.value().pos(), ErrorCode.NULLABLE_DEREFERENCE, notNullable($s1.name(), notNull));
+                error(stmt.value().pos(), ErrorCode.NULLABLE_DEREFERENCE, notNullable(target$1.name(), notNull));
             }
         }
         expr(target);
@@ -474,35 +474,35 @@ import org.axl.compiler.ast.TypeRef;
             return;
         }
         final var inner = unparenthesized(value);
-        if (inner instanceof Expr.When $s1) {
-            whenResults.put($s1, true);
+        if (inner instanceof Expr.When inner$1) {
+            whenResults.put(inner$1, true);
         }
-        if (!(value instanceof Expr.Try $s2)) {
+        if (!(value instanceof Expr.Try value$2)) {
             expr(value);
         } else if (lambdaDepth > 0 || !returnsResult(current)) {
-            statementTry($s2);
+            statementTry(value$2);
         } else {
-            error($s2.pos(), ErrorCode.RETURN_TRY, RETURN_TRY);
-            expr($s2.inner());
+            error(value$2.pos(), ErrorCode.RETURN_TRY, RETURN_TRY);
+            expr(value$2.inner());
         }
     }
     private void expressionStatement(Stmt.ExprStmt stmt) {
         final var e = stmt.expr();
         final var inner = unparenthesized(e);
-        if (inner instanceof Expr.When $s1) {
-            whenResults.put($s1, false);
+        if (inner instanceof Expr.When inner$1) {
+            whenResults.put(inner$1, false);
         }
-        if (e instanceof Expr.Throw $s2) {
-            allowedThrows.add($s2);
+        if (e instanceof Expr.Throw e$2) {
+            allowedThrows.add(e$2);
         }
-        if (e instanceof Expr.Lambda $s3) {
-            error($s3.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces");
+        if (e instanceof Expr.Lambda e$3) {
+            error(e$3.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces");
         } else if (!doesSomething(e)) {
             final var hint = (stmt == lastInLambda ? "to return it from the lambda, write `return` before it" : "use its value, for example in a `val`, or remove it");
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint);
         }
-        if (e instanceof Expr.Try $s4) {
-            statementTry($s4);
+        if (e instanceof Expr.Try e$4) {
+            statementTry(e$4);
         } else {
             expr(e);
         }
@@ -521,7 +521,7 @@ import org.axl.compiler.ast.TypeRef;
         return "cannot assign to `val` `" + name + "`; declare it with `var`";
     }
     private String topLevelProblem(String name) {
-        final var isFunction = file.decls().stream().anyMatch(d -> d instanceof Decl.Function $s1 && $s1.name().equals(name));
+        final var isFunction = file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(name));
         if (isFunction) {
             return "`" + name + "` is a function, not a variable";
         }
@@ -563,72 +563,72 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void expr(Expr e) {
         switch (e) {
-            case Expr.Literal $s1 -> {
+            case Expr.Literal e$1 -> {
             }
-            case Expr.Name $s2 -> {
-                name($s2);
+            case Expr.Name e$2 -> {
+                name(e$2);
             }
-            case Expr.Member $s3 -> {
-                expr($s3.target());
+            case Expr.Member e$3 -> {
+                expr(e$3.target());
             }
-            case Expr.Call $s4 -> {
-                call($s4);
+            case Expr.Call e$4 -> {
+                call(e$4);
             }
-            case Expr.GenericNew $s5 -> {
-                exprs($s5.args());
+            case Expr.GenericNew e$5 -> {
+                exprs(e$5.args());
             }
-            case Expr.MethodRef $s6 -> {
-                expr($s6.target());
+            case Expr.MethodRef e$6 -> {
+                expr(e$6.target());
             }
-            case Expr.NotNull $s7 -> {
-                expr($s7.target());
+            case Expr.NotNull e$7 -> {
+                expr(e$7.target());
             }
-            case Expr.Unary $s8 -> {
-                expr($s8.operand());
+            case Expr.Unary e$8 -> {
+                expr(e$8.operand());
             }
-            case Expr.Binary $s9 -> {
-                expr($s9.left());
-                expr($s9.right());
+            case Expr.Binary e$9 -> {
+                expr(e$9.left());
+                expr(e$9.right());
             }
-            case Expr.Elvis $s10 -> {
-                expr($s10.left());
-                expr($s10.right());
+            case Expr.Elvis e$10 -> {
+                expr(e$10.left());
+                expr(e$10.right());
             }
-            case Expr.Is $s11 -> {
-                expr($s11.target());
+            case Expr.Is e$11 -> {
+                expr(e$11.target());
             }
-            case Expr.Conditional $s12 -> {
-                expr($s12.condition());
+            case Expr.Conditional e$12 -> {
+                expr(e$12.condition());
                 conditionalDepth = conditionalDepth + 1;
-                expr($s12.then());
-                expr($s12.otherwise());
+                expr(e$12.then());
+                expr(e$12.otherwise());
                 conditionalDepth = conditionalDepth - 1;
             }
-            case Expr.Throw $s13 -> {
-                if (!allowedThrows.contains($s13)) {
-                    error($s13.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
+            case Expr.Throw e$13 -> {
+                if (!allowedThrows.contains(e$13)) {
+                    error(e$13.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
                             "not inside an expression");
                 }
-                expr($s13.value());
+                expr(e$13.value());
             }
-            case Expr.When $s14 -> {
-                whenExpr($s14);
+            case Expr.When e$14 -> {
+                whenExpr(e$14);
             }
-            case Expr.Paren $s15 -> {
-                expr($s15.inner());
+            case Expr.Paren e$15 -> {
+                expr(e$15.inner());
             }
-            case Expr.Try $s16 -> {
-                checkTryPlace($s16.pos(), "`try`");
-                expr($s16.inner());
+            case Expr.Try e$16 -> {
+                checkTryPlace(e$16.pos(), "`try`");
+                expr(e$16.inner());
             }
-            case Expr.Attempt $s17 -> {
-                attemptExpr($s17);
+            case Expr.Attempt e$17 -> {
+                attemptExpr(e$17);
             }
-            case Expr.Pipe $s18 -> {
-                pipeExpr($s18);
+            case Expr.Pipe e$18 -> {
+                pipeExpr(e$18);
             }
-            case Expr.Lambda $s19 -> {
-                lambdaExpr($s19, false);
+            case Expr.Lambda e$19 -> {
+                lambdaExpr(e$19, false);
             }
         }
     }
@@ -735,8 +735,8 @@ import org.axl.compiler.ast.TypeRef;
         }
         if (!arm.block() && !gives && !returns) {
             final var first = arm.body().getFirst();
-            if (first instanceof Stmt.ExprStmt $s1 && !doesSomething($s1.expr())) {
-                error($s1.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " +
+            if (first instanceof Stmt.ExprStmt first$1 && !doesSomething(first$1.expr())) {
+                error(first$1.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " +
                         "use its value, for example in a `val`, or remove it");
             }
         }
@@ -754,10 +754,10 @@ import org.axl.compiler.ast.TypeRef;
         var i = 0;
         while (i < body.size()) {
             final var stmt = body.get(i);
-            if (i == body.size() - 1 && stmt instanceof Stmt.ExprStmt $s1) {
-                final var value = $s1.expr();
-                if (value instanceof Expr.Throw $s2) {
-                    allowedThrows.add($s2);
+            if (i == body.size() - 1 && stmt instanceof Stmt.ExprStmt stmt$1) {
+                final var value = stmt$1.expr();
+                if (value instanceof Expr.Throw value$2) {
+                    allowedThrows.add(value$2);
                 }
                 expr(value);
             } else {
@@ -803,7 +803,7 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.EnumDecl $s1 && !$s1.constants().isEmpty() && namesAll($s1, named)) {
+            if (decl instanceof Decl.EnumDecl decl$1 && !decl$1.constants().isEmpty() && namesAll(decl$1, named)) {
                 return true;
             }
         }
@@ -887,8 +887,8 @@ import org.axl.compiler.ast.TypeRef;
         final var single = onlyExpression(body);
         if (single != null) {
             expressionLambdas = expressionLambdas + 1;
-            if (single instanceof Expr.Throw $s1) {
-                allowedThrows.add($s1);
+            if (single instanceof Expr.Throw single$1) {
+                allowedThrows.add(single$1);
             }
             expr(single);
             expressionLambdas = expressionLambdas - 1;
@@ -929,8 +929,8 @@ import org.axl.compiler.ast.TypeRef;
             return null;
         }
         final var first = body.getFirst();
-        if (first instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Try)) {
-            return $s1.expr();
+        if (first instanceof Stmt.ExprStmt first$1 && !(first$1.expr() instanceof Expr.Try)) {
+            return first$1.expr();
         }
         return null;
     }
@@ -1067,60 +1067,60 @@ import org.axl.compiler.ast.TypeRef;
         return constant != null && constant.text().equals("null");
     }
     private static boolean isTypeDecl(Decl decl) {
-        return decl instanceof Decl.DataClass $s1 || decl instanceof Decl.Interface $s2 || decl instanceof Decl.ClassDecl $s3 || decl instanceof Decl.EnumDecl $s4;
+        return decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.Interface decl$2 || decl instanceof Decl.ClassDecl decl$3 || decl instanceof Decl.EnumDecl decl$4;
     }
     private static boolean isMain(Decl.Function f) {
         return f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate();
     }
     private static boolean isNull(Expr e) {
         final var inner = unparenthesized(e);
-        return inner instanceof Expr.Literal $s1 && $s1.text().equals("null");
+        return inner instanceof Expr.Literal inner$1 && inner$1.text().equals("null");
     }
     private static String notNullable(String name, TypeRef type) {
         return "`" + name + "` is declared as `" + type.name() + "`, which does not allow null; declare it as `" + type.name() + "?`";
     }
     private static Expr unparenthesized(Expr e) {
-        return (e instanceof Expr.Paren $s1 ? unparenthesized($s1.inner()) : e);
+        return (e instanceof Expr.Paren e$1 ? unparenthesized(e$1.inner()) : e);
     }
     private static boolean doesSomething(Expr e) {
         switch (e) {
-            case Expr.Paren $s1 -> {
-                return doesSomething($s1.inner());
+            case Expr.Paren e$1 -> {
+                return doesSomething(e$1.inner());
             }
-            case Expr.Binary $s2 -> {
-                return ($s2.op().equals("&&") || $s2.op().equals("||")) && doesSomething($s2.right());
+            case Expr.Binary e$2 -> {
+                return (e$2.op().equals("&&") || e$2.op().equals("||")) && doesSomething(e$2.right());
             }
-            case Expr.Elvis $s3 -> {
-                return doesSomething($s3.right());
+            case Expr.Elvis e$3 -> {
+                return doesSomething(e$3.right());
             }
-            case Expr.Member $s4 -> {
+            case Expr.Member e$4 -> {
                 return true;
             }
-            case Expr.Call $s5 -> {
+            case Expr.Call e$5 -> {
                 return true;
             }
-            case Expr.GenericNew $s6 -> {
+            case Expr.GenericNew e$6 -> {
                 return true;
             }
-            case Expr.Try $s7 -> {
+            case Expr.Try e$7 -> {
                 return true;
             }
-            case Expr.Pipe $s8 -> {
+            case Expr.Pipe e$8 -> {
                 return true;
             }
-            case Expr.Throw $s9 -> {
+            case Expr.Throw e$9 -> {
                 return true;
             }
-            case Expr.When $s10 -> {
+            case Expr.When e$10 -> {
                 return true;
             }
-            case Expr.Attempt $s11 -> {
+            case Expr.Attempt e$11 -> {
                 return true;
             }
-            case Expr.NotNull $s12 -> {
+            case Expr.NotNull e$12 -> {
                 return true;
             }
-            case Expr.Lambda $s13 -> {
+            case Expr.Lambda e$13 -> {
                 return true;
             }
             default -> {
@@ -1140,12 +1140,12 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static boolean hasSafeStep(Expr e) {
         switch (e) {
-            case Expr.Member $s1 -> {
-                return $s1.safe() || hasSafeStep($s1.target());
+            case Expr.Member e$1 -> {
+                return e$1.safe() || hasSafeStep(e$1.target());
             }
-            case Expr.Call $s2 -> {
-                final var target = $s2.target();
-                return $s2.safe() || (target != null && hasSafeStep(target));
+            case Expr.Call e$2 -> {
+                final var target = e$2.target();
+                return e$2.safe() || (target != null && hasSafeStep(target));
             }
             default -> {
                 return false;

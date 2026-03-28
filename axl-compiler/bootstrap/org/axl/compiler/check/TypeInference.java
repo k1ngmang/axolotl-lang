@@ -38,35 +38,35 @@ import org.axl.compiler.ast.TypeRef;
     }
     public @Nullable TypeRef of(Expr expr) {
         switch (expr) {
-            case Expr.Literal $s1 -> {
-                return literal($s1);
+            case Expr.Literal expr$1 -> {
+                return literal(expr$1);
             }
-            case Expr.Paren $s2 -> {
-                return of($s2.inner());
+            case Expr.Paren expr$2 -> {
+                return of(expr$2.inner());
             }
-            case Expr.Unary $s3 -> {
-                return ($s3.op().equals("!") ? simple("Boolean", $s3.pos()) : of($s3.operand()));
+            case Expr.Unary expr$3 -> {
+                return (expr$3.op().equals("!") ? simple("Boolean", expr$3.pos()) : of(expr$3.operand()));
             }
-            case Expr.Binary $s4 -> {
-                return binary($s4);
+            case Expr.Binary expr$4 -> {
+                return binary(expr$4);
             }
-            case Expr.Elvis $s5 -> {
-                return elvis($s5);
+            case Expr.Elvis expr$5 -> {
+                return elvis(expr$5);
             }
-            case Expr.Is $s6 -> {
-                return simple("Boolean", $s6.pos());
+            case Expr.Is expr$6 -> {
+                return simple("Boolean", expr$6.pos());
             }
-            case Expr.Name $s7 -> {
-                return topLevelValue($s7.name());
+            case Expr.Name expr$7 -> {
+                return topLevelValue(expr$7.name());
             }
-            case Expr.Call $s8 -> {
-                return ($s8.target() == null ? call($s8) : null);
+            case Expr.Call expr$8 -> {
+                return (expr$8.target() == null ? call(expr$8) : null);
             }
-            case Expr.GenericNew $s9 -> {
-                return ($s9.typeArgs().isEmpty() ? null : new TypeRef($s9.pos(), $s9.type(), $s9.typeArgs(), false));
+            case Expr.GenericNew expr$9 -> {
+                return (expr$9.typeArgs().isEmpty() ? null : new TypeRef(expr$9.pos(), expr$9.type(), expr$9.typeArgs(), false));
             }
-            case Expr.NotNull $s10 -> {
-                return nonNull(of($s10.target()));
+            case Expr.NotNull expr$10 -> {
+                return nonNull(of(expr$10.target()));
             }
             default -> {
                 return null;
@@ -116,8 +116,8 @@ import org.axl.compiler.ast.TypeRef;
     private @Nullable TypeRef call(Expr.Call c) {
         final var candidates = new ArrayList<Decl.Function>();
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Function $s1 && $s1.name().equals(c.name()) && $s1.params().size() == c.args().size()) {
-                candidates.add($s1);
+            if (decl instanceof Decl.Function decl$1 && decl$1.name().equals(c.name()) && decl$1.params().size() == c.args().size()) {
+                candidates.add(decl$1);
             }
         }
         if (candidates.size() == 1) {
@@ -136,8 +136,8 @@ import org.axl.compiler.ast.TypeRef;
     }
     private @Nullable TypeRef topLevelValue(String name) {
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1 && $s1.name().equals(name)) {
-                return value($s1);
+            if (decl instanceof Decl.Value decl$1 && decl$1.name().equals(name)) {
+                return value(decl$1);
             }
         }
         return null;
@@ -147,10 +147,10 @@ import org.axl.compiler.ast.TypeRef;
     public static void inferAll(SourceFile file, Map<String, TypeRef> known) {
         final var inference = new TypeInference(file, known);
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1 && $s1.type() == null) {
-                final var type = inference.value($s1);
+            if (decl instanceof Decl.Value decl$1 && decl$1.type() == null) {
+                final var type = inference.value(decl$1);
                 if (type != null) {
-                    known.put($s1.name(), type);
+                    known.put(decl$1.name(), type);
                 }
             }
         }

@@ -8,19 +8,19 @@ import org.jspecify.annotations.*;
     public record Leaf(String text) implements Node {}
     public record Pair(Node left, Node right) implements Node {}
     public static String describe(Node node) {
-        if (node instanceof Leaf $s1) {
-            return "leaf " + $s1.text();
+        if (node instanceof Leaf node$1) {
+            return "leaf " + node$1.text();
         }
-        if (!(node instanceof Pair $s2)) {
+        if (!(node instanceof Pair node$2)) {
             return "unknown";
         }
-        return "pair of " + describe($s2.left()) + " and " + describe($s2.right());
+        return "pair of " + describe(node$2.left()) + " and " + describe(node$2.right());
     }
     public static boolean isEmptyLeaf(Node node) {
-        return node instanceof Leaf $s1 && $s1.text().isEmpty();
+        return node instanceof Leaf node$1 && node$1.text().isEmpty();
     }
     public static boolean isNotLeaf(Node node) {
-        return !(node instanceof Leaf $s1) || $s1.text().isEmpty();
+        return !(node instanceof Leaf node$1) || node$1.text().isEmpty();
     }
     public static int depth(Node node) {
         var count = 1;
@@ -32,12 +32,12 @@ import org.jspecify.annotations.*;
         return count;
     }
     public static String branches(Node node) {
-        if (!(node instanceof Leaf $s1)) {
+        if (!(node instanceof Leaf node$1)) {
             return "not a leaf";
-        } else if ($s1.text().isEmpty()) {
+        } else if (node$1.text().isEmpty()) {
             return "empty";
         } else {
-            return $s1.text();
+            return node$1.text();
         }
     }
     public static void main(String[] args) {

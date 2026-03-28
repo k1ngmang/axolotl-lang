@@ -34,10 +34,10 @@ import org.jspecify.annotations.*;
         public String describe() {
             final var current = node;
             switch (current) {
-                case Leaf $s1 -> {
-                    return $s1.text();
+                case Leaf current$1 -> {
+                    return current$1.text();
                 }
-                case Pair $s2 -> {
+                case Pair current$2 -> {
                     return "pair";
                 }
             }

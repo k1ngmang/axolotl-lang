@@ -1417,9 +1417,9 @@ final class NullChecker implements TaskListener {
                 return "the value is `null`";
             }
             if (e instanceof IdentifierTree identifier) {
-                // `$e1` holds the subject of `when (val x = ...)`.
-                String name = identifier.getName().toString().matches("\\$e\\d+") ? "the subject of this `when` may be null"
-                        : "`" + identifier.getName() + "` may be null";
+                // `x$e1` holds the subject of `when (val x = ...)` and `x$1` a narrowed `x`.
+                String plain = identifier.getName().toString().replaceAll("\\$e?\\d+$", "");
+                String name = plain.isEmpty() ? "the subject of this `when` may be null" : "`" + plain + "` may be null";
                 return switch (origin) {
                     case PLATFORM -> name + ": it holds a value from Java code without nullness annotations";
                     case HIDDEN -> name + ": it holds a value of a type argument written with `?`";

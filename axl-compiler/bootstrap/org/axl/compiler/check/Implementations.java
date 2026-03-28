@@ -20,10 +20,10 @@ import org.axl.compiler.ast.TypeRef;
     public static List<Mismatch> check(SourceFile file) {
         final var problems = new ArrayList<Mismatch>();
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.DataClass $s1) {
-                implementer(file, $s1, fieldsOf($s1.fields()), $s1.supertypes(), problems);
-            } else if (decl instanceof Decl.ClassDecl $s2) {
-                implementer(file, $s2, propertiesOf($s2), $s2.supertypes(), problems);
+            if (decl instanceof Decl.DataClass decl$1) {
+                implementer(file, decl$1, fieldsOf(decl$1.fields()), decl$1.supertypes(), problems);
+            } else if (decl instanceof Decl.ClassDecl decl$2) {
+                implementer(file, decl$2, propertiesOf(decl$2), decl$2.supertypes(), problems);
             }
         }
         return problems;
@@ -69,9 +69,9 @@ import org.axl.compiler.ast.TypeRef;
         final var result = new ArrayList<Decl.Interface>();
         for (final var type : supertypes) {
             for (final var decl : file.decls()) {
-                if (decl instanceof Decl.Interface $s1 && $s1.name().equals(type.name()) && seen.add($s1.name())) {
-                    result.add($s1);
-                    result.addAll(interfaces(file, $s1.supertypes(), seen));
+                if (decl instanceof Decl.Interface decl$1 && decl$1.name().equals(type.name()) && seen.add(decl$1.name())) {
+                    result.add(decl$1);
+                    result.addAll(interfaces(file, decl$1.supertypes(), seen));
                 }
             }
         }

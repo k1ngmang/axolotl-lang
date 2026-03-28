@@ -123,27 +123,27 @@ import org.axl.compiler.check.Whens;
     }
     private void emitDecl(Decl decl) {
         switch (decl) {
-            case Decl.Value $s1 -> {
-                if (!probed.contains($s1.name())) {
-                    emitValue($s1);
+            case Decl.Value decl$1 -> {
+                if (!probed.contains(decl$1.name())) {
+                    emitValue(decl$1);
                 }
             }
-            case Decl.Function $s2 -> {
-                emitFunction($s2, true);
+            case Decl.Function decl$2 -> {
+                emitFunction(decl$2, true);
             }
-            case Decl.ClassDecl $s3 -> {
-                emitClass($s3);
+            case Decl.ClassDecl decl$3 -> {
+                emitClass(decl$3);
             }
-            case Decl.EnumDecl $s4 -> {
-                em.line($s4.pos().line(), visibility($s4) + " enum " + $s4.name() + " { " +
-                        String.join(", ", $s4.constants()) +
+            case Decl.EnumDecl decl$4 -> {
+                em.line(decl$4.pos().line(), visibility(decl$4) + " enum " + decl$4.name() + " { " +
+                        String.join(", ", decl$4.constants()) +
                         " }");
             }
-            case Decl.DataClass $s5 -> {
-                emitDataClass($s5);
+            case Decl.DataClass decl$5 -> {
+                emitDataClass(decl$5);
             }
-            case Decl.Interface $s6 -> {
-                emitInterface($s6);
+            case Decl.Interface decl$6 -> {
+                emitInterface(decl$6);
             }
         }
     }
@@ -173,6 +173,9 @@ import org.axl.compiler.check.Whens;
         listCount += 1;
         return "$p" + listCount;
     }
+    private String patternVariable(@Nullable String narrowed) {
+        return Nulls.or(narrowed, () -> "") + "$" + ((narrowed == null ? "s" : "")) + newPattern();
+    }
     private int newPattern() {
         patternCount += 1;
         return patternCount;
@@ -187,22 +190,22 @@ import org.axl.compiler.check.Whens;
     }
     private void emitFileType(Decl fileType) {
         final var line = fileType.pos().line();
-        if (fileType instanceof Decl.DataClass $s1) {
-            em.line(line, "@NullMarked public record " + $s1.name() + "(" + parameters($s1.fields(), line) + ")" +
-                    typeList(" implements ", $s1.supertypes()) +
+        if (fileType instanceof Decl.DataClass fileType$1) {
+            em.line(line, "@NullMarked public record " + fileType$1.name() + "(" + parameters(fileType$1.fields(), line) + ")" +
+                    typeList(" implements ", fileType$1.supertypes()) +
                     " {");
-        } else if (fileType instanceof Decl.Interface $s2) {
-            em.line(line, "@NullMarked public" + interfaceModifier($s2) + " interface " + $s2.name() +
-                    typeList(" extends ", $s2.supertypes()) +
+        } else if (fileType instanceof Decl.Interface fileType$2) {
+            em.line(line, "@NullMarked public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() +
+                    typeList(" extends ", fileType$2.supertypes()) +
                     " {");
-            emitRequiredValues($s2);
-        } else if (fileType instanceof Decl.ClassDecl $s3) {
-            em.line(line, "@NullMarked public final class " + $s3.name() +
-                    typeList(" implements ", $s3.supertypes()) +
+            emitRequiredValues(fileType$2);
+        } else if (fileType instanceof Decl.ClassDecl fileType$3) {
+            em.line(line, "@NullMarked public final class " + fileType$3.name() +
+                    typeList(" implements ", fileType$3.supertypes()) +
                     " {");
-            emitClassMembers($s3);
-        } else if (fileType instanceof Decl.EnumDecl $s4) {
-            em.line(line, "@NullMarked public enum " + $s4.name() + " { " + String.join(", ", $s4.constants()) + ";");
+            emitClassMembers(fileType$3);
+        } else if (fileType instanceof Decl.EnumDecl fileType$4) {
+            em.line(line, "@NullMarked public enum " + fileType$4.name() + " { " + String.join(", ", fileType$4.constants()) + ";");
         } else {
             throw new IllegalStateException();
         }
@@ -320,7 +323,7 @@ import org.axl.compiler.check.Whens;
         if (iface.isSealed()) {
             return " sealed";
         }
-        final var underSealed = file.decls().stream().anyMatch(d -> d instanceof Decl.Interface $s1 && $s1.isSealed() && extendsInterface(iface, $s1.name()));
+        final var underSealed = file.decls().stream().anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.isSealed() && extendsInterface(iface, d$1.name()));
         return (underSealed ? " non-sealed" : "");
     }
     private boolean extendsInterface(Decl.Interface iface, String parentName) {
@@ -338,8 +341,8 @@ import org.axl.compiler.check.Whens;
         em.line(0, "private static void " + JavaTypes.PROBE_METHOD + "() {");
         em.indent();
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value $s1 && probed.contains($s1.name())) {
-                em.line($s1.pos().line(), "var " + $s1.name() + " = " + expr($s1.init()) + ";");
+            if (decl instanceof Decl.Value decl$1 && probed.contains(decl$1.name())) {
+                em.line(decl$1.pos().line(), "var " + decl$1.name() + " = " + expr(decl$1.init()) + ";");
             }
         }
         em.dedent();
@@ -379,33 +382,33 @@ import org.axl.compiler.check.Whens;
     }
     private void statement(Stmt stmt) {
         switch (stmt) {
-            case Stmt.Local $s1 -> {
-                localStatement($s1);
+            case Stmt.Local stmt$1 -> {
+                localStatement(stmt$1);
             }
-            case Stmt.Assign $s2 -> {
-                assignStatement($s2);
+            case Stmt.Assign stmt$2 -> {
+                assignStatement(stmt$2);
             }
-            case Stmt.Return $s3 -> {
-                returnStatement($s3);
+            case Stmt.Return stmt$3 -> {
+                returnStatement(stmt$3);
             }
-            case Stmt.If $s4 -> {
-                ifStatement($s4);
+            case Stmt.If stmt$4 -> {
+                ifStatement(stmt$4);
             }
-            case Stmt.While $s5 -> {
-                emitWhile($s5);
+            case Stmt.While stmt$5 -> {
+                emitWhile(stmt$5);
             }
-            case Stmt.For $s6 -> {
-                emitFor($s6);
+            case Stmt.For stmt$6 -> {
+                emitFor(stmt$6);
             }
-            case Stmt.ExprStmt $s7 -> {
-                exprStatement($s7);
+            case Stmt.ExprStmt stmt$7 -> {
+                exprStatement(stmt$7);
             }
-            case Stmt.Block $s8 -> {
-                em.line($s8.pos().line(), "{");
+            case Stmt.Block stmt$8 -> {
+                em.line(stmt$8.pos().line(), "{");
                 em.indent();
-                emitStatements($s8.statements());
+                emitStatements(stmt$8.statements());
                 em.dedent();
-                em.line($s8.end().line(), "}");
+                em.line(stmt$8.end().line(), "}");
             }
         }
     }
@@ -416,15 +419,15 @@ import org.axl.compiler.check.Whens;
         final var modifiers = (local.mutable() ? "" : "final ");
         final var typeCode = (declared == null ? "var" : javaType(declared));
         final var whole = withoutParens(init);
-        if (whole instanceof Expr.When $s1) {
-            emitWhen(line, $s1, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE);
+        if (whole instanceof Expr.When whole$1) {
+            emitWhen(line, whole$1, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE);
             localTypes.put(local.name(), declared);
             return;
         }
         final var localType = Nulls.or(declared, () -> typeOf(init));
         final var stored = (declared == null ? null : nullableType(declared));
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
-            final var code = (init instanceof Expr.Try $s2 ? unwrapTry(line, $s2) : valueCode(line, init, stored));
+            final var code = (init instanceof Expr.Try init$2 ? unwrapTry(line, init$2) : valueCode(line, init, stored));
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
         });
         localTypes.put(local.name(), localType);
@@ -455,8 +458,8 @@ import org.axl.compiler.check.Whens;
             return;
         }
         final var whole = withoutParens(value);
-        if (whole instanceof Expr.When $s1) {
-            emitWhen(line, $s1, "", WhenForm.RESULT);
+        if (whole instanceof Expr.When whole$1) {
+            emitWhen(line, whole$1, "", WhenForm.RESULT);
             return;
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), () ->
@@ -480,16 +483,16 @@ import org.axl.compiler.check.Whens;
         final var line = exprStmt.pos().line();
         final var e = withoutParens(exprStmt.expr());
         final var condition = runsWhen(e);
-        if (e instanceof Expr.When $s1) {
-            emitWhen(line, $s1, "", WhenForm.STATEMENT);
-        } else if (e instanceof Expr.Throw $s2) {
-            withCopies(line, $s2.value(), () -> em.line(line, "throw " + lifted(line, $s2.value()).code() + ";"));
+        if (e instanceof Expr.When e$1) {
+            emitWhen(line, e$1, "", WhenForm.STATEMENT);
+        } else if (e instanceof Expr.Throw e$2) {
+            withCopies(line, e$2.value(), () -> em.line(line, "throw " + lifted(line, e$2.value()).code() + ";"));
         } else if (condition != null) {
             final var action = actionOf(e);
             final var thenBlock = new Block(action.pos(), List.of(new ExprStmt(action.pos(), action)), action.pos());
             statement(new If(exprStmt.pos(), condition, thenBlock, null));
-        } else if (e instanceof Expr.Try $s3) {
-            withCopies(line, $s3.inner(), () -> unwrapTry(line, $s3));
+        } else if (e instanceof Expr.Try e$3) {
+            withCopies(line, e$3.inner(), () -> unwrapTry(line, e$3));
         } else if (Chains.hasSafeStep(e)) {
             final var chain = Chains.flatten(e);
             withCopiesOf(line, Captures.inStatementChain(chain, analysis), () -> safeChainStatement(line, chain));
@@ -528,16 +531,16 @@ import org.axl.compiler.check.Whens;
         narrowed(whenTrue(condition), () -> emitBlock(ifStmt.then()));
         final var otherwise = whenFalse(condition);
         final var elseBranch = ifStmt.elseBranch();
-        if (elseBranch instanceof Stmt.If $s1) {
-            narrowed(otherwise, () -> emitIf($s1, "} else "));
-        } else if (elseBranch instanceof Stmt.Block $s2) {
-            em.line($s2.pos().line(), "} else {");
-            narrowed(otherwise, () -> emitBlock($s2));
+        if (elseBranch instanceof Stmt.If elseBranch$1) {
+            narrowed(otherwise, () -> emitIf(elseBranch$1, "} else "));
+        } else if (elseBranch instanceof Stmt.Block elseBranch$2) {
+            em.line(elseBranch$2.pos().line(), "} else {");
+            narrowed(otherwise, () -> emitBlock(elseBranch$2));
         }
     }
     private boolean splitsCondition(Stmt.If ifStmt) {
         final var condition = ifStmt.condition();
-        final var simpleAnd = ifStmt.elseBranch() == null && condition instanceof Expr.Binary $s1 && $s1.op().equals("&&");
+        final var simpleAnd = ifStmt.elseBranch() == null && condition instanceof Expr.Binary condition$1 && condition$1.op().equals("&&");
         if (simpleAnd || !Captures.capturedIn(condition, analysis).isEmpty()) {
             return false;
         }
@@ -644,7 +647,7 @@ import org.axl.compiler.check.Whens;
         final var byIndex = switchesByIndex(w, subjectType);
         withCopies(line, w.subject(), () -> {
             if (bindingName != null || byIndex) {
-                final var name = "$e" + newPattern();
+                final var name = Nulls.or(bindingName, () -> "") + "$e" + newPattern();
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";");
                 subject.add(name);
             } else {
@@ -681,8 +684,8 @@ import org.axl.compiler.check.Whens;
         em.line(w.end().line(), (form == WhenForm.VALUE ? "};" : "}"));
     }
     private @Nullable String narrowableName(Expr subject) {
-        if (subject instanceof Expr.Name $s1 && neverChanges($s1)) {
-            return $s1.name();
+        if (subject instanceof Expr.Name subject$1 && neverChanges(subject$1)) {
+            return subject$1.name();
         }
         return null;
     }
@@ -749,7 +752,7 @@ import org.axl.compiler.check.Whens;
             if (condition.type() == null) {
                 emitBranch(arm, "case null", Map.of(), form);
             } else {
-                final var variable = "$s" + newPattern();
+                final var variable = patternVariable(narrowedName);
                 final var narrowing = nameBinding(narrowedName, variable);
                 emitBranch(arm, "case " + testedType(conditionType(condition), subjectTypeOf) + " " + variable, narrowing, form);
             }
@@ -759,8 +762,8 @@ import org.axl.compiler.check.Whens;
         final var line = arm.pos().line();
         final var single = singleExpression(arm);
         if (form == WhenForm.VALUE && single != null) {
-            if (single instanceof Expr.Throw $s1 && !Lifts.needed($s1.value())) {
-                em.line(line, label + " -> throw " + narrowedValue(narrowing, () -> expr($s1.value())) + ";");
+            if (single instanceof Expr.Throw single$1 && !Lifts.needed(single$1.value())) {
+                em.line(line, label + " -> throw " + narrowedValue(narrowing, () -> expr(single$1.value())) + ";");
                 return;
             }
             if (!Lifts.needed(single) && Captures.capturedIn(single, analysis).isEmpty()) {
@@ -781,11 +784,11 @@ import org.axl.compiler.check.Whens;
         while (i < body.size()) {
             final var stmt = body.get(i);
             final var last = i == body.size() - 1;
-            if (form == WhenForm.VALUE && last && stmt instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
-                final var valueLine = $s1.pos().line();
-                withCopies(valueLine, $s1.expr(), () -> {
-                    final var code = lifted(valueLine, $s1.expr()).code();
-                    em.line(valueLine, "yield " + boxedBranch(code, $s1.expr(), whenValues) + ";");
+            if (form == WhenForm.VALUE && last && stmt instanceof Stmt.ExprStmt stmt$1 && !(stmt$1.expr() instanceof Expr.Throw)) {
+                final var valueLine = stmt$1.pos().line();
+                withCopies(valueLine, stmt$1.expr(), () -> {
+                    final var code = lifted(valueLine, stmt$1.expr()).code();
+                    em.line(valueLine, "yield " + boxedBranch(code, stmt$1.expr(), whenValues) + ";");
                 });
             } else {
                 statement(stmt);
@@ -816,22 +819,22 @@ import org.axl.compiler.check.Whens;
             return;
         }
         final var e = withoutParens(rest);
-        final var call = (e instanceof Expr.Call $s1 || e instanceof Expr.GenericNew $s2 || e instanceof Expr.Try $s3 || e instanceof Expr.Pipe $s4) && code.endsWith(")");
+        final var call = (e instanceof Expr.Call e$1 || e instanceof Expr.GenericNew e$2 || e instanceof Expr.Try e$3 || e instanceof Expr.Pipe e$4) && code.endsWith(")");
         em.line(line, (call ? code + ";" : "final var " + newTemp() + " = " + code + ";"));
     }
     private String valueCode(int line, Expr e, @Nullable String stored) {
-        if (e instanceof Expr.Elvis $s1 && Lifts.needed($s1.right())) {
-            return elvisChain(line, $s1, stored).code();
+        if (e instanceof Expr.Elvis e$1 && Lifts.needed(e$1.right())) {
+            return elvisChain(line, e$1, stored).code();
         }
         if (Lifts.needed(e)) {
             return lifted(line, e).code();
         }
-        if (!inlinesElvis(e) || !(e instanceof Expr.Elvis $s2)) {
+        if (!inlinesElvis(e) || !(e instanceof Expr.Elvis e$2)) {
             return expr(e);
         }
         final var temp = newTemp();
-        em.line(line, "final var " + temp + " = " + expr($s2.left()) + ";");
-        return "java.util.Objects.nonNull(" + temp + ") ? " + temp + " : " + expr($s2.right());
+        em.line(line, "final var " + temp + " = " + expr(e$2.left()) + ";");
+        return "java.util.Objects.nonNull(" + temp + ") ? " + temp + " : " + expr(e$2.right());
     }
     private boolean widens(Expr number, @Nullable TypeRef left) {
         if (left == null) {
@@ -844,7 +847,7 @@ import org.axl.compiler.check.Whens;
         if (!options.inlineElvis()) {
             return false;
         }
-        return e instanceof Expr.Elvis $s1 && !Lifts.needed($s1.right()) && !Lifts.needed($s1) && !mayMixNumbers($s1);
+        return e instanceof Expr.Elvis e$1 && !Lifts.needed(e$1.right()) && !Lifts.needed(e$1) && !mayMixNumbers(e$1);
     }
     private boolean mayMixNumbers(Expr.Elvis elvis) {
         final var left = typeOf(elvis.left());
@@ -858,8 +861,8 @@ import org.axl.compiler.check.Whens;
     }
     private @Nullable TypeRef typeOf(Expr e) {
         final var inner = withoutParens(e);
-        if (inner instanceof Expr.Name $s1 && localTypes.containsKey($s1.name())) {
-            return localTypes.get($s1.name());
+        if (inner instanceof Expr.Name inner$1 && localTypes.containsKey(inner$1.name())) {
+            return localTypes.get(inner$1.name());
         }
         return TypeInference.typeOf(file, inner);
     }
@@ -940,62 +943,62 @@ import org.axl.compiler.check.Whens;
     }
     private String exprIn(Expr e, boolean inLambda) {
         switch (e) {
-            case Expr.Literal $s1 -> {
-                return literal($s1.text());
+            case Expr.Literal e$1 -> {
+                return literal(e$1.text());
             }
-            case Expr.Name $s2 -> {
-                return nameCode($s2, inLambda);
+            case Expr.Name e$2 -> {
+                return nameCode(e$2, inLambda);
             }
-            case Expr.Member $s3 -> {
-                return chainCode(Chains.flatten($s3), inLambda);
+            case Expr.Member e$3 -> {
+                return chainCode(Chains.flatten(e$3), inLambda);
             }
-            case Expr.Call $s4 -> {
-                return callExpr($s4, inLambda);
+            case Expr.Call e$4 -> {
+                return callExpr(e$4, inLambda);
             }
-            case Expr.GenericNew $s5 -> {
-                return genericNew($s5, argsCode($s5.args(), inLambda, $s5.pos().line()));
+            case Expr.GenericNew e$5 -> {
+                return genericNew(e$5, argsCode(e$5.args(), inLambda, e$5.pos().line()));
             }
-            case Expr.MethodRef $s6 -> {
-                return exprIn($s6.target(), inLambda) + "::" + $s6.name();
+            case Expr.MethodRef e$6 -> {
+                return exprIn(e$6.target(), inLambda) + "::" + e$6.name();
             }
-            case Expr.NotNull $s7 -> {
-                return "java.util.Objects.requireNonNull(" + exprIn($s7.target(), inLambda) + ")";
+            case Expr.NotNull e$7 -> {
+                return "java.util.Objects.requireNonNull(" + exprIn(e$7.target(), inLambda) + ")";
             }
-            case Expr.Unary $s8 -> {
-                return unary($s8.op(), exprIn($s8.operand(), inLambda));
+            case Expr.Unary e$8 -> {
+                return unary(e$8.op(), exprIn(e$8.operand(), inLambda));
             }
-            case Expr.Binary $s9 -> {
-                return binaryCode($s9, inLambda);
+            case Expr.Binary e$9 -> {
+                return binaryCode(e$9, inLambda);
             }
-            case Expr.Is $s10 -> {
-                return typeCheck($s10, inLambda);
+            case Expr.Is e$10 -> {
+                return typeCheck(e$10, inLambda);
             }
-            case Expr.Conditional $s11 -> {
-                return conditionalCode($s11, inLambda);
+            case Expr.Conditional e$11 -> {
+                return conditionalCode(e$11, inLambda);
             }
-            case Expr.Throw $s12 -> {
-                throw new IllegalStateException("throw at " + $s12.pos() + " cannot be an expression");
+            case Expr.Throw e$12 -> {
+                throw new IllegalStateException("throw at " + e$12.pos() + " cannot be an expression");
             }
-            case Expr.Elvis $s13 -> {
-                return elvisCode($s13, exprIn($s13.left(), inLambda));
+            case Expr.Elvis e$13 -> {
+                return elvisCode(e$13, exprIn(e$13.left(), inLambda));
             }
-            case Expr.Paren $s14 -> {
-                return parenCode($s14, inLambda);
+            case Expr.Paren e$14 -> {
+                return parenCode(e$14, inLambda);
             }
-            case Expr.Attempt $s15 -> {
-                return attemptCode($s15);
+            case Expr.Attempt e$15 -> {
+                return attemptCode(e$15);
             }
-            case Expr.Lambda $s16 -> {
-                return lambdaCode($s16);
+            case Expr.Lambda e$16 -> {
+                return lambdaCode(e$16);
             }
-            case Expr.Pipe $s17 -> {
-                return pipeCode(exprIn($s17.source(), inLambda), $s17.source(), $s17.stages(), a -> exprIn(a, inLambda));
+            case Expr.Pipe e$17 -> {
+                return pipeCode(exprIn(e$17.source(), inLambda), e$17.source(), e$17.stages(), a -> exprIn(a, inLambda));
             }
-            case Expr.Try $s18 -> {
-                throw new IllegalStateException("try at " + $s18.pos() + " should have been lifted");
+            case Expr.Try e$18 -> {
+                throw new IllegalStateException("try at " + e$18.pos() + " should have been lifted");
             }
-            case Expr.When $s19 -> {
-                throw new IllegalStateException("when at " + $s19.pos() + " should have been lifted");
+            case Expr.When e$19 -> {
+                throw new IllegalStateException("when at " + e$19.pos() + " should have been lifted");
             }
         }
     }
@@ -1056,7 +1059,7 @@ import org.axl.compiler.check.Whens;
             return type.nullable();
         }
         final var inner = withoutParens(e);
-        return !(inner instanceof Expr.Binary $s1) && !(inner instanceof Expr.Unary $s2) && !(inner instanceof Expr.Literal $s3) && !(inner instanceof Expr.Is $s4);
+        return !(inner instanceof Expr.Binary inner$1) && !(inner instanceof Expr.Unary inner$2) && !(inner instanceof Expr.Literal inner$3) && !(inner instanceof Expr.Is inner$4);
     }
     private String boxClass(String type, List<Expr> branches) {
         var widest = type;
@@ -1086,13 +1089,13 @@ import org.axl.compiler.check.Whens;
     private String typeCheck(Expr.Is check, boolean inLambda) {
         final var type = testedType(check.type(), typeOf(check.target()));
         final var target = check.target();
-        if (!(target instanceof Expr.Name $s1) || !neverChanges($s1)) {
+        if (!(target instanceof Expr.Name target$1) || !neverChanges(target$1)) {
             final var plainTest = exprIn(target, inLambda) + " instanceof " + type;
             return (check.negated() ? "!(" + plainTest + ")" : plainTest);
         }
-        final var variable = "$s" + newPattern();
+        final var variable = patternVariable(target$1.name());
         patternVariables.put(check, variable);
-        final var test = exprIn($s1, inLambda) + " instanceof " + type + " " + variable;
+        final var test = exprIn(target$1, inLambda) + " instanceof " + type + " " + variable;
         return (check.negated() ? "!(" + test + ")" : test);
     }
     private String liftedTypeCheck(int line, Expr.Is check) {
@@ -1108,40 +1111,40 @@ import org.axl.compiler.check.Whens;
         return boxedType(tested);
     }
     private Map<String, String> whenTrue(Expr condition) {
-        if (condition instanceof Expr.Is $s1) {
-            return ($s1.negated() ? Map.of() : checkedName($s1));
+        if (condition instanceof Expr.Is condition$1) {
+            return (condition$1.negated() ? Map.of() : checkedName(condition$1));
         }
-        if (condition instanceof Expr.Paren $s2) {
-            return whenTrue($s2.inner());
+        if (condition instanceof Expr.Paren condition$2) {
+            return whenTrue(condition$2.inner());
         }
-        if (condition instanceof Expr.Unary $s3 && $s3.op().equals("!")) {
-            return whenFalse($s3.operand());
+        if (condition instanceof Expr.Unary condition$3 && condition$3.op().equals("!")) {
+            return whenFalse(condition$3.operand());
         }
-        if (condition instanceof Expr.Binary $s4 && $s4.op().equals("&&")) {
-            return union(whenTrue($s4.left()), whenTrue($s4.right()));
+        if (condition instanceof Expr.Binary condition$4 && condition$4.op().equals("&&")) {
+            return union(whenTrue(condition$4.left()), whenTrue(condition$4.right()));
         }
         return Map.of();
     }
     private Map<String, String> whenFalse(Expr condition) {
-        if (condition instanceof Expr.Is $s1) {
-            return ($s1.negated() ? checkedName($s1) : Map.of());
+        if (condition instanceof Expr.Is condition$1) {
+            return (condition$1.negated() ? checkedName(condition$1) : Map.of());
         }
-        if (condition instanceof Expr.Paren $s2) {
-            return whenFalse($s2.inner());
+        if (condition instanceof Expr.Paren condition$2) {
+            return whenFalse(condition$2.inner());
         }
-        if (condition instanceof Expr.Unary $s3 && $s3.op().equals("!")) {
-            return whenTrue($s3.operand());
+        if (condition instanceof Expr.Unary condition$3 && condition$3.op().equals("!")) {
+            return whenTrue(condition$3.operand());
         }
-        if (condition instanceof Expr.Binary $s4 && $s4.op().equals("||")) {
-            return union(whenFalse($s4.left()), whenFalse($s4.right()));
+        if (condition instanceof Expr.Binary condition$4 && condition$4.op().equals("||")) {
+            return union(whenFalse(condition$4.left()), whenFalse(condition$4.right()));
         }
         return Map.of();
     }
     private Map<String, String> checkedName(Expr.Is check) {
         final var variable = patternVariables.get(check);
         final var target = check.target();
-        if (variable != null && target instanceof Expr.Name $s1) {
-            return Map.of($s1.name(), variable);
+        if (variable != null && target instanceof Expr.Name target$1) {
+            return Map.of(target$1.name(), variable);
         }
         return Map.of();
     }
@@ -1194,7 +1197,7 @@ import org.axl.compiler.check.Whens;
         final var arity = c.args().size();
         final var methods = owner.methods().stream().filter(m -> m.name().equals(c.name())).toList();
         final var method = methods.stream().anyMatch(m -> m.params().size() == arity);
-        final var function = file.decls().stream().anyMatch(d -> d instanceof Decl.Function $s1 && $s1.name().equals(c.name()) && $s1.params().size() == arity);
+        final var function = file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(c.name()) && d$1.params().size() == arity);
         return !methods.isEmpty() && !method && function;
     }
     private String chainCode(Chains.Chain chain, boolean inLambda) {
@@ -1257,11 +1260,11 @@ import org.axl.compiler.check.Whens;
         return joinedArgs(args, codes, line);
     }
     private String argument(Expr arg, boolean inLambda) {
-        if (arg instanceof Expr.Paren $s1) {
-            return "(" + argument($s1.inner(), inLambda) + ")";
+        if (arg instanceof Expr.Paren arg$1) {
+            return "(" + argument(arg$1.inner(), inLambda) + ")";
         }
-        if (arg instanceof Expr.NotNull $s2) {
-            return "java.util.Objects.requireNonNull(" + argument($s2.target(), inLambda) + ")";
+        if (arg instanceof Expr.NotNull arg$2) {
+            return "java.util.Objects.requireNonNull(" + argument(arg$2.target(), inLambda) + ")";
         }
         if (Chains.hasSafeStep(arg) || hasSafeElvis(arg)) {
             return "Nulls.typed(" + exprIn(arg, inLambda) + ").value()";
@@ -1322,47 +1325,47 @@ import org.axl.compiler.check.Whens;
             return new Lifted(expr(e), isPure(e));
         }
         switch (e) {
-            case Expr.Try $s1 -> {
-                return new Lifted(unwrapTry(line, $s1), true);
+            case Expr.Try e$1 -> {
+                return new Lifted(unwrapTry(line, e$1), true);
             }
-            case Expr.When $s2 -> {
-                return liftedWhen(line, $s2);
+            case Expr.When e$2 -> {
+                return liftedWhen(line, e$2);
             }
-            case Expr.Binary $s3 -> {
-                return liftedBinary(line, $s3);
+            case Expr.Binary e$3 -> {
+                return liftedBinary(line, e$3);
             }
-            case Expr.Elvis $s4 -> {
-                return liftedElvis(line, $s4);
+            case Expr.Elvis e$4 -> {
+                return liftedElvis(line, e$4);
             }
-            case Expr.Unary $s5 -> {
-                return new Lifted(unary($s5.op(), lifted(line, $s5.operand()).code()), false);
+            case Expr.Unary e$5 -> {
+                return new Lifted(unary(e$5.op(), lifted(line, e$5.operand()).code()), false);
             }
-            case Expr.Paren $s6 -> {
-                return liftedParen(line, $s6);
+            case Expr.Paren e$6 -> {
+                return liftedParen(line, e$6);
             }
-            case Expr.Call $s7 -> {
-                return liftedCall(line, $s7);
+            case Expr.Call e$7 -> {
+                return liftedCall(line, e$7);
             }
-            case Expr.Member $s8 -> {
-                return chainLifted(line, Chains.flatten($s8));
+            case Expr.Member e$8 -> {
+                return chainLifted(line, Chains.flatten(e$8));
             }
-            case Expr.GenericNew $s9 -> {
-                return new Lifted(genericNew($s9, codes(operands(line, $s9.args()))), false);
+            case Expr.GenericNew e$9 -> {
+                return new Lifted(genericNew(e$9, codes(operands(line, e$9.args()))), false);
             }
-            case Expr.MethodRef $s10 -> {
-                return new Lifted(lifted(line, $s10.target()).code() + "::" + $s10.name(), false);
+            case Expr.MethodRef e$10 -> {
+                return new Lifted(lifted(line, e$10.target()).code() + "::" + e$10.name(), false);
             }
-            case Expr.NotNull $s11 -> {
-                return new Lifted("java.util.Objects.requireNonNull(" + lifted(line, $s11.target()).code() + ")", false);
+            case Expr.NotNull e$11 -> {
+                return new Lifted("java.util.Objects.requireNonNull(" + lifted(line, e$11.target()).code() + ")", false);
             }
-            case Expr.Pipe $s12 -> {
-                return pipeLifted(line, $s12);
+            case Expr.Pipe e$12 -> {
+                return pipeLifted(line, e$12);
             }
-            case Expr.Conditional $s13 -> {
-                return new Lifted(conditional(lifted(line, $s13.condition()).code(), $s13, false), false);
+            case Expr.Conditional e$13 -> {
+                return new Lifted(conditional(lifted(line, e$13.condition()).code(), e$13, false), false);
             }
-            case Expr.Is $s14 -> {
-                return new Lifted(liftedTypeCheck(line, $s14), false);
+            case Expr.Is e$14 -> {
+                return new Lifted(liftedTypeCheck(line, e$14), false);
             }
             default -> {
                 throw new IllegalStateException("nothing to lift in " + e);
@@ -1405,22 +1408,22 @@ import org.axl.compiler.check.Whens;
         return chainLifted(line, Chains.flatten(c));
     }
     private boolean isLocal(Expr target) {
-        return target instanceof Expr.Name $s1 && analysis.mutableRefs().contains($s1);
+        return target instanceof Expr.Name target$1 && analysis.mutableRefs().contains(target$1);
     }
     private boolean neverChanges(Expr.Name name) {
         return analysis.stableNames().contains(name) && !analysis.mutableRefs().contains(name);
     }
     private String assignTarget(int line, Expr target, boolean valueLifts) {
-        if (!(target instanceof Expr.Member $s1) || (!valueLifts && !Lifts.needed($s1))) {
+        if (!(target instanceof Expr.Member target$1) || (!valueLifts && !Lifts.needed(target$1))) {
             return expr(target);
         }
-        final var receiver = lifted(line, $s1.target());
+        final var receiver = lifted(line, target$1.target());
         var code = receiver.code();
         if (valueLifts && !receiver.pure()) {
             code = newTemp();
             em.line(line, "final var " + code + " = " + receiver.code() + ";");
         }
-        return code + "." + $s1.name();
+        return code + "." + target$1.name();
     }
     private List<Lifted> operands(int line, List<Expr> exprs) {
         var last = -1;
@@ -1448,21 +1451,21 @@ import org.axl.compiler.check.Whens;
         return result;
     }
     private boolean takesTypeFromTarget(Expr e) {
-        if (e instanceof Expr.Call $s1) {
-            final var target = $s1.target();
+        if (e instanceof Expr.Call e$1) {
+            final var target = e$1.target();
             if (target == null) {
-                return $s1.name().equals("Ok") || $s1.name().equals("Err");
+                return e$1.name().equals("Ok") || e$1.name().equals("Err");
             }
-            return target instanceof Expr.Name $s2 && analysis.staticNames().contains($s2) && TARGET_TYPED_FACTORIES.contains($s1.name());
+            return target instanceof Expr.Name target$2 && analysis.staticNames().contains(target$2) && TARGET_TYPED_FACTORIES.contains(e$1.name());
         }
-        if (e instanceof Expr.GenericNew $s3) {
-            return $s3.typeArgs().isEmpty();
+        if (e instanceof Expr.GenericNew e$3) {
+            return e$3.typeArgs().isEmpty();
         }
-        return e instanceof Expr.MethodRef $s4;
+        return e instanceof Expr.MethodRef e$4;
     }
     private Lifted withArgumentsFirst(int line, Expr e) {
-        if (e instanceof Expr.MethodRef $s1) {
-            return methodRefFirst(line, $s1);
+        if (e instanceof Expr.MethodRef e$1) {
+            return methodRefFirst(line, e$1);
         }
         final var codes = new ArrayList<String>();
         for (final var arg : argumentsOf(e)) {
@@ -1486,15 +1489,15 @@ import org.axl.compiler.check.Whens;
         return new Lifted(temp + "::" + r.name(), true);
     }
     private String inlineCall(Expr e, String argsText) {
-        if (e instanceof Expr.Call $s1) {
-            final var target = $s1.target();
+        if (e instanceof Expr.Call e$1) {
+            final var target = e$1.target();
             if (target == null) {
-                return callCode($s1, argsText);
+                return callCode(e$1, argsText);
             }
-            return expr(target) + "." + $s1.name() + "(" + argsText + ")";
+            return expr(target) + "." + e$1.name() + "(" + argsText + ")";
         }
-        if (e instanceof Expr.GenericNew $s2) {
-            return genericNew($s2, argsText);
+        if (e instanceof Expr.GenericNew e$2) {
+            return genericNew(e$2, argsText);
         }
         throw new IllegalStateException();
     }
@@ -1504,23 +1507,23 @@ import org.axl.compiler.check.Whens;
     }
     private boolean isPure(Expr e) {
         switch (e) {
-            case Expr.Literal $s1 -> {
+            case Expr.Literal e$1 -> {
                 return true;
             }
-            case Expr.Name $s2 -> {
-                return analysis.stableNames().contains($s2) || analysis.staticNames().contains($s2);
+            case Expr.Name e$2 -> {
+                return analysis.stableNames().contains(e$2) || analysis.staticNames().contains(e$2);
             }
-            case Expr.Lambda $s3 -> {
+            case Expr.Lambda e$3 -> {
                 return true;
             }
-            case Expr.MethodRef $s4 -> {
-                return isPure($s4.target()) || isPath($s4.target());
+            case Expr.MethodRef e$4 -> {
+                return isPure(e$4.target()) || isPath(e$4.target());
             }
-            case Expr.Paren $s5 -> {
-                return isPure($s5.inner());
+            case Expr.Paren e$5 -> {
+                return isPure(e$5.inner());
             }
-            case Expr.Call $s6 -> {
-                return isPureResult($s6);
+            case Expr.Call e$6 -> {
+                return isPureResult(e$6);
             }
             default -> {
                 return false;
@@ -1535,11 +1538,11 @@ import org.axl.compiler.check.Whens;
     }
     private boolean isPath(Expr e) {
         switch (e) {
-            case Expr.Name $s1 -> {
-                return analysis.staticNames().contains($s1);
+            case Expr.Name e$1 -> {
+                return analysis.staticNames().contains(e$1);
             }
-            case Expr.Member $s2 -> {
-                return !$s2.safe() && isPath($s2.target());
+            case Expr.Member e$2 -> {
+                return !e$2.safe() && isPath(e$2.target());
             }
             default -> {
                 return false;
@@ -1561,8 +1564,8 @@ import org.axl.compiler.check.Whens;
     private Lifted elvisChain(int line, Expr.Elvis elvis, @Nullable String stored) {
         final var left = lifted(line, elvis.left()).code();
         final var right = elvis.right();
-        if (stored == null && right instanceof Expr.Try $s1 && !Lifts.needed($s1.inner())) {
-            return elvisTry(line, left, $s1);
+        if (stored == null && right instanceof Expr.Try right$1 && !Lifts.needed(right$1.inner())) {
+            return elvisTry(line, left, right$1);
         }
         final var temp = newTemp();
         em.line(line, ((stored == null ? "var" : stored)) + " " + temp + " = " + left + ";");
@@ -1627,7 +1630,7 @@ import org.axl.compiler.check.Whens;
         return String.join(", ", texts);
     }
     private boolean isStaticName(Expr e) {
-        return e instanceof Expr.Name $s1 && analysis.staticNames().contains($s1);
+        return e instanceof Expr.Name e$1 && analysis.staticNames().contains(e$1);
     }
     private Lifted pipeLifted(int line, Expr.Pipe pipe) {
         final var stages = pipe.stages();
@@ -1761,26 +1764,26 @@ import org.axl.compiler.check.Whens;
     }
     private int firstLine(Expr e) {
         switch (e) {
-            case Expr.Member $s1 -> {
-                return startLine($s1.target());
+            case Expr.Member e$1 -> {
+                return startLine(e$1.target());
             }
-            case Expr.Call $s2 -> {
-                return callStartLine($s2);
+            case Expr.Call e$2 -> {
+                return callStartLine(e$2);
             }
-            case Expr.Binary $s3 -> {
-                return startLine($s3.left());
+            case Expr.Binary e$3 -> {
+                return startLine(e$3.left());
             }
-            case Expr.Elvis $s4 -> {
-                return startLine($s4.left());
+            case Expr.Elvis e$4 -> {
+                return startLine(e$4.left());
             }
-            case Expr.Pipe $s5 -> {
-                return startLine($s5.source());
+            case Expr.Pipe e$5 -> {
+                return startLine(e$5.source());
             }
-            case Expr.MethodRef $s6 -> {
-                return startLine($s6.target());
+            case Expr.MethodRef e$6 -> {
+                return startLine(e$6.target());
             }
-            case Expr.NotNull $s7 -> {
-                return startLine($s7.target());
+            case Expr.NotNull e$7 -> {
+                return startLine(e$7.target());
             }
             default -> {
                 return e.pos().line();
@@ -1859,8 +1862,8 @@ import org.axl.compiler.check.Whens;
     private static LinkedHashSet<String> declaredFunctionNames(SourceFile file) {
         final var names = new LinkedHashSet<String>();
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Function $s1) {
-                names.add($s1.name());
+            if (decl instanceof Decl.Function decl$1) {
+                names.add(decl$1.name());
             }
         }
         for (final var imp : file.imports()) {
@@ -1906,28 +1909,28 @@ import org.axl.compiler.check.Whens;
         return constant;
     }
     private static @Nullable Expr runsWhen(Expr statement) {
-        if (statement instanceof Expr.Binary $s1 && $s1.op().equals("&&")) {
-            return $s1.left();
+        if (statement instanceof Expr.Binary statement$1 && statement$1.op().equals("&&")) {
+            return statement$1.left();
         }
-        if (statement instanceof Expr.Binary $s2 && $s2.op().equals("||")) {
-            return new Unary($s2.pos(), "!", new Paren($s2.pos(), $s2.left()));
+        if (statement instanceof Expr.Binary statement$2 && statement$2.op().equals("||")) {
+            return new Unary(statement$2.pos(), "!", new Paren(statement$2.pos(), statement$2.left()));
         }
-        if (statement instanceof Expr.Elvis $s3) {
-            return new Binary($s3.pos(), "==", $s3.left(), new Literal($s3.pos(), "null"));
+        if (statement instanceof Expr.Elvis statement$3) {
+            return new Binary(statement$3.pos(), "==", statement$3.left(), new Literal(statement$3.pos(), "null"));
         }
         return null;
     }
     private static Expr actionOf(Expr statement) {
-        if (statement instanceof Expr.Binary $s1) {
-            return $s1.right();
+        if (statement instanceof Expr.Binary statement$1) {
+            return statement$1.right();
         }
-        if (statement instanceof Expr.Elvis $s2) {
-            return $s2.right();
+        if (statement instanceof Expr.Elvis statement$2) {
+            return statement$2.right();
         }
         throw new IllegalStateException();
     }
     private static Expr withoutParens(Expr e) {
-        return (e instanceof Expr.Paren $s1 ? withoutParens($s1.inner()) : e);
+        return (e instanceof Expr.Paren e$1 ? withoutParens(e$1.inner()) : e);
     }
     private static String parameters(List<Expr.Param> params, int declarationLine) {
         final var sb = new StringBuilder();
@@ -1966,42 +1969,42 @@ import org.axl.compiler.check.Whens;
         return Map.of(name, variable);
     }
     private static Expr.@Nullable Binary shortCircuitWithLift(Expr condition) {
-        if (condition instanceof Expr.Binary $s1 && ($s1.op().equals("&&") || $s1.op().equals("||")) && Lifts.needed($s1.right())) {
-            return $s1;
+        if (condition instanceof Expr.Binary condition$1 && (condition$1.op().equals("&&") || condition$1.op().equals("||")) && Lifts.needed(condition$1.right())) {
+            return condition$1;
         }
         return null;
     }
     private static Expr.@Nullable Binary andWithLiftedRight(Expr condition) {
-        if (condition instanceof Expr.Binary $s1 && $s1.op().equals("&&") && Lifts.needed($s1.right())) {
-            return $s1;
+        if (condition instanceof Expr.Binary condition$1 && condition$1.op().equals("&&") && Lifts.needed(condition$1.right())) {
+            return condition$1;
         }
         return null;
     }
     private static Stmt.@Nullable Block asBlock(@Nullable Stmt elseBranch) {
-        if (elseBranch instanceof Stmt.Block $s1) {
-            return $s1;
+        if (elseBranch instanceof Stmt.Block elseBranch$1) {
+            return elseBranch$1;
         }
-        if (elseBranch instanceof Stmt.If $s2) {
-            return new Block($s2.pos(), List.of($s2), new Pos(blockEnd($s2), 1));
+        if (elseBranch instanceof Stmt.If elseBranch$2) {
+            return new Block(elseBranch$2.pos(), List.of(elseBranch$2), new Pos(blockEnd(elseBranch$2), 1));
         }
         return null;
     }
     private static boolean exits(Stmt stmt) {
         switch (stmt) {
-            case Stmt.Return $s1 -> {
+            case Stmt.Return stmt$1 -> {
                 return true;
             }
-            case Stmt.ExprStmt $s2 -> {
-                return $s2.expr() instanceof Expr.Throw || whenLeaves($s2.expr());
+            case Stmt.ExprStmt stmt$2 -> {
+                return stmt$2.expr() instanceof Expr.Throw || whenLeaves(stmt$2.expr());
             }
-            case Stmt.Block $s3 -> {
-                return !$s3.statements().isEmpty() && exits($s3.statements().getLast());
+            case Stmt.Block stmt$3 -> {
+                return !stmt$3.statements().isEmpty() && exits(stmt$3.statements().getLast());
             }
-            case Stmt.If $s4 -> {
-                return exitsIf($s4);
+            case Stmt.If stmt$4 -> {
+                return exitsIf(stmt$4);
             }
-            case Stmt.While $s5 -> {
-                return loopsForever($s5);
+            case Stmt.While stmt$5 -> {
+                return loopsForever(stmt$5);
             }
             default -> {
                 return false;
@@ -2009,11 +2012,11 @@ import org.axl.compiler.check.Whens;
         }
     }
     private static boolean whenLeaves(Expr e) {
-        if (!(e instanceof Expr.When $s1)) {
+        if (!(e instanceof Expr.When e$1)) {
             return false;
         }
-        final var hasElse = $s1.arms().stream().anyMatch(a -> a.conditions().isEmpty());
-        final var allLeave = $s1.arms().stream().allMatch(a -> !a.body().isEmpty() && exits(a.body().getLast()));
+        final var hasElse = e$1.arms().stream().anyMatch(a -> a.conditions().isEmpty());
+        final var allLeave = e$1.arms().stream().allMatch(a -> !a.body().isEmpty() && exits(a.body().getLast()));
         return hasElse && allLeave;
     }
     private static boolean exitsIf(Stmt.If ifStmt) {
@@ -2022,15 +2025,15 @@ import org.axl.compiler.check.Whens;
     }
     private static boolean loopsForever(Stmt.While loop) {
         final var condition = loop.condition();
-        return condition instanceof Expr.Literal $s1 && $s1.text().equals("true");
+        return condition instanceof Expr.Literal condition$1 && condition$1.text().equals("true");
     }
     private static int blockEnd(Stmt.If ifStmt) {
         final var elseBranch = ifStmt.elseBranch();
-        if (elseBranch instanceof Stmt.If $s1) {
-            return blockEnd($s1);
+        if (elseBranch instanceof Stmt.If elseBranch$1) {
+            return blockEnd(elseBranch$1);
         }
-        if (elseBranch instanceof Stmt.Block $s2) {
-            return $s2.end().line();
+        if (elseBranch instanceof Stmt.Block elseBranch$2) {
+            return elseBranch$2.end().line();
         }
         return ifStmt.then().end().line();
     }
@@ -2039,24 +2042,24 @@ import org.axl.compiler.check.Whens;
             return null;
         }
         final var first = arm.body().getFirst();
-        if (first instanceof Stmt.ExprStmt $s1) {
-            return $s1.expr();
+        if (first instanceof Stmt.ExprStmt first$1) {
+            return first$1.expr();
         }
         return null;
     }
     private static List<Expr> argumentsOf(Expr e) {
-        if (e instanceof Expr.Call $s1) {
-            return $s1.args();
+        if (e instanceof Expr.Call e$1) {
+            return e$1.args();
         }
-        if (e instanceof Expr.GenericNew $s2) {
-            return $s2.args();
+        if (e instanceof Expr.GenericNew e$2) {
+            return e$2.args();
         }
         throw new IllegalStateException();
     }
     private static Expr firstExpression(List<Stmt> body) {
         final var first = body.getFirst();
-        if (first instanceof Stmt.ExprStmt $s1) {
-            return $s1.expr();
+        if (first instanceof Stmt.ExprStmt first$1) {
+            return first$1.expr();
         }
         throw new IllegalStateException();
     }
@@ -2075,7 +2078,7 @@ import org.axl.compiler.check.Whens;
         return false;
     }
     private static boolean isTypeDecl(Decl d) {
-        return d instanceof Decl.DataClass $s1 || d instanceof Decl.Interface $s2 || d instanceof Decl.ClassDecl $s3 || d instanceof Decl.EnumDecl $s4;
+        return d instanceof Decl.DataClass d$1 || d instanceof Decl.Interface d$2 || d instanceof Decl.ClassDecl d$3 || d instanceof Decl.EnumDecl d$4;
     }
     private static boolean isResultType(TypeRef type) {
         return type.name().equals("Result") || type.name().equals("axl.lang.Result");
@@ -2108,8 +2111,8 @@ import org.axl.compiler.check.Whens;
         for (final var arm : w.arms()) {
             final var body = arm.body();
             final var last = (body.isEmpty() ? null : body.getLast());
-            if (last instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
-                values.add($s1.expr());
+            if (last instanceof Stmt.ExprStmt last$1 && !(last$1.expr() instanceof Expr.Throw)) {
+                values.add(last$1.expr());
             }
         }
         return values;
@@ -2119,16 +2122,16 @@ import org.axl.compiler.check.Whens;
             return null;
         }
         final var first = body.getFirst();
-        if (first instanceof Stmt.ExprStmt $s1 && !($s1.expr() instanceof Expr.Throw)) {
-            return $s1.expr();
+        if (first instanceof Stmt.ExprStmt first$1 && !(first$1.expr() instanceof Expr.Throw)) {
+            return first$1.expr();
         }
         return null;
     }
     private static boolean hasSafeElvis(Expr e) {
-        return e instanceof Expr.Elvis $s1 && Chains.hasSafeStep($s1.left());
+        return e instanceof Expr.Elvis e$1 && Chains.hasSafeStep(e$1.left());
     }
     private static boolean becomesCall(Expr e) {
-        return e instanceof Expr.Elvis $s1 || e instanceof Expr.Attempt $s2 || Chains.hasSafeStep(e);
+        return e instanceof Expr.Elvis e$1 || e instanceof Expr.Attempt e$2 || Chains.hasSafeStep(e);
     }
     private static Map<String, String> union(Map<String, String> a, Map<String, String> b) {
         final var result = new HashMap<String, String>(a);
@@ -2144,8 +2147,8 @@ import org.axl.compiler.check.Whens;
     }
     private static String baseName(Chains.Chain chain) {
         final var base = chain.base();
-        if (base instanceof Expr.Name $s1) {
-            return $s1.name();
+        if (base instanceof Expr.Name base$1) {
+            return base$1.name();
         }
         return "";
     }
@@ -2185,9 +2188,9 @@ import org.axl.compiler.check.Whens;
         return head + separator + tail;
     }
     private static String parenthesized(String code, Expr source) {
-        final var simple = source instanceof Expr.Name $s1 || source instanceof Expr.Call $s2 || source instanceof Expr.Member $s3 || source instanceof Expr.Paren $s4 ||
-                source instanceof Expr.GenericNew $s5 ||
-                source instanceof Expr.Literal $s6;
+        final var simple = source instanceof Expr.Name source$1 || source instanceof Expr.Call source$2 || source instanceof Expr.Member source$3 || source instanceof Expr.Paren source$4 ||
+                source instanceof Expr.GenericNew source$5 ||
+                source instanceof Expr.Literal source$6;
         return (simple ? code : "(" + code + ")");
     }
     private static String literal(String text) {

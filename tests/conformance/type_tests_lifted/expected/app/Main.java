@@ -12,11 +12,11 @@ import org.jspecify.annotations.*;
     }
     public static String kind(Object o) {
         switch (o) {
-            case Integer $s1 -> {
-                return "int " + $s1;
+            case Integer o$1 -> {
+                return "int " + o$1;
             }
-            case String $s2 -> {
-                return "string " + $s2;
+            case String o$2 -> {
+                return "string " + o$2;
             }
             default -> {
                 return "other";
@@ -25,26 +25,26 @@ import org.jspecify.annotations.*;
     }
     public static int next(Result<Integer, String> r) {
         switch (r) {
-            case Ok<Integer, String> $s1 -> {
-                return $s1.value() + 1;
+            case Ok<Integer, String> r$1 -> {
+                return r$1.value() + 1;
             }
-            case Err<Integer, String> $s2 -> {
-                return $s2.error().length();
+            case Err<Integer, String> r$2 -> {
+                return r$2.error().length();
             }
         }
     }
     public static Result<String, String> big(Shape shape) {
-        if (shape instanceof Circle $s1) {
-            final var $t1 = check($s1.radius());
+        if (shape instanceof Circle shape$1) {
+            final var $t1 = check(shape$1.radius());
             if ($t1.isErr()) return Result.propagate($t1);
             if (Result.unwrap($t1)) {
-                return new Ok<>("big circle " + $s1.radius());
+                return new Ok<>("big circle " + shape$1.radius());
             }
         }
         return new Ok<>("other");
     }
     public static Result<String, String> radius(Shape shape) {
-        if (!(shape instanceof Circle $s1)) {
+        if (!(shape instanceof Circle shape$1)) {
             return new Ok<>("not round");
         }
         final var $t1 = check(-1.0);
@@ -52,7 +52,7 @@ import org.jspecify.annotations.*;
         if (Result.unwrap($t1)) {
             return new Ok<>("not round");
         }
-        return new Ok<>("r=" + $s1.radius());
+        return new Ok<>("r=" + shape$1.radius());
     }
     public static void main(String[] args) {
         System.out.println(kind(1) + ", " + kind("a"));

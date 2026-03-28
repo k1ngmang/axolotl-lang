@@ -192,6 +192,9 @@ class Generator(
         return "$p" + listCount
     }
 
+    /** `shape$1` for a narrowed `shape`: errors about it can then name `shape`, and no Axolotl name has a `$`. */
+    private fn patternVariable(narrowed: String?) -> String = (narrowed ?: "") + "$" + (if (narrowed == null) "s" else "") + newPattern()
+
     private fn newPattern() -> Int {
         patternCount += 1
         return patternCount
@@ -705,7 +708,7 @@ class Generator(
         val byIndex = switchesByIndex(w, subjectType)
         withCopies(line, w.subject(), { ->
             if (bindingName != null || byIndex) {
-                val name = "$e" + newPattern()
+                val name = (bindingName ?: "") + "$e" + newPattern()
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";")
                 subject.add(name)
             } else {
@@ -826,7 +829,7 @@ class Generator(
             if (condition.type() == null) {
                 emitBranch(arm, "case null", Map.of(), form)
             } else {
-                val variable = "$s" + newPattern()
+                val variable = patternVariable(narrowedName)
                 val narrowing = nameBinding(narrowedName, variable)
                 emitBranch(arm, "case " + testedType(conditionType(condition), subjectTypeOf) + " " + variable, narrowing, form)
             }
@@ -1196,7 +1199,7 @@ class Generator(
             val plainTest = exprIn(target, inLambda) + " instanceof " + type
             return if (check.negated()) "!(" + plainTest + ")" else plainTest
         }
-        val variable = "$s" + newPattern()
+        val variable = patternVariable(target.name())
         patternVariables.put(check, variable)
         val test = exprIn(target, inLambda) + " instanceof " + type + " " + variable
         return if (check.negated()) "!(" + test + ")" else test

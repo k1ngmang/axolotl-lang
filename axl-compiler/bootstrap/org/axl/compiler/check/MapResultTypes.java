@@ -34,14 +34,14 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static Expr.@Nullable Call calledFunction(Expr.Stage stage) {
         final var first = java.util.Objects.requireNonNull(stage.lambda()).body().getFirst();
-        if (!(first instanceof Stmt.ExprStmt $s1)) {
+        if (!(first instanceof Stmt.ExprStmt first$1)) {
             return null;
         }
-        final var expr = $s1.expr();
-        if (!(expr instanceof Expr.Call $s2) || $s2.target() != null) {
+        final var expr = first$1.expr();
+        if (!(expr instanceof Expr.Call expr$2) || expr$2.target() != null) {
             return null;
         }
-        return $s2;
+        return expr$2;
     }
     private static List<Decl.Function> functionsLike(SourceFile file, List<Decl.Function> methods, Expr.Call call) {
         final var found = new ArrayList<Decl.Function>();
@@ -54,8 +54,8 @@ import org.axl.compiler.ast.TypeRef;
             return found.stream().filter(m -> m.params().size() == call.args().size()).toList();
         }
         for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Function $s1 && $s1.name().equals(call.name()) && $s1.params().size() == call.args().size()) {
-                found.add($s1);
+            if (decl instanceof Decl.Function decl$1 && decl$1.name().equals(call.name()) && decl$1.params().size() == call.args().size()) {
+                found.add(decl$1);
             }
         }
         return found;

@@ -19,82 +19,82 @@ import org.axl.compiler.check.Analysis;
     }
     public void visit(Expr expr, boolean inLambda) {
         switch (expr) {
-            case Expr.Literal $s1 -> {
+            case Expr.Literal expr$1 -> {
             }
-            case Expr.Name $s2 -> {
-                if (inLambda && analysis.mutableRefs().contains($s2)) {
-                    names.add($s2.name());
+            case Expr.Name expr$2 -> {
+                if (inLambda && analysis.mutableRefs().contains(expr$2)) {
+                    names.add(expr$2.name());
                 }
             }
-            case Expr.Member $s3 -> {
-                chain(Chains.flatten($s3), inLambda);
+            case Expr.Member expr$3 -> {
+                chain(Chains.flatten(expr$3), inLambda);
             }
-            case Expr.Call $s4 -> {
-                if ($s4.target() != null) {
-                    chain(Chains.flatten($s4), inLambda);
+            case Expr.Call expr$4 -> {
+                if (expr$4.target() != null) {
+                    chain(Chains.flatten(expr$4), inLambda);
                 } else {
-                    visitAll($s4.args(), inLambda);
+                    visitAll(expr$4.args(), inLambda);
                 }
             }
-            case Expr.GenericNew $s5 -> {
-                visitAll($s5.args(), inLambda);
+            case Expr.GenericNew expr$5 -> {
+                visitAll(expr$5.args(), inLambda);
             }
-            case Expr.MethodRef $s6 -> {
-                visit($s6.target(), inLambda);
+            case Expr.MethodRef expr$6 -> {
+                visit(expr$6.target(), inLambda);
             }
-            case Expr.NotNull $s7 -> {
-                visit($s7.target(), inLambda);
+            case Expr.NotNull expr$7 -> {
+                visit(expr$7.target(), inLambda);
             }
-            case Expr.Unary $s8 -> {
-                visit($s8.operand(), inLambda);
+            case Expr.Unary expr$8 -> {
+                visit(expr$8.operand(), inLambda);
             }
-            case Expr.Binary $s9 -> {
-                visit($s9.left(), inLambda);
-                visit($s9.right(), inLambda);
+            case Expr.Binary expr$9 -> {
+                visit(expr$9.left(), inLambda);
+                visit(expr$9.right(), inLambda);
             }
-            case Expr.Elvis $s10 -> {
-                visit($s10.left(), inLambda);
-                visit($s10.right(), inLambda || !Lifts.needed($s10.right()));
+            case Expr.Elvis expr$10 -> {
+                visit(expr$10.left(), inLambda);
+                visit(expr$10.right(), inLambda || !Lifts.needed(expr$10.right()));
             }
-            case Expr.Is $s11 -> {
-                visit($s11.target(), inLambda);
+            case Expr.Is expr$11 -> {
+                visit(expr$11.target(), inLambda);
             }
-            case Expr.Conditional $s12 -> {
-                visit($s12.condition(), inLambda);
-                visit($s12.then(), inLambda);
-                visit($s12.otherwise(), inLambda);
+            case Expr.Conditional expr$12 -> {
+                visit(expr$12.condition(), inLambda);
+                visit(expr$12.then(), inLambda);
+                visit(expr$12.otherwise(), inLambda);
             }
-            case Expr.Throw $s13 -> {
-                visit($s13.value(), inLambda);
+            case Expr.Throw expr$13 -> {
+                visit(expr$13.value(), inLambda);
             }
-            case Expr.When $s14 -> {
-                visit($s14.subject(), inLambda);
+            case Expr.When expr$14 -> {
+                visit(expr$14.subject(), inLambda);
                 if (lambdaBodies > 0) {
-                    for (final var arm : $s14.arms()) {
+                    for (final var arm : expr$14.arms()) {
                         statements(arm.body(), inLambda);
                     }
                 }
             }
-            case Expr.Paren $s15 -> {
-                visit($s15.inner(), inLambda);
+            case Expr.Paren expr$15 -> {
+                visit(expr$15.inner(), inLambda);
             }
-            case Expr.Try $s16 -> {
-                visit($s16.inner(), inLambda);
+            case Expr.Try expr$16 -> {
+                visit(expr$16.inner(), inLambda);
             }
-            case Expr.Attempt $s17 -> {
-                visit($s17.body(), true);
-                visit($s17.handler(), true);
+            case Expr.Attempt expr$17 -> {
+                visit(expr$17.body(), true);
+                visit(expr$17.handler(), true);
             }
-            case Expr.Lambda $s18 -> {
+            case Expr.Lambda expr$18 -> {
                 final var before = new LinkedHashSet<String>(names);
                 lambdaBodies += 1;
-                statements($s18.body(), inLambda);
+                statements(expr$18.body(), inLambda);
                 lambdaBodies -= 1;
                 names.retainAll(before);
             }
-            case Expr.Pipe $s19 -> {
-                visit($s19.source(), inLambda);
-                for (final var stage : $s19.stages()) {
+            case Expr.Pipe expr$19 -> {
+                visit(expr$19.source(), inLambda);
+                for (final var stage : expr$19.stages()) {
                     visitAll(stage.args(), inLambda);
                     final var lambda = stage.lambda();
                     if (lambda != null) {
@@ -116,39 +116,39 @@ import org.axl.compiler.check.Analysis;
     }
     private void statement(Stmt stmt, boolean inLambda) {
         switch (stmt) {
-            case Stmt.Local $s1 -> {
-                visit($s1.init(), inLambda);
+            case Stmt.Local stmt$1 -> {
+                visit(stmt$1.init(), inLambda);
             }
-            case Stmt.Assign $s2 -> {
-                visit($s2.value(), inLambda);
+            case Stmt.Assign stmt$2 -> {
+                visit(stmt$2.value(), inLambda);
             }
-            case Stmt.Return $s3 -> {
-                final var value = $s3.value();
+            case Stmt.Return stmt$3 -> {
+                final var value = stmt$3.value();
                 if (value != null) {
                     visit(value, inLambda);
                 }
             }
-            case Stmt.If $s4 -> {
-                visit($s4.condition(), inLambda);
-                statement($s4.then(), inLambda);
-                final var otherwise = $s4.elseBranch();
+            case Stmt.If stmt$4 -> {
+                visit(stmt$4.condition(), inLambda);
+                statement(stmt$4.then(), inLambda);
+                final var otherwise = stmt$4.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise, inLambda);
                 }
             }
-            case Stmt.While $s5 -> {
-                visit($s5.condition(), inLambda);
-                statement($s5.body(), inLambda);
+            case Stmt.While stmt$5 -> {
+                visit(stmt$5.condition(), inLambda);
+                statement(stmt$5.body(), inLambda);
             }
-            case Stmt.For $s6 -> {
-                visit($s6.iterable(), inLambda);
-                statement($s6.body(), inLambda);
+            case Stmt.For stmt$6 -> {
+                visit(stmt$6.iterable(), inLambda);
+                statement(stmt$6.body(), inLambda);
             }
-            case Stmt.ExprStmt $s7 -> {
-                visit($s7.expr(), inLambda);
+            case Stmt.ExprStmt stmt$7 -> {
+                visit(stmt$7.expr(), inLambda);
             }
-            case Stmt.Block $s8 -> {
-                statements($s8.statements(), inLambda);
+            case Stmt.Block stmt$8 -> {
+                statements(stmt$8.statements(), inLambda);
             }
         }
     }
@@ -168,9 +168,9 @@ import org.axl.compiler.check.Analysis;
     }
     public static List<String> capturedIn(Expr expr, Analysis analysis, boolean rootElvisInlined) {
         final var captures = new Captures(analysis);
-        if (rootElvisInlined && expr instanceof Expr.Elvis $s1) {
-            captures.visit($s1.left(), false);
-            captures.visit($s1.right(), false);
+        if (rootElvisInlined && expr instanceof Expr.Elvis expr$1) {
+            captures.visit(expr$1.left(), false);
+            captures.visit(expr$1.right(), false);
         } else {
             captures.visit(expr, false);
         }

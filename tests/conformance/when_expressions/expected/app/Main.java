@@ -10,28 +10,28 @@ import org.jspecify.annotations.*;
     public record Empty(@Nullable String label) implements Shape {}
     public static double area(Shape shape) {
         switch (shape) {
-            case Circle $s1 -> {
-                return 3.0 * $s1.radius() * $s1.radius();
+            case Circle shape$1 -> {
+                return 3.0 * shape$1.radius() * shape$1.radius();
             }
-            case Rect $s2 -> {
-                return $s2.width() * $s2.height();
+            case Rect shape$2 -> {
+                return shape$2.width() * shape$2.height();
             }
-            case Empty $s3 -> {
+            case Empty shape$3 -> {
                 return 0.0;
             }
         }
     }
     public static String name(Shape shape) {
         switch (shape) {
-            case Circle $s1 -> {
+            case Circle shape$1 -> {
                 return "circle";
             }
-            case Rect $s2 -> {
-                final var big = $s2.width() > 10.0;
+            case Rect shape$2 -> {
+                final var big = shape$2.width() > 10.0;
                 return "rect " + big;
             }
-            case Empty $s3 -> {
-                return Nulls.or($s3.label(), () -> "nothing");
+            case Empty shape$3 -> {
+                return Nulls.or(shape$3.label(), () -> "nothing");
             }
         }
     }
@@ -60,14 +60,14 @@ import org.jspecify.annotations.*;
     }
     public static void show(Shape shape) {
         switch (shape) {
-            case Circle $s1 -> {
-                System.out.println("circle " + $s1.radius());
+            case Circle shape$1 -> {
+                System.out.println("circle " + shape$1.radius());
             }
-            case Rect $s2 -> {
+            case Rect shape$2 -> {
                 System.out.println("rect");
-                System.out.println($s2.width());
+                System.out.println(shape$2.width());
             }
-            case Empty $s3 -> {
+            case Empty shape$3 -> {
                 System.out.println("empty");
             }
         }
@@ -76,13 +76,13 @@ import org.jspecify.annotations.*;
         return new Rect(2.0, 3.0);
     }
     public static String bound() {
-        final var $e1 = pick();
-        switch ($e1) {
-            case Circle $s2 -> {
+        final var e$e1 = pick();
+        switch (e$e1) {
+            case Circle e$2 -> {
                 return "c";
             }
-            case Rect $s3 -> {
-                return "r " + $s3.width();
+            case Rect e$3 -> {
+                return "r " + e$3.width();
             }
             default -> {
                 return "other";

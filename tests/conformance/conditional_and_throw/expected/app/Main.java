@@ -11,15 +11,15 @@ import org.jspecify.annotations.*;
         return (n < 0 ? "negative" : (n == 0 ? "zero" : "positive"));
     }
     public static String describe(Shape shape) {
-        return (shape instanceof Circle $s1 ? "circle " + $s1.radius() : "other");
+        return (shape instanceof Circle shape$1 ? "circle " + shape$1.radius() : "other");
     }
     public static double area(Shape shape) {
         switch (shape) {
-            case Circle $s1 -> {
-                return 3.0 * $s1.radius() * $s1.radius();
+            case Circle shape$1 -> {
+                return 3.0 * shape$1.radius() * shape$1.radius();
             }
-            case Square $s2 -> {
-                return $s2.side() * $s2.side();
+            case Square shape$2 -> {
+                return shape$2.side() * shape$2.side();
             }
         }
     }

@@ -192,7 +192,7 @@ final class JavaModel {
      * The declaration javac sees for a local or lambda parameter in the generated method of a
      * function, or with function null, in the initializers of top-level values. Of several with the
      * name, the one generated from the declaration's line wins. A `when` binding has a generated
-     * name, which starts with `$e`.
+     * name, the binding's name followed by `$e`.
      */
     private TreePath localPath(SourceFile file, String function, int paramCount, Symbols.Symbol local) {
         String qualified = file.packageName() == null || file.packageName().isEmpty()
@@ -222,7 +222,7 @@ final class JavaModel {
             @Override
             public Void visitVariable(VariableTree variable, Void unused) {
                 String name = variable.getName().toString();
-                if (inFunction && (binding ? name.startsWith("$e") : name.equals(local.name()))) {
+                if (inFunction && (binding ? name.startsWith(local.name() + "$e") : name.equals(local.name()))) {
                     TreePath path = new TreePath(getCurrentPath(), variable);
                     long start = trees.getSourcePositions().getStartPosition(unit, variable);
                     if (onLine == null && translation.lineMap().axlLine((int) unit.getLineMap().getLineNumber(start)) == axlLine) {
