@@ -27,13 +27,16 @@ class AxlPluginFunctionalTest {
 
     @BeforeEach
     void copySample() throws IOException {
+        // Gradle prints the long form of a Windows path; the temporary directory may be in the 8.3 form.
+        project = project.toRealPath();
         Path sample = SAMPLES.resolve("multi-module-gradle");
         try (Stream<Path> files = Files.walk(sample)) {
             for (Path file : files.filter(Files::isRegularFile).toList()) {
-                Path target = project.resolve(sample.relativize(file).toString());
-                if (target.toString().contains("/build/") || target.toString().contains("/.gradle/")) {
+                String relative = sample.relativize(file).toString().replace('\\', '/');
+                if (relative.startsWith("build/") || relative.contains("/build/") || relative.startsWith(".gradle/")) {
                     continue;
                 }
+                Path target = project.resolve(relative);
                 Files.createDirectories(target.getParent());
                 Files.copy(file, target, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -46,6 +49,10 @@ class AxlPluginFunctionalTest {
                     settings.dependencyResolutionManagement.repositories { maven { url = '%s' } }
                 }
                 """.formatted(repo, repo));
+    }
+
+    private static String jsonString(Path path) {
+        return "\"" + path.toString().replace("\\", "\\\\") + "\"";
     }
 
     private GradleRunner gradle(String... args) {
@@ -292,9 +299,9 @@ class AxlPluginFunctionalTest {
     void writesLanguageServerConfig() throws IOException {
         gradle(":core:axlLspConfig").build();
         String json = Files.readString(project.resolve("core/build/axl/axl.json"));
-        assertTrue(json.contains(project.resolve("core/src/main/axl").toString()), json);
+        assertTrue(json.contains(jsonString(project.resolve("core/src/main/axl"))), json);
         assertTrue(json.contains("\"strictNull\": false"), json);
-        assertTrue(json.contains(project.resolve("core/src/main/java").toString()), json);
+        assertTrue(json.contains(jsonString(project.resolve("core/src/main/java"))), json);
         assertTrue(json.contains("axl-runtime"), json);
         assertTrue(!json.contains("generated"), json);
     }
