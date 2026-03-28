@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val xs = List.of("a")
+    println(xs.stream().mapp({ s -> s.length() }))
+}

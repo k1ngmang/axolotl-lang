@@ -53,7 +53,7 @@ final class Messages {
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
-    private static final Pattern UNUSED_GENERATED = Pattern.compile("'(?:it|\\$\\w+)'");
+    private static final Pattern UNUSED_GENERATED = Pattern.compile("'(?:it|\\$\\w+|\\w+\\$[es]?\\d+)'");
     private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
     private static final Pattern EQUALS_TYPES = Pattern.compile("^(\\[EqualsIncompatibleType] .*incompatible types )(.+) and (.+)$");
     private static final Pattern COLLECTION_TYPES = Pattern.compile(
@@ -66,6 +66,7 @@ final class Messages {
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
     private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
+    private static final Pattern LAMBDA_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\((?:lambda expression|method reference) needs an explicit target-type\\)$");
     private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
@@ -89,7 +90,9 @@ final class Messages {
 
     /** Warnings about the shape of generated code, which the author cannot change. */
     static boolean ignored(String message) {
-        return message.startsWith("[UnnecessaryParentheses]") || message.startsWith("[RefactorSwitch]")
+        // javac reports an unknown type a second time when it is thrown.
+        return message.startsWith("unreported exception <any>;")
+                || message.startsWith("[UnnecessaryParentheses]") || message.startsWith("[RefactorSwitch]")
                 || message.startsWith("[StatementSwitchToExpressionSwitch]")
                 || message.startsWith("[UnusedVariable]") && UNUSED_GENERATED.matcher(message).find();
     }
@@ -435,7 +438,7 @@ final class Messages {
                 case "variable" -> inThisFile ? "unknown name `" + symbol + "`; check the spelling or add an import"
                         : memberOwner(location) + " has no field `" + symbol + "`";
                 case "method" -> inThisFile ? "unknown function `" + symbol + "`; check the spelling or add `import fn`"
-                        : memberOwner(location) + " has no method `" + symbol + "`";
+                        : memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`";
                 default -> symbol.equals("Char") ? "unknown type `Char`; a character is a `Character`"
                         : "unknown type `" + symbol + "`; check the spelling or add an import";
             };
@@ -451,6 +454,15 @@ final class Messages {
         }
         if (message.equals("'void' type not allowed here")) {
             return "this function returns nothing, so its result cannot be used as a value";
+        }
+        Matcher lambdaInitializer = LAMBDA_INITIALIZER.matcher(message);
+        if (lambdaInitializer.find()) {
+            return "write the type of `" + lambdaInitializer.group(1) + "`, since a lambda takes it from there: "
+                    + "`val " + lambdaInitializer.group(1) + ": Function<String, Int> = ...`";
+        }
+        if (message.startsWith("unexpected type; required: reference; found: ")) {
+            String type = axlType(message.substring("unexpected type; required: reference; found: ".length()));
+            return "a value of type `" + type + "` can never be another type; remove the `is` test";
         }
         Matcher varInitializer = VAR_INITIALIZER.matcher(message);
         if (varInitializer.find()) {
@@ -594,6 +606,17 @@ final class Messages {
                     + axlType(location.substring(ofType + " of type ".length())) + "`";
         }
         return "`" + axlType(location.substring(location.indexOf(' ') + 1)) + "`";
+    }
+
+    /** javac shows a lambda argument in Java syntax: `map((s)->s.length())`. */
+    private static String withoutLambdas(String symbol) {
+        int open = symbol.indexOf('(');
+        if (open < 0 || !symbol.contains("->")) {
+            return symbol;
+        }
+        String args = symbol.substring(open + 1, symbol.length() - 1);
+        List<String> shown = splitTopLevel(args).stream().map(a -> a.contains("->") ? "{ ... }" : a.strip()).toList();
+        return symbol.substring(0, open) + "(" + String.join(", ", shown) + ")";
     }
 
     private static String argumentList(String javac) {

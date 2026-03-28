@@ -1,0 +1,11 @@
+package app
+
+fn f(c: Boolean) -> String =
+    if (c)
+        "a"
+    else
+        qq
+
+fn main() {
+    println(f(true))
+}

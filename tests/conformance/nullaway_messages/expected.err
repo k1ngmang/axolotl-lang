@@ -1,5 +1,5 @@
 AXL102 app/Main.axl:8:34: error: this value may be null: use `?.`, `?:` or a null check
 AXL102 app/Main.axl:10:13: error: a value that may be null is used as a number or boolean; give a default with `?:`
-AXL102 app/Main.axl:13:1: error: the returned value may be null, but the result type has no `?`; add `?` to the result type or return a value that is not null
+AXL102 app/Main.axl:13:26: error: the returned value may be null, but the result type has no `?`; add `?` to the result type or return a value that is not null
 AXL102 app/Main.axl:15:32: error: the fallback of `?:` may be null, but the value is not nullable; give a fallback that is not null or add `?` to the type
 AXL102 app/Main.axl:18:5: error: `map` may produce null here, but the list it builds cannot hold nulls; filter them out first or give a default with `?:`

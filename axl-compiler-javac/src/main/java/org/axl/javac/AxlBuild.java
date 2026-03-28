@@ -121,6 +121,8 @@ public final class AxlBuild {
         // Error Prone can add a weaker warning about the same comparison, such as ReferenceEquality.
         List<AxlDiagnostic> errors = diagnostics.stream().filter(AxlDiagnostic::isError).toList();
         diagnostics.removeIf(d -> !d.isError() && errors.stream().anyMatch(e -> samePosition(e, d)));
+        List<AxlDiagnostic> all = List.copyOf(diagnostics);
+        diagnostics.removeIf(d -> d.column() == 1 && all.stream().anyMatch(other -> placedBetter(other, d)));
         return new Result(outcome.success(), sorted(diagnostics), generated);
     }
 
@@ -139,6 +141,15 @@ public final class AxlBuild {
         }
         return diagnostics.stream().anyMatch(d -> d.file().equals(diagnostic.file()) && d.line() == diagnostic.line()
                 && d.message().equals(diagnostic.message()));
+    }
+
+    /**
+     * A class header puts its parameters on the class line of the Java code too, so the same error
+     * can come once without a column and once at the parameter.
+     */
+    private static boolean placedBetter(AxlDiagnostic other, AxlDiagnostic d) {
+        return other.column() > 1 && other.file().equals(d.file()) && other.line() >= d.line()
+                && other.message().equals(d.message());
     }
 
     private static boolean samePosition(AxlDiagnostic a, AxlDiagnostic b) {

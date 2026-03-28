@@ -1,0 +1,12 @@
+package app
+
+fn f(n: Int) -> String {
+    return when (n) {
+        1 -> "a"
+        else -> throw Foo("x")
+    }
+}
+
+fn main() {
+    println(f(1))
+}

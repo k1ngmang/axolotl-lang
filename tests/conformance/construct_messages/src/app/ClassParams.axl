@@ -1,0 +1,7 @@
+package app
+
+class Counter(val name: Strng, val other: Foo)
+
+fn main() {
+    println(1)
+}

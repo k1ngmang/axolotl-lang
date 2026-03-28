@@ -41,7 +41,7 @@ final class Columns {
      */
     static int find(String[] javaLines, LineMap lineMap, int javaLine, long javaColumn, String axlLine) {
         String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
-        int fallback = firstNonBlank(axlLine);
+        int fallback = fallback(axlLine);
         if (javaColumn <= 0 || javaColumn > javaText.length()) {
             return fallback;
         }
@@ -138,6 +138,16 @@ final class Columns {
         String javaText = javaLines[javaLine - 1];
         int occurrence = before + index(javaText, null, javaName, word);
         return nth(axlLine, new Region(bodyStart(axlLine), axlLine.length()), word, occurrence);
+    }
+
+    /** The start of the line, or of an expression body after a signature. */
+    private static int fallback(String axlLine) {
+        int body = bodyStart(axlLine);
+        if (body == 0 || body == axlLine.length()) {
+            return firstNonBlank(axlLine);
+        }
+        int offset = axlLine.codePointCount(0, body);
+        return offset + firstNonBlank(axlLine.substring(body));
     }
 
     /** Where the code after a signature on the line starts, or 0. */

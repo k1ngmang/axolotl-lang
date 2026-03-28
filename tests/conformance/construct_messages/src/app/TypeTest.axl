@@ -1,0 +1,14 @@
+package app
+
+fn f(n: Int, s: String) {
+    if (n is String) {
+        println(n)
+    }
+    if (s is Int) {
+        println(s)
+    }
+}
+
+fn main() {
+    f(1, "a")
+}

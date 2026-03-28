@@ -1,0 +1,10 @@
+package app
+
+fn main() {
+    val n = 1
+    var x = when (n) {
+        1 -> { s: String -> s.length() }
+        else -> { s: String -> 0 }
+    }
+    println(x)
+}
