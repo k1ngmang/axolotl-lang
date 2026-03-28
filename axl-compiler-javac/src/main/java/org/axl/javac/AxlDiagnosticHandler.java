@@ -33,9 +33,11 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     private static final class AxlFile extends SimpleJavaFileObject {
         final String text;
         final List<String> lines;
+        private final Path path;
 
         AxlFile(Path path, String text) {
             super(path.toUri(), Kind.OTHER);
+            this.path = path;
             // Lines as the translator counts them: a lone \r ends a line too.
             this.text = text.replaceFirst("^\uFEFF", "").replace("\r\n", "\n").replace('\r', '\n');
             this.lines = this.text.lines().toList();
@@ -44,6 +46,12 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         @Override
         public CharSequence getCharContent(boolean ignoreEncodingErrors) {
             return text;
+        }
+
+        /** javac prints this name; the URI path would be `/C:/...` on Windows. */
+        @Override
+        public String getName() {
+            return path.toString();
         }
 
         int offset(int line, int column) {
