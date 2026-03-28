@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val c = true
+    if (c) println("a") else println("b")
+}

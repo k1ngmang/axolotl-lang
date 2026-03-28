@@ -544,7 +544,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             conditions.add(buildCondition(condition));
         }
         final var blockCtx = arm.block();
-        final List<Stmt> body = (blockCtx != null ? buildStatements(blockCtx.statement()) : List.of(new ExprStmt(pos(arm.expression().start), buildExpr(arm.expression()))));
+        final List<Stmt> body = (blockCtx != null ? buildStatements(blockCtx.statement()) :
+                List.of(new ExprStmt(pos(arm.expression().start), buildExpr(arm.expression()))));
         return new Arm(pos(arm.start), conditions, body, blockCtx != null);
     }
     private static Expr.Cond buildCondition(WhenConditionContext condition) {

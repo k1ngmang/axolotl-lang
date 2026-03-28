@@ -1034,9 +1034,9 @@ import org.axl.compiler.check.Whens;
         final var branches = List.of(c.then(), c.otherwise());
         final var thenCode = narrowedValue(whenTrue(c.condition()), () -> exprIn(c.then(), inLambda));
         final var otherwise = narrowedValue(whenFalse(c.condition()), () -> exprIn(c.otherwise(), inLambda));
-        return "(" + condition + " ? " + boxedBranch(thenCode, c.then(), branches) + " : " +
-                boxedBranch(otherwise, c.otherwise(), branches) +
-                ")";
+        final var thenLine = startLine(c.then());
+        final var head = joined("(" + condition, " ? ", boxedBranch(thenCode, c.then(), branches), c.pos().line(), thenLine);
+        return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")";
     }
     private String boxedBranch(String code, Expr branch, List<Expr> branches) {
         final var type = primitiveType(branch);
@@ -1656,7 +1656,8 @@ import org.axl.compiler.check.Whens;
         if (mapResult == stages.size()) {
             return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf), false);
         }
-        final var items = (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) : pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf));
+        final var items = (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) :
+                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf));
         final var list = mapResultLoop(line, stages.get(mapResult), items);
         final var rest = stages.subList(mapResult + 1, stages.size());
         if (rest.isEmpty()) {

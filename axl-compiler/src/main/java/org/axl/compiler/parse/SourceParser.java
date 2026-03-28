@@ -370,6 +370,14 @@ public final class SourceParser {
             return "unknown word `" + token + "`; did you mean `" + guess + "`?";
         }
         Token previous = at == null ? null : previousToken(tokens, at);
+        if (previous != null && (previous.getType() == AxolotlLexer.IF || previous.getType() == AxolotlLexer.WHILE)
+                && at.getType() != AxolotlLexer.LPAREN) {
+            return "missing `(` after `" + previous.getText() + "`: `" + previous.getText() + " (c) { ... }`";
+        }
+        if (previous != null && previous.getType() == AxolotlLexer.RPAREN && at.getType() != AxolotlLexer.LBRACE
+                && closesIf(tokens, previous)) {
+            return "an `if` statement needs braces: `if (c) { ... }`";
+        }
         if (previous != null && previous.getType() == AxolotlLexer.WHEN && at.getType() == AxolotlLexer.LBRACE) {
             return "`when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`";
         }
@@ -386,6 +394,21 @@ public final class SourceParser {
             return expected.startsWith("{") ? "unexpected `" + token + "`" : "unexpected `" + token + "`, expected " + describe(expected);
         }
         return "unexpected `" + token + "`";
+    }
+
+    /** Whether the `)` closes the condition of an `if`. */
+    private static boolean closesIf(CommonTokenStream tokens, Token close) {
+        int depth = 0;
+        for (int i = close.getTokenIndex(); i >= 0; i--) {
+            int type = tokens.get(i).getType();
+            if (type == AxolotlLexer.RPAREN) {
+                depth++;
+            } else if (type == AxolotlLexer.LPAREN && --depth == 0) {
+                Token before = previousToken(tokens, tokens.get(i));
+                return before != null && before.getType() == AxolotlLexer.IF;
+            }
+        }
+        return false;
     }
 
     /** ANTLR gives up on the whole `when` when an arm's condition runs into its value. */

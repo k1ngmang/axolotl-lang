@@ -510,12 +510,14 @@ import org.axl.compiler.ast.TypeRef;
         }
         if (e instanceof Expr.Lambda e$3) {
             error(e$3.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces");
+        } else if (inner instanceof Expr.Conditional inner$4 && stmt != lastInLambda) {
+            error(e.pos(), ErrorCode.SYNTAX, "an `if` statement needs braces: `if (c) { ... } else { ... }`");
         } else if (!doesSomething(e)) {
             final var hint = (stmt == lastInLambda ? "to return it from the lambda, write `return` before it" : "use its value, for example in a `val`, or remove it");
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint);
         }
-        if (e instanceof Expr.Try e$4) {
-            statementTry(e$4);
+        if (e instanceof Expr.Try e$5) {
+            statementTry(e$5);
         } else {
             expr(e);
         }
@@ -554,10 +556,12 @@ import org.axl.compiler.ast.TypeRef;
                     "would return from the function in the middle of the `when`; write the `when` as a statement " +
                     "or as `return when ...`");
         } else if (lambdaDepth > 0) {
-            final var message = (isTry ? TRY_IN_LAMBDA : what + " cannot be used in a lambda: it would return from the lambda, not the function");
+            final var message = (isTry ? TRY_IN_LAMBDA :
+                    what + " cannot be used in a lambda: it would return from the lambda, not the function");
             error(pos, ErrorCode.TRY_IN_EXPRESSION, message);
         } else if (safeTailDepth > 0) {
-            final var message = (isTry ? TRY_AFTER_SAFE_CALL : what + " after `?.` runs only for a non-null value; move it into a separate `val`");
+            final var message = (isTry ? TRY_AFTER_SAFE_CALL :
+                    what + " after `?.` runs only for a non-null value; move it into a separate `val`");
             error(pos, ErrorCode.TRY_IN_EXPRESSION, message);
         } else if (returnsNullableResult()) {
             error(pos, ErrorCode.TRY_OUTSIDE_RESULT_FUNCTION, what + " needs a function that returns `Result` without `?`; " +

@@ -536,6 +536,8 @@ class Checker(val file: SourceFile) {
         }
         if (e is Expr.Lambda) {
             error(e.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces")
+        } else if (inner is Expr.Conditional && stmt != lastInLambda) {
+            error(e.pos(), ErrorCode.SYNTAX, "an `if` statement needs braces: `if (c) { ... } else { ... }`")
         } else if (!doesSomething(e)) {
             val hint = if (stmt == lastInLambda) "to return it from the lambda, write `return` before it" else "use its value, for example in a `val`, or remove it"
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint)

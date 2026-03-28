@@ -1124,8 +1124,9 @@ class Generator(
         val branches = List.of(c.then(), c.otherwise())
         val thenCode = narrowedValue(whenTrue(c.condition()), { -> exprIn(c.then(), inLambda) })
         val otherwise = narrowedValue(whenFalse(c.condition()), { -> exprIn(c.otherwise(), inLambda) })
-        return "(" + condition + " ? " + boxedBranch(thenCode, c.then(), branches) + " : " +
-            boxedBranch(otherwise, c.otherwise(), branches) + ")"
+        val thenLine = startLine(c.then())
+        val head = joined("(" + condition, " ? ", boxedBranch(thenCode, c.then(), branches), c.pos().line(), thenLine)
+        return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")"
     }
 
     /**

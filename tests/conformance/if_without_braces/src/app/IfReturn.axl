@@ -1,0 +1,10 @@
+package app
+
+fn f(c: Boolean) -> Int {
+    if (c) return 1
+    return 2
+}
+
+fn main() {
+    println(f(true))
+}
