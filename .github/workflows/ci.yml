@@ -20,6 +20,11 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew check
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-reports-${{ matrix.os }}
+          path: '**/build/reports/tests/'
 
   vsix:
     runs-on: ubuntu-latest
