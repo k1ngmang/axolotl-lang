@@ -1,6 +1,7 @@
 package org.axl.intellij.lsp;
 
 import com.intellij.execution.configurations.GeneralCommandLine;
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.platform.lsp.api.LspServerSupportProvider;
@@ -20,10 +21,14 @@ public final class AxlLspServerSupportProvider implements LspServerSupportProvid
 
     @Override
     public void fileOpened(@NotNull Project project, @NotNull VirtualFile file, @NotNull LspServerStarter starter) {
-        if ("axl".equals(file.getExtension())) {
-            starter.ensureServerStarted(new Descriptor(project));
-            AxlServer.markLanguageServerStarted(project);
+        if (!"axl".equals(file.getExtension())) {
+            return;
         }
+        // A server process in a test keeps the project directory open, which Windows then cannot delete.
+        if (!ApplicationManager.getApplication().isUnitTestMode()) {
+            starter.ensureServerStarted(new Descriptor(project));
+        }
+        AxlServer.markLanguageServerStarted(project);
     }
 
     private static final class Descriptor extends ProjectWideLspServerDescriptor {
