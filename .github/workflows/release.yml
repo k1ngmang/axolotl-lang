@@ -3,6 +3,11 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Tag to create and release, such as v0.1.0
+        required: true
 
 permissions:
   contents: write
@@ -25,8 +30,10 @@ jobs:
       - run: ./gradlew :axl-cli:distZip :axl-lsp:vsix :axl-intellij:buildPlugin
       - uses: softprops/action-gh-release@v2
         with:
-          name: Axolotl ${{ github.ref_name }}
-          body_path: .github/release/${{ github.ref_name }}.md
+          tag_name: ${{ inputs.version || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          name: Axolotl ${{ inputs.version || github.ref_name }}
+          body_path: .github/release/${{ inputs.version || github.ref_name }}.md
           files: |
             axl-cli/build/distributions/axl-*.zip
             editors/vscode/axolotl-*.vsix
