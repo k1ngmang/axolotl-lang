@@ -1,3 +1,5 @@
 def log = new File(basedir, 'build.log').text
-def file = new File(basedir, 'src/main/axl/app/Main.axl').absolutePath
-assert log.contains(file + ':[5,') && log.contains('value `trimmed` may be null')
+def main = new File(basedir, 'src/main/axl/app/Main.axl')
+// maven-compiler-plugin prints a file as its URI path on Windows: /D:/a/app/Main.axl.
+def paths = [main.absolutePath, main.toURI().path]
+assert paths.any { log.contains(it + ':[5,') } && log.contains('value `trimmed` may be null')
