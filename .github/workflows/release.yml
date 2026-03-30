@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      # The IntelliJ plugin build downloads an IDE, more than the runner has free by default.
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :axl-cli:distZip :axl-lsp:vsix :axl-intellij:buildPlugin
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: Axolotl ${{ github.ref_name }}
+          body_path: .github/release/${{ github.ref_name }}.md
+          files: |
+            axl-cli/build/distributions/axl-*.zip
+            editors/vscode/axolotl-*.vsix
+            axl-intellij/build/distributions/axl-intellij-*.zip
