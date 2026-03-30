@@ -15,9 +15,10 @@ class ProjectModelTest {
     void readsModulesFromAxlJson(@TempDir Path root) throws Exception {
         Path module = Files.createDirectories(root.resolve("core"));
         Files.createDirectories(module.resolve("build/axl"));
+        Path jar = root.resolve("libs/a.jar").toAbsolutePath();
         Files.writeString(module.resolve("build/axl/axl.json"), """
-                {"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["/libs/a.jar"], "strictNull": true}
-                """);
+                {"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["%s"], "strictNull": true}
+                """.formatted(jar.toString().replace("\\", "\\\\")));
         Files.createDirectories(module.resolve("src/main/axl/core"));
 
         Module found = ProjectModel.discover(List.of(root)).moduleOf(module.resolve("src/main/axl/core/A.axl"), "core");
@@ -25,7 +26,7 @@ class ProjectModelTest {
         assertEquals(module, found.root());
         assertEquals(List.of(module.resolve("src/main/axl")), found.axlRoots());
         assertEquals(List.of(module.resolve("src/main/java")), found.javaRoots());
-        assertEquals(List.of(Path.of("/libs/a.jar")), found.classpath());
+        assertEquals(List.of(jar), found.classpath());
         assertTrue(found.strictNull());
     }
 
