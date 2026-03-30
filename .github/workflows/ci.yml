@@ -19,7 +19,7 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew check
+      - run: ./gradlew check --continue
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
