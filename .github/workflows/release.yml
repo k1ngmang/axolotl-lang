@@ -13,7 +13,11 @@ permissions:
   contents: write
 
 jobs:
+  installers:
+    uses: ./.github/workflows/installers.yml
+
   release:
+    needs: installers
     runs-on: ubuntu-latest
     steps:
       # The IntelliJ plugin build downloads an IDE, more than the runner has free by default.
@@ -28,6 +32,11 @@ jobs:
           node-version: 22
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew :axl-cli:distZip :axl-lsp:vsix :axl-intellij:buildPlugin
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: installer-*
+          path: installers-out
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.version || github.ref_name }}
@@ -38,3 +47,4 @@ jobs:
             axl-cli/build/distributions/axl-*.zip
             editors/vscode/axolotl-*.vsix
             axl-intellij/build/distributions/axl-intellij-*.zip
+            installers-out/*
