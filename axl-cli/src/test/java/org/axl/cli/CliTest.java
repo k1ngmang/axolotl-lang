@@ -67,6 +67,22 @@ class CliTest {
     }
 
     @Test
+    void setupExplainsWhereTheLibrariesComeFromWithoutABundledRepository() {
+        assertEquals(1, axl("setup"));
+        assertTrue(err.toString().contains("publishToMavenLocal"), err.toString());
+    }
+
+    @Test
+    void setupCopiesTheBundledRepositoryOverOlderFiles(@TempDir Path tmp) throws Exception {
+        Path bundled = Files.createDirectories(tmp.resolve("bundled/org/axl/axl-runtime/0.1.0"));
+        Files.writeString(bundled.resolve("axl-runtime-0.1.0.pom"), "new");
+        Path old = Files.createDirectories(tmp.resolve("m2/org/axl/axl-runtime/0.1.0")).resolve("axl-runtime-0.1.0.pom");
+        Files.writeString(old, "old");
+        assertEquals(1, SetupCommand.copy(tmp.resolve("bundled"), tmp.resolve("m2")));
+        assertEquals("new", Files.readString(old));
+    }
+
+    @Test
     void checkShowsWarningsOfHandWrittenJava(@TempDir Path tmp) throws Exception {
         Files.createDirectories(tmp.resolve("app"));
         Files.writeString(tmp.resolve("app/Main.axl"), "package app\n\nfn main() {\n    println(J.f(1))\n}\n");
