@@ -44,7 +44,7 @@ One line per decision where the specification is silent or had to be adjusted.
 - In Ultimate the language server provides diagnostics and hover only; completion, navigation and highlighting stay with the plugin's PSI so that the two do not duplicate each other.
 - The platform has no extension point to hide local variables in the debugger, so the translator's `$` locals are labeled "Axolotl internal" instead of hidden.
 - `fn main()` runs through IntelliJ's Java application run configuration for the generated class; building is left to Gradle or Maven delegation.
-- The IntelliJ Platform Gradle Plugin is 2.11.0, the newest release that supports Gradle 8.
+- The project builds with Gradle 9; the Gradle plugin it publishes still supports Gradle 8.5 and newer, which a functional test checks.
 - `try` binds like a unary operator (`try a + try b` is `(try a) + (try b)`); in stage 1 it took the whole expression to its right, which made no difference in the two statement forms allowed then.
 - Lifted `try`: operands to its left that are not literals, lambdas or the file's own names are kept in `$t` temporaries; `&&`/`||` with `try` on the right become `boolean $t = false; if (left) { ... }`, so that a null check on the left still covers the right, and an `if (a && try b)` without `else` becomes nested `if`s; `?:` becomes `T $t = left; if (Objects.isNull($t)) { ... }`, with `T` from the written type of the `val` or the function when there is one; a `while` condition is evaluated inside `while (true)`.
 - `try` after `?.` stays an error: the expansion would need the rest of the chain inside a conditional, and moving the `try` into a `val` is clearer.
