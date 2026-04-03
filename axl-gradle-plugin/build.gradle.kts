@@ -32,7 +32,7 @@ tasks.processResources {
     }
 }
 
-val functionalTest by sourceSets.creating
+val functionalTest = sourceSets.create("functionalTest")
 
 dependencies {
     "functionalTestImplementation"(platform(libs.junit.bom))

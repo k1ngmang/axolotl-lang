@@ -30,7 +30,7 @@ tasks.test {
 // The parts of the compiler written in Axolotl are kept as Java in axl-compiler/bootstrap, so that the
 // compiler can be built without a compiler. This build of the compiler translates them again: the
 // result must be the same files, which is what makes the snapshot a fixpoint.
-val translateCompiler by tasks.registering(JavaExec::class) {
+val translateCompiler = tasks.register<JavaExec>("translateCompiler") {
     description = "Translates the Axolotl sources of the compiler with this build of the compiler."
     val sources = rootProject.layout.projectDirectory.dir("axl-compiler/src/main/axl")
     val output = layout.buildDirectory.dir("bootstrap")
@@ -58,7 +58,7 @@ val translateCompiler by tasks.registering(JavaExec::class) {
 // Compiles the translation with the hand-written Java of the compiler and nothing of the snapshot it
 // replaces: translateCompiler links against the old classes, so a deleted or renamed .axl file would
 // otherwise leave a snapshot that does not compile.
-val compileTranslation by tasks.registering(JavaCompile::class) {
+val compileTranslation = tasks.register<JavaCompile>("compileTranslation") {
     description = "Checks that the translated compiler compiles without the current snapshot."
     val compiler = project(":axl-compiler")
     source(translateCompiler.map { it.outputs.files.singleFile.resolve("java") })
@@ -77,7 +77,7 @@ tasks.register<Sync>("updateBootstrap") {
     into(rootProject.layout.projectDirectory.dir("axl-compiler/bootstrap"))
 }
 
-val verifyBootstrap by tasks.registering {
+val verifyBootstrap = tasks.register("verifyBootstrap") {
     description = "Checks that axl-compiler/bootstrap is what this build of the compiler translates its sources to."
     dependsOn(translateCompiler, compileTranslation)
     mustRunAfter("updateBootstrap")

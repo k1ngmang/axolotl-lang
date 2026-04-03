@@ -33,7 +33,8 @@ idea {
 }
 
 tasks.generateGrammarSource {
-    arguments = arguments + listOf("-visitor", "-no-listener", "-package", "org.axl.compiler.parse")
+    arguments = arguments + listOf("-visitor", "-no-listener")
+    packageName = "org.axl.compiler.parse"
 }
 
 publishing {

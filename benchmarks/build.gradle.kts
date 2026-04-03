@@ -2,7 +2,7 @@ plugins {
     java
 }
 
-val jmh by sourceSets.creating
+val jmh = sourceSets.create("jmh")
 
 dependencies {
     "jmhImplementation"(project(":axl-runtime"))

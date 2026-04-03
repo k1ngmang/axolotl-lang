@@ -3,7 +3,7 @@ import org.jetbrains.intellij.platform.gradle.TestFrameworkType
 
 plugins {
     java
-    id("org.jetbrains.intellij.platform") version "2.11.0"
+    id("org.jetbrains.intellij.platform") version "2.19.0"
 }
 
 repositories {
@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":axl-compiler"))
     testImplementation("junit:junit:4.13.2")
     testRuntimeOnly("org.junit.vintage:junit-vintage-engine:5.13.4")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.13.4")
 }
 
 intellijPlatform {
@@ -53,7 +54,7 @@ intellijPlatform {
 }
 
 // The compiler with Error Prone and the language server run in their own JVM from server/lib.
-val server by configurations.creating {
+val server = configurations.create("server") {
     isCanBeConsumed = false
 }
 

@@ -17,8 +17,10 @@ import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.work.DisableCachingByDefault;
 
 /** Writes `build/axl/axl.json`, from which the language server takes the source roots and classpath. */
+@DisableCachingByDefault(because = "The file holds absolute paths of this machine")
 public abstract class LspConfigTask extends DefaultTask {
 
     @InputFiles

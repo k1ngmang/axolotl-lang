@@ -4,7 +4,7 @@ allprojects {
 }
 
 // Error Prone runs inside javac in the same JVM and needs access to the compiler internals.
-val errorProneJvmArgs by extra(
+extra.set("errorProneJvmArgs",
     listOf("api", "code", "comp", "file", "main", "model", "parser", "processing", "tree", "util").flatMap {
         listOf(
             "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED",
