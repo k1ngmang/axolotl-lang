@@ -98,3 +98,115 @@ val verifyBootstrap = tasks.register("verifyBootstrap") {
 tasks.check {
     dependsOn(verifyBootstrap)
 }
+
+// What `axl setup` copies into the local Maven repository: the libraries and both build plugins.
+// Of the Maven wrapper's repository only the plugin and the archetype are taken, which Maven installed
+// itself; the rest of it was resolved from the test repository and is marked as coming from there.
+val bundledRepository = tasks.register<Sync>("bundledRepository") {
+    description = "Collects the Axolotl artifacts that the installers carry."
+    dependsOn(
+        ":axl-runtime:publishAllPublicationsToTestRepoRepository",
+        ":axl-compiler:publishAllPublicationsToTestRepoRepository",
+        ":axl-compiler-javac:publishAllPublicationsToTestRepoRepository",
+        ":axl-smap:publishAllPublicationsToTestRepoRepository",
+        ":axl-gradle-plugin:publishAllPublicationsToTestRepoRepository",
+        ":axl-maven-plugin:archetype",
+    )
+    from(rootProject.layout.buildDirectory.dir("test-repo"))
+    from(rootProject.layout.buildDirectory.dir("maven-repo")) {
+        include("org/axl/axl-maven-plugin/**", "org/axl/axl-archetype-quickstart/**")
+    }
+    into(layout.buildDirectory.dir("bundled-repository"))
+}
+
+val jpackageInput = tasks.register<Sync>("jpackageInput") {
+    description = "Collects the jars and the bundled repository for jpackage."
+    from(tasks.jar)
+    from(configurations.runtimeClasspath)
+    from(bundledRepository) {
+        into("repository")
+    }
+    into(layout.buildDirectory.dir("jpackage/input"))
+}
+
+val windows = System.getProperty("os.name").startsWith("Windows")
+val jpackageTool = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
+    .map { it.metadata.installationPath.file(if (windows) "bin/jpackage.exe" else "bin/jpackage").asFile.path }
+
+// javac runs inside axl, so the runtime needs jdk.compiler; the program that `axl run` starts uses the rest.
+val runtimeModules = listOf(
+    "java.se", "jdk.compiler", "jdk.unsupported", "jdk.zipfs", "jdk.crypto.ec", "jdk.charsets",
+    "jdk.localedata", "jdk.management", "jdk.jdi", "jdk.jfr", "jdk.net", "jdk.httpserver",
+)
+
+val appImage = tasks.register<Exec>("appImage") {
+    description = "Builds axl with its own Java runtime, the base of the native installers."
+    dependsOn(jpackageInput)
+    val input = layout.buildDirectory.dir("jpackage/input")
+    val dest = layout.buildDirectory.dir("jpackage/image")
+    inputs.dir(input)
+    outputs.dir(dest)
+    val version = project.version.toString()
+    val jar = tasks.jar.flatMap { it.archiveFileName }
+    @Suppress("UNCHECKED_CAST")
+    val jvmArgs = rootProject.extra["errorProneJvmArgs"] as List<String>
+    val modules = runtimeModules.joinToString(",")
+    val onWindows = windows
+    val onMac = System.getProperty("os.name").startsWith("Mac")
+    doFirst { dest.get().asFile.deleteRecursively() }
+    executable(jpackageTool.get())
+    argumentProviders.add(CommandLineArgumentProvider {
+        val args = mutableListOf(
+            "--type", "app-image", "--name", "axl", "--app-version", version, "--vendor", "Axolotl",
+            "--input", input.get().asFile.path, "--main-jar", jar.get(), "--main-class", "org.axl.cli.Main",
+            "--add-modules", modules,
+            "--jlink-options", "--strip-debug --no-man-pages --no-header-files",
+            "--dest", dest.get().asFile.path,
+        )
+        jvmArgs.forEach { args += listOf("--java-options", it) }
+        if (onWindows) {
+            args += "--win-console"
+        }
+        if (onMac) {
+            args += listOf("--mac-package-identifier", "org.axl.cli")
+        }
+        args
+    })
+}
+
+// -PinstallerType=deb on Linux, pkg on macOS; Windows uses Inno Setup on the app image (installers/windows).
+tasks.register<Exec>("nativeInstaller") {
+    description = "Builds a native installer from the app image."
+    dependsOn(appImage)
+    val type = providers.gradleProperty("installerType")
+    val image = layout.buildDirectory.dir("jpackage/image")
+    val resources = rootProject.layout.projectDirectory.dir("installers")
+    val dest = layout.buildDirectory.dir("installers")
+    val version = project.version.toString()
+    executable(jpackageTool.get())
+    argumentProviders.add(CommandLineArgumentProvider {
+        val appDir = image.get().asFile.listFiles()!!.single()
+        listOf(
+            "--type", type.get(), "--name", "axl", "--app-version", version, "--vendor", "Axolotl",
+            "--description", "The Axolotl compiler", "--app-image", appDir.path,
+            "--resource-dir", resources.dir(type.get()).asFile.path,
+            "--dest", dest.get().asFile.path,
+        ) + if (type.get() == "deb") listOf("--linux-package-name", "axolotl", "--linux-app-category", "devel") else listOf()
+    })
+}
+
+// For Linux distributions without dpkg: the app image with a script that installs it for the user.
+// cp -a and the system tar keep the executable bits that Gradle's copies and archives drop.
+tasks.register<Exec>("linuxTarball") {
+    description = "Packs the app image with installers/linux/install.sh."
+    dependsOn(appImage)
+    val name = "axolotl-${project.version}"
+    val image = layout.buildDirectory.dir("jpackage/image/axl").get().asFile.path
+    val script = rootProject.layout.projectDirectory.file("installers/linux/install.sh").asFile.path
+    val archive = layout.buildDirectory.file("installers/$name-linux-x64.tar.gz")
+    outputs.file(archive)
+    workingDir(layout.buildDirectory)
+    commandLine("sh", "-c", "rm -rf tarball && mkdir -p tarball/$name installers && cp -a '$image' tarball/$name/axl " +
+        "&& cp '$script' tarball/$name/install.sh && chmod +x tarball/$name/install.sh " +
+        "&& tar czf '${archive.get().asFile.path}' -C tarball $name")
+}

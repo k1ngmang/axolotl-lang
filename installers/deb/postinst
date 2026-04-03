@@ -1,0 +1,22 @@
+#!/bin/sh
+# Puts axl on the PATH and installs the Maven artifacts for the user who ran the installer.
+set -e
+
+case "$1" in
+    configure)
+        ln -sf /opt/axolotl/bin/axl /usr/bin/axl
+        user="${SUDO_USER:-}"
+        if [ -z "$user" ] && [ -n "${PKEXEC_UID:-}" ]; then
+            user="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"
+        fi
+        if [ -n "$user" ] && [ "$user" != root ]; then
+            su -s /bin/sh "$user" -c "/opt/axolotl/bin/axl setup" || echo "Run 'axl setup' to install the Axolotl libraries for Maven and Gradle."
+        else
+            echo "Run 'axl setup' as your user to install the Axolotl libraries for Maven and Gradle."
+        fi
+    ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+esac
+
+exit 0

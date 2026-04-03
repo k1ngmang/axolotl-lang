@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    remove|deconfigure)
+        if [ "$(readlink /usr/bin/axl 2>/dev/null)" = /opt/axolotl/bin/axl ]; then
+            rm -f /usr/bin/axl
+        fi
+    ;;
+esac
+
+exit 0
