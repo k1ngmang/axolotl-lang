@@ -1,0 +1,10 @@
+package app
+
+import java.util.ArrayList
+
+fn main() {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    val lengths = xs |> map { it.length() }
+    println(lengths)
+}

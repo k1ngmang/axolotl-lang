@@ -688,6 +688,10 @@ final class NullChecker implements TaskListener {
             if (!(trees.getElement(parent) instanceof ExecutableElement callee)) {
                 return List.of();
             }
+            // A pipe's `map` wraps its lambda in `Nulls.nonNull`; the elements come from the stream it is passed to.
+            if (callee.getSimpleName().contentEquals("nonNull") && declaredIn(callee, "axl.lang.Nulls")) {
+                return passedShapes(parent);
+            }
             for (int i = 0; i < args.size(); i++) {
                 if (unwrap(args.get(i)) == function.getLeaf()) {
                     return parameterShapes(parameterType(callee, i, args.size()), bindings(fixed, callee, args, false));
