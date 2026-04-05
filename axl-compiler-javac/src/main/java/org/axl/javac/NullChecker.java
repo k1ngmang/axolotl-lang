@@ -343,7 +343,9 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitNewClass(NewClassTree newClass, Void unused) {
             super.visitNewClass(newClass, unused);
-            if (!(trees.getElement(getCurrentPath()) instanceof ExecutableElement constructor)) {
+            // A `new` of an interface or abstract class has no constructor, only javac's own error symbol.
+            if (!(trees.getElement(getCurrentPath()) instanceof ExecutableElement constructor)
+                    || !(constructor.getEnclosingElement() instanceof TypeElement created)) {
                 return null;
             }
             if (isAxolotlCode(constructor)) {
@@ -352,11 +354,11 @@ final class NullChecker implements TaskListener {
                 checkPrimitiveArguments(constructor, newClass.getArguments());
             }
             if (newClass.getIdentifier() instanceof ParameterizedTypeTree generic && !generic.getTypeArguments().isEmpty()
-                    && typeOf(newClass) instanceof DeclaredType created) {
-                checkTypeArgumentParameters(typeBindings((TypeElement) constructor.getEnclosingElement(),
-                        shapeOf(generic)), created, constructor, newClass.getArguments());
+                    && typeOf(newClass) instanceof DeclaredType createdType) {
+                checkTypeArgumentParameters(typeBindings(created, shapeOf(generic)), createdType, constructor,
+                        newClass.getArguments());
             }
-            String owner = ((TypeElement) constructor.getEnclosingElement()).getQualifiedName().toString();
+            String owner = created.getQualifiedName().toString();
             if ((owner.equals("axl.lang.Ok") || owner.equals("axl.lang.Err")) && newClass.getArguments().size() == 1) {
                 Boolean nullable = targetTypeArgNullable(getCurrentPath(), owner.equals("axl.lang.Ok") ? 0 : 1);
                 ExpressionTree value = newClass.getArguments().getFirst();
@@ -1279,7 +1281,7 @@ final class NullChecker implements TaskListener {
         /** `Collectors.toList()` and the like keep the elements of the stream. */
         private boolean collectsElements(ExpressionTree collector) {
             return unwrap(collector) instanceof MethodInvocationTree call && element(call) instanceof ExecutableElement method
-                    && ((TypeElement) method.getEnclosingElement()).getQualifiedName().contentEquals("java.util.stream.Collectors")
+                    && declaredIn(method, "java.util.stream.Collectors")
                     && Set.of("toList", "toSet", "toUnmodifiableList", "toUnmodifiableSet").contains(method.getSimpleName().toString());
         }
 
@@ -1288,7 +1290,9 @@ final class NullChecker implements TaskListener {
             if (newClass.getIdentifier() instanceof ParameterizedTypeTree generic && !generic.getTypeArguments().isEmpty()) {
                 return shapeOf(generic).nonNull();
             }
-            TypeElement owner = (TypeElement) constructor.getEnclosingElement();
+            if (!(constructor.getEnclosingElement() instanceof TypeElement owner)) {
+                return Shape.NONE;
+            }
             return shapeOf(owner.asType(), bindings(Map.of(), constructor, newClass.getArguments(), true)).nonNull();
         }
 
@@ -1666,13 +1670,17 @@ final class NullChecker implements TaskListener {
     }
 
     private static boolean isRequireNonNull(ExecutableElement method) {
-        return method.getSimpleName().contentEquals("requireNonNull")
-                && ((TypeElement) method.getEnclosingElement()).getQualifiedName().contentEquals("java.util.Objects");
+        return method.getSimpleName().contentEquals("requireNonNull") && declaredIn(method, "java.util.Objects");
     }
 
     private static boolean isObjectsNonNull(ExecutableElement method) {
         return (method.getSimpleName().contentEquals("nonNull") || method.getSimpleName().contentEquals("isNull"))
-                && ((TypeElement) method.getEnclosingElement()).getQualifiedName().contentEquals("java.util.Objects");
+                && declaredIn(method, "java.util.Objects");
+    }
+
+    /** javac gives an erroneous call or `new` a member of no class. */
+    private static boolean declaredIn(Element member, String type) {
+        return member.getEnclosingElement() instanceof TypeElement owner && owner.getQualifiedName().contentEquals(type);
     }
 
     private static String erasedName(TypeMirror type) {
