@@ -103,10 +103,14 @@ public final class Translation {
             Translator.Result draft = results.get(i);
             if (draft.draft()) {
                 Input input = inputs.get(i);
-                results.set(i, Translator.translate(input.sourcePath(), input.displayPath(), input.text(), typed));
+                Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(), typed);
+                results.set(i, result);
                 // The draft must not be compiled as if the translation had succeeded.
                 Files.deleteIfExists(outputDir.resolve(draft.unit().javaPath()));
                 Files.deleteIfExists(outputDir.resolve(draft.unit().mapPath()));
+                if (result.unit() != null) {
+                    result.unit().writeTo(outputDir);
+                }
             }
         }
         return results;

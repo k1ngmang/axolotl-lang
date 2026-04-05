@@ -1,0 +1,8 @@
+package demo
+
+// javac infers Object for this value, which is a type like any other.
+val prop = System.getProperties().get("axl.missing")
+
+fn main() {
+    println(prop == null)
+}
