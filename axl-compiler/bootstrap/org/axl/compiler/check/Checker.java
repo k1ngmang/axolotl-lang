@@ -809,7 +809,14 @@ import org.axl.compiler.ast.TypeRef;
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both");
         } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
-            error(w.pos(), ErrorCode.SYNTAX, "a `when` over constants that gives a value needs an `else` branch");
+            final var missing = Exhaustiveness.missingConstants(w, file);
+            error(w.pos(), ErrorCode.SYNTAX, (missing == null ? "a `when` over constants that gives a value needs an `else` branch" :
+                    "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch"));
+        } else if (types && !sawElse) {
+            final var problem = Exhaustiveness.typesProblem(w, file);
+            if (problem != null) {
+                error(w.pos(), ErrorCode.SYNTAX, problem);
+            }
         }
     }
     private boolean coversEnum(Expr.When w) {

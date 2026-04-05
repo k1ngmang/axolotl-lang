@@ -1,3 +1,2 @@
-AXL100 app/Main.axl:9:41: error: this `when` does not cover every case; add an `else ->` branch, or a branch for each class of the sealed interface
-AXL100 app/Main.axl:15:8: error: this branch is never chosen: an earlier branch already matches everything it matches
-AXL100 app/Main.axl:19:5: error: this `when` does not cover every case; add an `else ->` branch, or a branch for each class of the sealed interface
+AXL001 app/Main.axl:9:41: error: this `when` does not test `is Square`; add a branch for each, or an `else ->` branch
+AXL001 app/Main.axl:14:5: error: this `when` does not test `is Square`; add a branch for each, or an `else ->` branch

@@ -10,11 +10,6 @@ fn incomplete(shape: Shape) -> Double = when (shape) {
     is Circle -> 1.0
 }
 
-fn dominated(shape: Shape) -> Double = when (shape) {
-    is Shape -> 1.0
-    is Circle -> 2.0
-}
-
 fn statement(shape: Shape) {
     when (shape) {
         is Circle -> println("circle")

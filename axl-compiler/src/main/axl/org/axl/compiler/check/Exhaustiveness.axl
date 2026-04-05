@@ -1,0 +1,102 @@
+package org.axl.compiler.check
+
+import java.util.HashSet
+import java.util.List
+import java.util.Set
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.TypeRef
+
+// What a `when` without `else` leaves out, named for the error, when the file declares the cases.
+
+/** The constants of the file's enum that the `when` names some of but not all, or null. */
+fn missingConstants(w: Expr.When, file: SourceFile) -> String? {
+    val named = constantNames(w)
+    for (decl in file.decls()) {
+        if (decl is Decl.EnumDecl) {
+            val prefix = decl.name() + "."
+            val mentioned = decl.constants() |> anyMatch { c -> named.contains(c) || named.contains(prefix + c) }
+            val missing = decl.constants() |> filter { c -> !named.contains(c) && !named.contains(prefix + c) }
+            if (mentioned && !missing.isEmpty()) {
+                return quoted(missing |> map { c -> prefix + c })
+            }
+        }
+    }
+    return null
+}
+
+/** What to add to a `when` whose `is` branches test classes that implement an interface of the file, or null. */
+fn typesProblem(w: Expr.When, file: SourceFile) -> String? {
+    val tested = testedNames(w)
+    for (decl in file.decls()) {
+        if (decl is Decl.Interface) {
+            val implementations = implementationsOf(decl.name(), file)
+            if (!tested.isEmpty() && implementations.containsAll(tested)) {
+                return problemWith(decl, implementations, tested)
+            }
+        }
+    }
+    return null
+}
+
+private fn problemWith(i: Decl.Interface, implementations: List<String>, tested: Set<String>) -> String? {
+    if (!i.isSealed()) {
+        return "`" + i.name() + "` is not sealed, so this `when` needs an `else ->` branch; or declare it `sealed interface`"
+    }
+    val missing = implementations |> filter { c -> !tested.contains(c) }
+    if (missing.isEmpty()) {
+        return null
+    }
+    return "this `when` does not test " + quoted(missing |> map { c -> "is " + c }) + "; add a branch for each, or an `else ->` branch"
+}
+
+private fn implementationsOf(name: String, file: SourceFile) -> List<String> =
+    file.decls() |> filter { d -> extendsType(d, name) } |> map { d -> nameOf(d) }
+
+private fn extendsType(decl: Decl, name: String) -> Boolean =
+    supertypesOf(decl) |> anyMatch { t -> simpleName(t.name()).equals(name) }
+
+private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
+    is Decl.DataClass -> decl.supertypes()
+    is Decl.ClassDecl -> decl.supertypes()
+    is Decl.Interface -> decl.supertypes()
+    else -> List.of()
+}
+
+private fn nameOf(decl: Decl) -> String = when (decl) {
+    is Decl.DataClass -> decl.name()
+    is Decl.ClassDecl -> decl.name()
+    is Decl.Interface -> decl.name()
+    else -> ""
+}
+
+private fn constantNames(w: Expr.When) -> Set<String> {
+    val names = HashSet<String>()
+    for (arm in w.arms()) {
+        for (condition in arm.conditions()) {
+            val constant = condition.constant()
+            if (constant != null) {
+                names.add(constant.text())
+            }
+        }
+    }
+    return names
+}
+
+private fn testedNames(w: Expr.When) -> Set<String> {
+    val names = HashSet<String>()
+    for (arm in w.arms()) {
+        for (condition in arm.conditions()) {
+            val type = condition.type()
+            if (type != null) {
+                names.add(simpleName(type.name()))
+            }
+        }
+    }
+    return names
+}
+
+private fn simpleName(name: String) -> String = name.substring(name.lastIndexOf('.') + 1)
+
+private fn quoted(names: List<String>) -> String = String.join(", ", names |> map { n -> "`" + n + "`" })

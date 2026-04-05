@@ -1,0 +1,12 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+
+data class Square(val side: Double) : Shape
+
+fn dominated(shape: Shape) -> Double = when (shape) {
+    is Shape -> 1.0
+    is Circle -> 2.0
+}

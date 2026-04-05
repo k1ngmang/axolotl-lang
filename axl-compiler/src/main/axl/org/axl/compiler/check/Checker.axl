@@ -825,7 +825,14 @@ class Checker(val file: SourceFile) {
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both")
         } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
-            error(w.pos(), ErrorCode.SYNTAX, "a `when` over constants that gives a value needs an `else` branch")
+            val missing = Exhaustiveness.missingConstants(w, file)
+            error(w.pos(), ErrorCode.SYNTAX, if (missing == null) "a `when` over constants that gives a value needs an `else` branch"
+                else "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch")
+        } else if (types && !sawElse) {
+            val problem = Exhaustiveness.typesProblem(w, file)
+            if (problem != null) {
+                error(w.pos(), ErrorCode.SYNTAX, problem)
+            }
         }
     }
 
