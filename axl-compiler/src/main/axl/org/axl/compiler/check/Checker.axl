@@ -64,7 +64,7 @@ private val GENERATED_CODE_RECEIVERS: Set<String> = Set.of("System", "Nulls", "R
 // Names that would hide the `java` and `axl` packages the generated code qualifies names with.
 private val PACKAGE_ROOTS: Set<String> = Set.of("java", "axl")
 
-enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
+enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
 
 /** type is the written type of a local, or null. */
 data class Symbol(val kind: Kind, val pos: Pos, val type: TypeRef?)
@@ -442,7 +442,7 @@ class Checker(val file: SourceFile) {
             is Stmt.For -> {
                 expr(stmt.iterable())
                 scope = Scope(scope, false)
-                declare(stmt.namePos(), stmt.name(), Kind.LOCAL, null)
+                declare(stmt.namePos(), stmt.name(), Kind.LOOP_VARIABLE, null)
                 statements(stmt.body().statements())
                 pop()
             }
@@ -553,6 +553,9 @@ class Checker(val file: SourceFile) {
         val kind = symbol.kind()
         if (kind == Kind.PARAM) {
             return "cannot assign to the parameter `" + name + "`; copy it into a `var` first: `var current = " + name + "`"
+        }
+        if (kind == Kind.LOOP_VARIABLE) {
+            return "cannot assign to the loop variable `" + name + "`; copy it into a `var` first: `var current = " + name + "`"
         }
         if (kind == Kind.TOP_LEVEL) {
             return topLevelProblem(name)

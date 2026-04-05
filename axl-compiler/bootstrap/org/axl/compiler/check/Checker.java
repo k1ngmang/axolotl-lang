@@ -412,7 +412,7 @@ import org.axl.compiler.ast.TypeRef;
             case Stmt.For stmt$6 -> {
                 expr(stmt$6.iterable());
                 scope = new Scope(scope, false);
-                declare(stmt$6.namePos(), stmt$6.name(), Kind.LOCAL, null);
+                declare(stmt$6.namePos(), stmt$6.name(), Kind.LOOP_VARIABLE, null);
                 statements(stmt$6.body().statements());
                 pop();
             }
@@ -526,6 +526,9 @@ import org.axl.compiler.ast.TypeRef;
         final var kind = symbol.kind();
         if (kind == Kind.PARAM) {
             return "cannot assign to the parameter `" + name + "`; copy it into a `var` first: `var current = " + name + "`";
+        }
+        if (kind == Kind.LOOP_VARIABLE) {
+            return "cannot assign to the loop variable `" + name + "`; copy it into a `var` first: `var current = " + name + "`";
         }
         if (kind == Kind.TOP_LEVEL) {
             return topLevelProblem(name);
@@ -1049,7 +1052,7 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
-    public enum Kind { LOCAL, MUTABLE_LOCAL, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
+    public enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
     public record Symbol(Kind kind, Pos pos, @Nullable TypeRef type) {}
     public static final class Scope {
         public final @Nullable Scope parent;
