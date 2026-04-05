@@ -773,22 +773,37 @@ class Generator(
         return false
     }
 
-    /** `t == 1L || t == 2L ? 0 : t == 5L ? 1 : -1`, with null going to the `else` branch. */
+    /**
+     * `t == 1L || t == 2L ? 0 : t == 5L ? 1 : -1`. Null is tested first, as comparing it with a number
+     * unboxes it, and goes to the `null ->` branch or else to the `else` branch.
+     */
     private fn armIndex(subject: String, w: Expr.When, mayBeNull: Boolean) -> String {
         val sb = StringBuilder()
-        if (mayBeNull) {
-            sb.append(subject).append(" == null ? -1 : ")
+        val nullArm = nullArmIndex(w)
+        if (mayBeNull || nullArm >= 0) {
+            sb.append(subject).append(" == null ? ").append(nullArm).append(" : ")
         }
         var i = 0
         while (i < w.arms().size()) {
-            val conditions = w.arms().get(i).conditions()
-            if (!conditions.isEmpty()) {
-                val tests = conditions |> map { c -> subject + " == " + literal(constantOf(c).text()) }
+            val constants = w.arms().get(i).conditions() |> map { c -> constantOf(c).text() } |> filter { t -> !"null".equals(t) }
+            if (!constants.isEmpty()) {
+                val tests = constants |> map { t -> subject + " == " + literal(t) }
                 sb.append(String.join(" || ", tests)).append(" ? ").append(i).append(" : ")
             }
             i += 1
         }
         return sb.append("-1").toString()
+    }
+
+    private fn nullArmIndex(w: Expr.When) -> Int {
+        var i = 0
+        while (i < w.arms().size()) {
+            if (w.arms().get(i).conditions() |> anyMatch { c -> "null".equals(c.constant()?.text()) }) {
+                return i
+            }
+            i += 1
+        }
+        return -1
     }
 
     /** A nullable subject goes to `else`, as Java sends null to no other branch than `case null`. */
@@ -810,8 +825,7 @@ class Generator(
     }
 
     /** A `null ->` branch already takes null, which Java allows only once. */
-    private fn hasNullArm(w: Expr.When) -> Boolean =
-        w.arms() |> anyMatch { a -> a.conditions() |> anyMatch { c -> "null".equals(c.constant()?.text()) } }
+    private fn hasNullArm(w: Expr.When) -> Boolean = nullArmIndex(w) >= 0
 
     private fn emitArm(arm: Expr.Arm, narrowedName: String?, form: WhenForm, index: Int) {
         val conditions = arm.conditions()

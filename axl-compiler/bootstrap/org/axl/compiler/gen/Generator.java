@@ -705,19 +705,30 @@ import org.axl.compiler.check.Whens;
     }
     private String armIndex(String subject, Expr.When w, boolean mayBeNull) {
         final var sb = new StringBuilder();
-        if (mayBeNull) {
-            sb.append(subject).append(" == null ? -1 : ");
+        final var nullArm = nullArmIndex(w);
+        if (mayBeNull || nullArm >= 0) {
+            sb.append(subject).append(" == null ? ").append(nullArm).append(" : ");
         }
         var i = 0;
         while (i < w.arms().size()) {
-            final var conditions = w.arms().get(i).conditions();
-            if (!conditions.isEmpty()) {
-                final var tests = conditions.stream().map(Nulls.nonNull(c -> subject + " == " + literal(constantOf(c).text()))).toList();
+            final var constants = w.arms().get(i).conditions().stream().map(Nulls.nonNull(c -> constantOf(c).text())).filter(t -> !"null".equals(t)).toList();
+            if (!constants.isEmpty()) {
+                final var tests = constants.stream().map(Nulls.nonNull(t -> subject + " == " + literal(t))).toList();
                 sb.append(String.join(" || ", tests)).append(" ? ").append(i).append(" : ");
             }
             i += 1;
         }
         return sb.append("-1").toString();
+    }
+    private int nullArmIndex(Expr.When w) {
+        var i = 0;
+        while (i < w.arms().size()) {
+            if (w.arms().get(i).conditions().stream().anyMatch(c -> "null".equals(Nulls.typed(Nulls.map(c.constant(), $n1 -> $n1.text())).value()))) {
+                return i;
+            }
+            i += 1;
+        }
+        return -1;
     }
     private String elseLabelOf(Expr.When w, @Nullable TypeRef subjectType, boolean byIndex) {
         if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
@@ -733,7 +744,7 @@ import org.axl.compiler.check.Whens;
         return (covered ? "case null" : "case null, default");
     }
     private boolean hasNullArm(Expr.When w) {
-        return w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> "null".equals(Nulls.typed(Nulls.map(c.constant(), $n1 -> $n1.text())).value())));
+        return nullArmIndex(w) >= 0;
     }
     private void emitArm(Expr.Arm arm, @Nullable String narrowedName, WhenForm form, int index) {
         final var conditions = arm.conditions();

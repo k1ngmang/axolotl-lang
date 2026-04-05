@@ -1,0 +1,39 @@
+package app
+
+fn describe(d: Double?) {
+    when (d) {
+        null -> println("nil")
+        else -> println("value " + d)
+    }
+}
+
+fn size(n: Long?) -> String = when (n) {
+    1000L -> "k"
+    null -> "nil"
+    else -> "other"
+}
+
+fn either(n: Long?) -> String = when (n) {
+    5L, null -> "five or nil"
+    else -> "other"
+}
+
+fn flag(x: Boolean?) {
+    when (x) {
+        true -> println("T")
+        false -> println("F")
+        null -> println("N")
+    }
+}
+
+fn main() {
+    describe(null)
+    describe(1.5)
+    println(size(null))
+    println(size(1000L))
+    println(either(null))
+    println(either(5L))
+    println(either(6L))
+    flag(null)
+    flag(true)
+}
