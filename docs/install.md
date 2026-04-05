@@ -1,6 +1,28 @@
 # Installation
 
-Axolotl needs JDK 21. Until it is published, build it once from source:
+## Installers
+
+The release page has an installer for each system. Each one brings its own Java runtime, puts `axl`
+on the `PATH` and runs `axl setup`, which copies the Axolotl libraries and the Maven and Gradle
+plugins into `~/.m2/repository`. Maven and Gradle projects then build without anything else.
+
+| System | File | How |
+|--------|------|-----|
+| Windows | `axolotl-<version>-windows-x64-setup.exe` | Run it. Open a new terminal afterwards so that it sees the new `PATH`. |
+| macOS (Apple silicon) | `axolotl-<version>-macos-arm64.pkg` | Open it. The package is not signed: if macOS refuses, right-click it and choose *Open*. |
+| Debian, Ubuntu | `axolotl-<version>-linux-amd64.deb` | `sudo apt install ./axolotl-<version>-linux-amd64.deb` |
+| Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root. |
+
+Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another
+user. Maven and Gradle themselves still need a JDK 21 of their own.
+
+To remove it: Windows lists Axolotl under *Installed apps*; on Debian and Ubuntu run
+`sudo apt remove axolotl`; on macOS delete `/Applications/axl.app` and `/usr/local/bin/axl`; after the
+tarball delete `~/.local/share/axolotl` and `~/.local/bin/axl`.
+
+## From source
+
+With JDK 21, build Axolotl once and install it into the local Maven repository:
 
 ```
 git clone https://github.com/succubus-uwu/axolotl.git
@@ -41,8 +63,8 @@ Sources go to `src/main/axl` and `src/test/axl`. See [the Gradle plugin](gradle.
 
 ## Maven
 
-Maven 3.9 or newer. The Maven plugin and the archetype are Maven projects; install them after
-`publishToMavenLocal`:
+Maven 3.9 or newer. The installers already put the Maven plugin and the archetype into the local
+repository. From source, install them after `publishToMavenLocal`; they are Maven projects:
 
 ```
 cd axl-maven-plugin
@@ -62,6 +84,8 @@ For an existing project, copy the configuration from
 `samples/maven-app/pom.xml`; [the Maven plugin](maven.md) explains each part.
 
 ## Command line
+
+The installers put `axl` on the `PATH`. From source:
 
 ```
 ./gradlew :axl-cli:installDist

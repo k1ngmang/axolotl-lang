@@ -25,6 +25,13 @@ fn main() {
 Every `.axl` file becomes one Java class; Java code in the same module calls it directly and the
 other way round. Errors, stack traces and breakpoints point to `.axl` lines.
 
+## Installing
+
+Download the installer for your system from the
+[releases](https://github.com/succubus-uwu/axolotl/releases): a `setup.exe` for Windows, a `.pkg` for
+macOS, a `.deb` or a `.tar.gz` for Linux. It brings its own Java runtime, puts `axl` on the `PATH` and
+sets up the libraries for Maven and Gradle; see [installation](docs/install.md).
+
 ## Documentation
 
 The documentation lives in [`docs`](docs/index.md) and is built with MkDocs
