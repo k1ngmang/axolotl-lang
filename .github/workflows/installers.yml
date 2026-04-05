@@ -53,8 +53,8 @@ jobs:
         if: matrix.system == 'macos'
         run: |
           ./gradlew :axl-cli:nativeInstaller -PinstallerType=pkg
-          cd axl-cli/build/installers
-          mv axl-*.pkg "axolotl-$(ls axl-*.pkg | sed 's/axl-\(.*\)\.pkg/\1/')-macos-arm64.pkg"
+          version=$(grep -o 'version = "[^"]*"' build.gradle.kts | head -1 | sed 's/.*"\(.*\)"/\1/')
+          mv axl-cli/build/installers/axl-*.pkg "axl-cli/build/installers/axolotl-$version-macos-arm64.pkg"
       - name: Install the .pkg and run axl
         if: matrix.system == 'macos'
         run: |

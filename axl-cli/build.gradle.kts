@@ -130,6 +130,11 @@ val jpackageInput = tasks.register<Sync>("jpackageInput") {
 }
 
 val windows = System.getProperty("os.name").startsWith("Windows")
+
+// macOS requires the first number of a bundle version to be at least 1, so 0.x.y is packaged as 1.x.y
+// there; `axl --version` and the installer's file name keep the real version.
+fun packageVersion(version: String): String =
+    if (System.getProperty("os.name").startsWith("Mac") && version.startsWith("0.")) "1." + version.removePrefix("0.") else version
 val jpackageTool = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     .map { it.metadata.installationPath.file(if (windows) "bin/jpackage.exe" else "bin/jpackage").asFile.path }
 
@@ -146,7 +151,7 @@ val appImage = tasks.register<Exec>("appImage") {
     val dest = layout.buildDirectory.dir("jpackage/image")
     inputs.dir(input)
     outputs.dir(dest)
-    val version = project.version.toString()
+    val version = packageVersion(project.version.toString())
     val jar = tasks.jar.flatMap { it.archiveFileName }
     @Suppress("UNCHECKED_CAST")
     val jvmArgs = rootProject.extra["errorProneJvmArgs"] as List<String>
@@ -182,7 +187,7 @@ tasks.register<Exec>("nativeInstaller") {
     val image = layout.buildDirectory.dir("jpackage/image")
     val resources = rootProject.layout.projectDirectory.dir("installers")
     val dest = layout.buildDirectory.dir("installers")
-    val version = project.version.toString()
+    val version = packageVersion(project.version.toString())
     executable(jpackageTool.get())
     argumentProviders.add(CommandLineArgumentProvider {
         val appDir = image.get().asFile.listFiles()!!.single()
