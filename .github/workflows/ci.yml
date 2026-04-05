@@ -29,6 +29,8 @@ jobs:
   vsix:
     runs-on: ubuntu-latest
     steps:
+      # Restoring the Gradle cache, which holds an IntelliJ IDE, can fill the disk of the runner.
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
