@@ -793,7 +793,7 @@ class Generator(
 
     /** A nullable subject goes to `else`, as Java sends null to no other branch than `case null`. */
     private fn elseLabelOf(w: Expr.When, subjectType: TypeRef?, byIndex: Boolean) -> String {
-        if (byIndex || subjectType != null && !subjectType.nullable()) {
+        if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
             return "default"
         }
         // Without a written type the subject may be a primitive, which `case null` does not compile for;
@@ -808,6 +808,10 @@ class Generator(
         val covered = w.arms() |> anyMatch { a -> a.conditions() |> anyMatch { c -> testsType(c, subjectType) } }
         return if (covered) "case null" else "case null, default"
     }
+
+    /** A `null ->` branch already takes null, which Java allows only once. */
+    private fn hasNullArm(w: Expr.When) -> Boolean =
+        w.arms() |> anyMatch { a -> a.conditions() |> anyMatch { c -> "null".equals(c.constant()?.text()) } }
 
     private fn emitArm(arm: Expr.Arm, narrowedName: String?, form: WhenForm, index: Int) {
         val conditions = arm.conditions()

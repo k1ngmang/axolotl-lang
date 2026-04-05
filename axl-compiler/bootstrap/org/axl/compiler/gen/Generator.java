@@ -720,7 +720,7 @@ import org.axl.compiler.check.Whens;
         return sb.append("-1").toString();
     }
     private String elseLabelOf(Expr.When w, @Nullable TypeRef subjectType, boolean byIndex) {
-        if (byIndex || subjectType != null && !subjectType.nullable()) {
+        if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
             return "default";
         }
         if (subjectType == null && !testsObjects(w)) {
@@ -731,6 +731,9 @@ import org.axl.compiler.check.Whens;
         }
         final var covered = w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> testsType(c, subjectType)));
         return (covered ? "case null" : "case null, default");
+    }
+    private boolean hasNullArm(Expr.When w) {
+        return w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> "null".equals(Nulls.typed(Nulls.map(c.constant(), $n1 -> $n1.text())).value())));
     }
     private void emitArm(Expr.Arm arm, @Nullable String narrowedName, WhenForm form, int index) {
         final var conditions = arm.conditions();

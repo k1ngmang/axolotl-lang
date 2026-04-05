@@ -1,0 +1,33 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+
+data class Square(val side: Double) : Shape
+
+enum Color { RED, GREEN }
+
+fn word(s: String?) -> String = when (s) {
+    "a" -> "A"
+    null -> "none"
+    else -> "other"
+}
+
+fn shape(s: Shape?) -> String = when (s) {
+    is Circle -> "circle"
+    null -> "nothing"
+    else -> "another shape"
+}
+
+fn color(c: Color?) -> String = when (c) {
+    Color.RED -> "red"
+    null -> "no color"
+    else -> "another color"
+}
+
+fn main() {
+    println(word("a") + " " + word(null) + " " + word("b"))
+    println(shape(Circle(1.0)) + " " + shape(null) + " " + shape(Square(2.0)))
+    println(color(Color.RED) + " " + color(null) + " " + color(Color.GREEN))
+}
