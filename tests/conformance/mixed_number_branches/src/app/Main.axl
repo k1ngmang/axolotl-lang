@@ -1,0 +1,25 @@
+package app
+
+fn pick(c: Boolean, a: Int?, b: Long) -> Long? = if (c) a else b
+
+fn both(c: Boolean, a: Int?, b: Long?) -> Long? = if (c) a else b
+
+fn ratio(n: Int, a: Int?) {
+    val r = when (n) {
+        1 -> a
+        else -> 2.5
+    }
+    println(r)
+}
+
+fn main() {
+    val a: Int? = null
+    println(pick(true, a, 5L))
+    println(pick(false, a, 5L))
+    println(pick(true, 3, 5L))
+    println(both(true, null, 5L))
+    println(both(false, 1, null))
+    ratio(1, null)
+    ratio(1, 4)
+    ratio(2, null)
+}

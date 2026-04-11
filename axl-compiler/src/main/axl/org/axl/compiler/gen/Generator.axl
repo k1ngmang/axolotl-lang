@@ -1148,16 +1148,24 @@ class Generator(
     }
 
     /**
-     * Java unboxes all branches of a conditional or a switch when one of them is a primitive, which
-     * fails on a null in another: `c ? maybe() : 0` is an int. Boxing the primitive keeps the null.
+     * Java unboxes all branches of a conditional or a switch when one of them is a primitive, or when
+     * they hold different kinds of numbers, which fails on a null in another: `c ? maybe() : 0` is an
+     * int. Every branch is given the wrapper of the widest number, which keeps the null.
      */
     private fn boxedBranch(code: String, branch: Expr, branches: List<Expr>) -> String {
-        val type = primitiveType(branch)
+        val type = typeOf(branch)
         val noneNull = branches |> noneMatch { b -> mayBeNull(b) }
         if (type == null || noneNull) {
             return code
         }
-        return boxClass(type, branches) + ".valueOf(" + code + ")"
+        val widest = widestNumber(type.name(), branches)
+        if (primitiveType(branch) != null) {
+            return BOXED_NAMES.getOrDefault(widest, "Object") + ".valueOf(" + code + ")"
+        }
+        if (!WIDENING.contains(type.name()) || widest.equals(type.name())) {
+            return code
+        }
+        return "Nulls.to" + widest + "(" + code + ")"
     }
 
     /** The Axolotl name of the primitive type of an expression, if the code says it is one. */
@@ -1179,8 +1187,8 @@ class Generator(
         return inner !is Expr.Binary && inner !is Expr.Unary && inner !is Expr.Literal && inner !is Expr.Is
     }
 
-    /** The wrapper of the widest number among the branches, so that `Long?` and `0` both become Long. */
-    private fn boxClass(type: String, branches: List<Expr>) -> String {
+    /** The widest number among the branches, so that `Long?` and `0` both become Long. */
+    private fn widestNumber(type: String, branches: List<Expr>) -> String {
         var widest = type
         for (b in branches) {
             val other = typeOf(b)
@@ -1188,7 +1196,7 @@ class Generator(
                 widest = other.name()
             }
         }
-        return BOXED_NAMES.getOrDefault(widest, "Object")
+        return widest
     }
 
     // `(a ?: b)` needs parentheses in Axolotl, but its expansion is a method call in Java.

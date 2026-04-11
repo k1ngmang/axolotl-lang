@@ -1053,12 +1053,19 @@ import org.axl.compiler.check.Whens;
         return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")";
     }
     private String boxedBranch(String code, Expr branch, List<Expr> branches) {
-        final var type = primitiveType(branch);
+        final var type = typeOf(branch);
         final var noneNull = branches.stream().noneMatch(b -> mayBeNull(b));
         if (type == null || noneNull) {
             return code;
         }
-        return boxClass(type, branches) + ".valueOf(" + code + ")";
+        final var widest = widestNumber(type.name(), branches);
+        if (primitiveType(branch) != null) {
+            return BOXED_NAMES.getOrDefault(widest, "Object") + ".valueOf(" + code + ")";
+        }
+        if (!WIDENING.contains(type.name()) || widest.equals(type.name())) {
+            return code;
+        }
+        return "Nulls.to" + widest + "(" + code + ")";
     }
     private @Nullable String primitiveType(Expr e) {
         final var type = typeOf(e);
@@ -1075,7 +1082,7 @@ import org.axl.compiler.check.Whens;
         final var inner = withoutParens(e);
         return !(inner instanceof Expr.Binary inner$1) && !(inner instanceof Expr.Unary inner$2) && !(inner instanceof Expr.Literal inner$3) && !(inner instanceof Expr.Is inner$4);
     }
-    private String boxClass(String type, List<Expr> branches) {
+    private String widestNumber(String type, List<Expr> branches) {
         var widest = type;
         for (final var b : branches) {
             final var other = typeOf(b);
@@ -1083,7 +1090,7 @@ import org.axl.compiler.check.Whens;
                 widest = other.name();
             }
         }
-        return BOXED_NAMES.getOrDefault(widest, "Object");
+        return widest;
     }
     private String parenCode(Expr.Paren p, boolean inLambda) {
         if (becomesCall(p.inner())) {

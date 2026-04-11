@@ -19,6 +19,9 @@ import org.jspecify.annotations.Nullable;
     public static double or(double a, double b) { return a; }
     // `a ?: 0` with a Number or Object `a`, which none of the above takes.
     public static <T extends @Nullable Object> T or(@Nullable T a, T b) { return a != null ? a : b; }
+    // `c ? a : b` with an Integer `a` and a Long `b` unboxes both; converting `a` first keeps a null.
+    public static @Nullable Long toLong(@Nullable Number a) { return a == null ? null : a.longValue(); }
+    public static @Nullable Double toDouble(@Nullable Number a) { return a == null ? null : a.doubleValue(); }
     // Stream.map takes a JDK Function, whose result NullAway does not check either: a pipe's map
     // stage must not put nulls into a List<T>.
     @FunctionalInterface public interface NonNullFunction<T extends @Nullable Object, R> { R apply(T value); }
