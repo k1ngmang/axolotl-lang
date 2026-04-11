@@ -67,7 +67,10 @@ jobs:
           axl --version
           axl run "$RUNNER_TEMP/smoke/Hello.axl" | tee out.txt
           grep -q "Hello, Axolotl" out.txt
-          test -d ~/.m2/repository/org/axl/axl-maven-plugin || axl setup
+          if [ ! -d ~/.m2/repository/org/axl/axl-maven-plugin ]; then
+            echo "postinstall did not run axl setup for $(id -un); the console user is '$(stat -f%Su /dev/console)'" >&2
+            exit 1
+          fi
 
       - name: Build the Windows installer
         if: matrix.system == 'windows'
