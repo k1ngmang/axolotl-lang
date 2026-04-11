@@ -49,18 +49,17 @@ final class SetupCommand implements Callable<Integer> {
         return files.size();
     }
 
-    /** `repository` next to the jars (native installers) or next to their `lib` directory (the zip). */
+    /**
+     * `repository` next to the directory of the jars: next to `lib` in the zip, and in jpackage's
+     * app content directory in the app image (`lib` on Linux, the root on Windows, `Contents` on macOS).
+     */
     static @Nullable Path bundledRepository() {
         Path jarDir = jarDirectory();
         if (jarDir == null) {
             return null;
         }
-        for (Path candidate : new Path[] {jarDir.resolve("repository"), jarDir.resolveSibling("repository")}) {
-            if (Files.isDirectory(candidate)) {
-                return candidate;
-            }
-        }
-        return null;
+        Path repository = jarDir.resolveSibling("repository");
+        return Files.isDirectory(repository) ? repository : null;
     }
 
     private static @Nullable Path jarDirectory() {

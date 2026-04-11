@@ -122,16 +122,15 @@ val bundledRepository = tasks.register<Sync>("bundledRepository") {
         include("org/axl/axl-maven-plugin/$version/**", "org/axl/axl-archetype-quickstart/$version/**")
     }
     exclude("**/maven-metadata*", "**/_remote.repositories", "**/*.md5", "**/*.sha1", "**/*.sha256", "**/*.sha512")
-    into(layout.buildDirectory.dir("bundled-repository"))
+    into(layout.buildDirectory.dir("bundled/repository"))
 }
 
+// Only jars: jpackage puts every jar under --input on axl's class path, which the programs that
+// `axl run` starts inherit.
 val jpackageInput = tasks.register<Sync>("jpackageInput") {
-    description = "Collects the jars and the bundled repository for jpackage."
+    description = "Collects the jars for jpackage."
     from(tasks.jar)
     from(configurations.runtimeClasspath)
-    from(bundledRepository) {
-        into("repository")
-    }
     into(layout.buildDirectory.dir("jpackage/input"))
 }
 
@@ -154,8 +153,10 @@ val appImage = tasks.register<Exec>("appImage") {
     description = "Builds axl with its own Java runtime, the base of the native installers."
     dependsOn(jpackageInput)
     val input = layout.buildDirectory.dir("jpackage/input")
+    val repository = bundledRepository.map { it.destinationDir }
     val dest = layout.buildDirectory.dir("jpackage/image")
     inputs.dir(input)
+    inputs.files(bundledRepository)
     outputs.dir(dest)
     val version = packageVersion(project.version.toString())
     val jar = tasks.jar.flatMap { it.archiveFileName }
@@ -171,6 +172,8 @@ val appImage = tasks.register<Exec>("appImage") {
             "--type", "app-image", "--name", "axl", "--app-version", version, "--vendor", "Axolotl",
             "--input", input.get().asFile.path, "--main-jar", jar.get(), "--main-class", "org.axl.cli.Main",
             "--add-modules", modules,
+            // Lands in the parent directory of the jars on each system, where SetupCommand looks for it.
+            "--app-content", repository.get().path,
             "--jlink-options", "--strip-debug --no-man-pages --no-header-files",
             "--dest", dest.get().asFile.path,
         )
