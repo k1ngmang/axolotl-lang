@@ -49,7 +49,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: axolotl-vsix
-          path: editors/vscode/axolotl-0.1.0.vsix
+          path: editors/vscode/axolotl-*.vsix
 
   intellij:
     runs-on: ubuntu-latest

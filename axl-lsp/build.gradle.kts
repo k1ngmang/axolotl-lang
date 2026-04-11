@@ -36,7 +36,7 @@ val vscodeServer = tasks.register<Sync>("vscodeServer") {
 
 // Not part of `check`: needs Node.js and npm.
 tasks.register<Exec>("vsix") {
-    description = "Packages the VS Code extension as editors/vscode/axolotl-0.1.0.vsix."
+    description = "Packages the VS Code extension as editors/vscode/axolotl-<version>.vsix."
     dependsOn(vscodeServer)
     workingDir(vscode)
     val npm = "npm install --no-audit --no-fund && npm run package"
@@ -46,5 +46,5 @@ tasks.register<Exec>("vsix") {
         commandLine("sh", "-c", npm)
     }
     inputs.files(vscode.asFileTree.matching { exclude("node_modules/**", "*.vsix") })
-    outputs.file(vscode.file("axolotl-0.1.0.vsix"))
+    outputs.file(vscode.file("axolotl-${project.version}.vsix"))
 }

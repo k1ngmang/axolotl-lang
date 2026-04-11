@@ -58,7 +58,7 @@ jobs:
         if: matrix.system == 'macos'
         run: |
           ./gradlew :axl-cli:nativeInstaller -PinstallerType=pkg
-          version=$(grep -o 'version = "[^"]*"' build.gradle.kts | head -1 | sed 's/.*"\(.*\)"/\1/')
+          version=$(./gradlew -q properties --property version | tr -d '\r' | sed -n 's/^version: //p')
           mv axl-cli/build/installers/axl-*.pkg "axl-cli/build/installers/axolotl-$version-macos-arm64.pkg"
       - name: Install the .pkg and run axl
         if: matrix.system == 'macos'
@@ -75,7 +75,7 @@ jobs:
           ./gradlew :axl-cli:appImage
           iscc="/c/Program Files (x86)/Inno Setup 6/ISCC.exe"
           if [ ! -f "$iscc" ]; then choco install innosetup -y --no-progress; fi
-          version=$(grep -o 'version = "[^"]*"' build.gradle.kts | head -1 | sed 's/.*"\(.*\)"/\1/')
+          version=$(./gradlew -q properties --property version | tr -d '\r' | sed -n 's/^version: //p')
           "$iscc" "//DAppVersion=$version" "//DImageDir=$(cygpath -w "$PWD/axl-cli/build/jpackage/image/axl")" \
             "//DOutputDir=$(cygpath -w "$PWD/axl-cli/build/installers")" installers/windows/axolotl.iss
       - name: Install with setup.exe and run axl

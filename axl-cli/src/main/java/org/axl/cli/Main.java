@@ -8,7 +8,7 @@ import java.nio.file.Path;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 
-@Command(name = "axl", mixinStandardHelpOptions = true, version = "axl 0.1.0",
+@Command(name = "axl", mixinStandardHelpOptions = true, versionProvider = Main.Version.class,
         description = "Axolotl compiler: translates .axl files to Java and compiles them.",
         subcommands = {BuildCommand.class, RunCommand.class, CheckCommand.class, RetraceCommand.class, SetupCommand.class})
 public final class Main {
@@ -44,6 +44,15 @@ public final class Main {
             return 2;
         });
         return commandLine;
+    }
+
+    /** The version of the jar, which classes outside a jar do not have. */
+    static final class Version implements CommandLine.IVersionProvider {
+        @Override
+        public String[] getVersion() {
+            String version = Main.class.getPackage().getImplementationVersion();
+            return new String[] {"axl " + (version != null ? version : "(development build)")};
+        }
     }
 
     /** Usually a non-ASCII file name under a locale whose encoding cannot represent it. */

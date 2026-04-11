@@ -64,7 +64,7 @@
     }
   },
   "scripts": {
-    "package": "vsce package --skip-license --out axolotl-0.1.0.vsix"
+    "package": "vsce package --skip-license"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

@@ -62,7 +62,9 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
         return workspace.submit(() -> {
             workspace.open(roots);
             workspace.publishTranslatorDiagnostics(translatorDiagnostics);
-            return new InitializeResult(capabilities(), new ServerInfo("axl-lsp", "0.1.0"));
+            String version = AxlLanguageServer.class.getPackage().getImplementationVersion();
+            ServerInfo info = version != null ? new ServerInfo("axl-lsp", version) : new ServerInfo("axl-lsp");
+            return new InitializeResult(capabilities(), info);
         });
     }
 

@@ -36,5 +36,10 @@ subprojects {
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
         }
+        // Read back by `axl --version` and the language server.
+        val implementationVersion = project.version.toString()
+        tasks.withType<Jar>().configureEach {
+            manifest.attributes("Implementation-Version" to implementationVersion)
+        }
     }
 }
