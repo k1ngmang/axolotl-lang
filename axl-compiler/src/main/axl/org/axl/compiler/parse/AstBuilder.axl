@@ -498,7 +498,8 @@ private fn buildConditional(ctx: IfPrimaryContext) -> Expr {
 
 private fn buildGenericNew(ctx: GenericConstructorContext) -> Expr {
     val typeArgs = ctx.typeArgs().type() |> map { t -> buildType(t) }
-    return GenericNew(pos(ctx.start), nameOf(ctx.identifier()), typeArgs, buildArguments(ctx.arguments()))
+    val path = ctx.qualifiedName().identifier() |> map { i -> nameOf(i) }
+    return GenericNew(pos(ctx.start), String.join(".", path), typeArgs, buildArguments(ctx.arguments()))
 }
 
 private fn buildWhen(ctx: WhenExpressionContext) -> Expr {

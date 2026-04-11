@@ -14,11 +14,16 @@ grammar Axolotl;
      * case letter, so the arguments between `<` and `>` must look like types.
      */
     private boolean genericConstructor() {
-        if (!startsUpper(_input.LT(1)) || _input.LT(2).getType() != LT) {
+        // `java.util.HashMap<String, Int>()` names the class by its package.
+        int start = 1;
+        while (_input.LT(start).getType() == IDENTIFIER && _input.LT(start + 1).getType() == DOT) {
+            start += 2;
+        }
+        if (!startsUpper(_input.LT(start)) || _input.LT(start + 1).getType() != LT) {
             return false;
         }
         int depth = 0;
-        for (int i = 2; ; i++) {
+        for (int i = start + 1; ; i++) {
             Token t = _input.LT(i);
             switch (t.getType()) {
                 case LT -> depth++;
@@ -236,7 +241,7 @@ arguments
     ;
 
 primary
-    : {genericConstructor()}? identifier typeArgs LPAREN arguments? RPAREN   # genericConstructor
+    : {genericConstructor()}? qualifiedName typeArgs LPAREN arguments? RPAREN   # genericConstructor
     | literal                                                       # literalPrimary
     | identifier                                                    # namePrimary
     | LPAREN expression RPAREN                                      # parenPrimary

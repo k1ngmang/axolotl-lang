@@ -526,7 +526,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     }
     private static Expr buildGenericNew(GenericConstructorContext ctx) {
         final var typeArgs = ctx.typeArgs().type().stream().map(Nulls.nonNull(t -> buildType(t))).toList();
-        return new GenericNew(pos(ctx.start), nameOf(ctx.identifier()), typeArgs, buildArguments(ctx.arguments()));
+        final var path = ctx.qualifiedName().identifier().stream().map(Nulls.nonNull(i -> nameOf(i))).toList();
+        return new GenericNew(pos(ctx.start), String.join(".", path), typeArgs, buildArguments(ctx.arguments()));
     }
     private static Expr buildWhen(WhenExpressionContext ctx) {
         final var arms = new ArrayList<Expr.Arm>();

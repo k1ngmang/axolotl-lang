@@ -1,0 +1,14 @@
+package app
+
+class Item(val name: String)
+
+fn main() {
+    val counts = java.util.HashMap<String, Int>()
+    counts.put("a", 1)
+    val items = java.util.ArrayList<Main.Item>()
+    items.add(Item("x"))
+    val names = java.util.TreeSet<String>(counts.keySet())
+    println(counts.get("a"))
+    println(items.get(0).name)
+    println(names)
+}
