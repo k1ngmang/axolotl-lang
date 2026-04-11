@@ -20,6 +20,12 @@ PrivilegesRequiredOverridesAllowed=dialog
 UninstallDisplayIcon={app}\axl.exe
 WizardStyle=modern
 
+[InstallDelete]
+; The jars and the repository carry the version in their names, so an upgrade would keep the old ones.
+Type: filesandordirs; Name: "{app}\app"
+Type: filesandordirs; Name: "{app}\runtime"
+Type: filesandordirs; Name: "{app}\repository"
+
 [Files]
 Source: "{#ImageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
