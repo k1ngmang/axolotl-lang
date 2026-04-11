@@ -77,25 +77,35 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             return packageVariants(pkg, ref.getResolveScope());
         }
         PsiClass named = AxlResolver.asClass(owner);
-        boolean statics = named != null;
+        boolean self = isThis(qualifier);
+        boolean statics = named != null && !self;
         PsiClass cls = named != null ? named : AxlResolver.typeOf(qualifier);
         if (cls == null) {
             return new Object[0];
         }
         List<LookupElement> members = new ArrayList<>();
         for (PsiMethod method : cls.getAllMethods()) {
-            if (method.hasModifierProperty(PsiModifier.PUBLIC) && !method.isConstructor() && statics == method.hasModifierProperty(PsiModifier.STATIC)) {
+            if (visible(method, self) && !method.isConstructor() && statics == method.hasModifierProperty(PsiModifier.STATIC)) {
                 members.add(LookupElementBuilder.create(method, method.getName())
                         .withTailText(method.getParameterList().getText(), true)
                         .withTypeText(method.getReturnType() == null ? "" : method.getReturnType().getPresentableText()));
             }
         }
         for (PsiField field : cls.getAllFields()) {
-            if (field.hasModifierProperty(PsiModifier.PUBLIC) && statics == field.hasModifierProperty(PsiModifier.STATIC)) {
+            if (visible(field, self) && statics == field.hasModifierProperty(PsiModifier.STATIC)) {
                 members.add(LookupElementBuilder.create(field, field.getName()).withTypeText(field.getType().getPresentableText()));
             }
         }
         return members.toArray();
+    }
+
+    /** `this` stands for the enclosing class's instance, whose private members are visible too. */
+    private static boolean isThis(PsiElement element) {
+        return element instanceof AxlReferenceExpression ref && ref.qualifier() == null && ref.referenceName().equals("this");
+    }
+
+    private static boolean visible(PsiMember member, boolean self) {
+        return member.hasModifierProperty(PsiModifier.PUBLIC) || self && member.hasModifierProperty(PsiModifier.PRIVATE);
     }
 
     /** Subpackages and classes after a package, as in `import java.util.Li`. */
@@ -126,6 +136,10 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
     /** Only for a single target: a call that several overloads may take must not be renamed with one of them. */
     @Override
     public boolean isReferenceTo(@NotNull PsiElement element) {
+        // `this` does not spell its class's name, so renaming the class must leave it alone.
+        if (isThis(getElement())) {
+            return false;
+        }
         ResolveResult[] results = multiResolve(false);
         if (results.length != 1) {
             return false;

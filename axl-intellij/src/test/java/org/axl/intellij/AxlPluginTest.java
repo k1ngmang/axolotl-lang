@@ -437,6 +437,44 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of("Caller.java", "Parse.axl"), files);
     }
 
+    private static final String SELF = """
+            package app
+
+            class Counter(var count: Int) {
+                fn inc() -> Int {
+                    this.count += 1
+                    return this.count
+                }
+                fn twice() -> Int {
+                    this.inc()
+                    return inc()
+                }
+            }
+            """;
+
+    public void testRenamesAndFindsMembersUsedThroughThis() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Counter.axl", SELF);
+        AxlTypeDeclaration counter = file.typeDeclarations().getFirst();
+        AxlVariable count = counter.fields().getFirst();
+        assertEquals(2, myFixture.findUsages(count).size());
+        assertEquals(2, myFixture.findUsages(counter.methods().getFirst()).size());
+
+        myFixture.renameElement(count, "total");
+        assertTrue(myFixture.getFile().getText(), myFixture.getFile().getText().contains("this.total += 1"));
+        assertTrue(myFixture.getFile().getText().contains("return this.total"));
+
+        myFixture.renameElement(counter, "Tally");
+        assertTrue(myFixture.getFile().getText(), myFixture.getFile().getText().contains("this.inc()"));
+    }
+
+    public void testCompletesMembersAfterThis() {
+        myFixture.configureByText("Counter.axl", SELF.replace("this.inc()", "this.<caret>"));
+        myFixture.completeBasic();
+        List<String> names = myFixture.getLookupElementStrings();
+        assertNotNull(names);
+        assertTrue(names.toString(), names.containsAll(List.of("count", "inc", "twice")));
+    }
+
     private static final String SHAPES = """
             package app
 

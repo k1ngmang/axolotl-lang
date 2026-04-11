@@ -51,6 +51,10 @@ public final class AxlResolver {
                 return List.of(named);
             }
         }
+        if (name.equals("this")) {
+            AxlTypeDeclaration owner = PsiTreeUtil.getParentOfType(place, AxlTypeDeclaration.class);
+            return owner == null ? List.of() : List.of(owner);
+        }
         if (name.equals("it")) {
             PsiElement lambda = implicitParameterOwner(place);
             if (lambda != null) {
