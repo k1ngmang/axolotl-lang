@@ -39,6 +39,9 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
 - Reports errors of `compileJava` in generated files at their `.axl` file and line.
 - Adds a JSR-45 SMAP to compiled classes and rewrites stack traces of failing tests to
   `.axl` lines (see [debugging](debugging.md)).
+- Registers `axlLspConfig`, which writes `build/axl/axl.json` with the `.axl` and Java source
+  directories and the compile classpath of every source set, and `strictNull`, for [the language server](lsp.md). It is not part of
+  the build; run it once and again when dependencies change.
 
 ## Configuration
 

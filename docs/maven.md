@@ -17,6 +17,7 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 | `axl:smap`          | `process-classes`       | Adds a JSR-45 SMAP to `target/classes` (see [debugging](debugging.md)). |
 | `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
+| `axl:lsp-config`    | none                    | Writes `target/axl/axl.json` with the `.axl` and Java source directories, the test classpath and `strictNull` for [the language server](lsp.md). |
 
 Generation is incremental: a state file in `target/axl`, named after the output and the source
 directory (`generated-sources_axl-from-src_main_axl.state.json`,
