@@ -13,8 +13,8 @@ import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 @Command(name = "setup", description = {
-        "Install the Axolotl libraries and build plugins that come with axl into the local Maven",
-        "repository, so that Maven and Gradle projects find them."})
+        "Install the Axolotl libraries and build plugins into the local Maven repository.",
+        "Maven and Gradle projects then find the ones that come with this axl."})
 final class SetupCommand implements Callable<Integer> {
 
     @Option(names = "--repository", description = "The local Maven repository (default: ~/.m2/repository).")
