@@ -223,6 +223,8 @@ tasks.register<Exec>("linuxTarball") {
     val image = layout.buildDirectory.dir("jpackage/image/axl").get().asFile.path
     val script = rootProject.layout.projectDirectory.file("installers/linux/install.sh").asFile.path
     val archive = layout.buildDirectory.file("installers/$name-linux-x64.tar.gz")
+    inputs.dir(image)
+    inputs.file(script)
     outputs.file(archive)
     workingDir(layout.buildDirectory)
     commandLine("sh", "-c", "rm -rf tarball && mkdir -p tarball/$name installers && cp -a '$image' tarball/$name/axl " +
