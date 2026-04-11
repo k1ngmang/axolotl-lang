@@ -4,7 +4,11 @@ set -e
 
 case "$1" in
     configure)
-        ln -sf /opt/axolotl/bin/axl /usr/bin/axl
+        # Version 0.1.0 created a plain link, which update-alternatives would not take over.
+        if [ "$(readlink /usr/bin/axl 2>/dev/null)" = /opt/axolotl/bin/axl ]; then
+            rm -f /usr/bin/axl
+        fi
+        update-alternatives --install /usr/bin/axl axl /opt/axolotl/bin/axl 50
         user="${SUDO_USER:-}"
         if [ -z "$user" ] && [ -n "${PKEXEC_UID:-}" ]; then
             user="$(getent passwd "$PKEXEC_UID" | cut -d: -f1)"

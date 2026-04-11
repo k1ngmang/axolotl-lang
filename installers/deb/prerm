@@ -3,9 +3,7 @@ set -e
 
 case "$1" in
     remove|deconfigure)
-        if [ "$(readlink /usr/bin/axl 2>/dev/null)" = /opt/axolotl/bin/axl ]; then
-            rm -f /usr/bin/axl
-        fi
+        update-alternatives --remove axl /opt/axolotl/bin/axl
     ;;
 esac
 

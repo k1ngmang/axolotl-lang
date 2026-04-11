@@ -216,11 +216,18 @@ tasks.register<Exec>("nativeInstaller") {
     argumentProviders.add(CommandLineArgumentProvider {
         val appDir = image.get().asFile.listFiles()!!.single()
         listOf(
-            "--type", type.get(), "--name", "axl", "--app-version", version, "--vendor", "Axolotl",
+            "--type", type.get(), "--name", "axl", "--app-version", version,
             "--description", "The Axolotl compiler", "--app-image", appDir.path,
             "--resource-dir", resources.dir(type.get()).asFile.path,
             "--dest", dest.get().asFile.path,
-        ) + if (type.get() == "deb") listOf("--linux-package-name", "axolotl", "--linux-app-category", "devel") else listOf()
+        ) + when (type.get()) {
+            // jpackage writes the Maintainer of a deb as "<vendor> <<maintainer>>".
+            "deb" -> listOf(
+                "--vendor", "succubus-uwu", "--linux-deb-maintainer", "keshindiy@gmail.com",
+                "--linux-package-name", "axolotl", "--linux-app-category", "devel",
+            )
+            else -> listOf("--vendor", "Axolotl")
+        }
     })
 }
 
