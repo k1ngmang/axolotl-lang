@@ -102,6 +102,8 @@ tasks.check {
 // What `axl setup` copies into the local Maven repository: the libraries and both build plugins.
 // Of the Maven wrapper's repository only the plugin and the archetype are taken, which Maven installed
 // itself; the rest of it was resolved from the test repository and is marked as coming from there.
+// Neither repository is ever cleaned, so only this version is taken. Metadata and checksums stay out:
+// a local repository does not need them, and copied metadata would replace the user's own.
 val bundledRepository = tasks.register<Sync>("bundledRepository") {
     description = "Collects the Axolotl artifacts that the installers carry."
     dependsOn(
@@ -112,10 +114,14 @@ val bundledRepository = tasks.register<Sync>("bundledRepository") {
         ":axl-gradle-plugin:publishAllPublicationsToTestRepoRepository",
         ":axl-maven-plugin:archetype",
     )
-    from(rootProject.layout.buildDirectory.dir("test-repo"))
-    from(rootProject.layout.buildDirectory.dir("maven-repo")) {
-        include("org/axl/axl-maven-plugin/**", "org/axl/axl-archetype-quickstart/**")
+    val version = project.version.toString()
+    from(rootProject.layout.buildDirectory.dir("test-repo")) {
+        include("org/axl/*/$version/**", "org/axl/lang/org.axl.lang.gradle.plugin/$version/**")
     }
+    from(rootProject.layout.buildDirectory.dir("maven-repo")) {
+        include("org/axl/axl-maven-plugin/$version/**", "org/axl/axl-archetype-quickstart/$version/**")
+    }
+    exclude("**/maven-metadata*", "**/_remote.repositories", "**/*.md5", "**/*.sha1", "**/*.sha256", "**/*.sha512")
     into(layout.buildDirectory.dir("bundled-repository"))
 }
 
