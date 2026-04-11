@@ -25,12 +25,14 @@ jobs:
       # Restoring the Gradle cache, which holds an IntelliJ IDE, can fill the disk of a Linux runner.
       - if: runner.os == 'Linux'
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
       - name: Write the program the installed axl runs
         run: |
           mkdir -p "$RUNNER_TEMP/smoke"
@@ -91,7 +93,7 @@ jobs:
           if (-not ($path -like '*C:\Program Files\Axolotl*')) { throw 'axl is not on the PATH' }
           if (-not (Test-Path "$HOME\.m2\repository\org\axl\axl-maven-plugin")) { throw 'axl setup did not run' }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.system }}
           path: |
