@@ -68,6 +68,9 @@ class InitOrder(val file: SourceFile) {
                 val later = firstProperty(properties.subList(i, properties.size()), read)
                 if (later != null) {
                     problems.add(PropertyProblem(properties.get(i), later))
+                } else if (read.contains("this") && i + 1 < properties.size()) {
+                    // Code given `this` may read any property, and the later ones are not set yet.
+                    problems.add(PropertyProblem(properties.get(i), "this"))
                 }
             }
             i += 1
@@ -109,7 +112,13 @@ class InitOrder(val file: SourceFile) {
                 }
             }
             is Expr.GenericNew -> arguments(expr.args(), hidden, out)
-            is Expr.MethodRef -> names(expr.target(), hidden, out)
+            is Expr.MethodRef -> {
+                if (isThis(expr.target())) {
+                    function(expr.name(), out)
+                } else {
+                    names(expr.target(), hidden, out)
+                }
+            }
             is Expr.NotNull -> names(expr.target(), hidden, out)
             is Expr.Unary -> names(expr.operand(), hidden, out)
             is Expr.Binary -> {
@@ -263,7 +272,7 @@ class InitOrder(val file: SourceFile) {
             val inner = unparenthesized(arg)
             if (inner is Expr.Lambda) {
                 lambdaBody(inner, hidden, out)
-            } else if (inner is Expr.MethodRef && isThisClass(inner.target())) {
+            } else if (inner is Expr.MethodRef && (isThisClass(inner.target()) || isThis(inner.target()))) {
                 function(inner.name(), out)
             } else {
                 names(arg, hidden, out)

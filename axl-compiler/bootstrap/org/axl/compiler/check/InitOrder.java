@@ -63,6 +63,8 @@ import org.axl.compiler.ast.Stmt;
                 final var later = firstProperty(properties.subList(i, properties.size()), read);
                 if (later != null) {
                     problems.add(new PropertyProblem(properties.get(i), later));
+                } else if (read.contains("this") && i + 1 < properties.size()) {
+                    problems.add(new PropertyProblem(properties.get(i), "this"));
                 }
             }
             i += 1;
@@ -103,7 +105,11 @@ import org.axl.compiler.ast.Stmt;
                 arguments(expr$4.args(), hidden, out);
             }
             case Expr.MethodRef expr$5 -> {
-                names(expr$5.target(), hidden, out);
+                if (isThis(expr$5.target())) {
+                    function(expr$5.name(), out);
+                } else {
+                    names(expr$5.target(), hidden, out);
+                }
             }
             case Expr.NotNull expr$6 -> {
                 names(expr$6.target(), hidden, out);
@@ -261,7 +267,7 @@ import org.axl.compiler.ast.Stmt;
             final var inner = unparenthesized(arg);
             if (inner instanceof Expr.Lambda inner$1) {
                 lambdaBody(inner$1, hidden, out);
-            } else if (inner instanceof Expr.MethodRef inner$2 && isThisClass(inner$2.target())) {
+            } else if (inner instanceof Expr.MethodRef inner$2 && (isThisClass(inner$2.target()) || isThis(inner$2.target()))) {
                 function(inner$2.name(), out);
             } else {
                 names(arg, hidden, out);

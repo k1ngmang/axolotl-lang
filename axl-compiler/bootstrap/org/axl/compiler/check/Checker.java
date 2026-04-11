@@ -254,6 +254,13 @@ import org.axl.compiler.ast.TypeRef;
                     "` for the value of the file");
             return;
         }
+        if (later.equals("this")) {
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` passes `this` on before the " +
+                    "properties declared after it are set, so the code it reaches may read them as null; declare `" +
+                    property.name() +
+                    "` last, or compute it in a function");
+            return;
+        }
         final var position = (later.equals(property.name()) ? "by itself" : "later");
         error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" + later +
                 "`, which is declared " +

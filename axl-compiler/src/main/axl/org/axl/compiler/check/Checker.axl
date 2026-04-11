@@ -289,6 +289,12 @@ class Checker(val file: SourceFile) {
                 "name means the property; write `" + file.className() + "." + property.name() + "` for the value of the file")
             return
         }
+        if (later.equals("this")) {
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` passes `this` on before the " +
+                "properties declared after it are set, so the code it reaches may read them as null; declare `" +
+                property.name() + "` last, or compute it in a function")
+            return
+        }
         val position = if (later.equals(property.name())) "by itself" else "later"
         error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` is computed from `" + later +
             "`, which is declared " + position + "; properties are set in order, so declare `" + later + "` first")

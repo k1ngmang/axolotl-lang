@@ -13,3 +13,24 @@ class Box(val v: String) {
 
 val box: Box = Box("x")
 val prefix: String = "abc".trim()
+
+class Measured(val x: String) {
+    val n: Int = measure(this)
+    val later: String = x + "!"
+}
+
+fn measure(m: Measured) -> Int = m.later.length()
+
+class Referenced(val x: String) {
+    val n: Int = java.util.List.of(1).stream().mapToInt(this::calc).sum()
+    val later: String = x + "!"
+
+    fn calc(i: Int) -> Int = later.length() + i
+}
+
+class Registered(val x: String) {
+    val first: String = x + "?"
+    val n: Int = measureLast(this)
+}
+
+fn measureLast(r: Registered) -> Int = r.first.length()
