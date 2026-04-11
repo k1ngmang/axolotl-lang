@@ -1,0 +1,2 @@
+AXL016 app/Main.axl:3:23: error: `a` calls `app.Other.get`, and the values of `app.Other` read values of this file; the first file Java starts sees the other's values before they are set, so break the cycle
+AXL016 app/Other.axl:3:22: error: `b` reads `app.Main.a`, and the values of `app.Main` read values of this file; the first file Java starts sees the other's values before they are set, so break the cycle

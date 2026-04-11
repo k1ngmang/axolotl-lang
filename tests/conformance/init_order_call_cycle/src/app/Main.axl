@@ -1,0 +1,7 @@
+package app
+
+val a: String = Other.get()
+
+fn main() {
+    println(Other.b)
+}

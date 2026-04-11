@@ -7,6 +7,7 @@ import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
@@ -40,7 +41,7 @@ final class InitCycles implements TaskListener {
 
     static final String PREFIX = "init order: ";
 
-    /** A static field read or a static function called, and where. */
+    /** A static field read, a static function called or an object of a generated class created, and where. */
     private record Use(Element element, Tree at) {}
 
     /** The initializer of a value, or a static block when value is null. */
@@ -54,6 +55,8 @@ final class InitCycles implements TaskListener {
     // What the static functions of generated classes read and call. Classes are attributed one at a
     // time, so calls are followed only at the end.
     private final Map<ExecutableElement, List<Use>> functions = new HashMap<>();
+    // What creating an object of a class of a generated file reads: its constructors and property initializers.
+    private final Map<TypeElement, List<Use>> constructors = new HashMap<>();
     private final Map<TypeElement, List<Read>> reads = new LinkedHashMap<>();
 
     InitCycles(JavacTask task) {
@@ -74,6 +77,7 @@ final class InitCycles implements TaskListener {
         reportCycles();
         inits.clear();
         functions.clear();
+        constructors.clear();
     }
 
     private void collect(TypeElement type, CompilationUnitTree unit) {
@@ -94,8 +98,24 @@ final class InitCycles implements TaskListener {
             } else if (member instanceof MethodTree method && method.getBody() != null && isStatic
                     && element instanceof ExecutableElement function) {
                 functions.put(function, uses(method.getBody(), unit));
+            } else if (member instanceof ClassTree nested && element instanceof TypeElement nestedType) {
+                constructors.put(nestedType, constructorUses(nested, unit));
             }
         }
+    }
+
+    private List<Use> constructorUses(ClassTree declaration, CompilationUnitTree unit) {
+        List<Use> uses = new ArrayList<>();
+        for (Tree member : declaration.getMembers()) {
+            if (member instanceof VariableTree field && field.getInitializer() != null
+                    && !field.getModifiers().getFlags().contains(Modifier.STATIC)) {
+                uses.addAll(uses(field.getInitializer(), unit));
+            } else if (member instanceof MethodTree method && method.getBody() != null
+                    && method.getName().contentEquals("<init>")) {
+                uses.addAll(uses(method.getBody(), unit));
+            }
+        }
+        return uses;
     }
 
     private List<Use> uses(Tree tree, CompilationUnitTree unit) {
@@ -112,6 +132,15 @@ final class InitCycles implements TaskListener {
             public Void visitMemberSelect(MemberSelectTree select, Void unused) {
                 record(select);
                 return super.visitMemberSelect(select, unused);
+            }
+
+            @Override
+            public Void visitNewClass(NewClassTree creation, Void unused) {
+                if (trees.getElement(new TreePath(unitPath, creation)) instanceof ExecutableElement constructor
+                        && constructor.getEnclosingElement() instanceof TypeElement created) {
+                    uses.add(new Use(created, creation));
+                }
+                return super.visitNewClass(creation, unused);
             }
 
             @Override
@@ -153,22 +182,37 @@ final class InitCycles implements TaskListener {
         if (used instanceof ExecutableElement function) {
             if (functions.containsKey(function) && followed.add(function)) {
                 boolean fromOtherFile = otherFile || !owner.equals(init.type());
+                // Calling a function of another file starts that class, which sets its values.
+                if (!owner.equals(init.type())) {
+                    reads.get(init.type()).add(new Read(init.type(), valueName(init), function, at, init.unit()));
+                }
                 functions.get(function).forEach(u -> follow(init, u.element(), at, fromOtherFile, followed));
             }
             return;
         }
-        String value = init.value() == null ? null : init.value().getSimpleName().toString();
+        if (used instanceof TypeElement created) {
+            if (constructors.containsKey(created) && followed.add(created)) {
+                boolean fromOtherFile = otherFile || !owner.equals(init.type());
+                constructors.get(created).forEach(u -> follow(init, u.element(), at, fromOtherFile, followed));
+            }
+            return;
+        }
+        String value = valueName(init);
         if (!owner.equals(init.type())) {
             reads.get(init.type()).add(new Read(init.type(), value, used, at, init.unit()));
         } else if (otherFile && value != null && !declaredBefore(used, init.value())) {
             // Reads within the file, also through its own functions, are checked by the translator.
             String name = used.getSimpleName().toString();
             String message = used.equals(init.value())
-                    ? "`" + value + "` reads itself through a function of another file, before it is set; compute it without that read"
-                    : "`" + value + "` is computed from `" + name + "` through a function of another file, and `" + name
+                    ? "`" + value + "` reads itself through code of another file, before it is set; compute it without that read"
+                    : "`" + value + "` is computed from `" + name + "` through code of another file, and `" + name
                     + "` is declared later; top-level values are set in order, so declare `" + name + "` first";
             trees.printMessage(Diagnostic.Kind.ERROR, PREFIX + message, at, init.unit());
         }
+    }
+
+    private static String valueName(Init init) {
+        return init.value() == null ? null : init.value().getSimpleName().toString();
     }
 
     private static boolean declaredBefore(Element field, VariableElement value) {
@@ -181,7 +225,8 @@ final class InitCycles implements TaskListener {
             for (Read read : list) {
                 TypeElement other = (TypeElement) read.read().getEnclosingElement();
                 if (read.value() != null && reads.containsKey(other) && reaches(other, read.reader(), new HashSet<>())) {
-                    trees.printMessage(Diagnostic.Kind.ERROR, PREFIX + "`" + read.value() + "` reads `"
+                    String verb = read.read() instanceof ExecutableElement ? "` calls `" : "` reads `";
+                    trees.printMessage(Diagnostic.Kind.ERROR, PREFIX + "`" + read.value() + verb
                             + other.getQualifiedName() + "." + read.read().getSimpleName() + "`, and the values of `"
                             + other.getQualifiedName() + "` read values of this file; the first file Java starts "
                             + "sees the other's values before they are set, so break the cycle", read.at(), read.unit());

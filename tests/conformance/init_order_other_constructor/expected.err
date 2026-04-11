@@ -1,0 +1,1 @@
+AXL016 app/Main.axl:5:16: error: `box` is computed from `prefix` through code of another file, and `prefix` is declared later; top-level values are set in order, so declare `prefix` first

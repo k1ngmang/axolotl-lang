@@ -1,2 +1,2 @@
-AXL016 app/Main.axl:3:29: error: `first` is computed from `name` through a function of another file, and `name` is declared later; top-level values are set in order, so declare `name` first
-AXL016 app/Main.axl:4:35: error: `greeting` reads itself through a function of another file, before it is set; compute it without that read
+AXL016 app/Main.axl:3:29: error: `first` is computed from `name` through code of another file, and `name` is declared later; top-level values are set in order, so declare `name` first
+AXL016 app/Main.axl:4:35: error: `greeting` reads itself through code of another file, before it is set; compute it without that read

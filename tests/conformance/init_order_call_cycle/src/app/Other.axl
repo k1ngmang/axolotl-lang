@@ -1,0 +1,5 @@
+package app
+
+val b: String = Main.a + "x"
+
+fn get() -> String = "q"

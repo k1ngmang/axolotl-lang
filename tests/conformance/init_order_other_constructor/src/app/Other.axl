@@ -1,0 +1,5 @@
+package app
+
+class Box(val name: String) {
+    val label: String = Main.prefix + name
+}

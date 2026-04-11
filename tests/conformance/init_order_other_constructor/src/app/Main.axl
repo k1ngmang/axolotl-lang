@@ -1,0 +1,10 @@
+package app
+
+import app.Other.Box
+
+val box: Box = Box("x")
+val prefix: String = "p-".trim()
+
+fn main() {
+    println(box.label)
+}
