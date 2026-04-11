@@ -26,6 +26,7 @@ import org.axl.compiler.ast.TypeRef;
     public final Set<Expr.Name> mutableRefs;
     public final Set<Expr.Name> stableNames;
     public final Set<Expr.Name> staticNames;
+    public final Set<Expr.Name> fieldNames;
     public final HashSet<String> typeNames;
     public final IdentityHashMap<Expr.When, Boolean> whenResults;
     public int valueWhenDepth;
@@ -48,6 +49,7 @@ import org.axl.compiler.ast.TypeRef;
         this.mutableRefs = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
         this.stableNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
         this.staticNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
+        this.fieldNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
         this.typeNames = new HashSet<String>();
         this.whenResults = new IdentityHashMap<Expr.When, Boolean>();
         this.valueWhenDepth = -1;
@@ -673,6 +675,9 @@ import org.axl.compiler.ast.TypeRef;
         if (symbol.kind() == Kind.MUTABLE_LOCAL) {
             mutableRefs.add(e);
         }
+        if (symbol.kind() == Kind.FIELD || symbol.kind() == Kind.MUTABLE_FIELD) {
+            fieldNames.add(e);
+        }
         if (symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.MUTABLE_FIELD) {
             stableNames.add(e);
         }
@@ -1094,7 +1099,7 @@ import org.axl.compiler.ast.TypeRef;
         checker.run();
         diagnostics.addAll(checker.diagnostics);
         return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
-                checker.mapResultTypes);
+                checker.fieldNames, checker.mapResultTypes);
     }
     private static boolean isNullConstant(Expr.Cond c) {
         final var constant = c.constant();

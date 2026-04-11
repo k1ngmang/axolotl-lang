@@ -97,6 +97,7 @@ class Checker(val file: SourceFile) {
     val mutableRefs: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
     val stableNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
     val staticNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
+    val fieldNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
     val typeNames: HashSet<String> = HashSet<String>()
     // How each `when` is used; one that is not here gives a value.
     val whenResults: IdentityHashMap<Expr.When, Boolean> = IdentityHashMap<Expr.When, Boolean>()
@@ -681,6 +682,9 @@ class Checker(val file: SourceFile) {
         if (symbol.kind() == Kind.MUTABLE_LOCAL) {
             mutableRefs.add(e)
         }
+        if (symbol.kind() == Kind.FIELD || symbol.kind() == Kind.MUTABLE_FIELD) {
+            fieldNames.add(e)
+        }
         if (symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.MUTABLE_FIELD) {
             stableNames.add(e)
         }
@@ -1079,7 +1083,7 @@ fn check(file: SourceFile, diagnostics: List<AxlDiagnostic>) -> Analysis {
     checker.run()
     diagnostics.addAll(checker.diagnostics)
     return Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
-        checker.mapResultTypes)
+        checker.fieldNames, checker.mapResultTypes)
 }
 
 private fn isNullConstant(c: Expr.Cond) -> Boolean {

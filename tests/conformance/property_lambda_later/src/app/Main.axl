@@ -1,0 +1,18 @@
+package app
+
+import java.util.function.Supplier
+
+class Greeting(val name: String) {
+    val size: Supplier<Int> = { -> text.length() }
+    val text: String = "hello " + name
+}
+
+class Plain {
+    val size: Supplier<Int> = { -> text.length() }
+    val text: String = "plain"
+}
+
+fn main() {
+    println(Greeting("ann").size.get())
+    println(Plain().size.get())
+}

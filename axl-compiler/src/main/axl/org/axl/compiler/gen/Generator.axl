@@ -96,6 +96,12 @@ class Generator(
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
 
+    // Whether the initializer of a class property is being emitted.
+    var inPropertyInit: Boolean = false
+
+    // How many lambdas the code being emitted is in.
+    var lambdaDepth: Int = 0
+
     // The values of the branches of the `when` being emitted as a value, for boxedBranch.
     var whenValues: List<Expr> = List.of()
 
@@ -253,7 +259,7 @@ class Generator(
         }
         for (p in classDecl.properties()) {
             resetCounters()
-            val initial = if (inConstructor) "" else " = " + expr(propertyInit(p))
+            val initial = if (inConstructor) "" else " = " + propertyCode({ -> expr(propertyInit(p)) })
             em.line(p.pos().line(), field(p) + initial + ";")
         }
         if (inConstructor) {
@@ -283,10 +289,17 @@ class Generator(
         resetCounters()
         for (p in classDecl.properties()) {
             val stored = nullableType(propertyType(p))
-            em.line(p.pos().line(), "this." + p.name() + " = " + valueCode(p.pos().line(), propertyInit(p), stored) + ";")
+            em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode({ -> valueCode(p.pos().line(), propertyInit(p), stored) }) + ";")
         }
         em.dedent()
         em.line(line, "}")
+    }
+
+    private fn propertyCode(code: Supplier<String>) -> String {
+        inPropertyInit = true
+        val result = code.get()
+        inPropertyInit = false
+        return result
     }
 
     /** A record has a method for each field; a class gets one for each value its interfaces require. */
@@ -1118,6 +1131,12 @@ class Generator(
         if (inLambda && analysis.mutableRefs().contains(n)) {
             return copies.getOrDefault(n.name(), n.name())
         }
+        // Java rejects a lambda that reads a final field before it is set, by its name or through
+        // `this`; a lambda in a property runs later, when it is set.
+        val c = currentClass
+        if (c != null && lambdaDepth > 0 && inPropertyInit && analysis.fieldNames().contains(n)) {
+            return c.name() + ".this." + n.name()
+        }
         return n.name()
     }
 
@@ -1447,6 +1466,13 @@ class Generator(
     }
 
     private fn lambdaCode(l: Expr.Lambda) -> String {
+        lambdaDepth += 1
+        val code = lambdaCodeIn(l)
+        lambdaDepth -= 1
+        return code
+    }
+
+    private fn lambdaCodeIn(l: Expr.Lambda) -> String {
         val params = lambdaParams(l)
         val body = l.body()
         val outerCopies = copies

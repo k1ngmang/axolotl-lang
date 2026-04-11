@@ -55,6 +55,8 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
     public String elseLabel;
+    public boolean inPropertyInit;
+    public int lambdaDepth;
     public List<Expr> whenValues;
     public int tempCount;
     public int nullCount;
@@ -80,6 +82,8 @@ import org.axl.compiler.check.Whens;
         this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
         this.elseLabel = "default";
+        this.inPropertyInit = false;
+        this.lambdaDepth = 0;
         this.whenValues = List.of();
         this.tempCount = 0;
         this.nullCount = 0;
@@ -229,7 +233,7 @@ import org.axl.compiler.check.Whens;
         }
         for (final var p : classDecl.properties()) {
             resetCounters();
-            final var initial = (inConstructor ? "" : " = " + expr(propertyInit(p)));
+            final var initial = (inConstructor ? "" : " = " + propertyCode(() -> expr(propertyInit(p))));
             em.line(p.pos().line(), field(p) + initial + ";");
         }
         if (inConstructor) {
@@ -257,10 +261,16 @@ import org.axl.compiler.check.Whens;
         resetCounters();
         for (final var p : classDecl.properties()) {
             final var stored = nullableType(propertyType(p));
-            em.line(p.pos().line(), "this." + p.name() + " = " + valueCode(p.pos().line(), propertyInit(p), stored) + ";");
+            em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode(() -> valueCode(p.pos().line(), propertyInit(p), stored)) + ";");
         }
         em.dedent();
         em.line(line, "}");
+    }
+    private String propertyCode(Supplier<String> code) {
+        inPropertyInit = true;
+        final var result = code.get();
+        inPropertyInit = false;
+        return result;
     }
     private void emitAccessors(Decl.ClassDecl classDecl) {
         final var written = new HashSet<String>();
@@ -1026,6 +1036,10 @@ import org.axl.compiler.check.Whens;
         if (inLambda && analysis.mutableRefs().contains(n)) {
             return copies.getOrDefault(n.name(), n.name());
         }
+        final var c = currentClass;
+        if (c != null && lambdaDepth > 0 && inPropertyInit && analysis.fieldNames().contains(n)) {
+            return c.name() + ".this." + n.name();
+        }
         return n.name();
     }
     private String callExpr(Expr.Call c, boolean inLambda) {
@@ -1295,6 +1309,12 @@ import org.axl.compiler.check.Whens;
         return exprIn(arg, inLambda);
     }
     private String lambdaCode(Expr.Lambda l) {
+        lambdaDepth += 1;
+        final var code = lambdaCodeIn(l);
+        lambdaDepth -= 1;
+        return code;
+    }
+    private String lambdaCodeIn(Expr.Lambda l) {
         final var params = lambdaParams(l);
         final var body = l.body();
         final var outerCopies = copies;

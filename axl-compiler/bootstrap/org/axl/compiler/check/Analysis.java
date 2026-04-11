@@ -11,5 +11,6 @@ import org.axl.compiler.ast.TypeRef;
         Set<Expr.Lambda> implicitIt,
         Set<Expr.Name> stableNames,
         Set<Expr.Name> staticNames,
+        Set<Expr.Name> fieldNames,
         Map<Expr.Stage, TypeRef> mapResultTypes) {
 }

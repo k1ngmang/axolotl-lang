@@ -13,6 +13,7 @@ import org.axl.compiler.ast.TypeRef
  * stableNames: references to locals, parameters and top-level values of the file, which no call can
  * change while an expression is evaluated.
  * staticNames: references that are not Axolotl declarations: Java classes and packages.
+ * fieldNames: references to the parameters and properties of a class.
  * mapResultTypes: element type of the list each `mapResult` stage builds.
  */
 data class Analysis(
@@ -20,5 +21,6 @@ data class Analysis(
     val implicitIt: Set<Expr.Lambda>,
     val stableNames: Set<Expr.Name>,
     val staticNames: Set<Expr.Name>,
+    val fieldNames: Set<Expr.Name>,
     val mapResultTypes: Map<Expr.Stage, TypeRef>
 )
