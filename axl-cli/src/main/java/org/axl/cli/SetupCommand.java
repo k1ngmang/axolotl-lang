@@ -17,7 +17,8 @@ import picocli.CommandLine.Option;
         "Maven and Gradle projects then find the ones that come with this axl."})
 final class SetupCommand implements Callable<Integer> {
 
-    @Option(names = "--repository", description = "The local Maven repository (default: ~/.m2/repository).")
+    @Option(names = "--repository", description = "The local Maven repository (default: -Dmaven.repo.local in MAVEN_OPTS,"
+            + " the localRepository of ~/.m2/settings.xml, or ~/.m2/repository).")
     @Nullable Path repository;
 
     @Override
@@ -28,7 +29,7 @@ final class SetupCommand implements Callable<Integer> {
                     + " ./gradlew publishToMavenLocal in the Axolotl repository");
             return 1;
         }
-        Path target = repository != null ? repository : Path.of(System.getProperty("user.home"), ".m2", "repository");
+        Path target = repository != null ? repository : LocalRepository.find();
         int count = copy(bundled, target);
         System.out.println("Installed " + count + " files of Axolotl into " + target);
         System.out.println("Maven projects can now use org.axl:axl-maven-plugin; Gradle projects the plugin");
