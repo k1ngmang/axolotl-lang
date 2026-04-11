@@ -18,7 +18,8 @@ final class Paths {
         if (Files.isDirectory(dir)) {
             return true;
         }
-        System.err.println("axl: " + (Files.exists(dir) ? "not a directory: " : "no such directory: ") + dir);
+        String problem = Files.exists(dir) ? "not a directory: " : "no such directory: ";
+        System.err.println(Main.withEncodingHint("axl: " + problem + dir, dir.toString()));
         return false;
     }
 

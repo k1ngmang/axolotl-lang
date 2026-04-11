@@ -1,5 +1,6 @@
 package org.axl.cli;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.InvalidPathException;
@@ -40,7 +41,8 @@ public final class Main {
             if (!(cause instanceof IOException)) {
                 throw e;
             }
-            cl.getErr().println("axl: " + (cause instanceof NoSuchFileException ? "no such file: " : "") + cause.getMessage());
+            String message = cause instanceof NoSuchFileException ? "no such file: " + cause.getMessage() : cause.getMessage();
+            cl.getErr().println(withEncodingHint("axl: " + message, String.valueOf(cause.getMessage())));
             return 2;
         });
         return commandLine;
@@ -58,10 +60,29 @@ public final class Main {
     /** Usually a non-ASCII file name under a locale whose encoding cannot represent it. */
     static String invalidPathMessage(InvalidPathException e) {
         String message = "axl: invalid path: " + e.getReason();
-        String encoding = System.getProperty("sun.jnu.encoding", "");
-        if (!encoding.equalsIgnoreCase("UTF-8")) {
-            message += " (file names are read as " + encoding + "; a UTF-8 locale such as LANG=C.UTF-8 avoids this)";
-        }
-        return message;
+        return nonUtf8FileNames() ? message + encodingHint() : message;
+    }
+
+    /**
+     * Adds the hint of {@link #invalidPathMessage} when the path or the working directory has characters
+     * that the locale's encoding may have garbled: under LANG=C a non-ASCII directory reads as `??`,
+     * and every relative path in it is then "missing".
+     */
+    static String withEncodingHint(String message, String path) {
+        boolean suspicious = mayBeGarbled(path) || mayBeGarbled(System.getProperty("user.dir", ""));
+        return suspicious && nonUtf8FileNames() && File.separatorChar == '/' ? message + encodingHint() : message;
+    }
+
+    private static boolean mayBeGarbled(String text) {
+        return text.chars().anyMatch(c -> c > 127 || c == '?');
+    }
+
+    private static boolean nonUtf8FileNames() {
+        return !System.getProperty("sun.jnu.encoding", "").equalsIgnoreCase("UTF-8");
+    }
+
+    private static String encodingHint() {
+        return " (file names are read as " + System.getProperty("sun.jnu.encoding")
+                + "; a UTF-8 locale such as LANG=C.UTF-8 avoids this)";
     }
 }

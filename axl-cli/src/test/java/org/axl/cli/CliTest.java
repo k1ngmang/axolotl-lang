@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -64,6 +65,19 @@ class CliTest {
         assertTrue(Files.notExists(finished));
         WorkDirectories.create(WorkDirectories.RUN);
         assertTrue(Files.exists(running));
+    }
+
+    @Test
+    void missingFilesWithGarbledNamesGetTheLocaleHint() {
+        String encoding = System.getProperty("sun.jnu.encoding");
+        System.setProperty("sun.jnu.encoding", "ANSI_X3.4-1968");
+        try {
+            String message = Main.withEncodingHint("axl: no such file: ??n??/A.axl", "??n??/A.axl");
+            assertEquals(File.separatorChar == '/', message.contains("LANG=C.UTF-8"), message);
+        } finally {
+            System.setProperty("sun.jnu.encoding", encoding);
+        }
+        assertEquals("axl: no such file: A.axl", Main.withEncodingHint("axl: no such file: A.axl", "A.axl"));
     }
 
     @Test

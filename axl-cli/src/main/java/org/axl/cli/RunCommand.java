@@ -47,7 +47,7 @@ final class RunCommand implements Callable<Integer> {
     @Override
     public Integer call() throws Exception {
         if (!Files.isRegularFile(file)) {
-            System.err.println("axl: no such file: " + file);
+            System.err.println(Main.withEncodingHint("axl: no such file: " + file, file.toString()));
             return 2;
         }
         if (!file.getFileName().toString().endsWith(".axl")) {
