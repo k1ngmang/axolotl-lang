@@ -11,7 +11,7 @@ plugins into `~/.m2/repository`. Maven and Gradle projects then build without an
 | Windows | `axolotl-<version>-windows-x64-setup.exe` | Run it. Open a new terminal afterwards so that it sees the new `PATH`. |
 | macOS (Apple silicon) | `axolotl-<version>-macos-arm64.pkg` | Open it. The package is not signed: if macOS refuses, right-click it and choose *Open*. |
 | Debian, Ubuntu | `axolotl-<version>-linux-amd64.deb` | `sudo apt install ./axolotl-<version>-linux-amd64.deb` |
-| Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root. |
+| Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root, or into the directory `AXL_HOME` names. |
 
 Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another
 user. It follows a `localRepository` in `~/.m2/settings.xml` and a `-Dmaven.repo.local` in
