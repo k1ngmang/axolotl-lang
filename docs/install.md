@@ -14,7 +14,8 @@ plugins into `~/.m2/repository`. Maven and Gradle projects then build without an
 | Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root. |
 
 Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another
-user. Maven and Gradle themselves still need a JDK 21 of their own.
+user. Maven and Gradle themselves still need a JDK 21 of their own. The bundled runtime leaves out
+the desktop modules (AWT, Swing), so programs that `axl run` starts cannot open windows.
 
 To remove it: Windows lists Axolotl under *Installed apps*; on Debian and Ubuntu run
 `sudo apt remove axolotl`; on macOS delete `/Applications/axl.app` and `/usr/local/bin/axl`; after the

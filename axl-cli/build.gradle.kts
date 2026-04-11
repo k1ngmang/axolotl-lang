@@ -144,8 +144,13 @@ val jpackageTool = javaToolchains.launcherFor { languageVersion = JavaLanguageVe
     .map { it.metadata.installationPath.file(if (windows) "bin/jpackage.exe" else "bin/jpackage").asFile.path }
 
 // javac runs inside axl, so the runtime needs jdk.compiler; the program that `axl run` starts uses the rest.
+// These are the modules of java.se without java.desktop, whose native libraries need X11, ALSA and
+// fonts, which a command-line compiler should not pull onto a server.
 val runtimeModules = listOf(
-    "java.se", "jdk.compiler", "jdk.unsupported", "jdk.zipfs", "jdk.crypto.ec", "jdk.charsets",
+    "java.compiler", "java.datatransfer", "java.instrument", "java.logging", "java.management",
+    "java.management.rmi", "java.naming", "java.net.http", "java.prefs", "java.rmi", "java.scripting",
+    "java.security.jgss", "java.security.sasl", "java.sql", "java.sql.rowset", "java.transaction.xa",
+    "java.xml", "java.xml.crypto", "jdk.compiler", "jdk.unsupported", "jdk.zipfs", "jdk.crypto.ec", "jdk.charsets",
     "jdk.localedata", "jdk.management", "jdk.jdi", "jdk.jfr", "jdk.net", "jdk.httpserver",
 )
 
