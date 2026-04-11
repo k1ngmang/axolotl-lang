@@ -125,6 +125,16 @@ val bundledRepository = tasks.register<Sync>("bundledRepository") {
     into(layout.buildDirectory.dir("bundled/repository"))
 }
 
+// The released archives carry the repository next to lib, for `axl setup`. installDist leaves it out:
+// from source, publishToMavenLocal installs the same artifacts.
+listOf(tasks.distZip, tasks.distTar).forEach { archive ->
+    archive.configure {
+        into("axl-${project.version}/repository") {
+            from(bundledRepository)
+        }
+    }
+}
+
 // Only jars: jpackage puts every jar under --input on axl's class path, which the programs that
 // `axl run` starts inherit.
 val jpackageInput = tasks.register<Sync>("jpackageInput") {
