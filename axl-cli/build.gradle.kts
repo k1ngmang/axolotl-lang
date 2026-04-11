@@ -146,10 +146,15 @@ val jpackageInput = tasks.register<Sync>("jpackageInput") {
 
 val windows = System.getProperty("os.name").startsWith("Windows")
 
-// macOS requires the first number of a bundle version to be at least 1, so 0.x.y is packaged as 1.x.y
-// there; `axl --version` and the installer's file name keep the real version.
-fun packageVersion(version: String): String =
-    if (System.getProperty("os.name").startsWith("Mac") && version.startsWith("0.")) "1." + version.removePrefix("0.") else version
+// macOS requires the first number of a bundle version to be at least 1, so the major version is one
+// higher there (see docs/decisions.md); `axl --version` and the installer's file name keep the real one.
+fun packageVersion(version: String): String {
+    if (!System.getProperty("os.name").startsWith("Mac")) {
+        return version
+    }
+    val major = version.substringBefore('.')
+    return "${major.toInt() + 1}." + version.substringAfter('.')
+}
 val jpackageTool = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(21) }
     .map { it.metadata.installationPath.file(if (windows) "bin/jpackage.exe" else "bin/jpackage").asFile.path }
 
