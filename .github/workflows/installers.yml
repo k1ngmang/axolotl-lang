@@ -4,6 +4,14 @@ name: Installers
 on:
   workflow_dispatch:
   workflow_call:
+  pull_request:
+    paths:
+      - installers/**
+      - axl-cli/**
+      - .github/workflows/installers.yml
+
+permissions:
+  contents: read
 
 jobs:
   installer:
@@ -33,6 +41,15 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           cache-provider: basic
+      # The bundled repository builds the Maven plugin and the archetype with their own local repository.
+      - uses: actions/cache@v6
+        with:
+          path: |
+            build/maven-repo
+            !build/maven-repo/org/axl
+            ~/.m2/wrapper
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml', 'axl-maven-plugin/.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: maven-${{ runner.os }}-
       - name: Write the program the installed axl runs
         run: |
           mkdir -p "$RUNNER_TEMP/smoke"
