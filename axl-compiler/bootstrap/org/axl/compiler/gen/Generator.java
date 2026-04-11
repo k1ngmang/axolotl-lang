@@ -658,7 +658,7 @@ import org.axl.compiler.check.Whens;
         final var narrowedName = Nulls.or(bindingName, () -> narrowableName(withoutParens(w.subject())));
         final var whole = nameBinding(bindingName, subjectCode);
         final var mayBeNull = subjectType != null && subjectType.nullable();
-        final var selector = (byIndex ? armIndex(subjectCode, w, mayBeNull) : subjectCode);
+        final var selector = (byIndex ? armIndex(subjectCode, w, mayBeNull) : (boxesSubject(w, subjectType) ? "Nulls.box(" + subjectCode + ")" : subjectCode));
         em.line(line, head + "switch (" + selector + ") {");
         em.indent();
         final var outerValues = whenValues;
@@ -679,6 +679,8 @@ import org.axl.compiler.check.Whens;
         subjectTypeOf = outerSubject;
         if (form == WhenForm.RESULT && needsUnreachableDefault(w)) {
             em.line(w.end().line(), "default -> throw new IllegalStateException();");
+        } else if (form == WhenForm.STATEMENT && !byIndex && hasNullArm(w) && needsUnreachableDefault(w)) {
+            em.line(w.end().line(), "default -> {}");
         }
         em.dedent();
         em.line(w.end().line(), (form == WhenForm.VALUE ? "};" : "}"));
@@ -734,14 +736,14 @@ import org.axl.compiler.check.Whens;
         if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
             return "default";
         }
-        if (subjectType == null && !testsObjects(w)) {
-            return "default";
-        }
         if (subjectType == null) {
             return "case null, default";
         }
         final var covered = w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> testsType(c, subjectType)));
         return (covered ? "case null" : "case null, default");
+    }
+    private boolean boxesSubject(Expr.When w, @Nullable TypeRef subjectType) {
+        return subjectType == null && !testsObjects(w) && !hasNullArm(w) && !switchesByIndex(w, subjectType);
     }
     private boolean hasNullArm(Expr.When w) {
         return nullArmIndex(w) >= 0;

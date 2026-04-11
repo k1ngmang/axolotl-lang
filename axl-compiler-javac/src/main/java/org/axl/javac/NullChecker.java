@@ -436,7 +436,9 @@ final class NullChecker implements TaskListener {
         private Void cases(ExpressionTree selector, List<? extends CaseTree> cases) {
             scan(selector, null);
             // NullAway checks the selector, but not for values from Java code without annotations.
-            report(selector, origin(selector), true, describe(selector) + ", but `when` needs a value to test; " + FIX);
+            if (!takesNull(cases)) {
+                report(selector, origin(selector), true, describe(selector) + ", but `when` needs a value to test; " + FIX);
+            }
             Map<Element, Origin> entry = new HashMap<>(state);
             boolean hasDefault = cases.stream().anyMatch(c -> c.getLabels().stream().anyMatch(l -> l instanceof DefaultCaseLabelTree));
             Map<Element, Origin> result = hasDefault ? null : entry;
@@ -450,6 +452,11 @@ final class NullChecker implements TaskListener {
             }
             state = result == null ? entry : result;
             return null;
+        }
+
+        private static boolean takesNull(List<? extends CaseTree> cases) {
+            return cases.stream().flatMap(c -> c.getExpressions().stream())
+                    .anyMatch(e -> e.getKind() == Tree.Kind.NULL_LITERAL);
         }
 
         @Override

@@ -1,2 +1,1 @@
-AXL104 app/Main.axl:5:33: error: the result of `getenv()` comes from Java code without nullness annotations and may be null, but `when` needs a value to test; use `?.`, `?:`, a null check or `!!`
 AXL104 app/Main.axl:11:34: error: the result of `list()` comes from Java code without nullness annotations and may be null, but `for` needs something to go through; use `?.`, `?:`, a null check or `!!`

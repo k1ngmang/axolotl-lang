@@ -1,0 +1,38 @@
+package app
+
+import java.util.HashMap
+
+enum Color { RED, GREEN, BLUE }
+
+fn color(c: Color?) {
+    when (c) {
+        Color.RED -> println("red")
+        null -> println("no color")
+    }
+}
+
+fn word(x: String?) {
+    when (x) {
+        "a" -> println("A")
+        null -> println("no word")
+    }
+}
+
+fn main() {
+    val counts = HashMap<String, Int>()
+    counts.put("one", 1)
+    val r = when (counts.get("x")) {
+        1 -> "one"
+        else -> "other"
+    }
+    println(r)
+    when (counts.get("one")) {
+        1 -> println("one")
+        else -> println("other")
+    }
+    color(null)
+    color(Color.BLUE)
+    color(Color.RED)
+    word(null)
+    word("b")
+}

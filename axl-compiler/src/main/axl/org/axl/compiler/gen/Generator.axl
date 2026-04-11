@@ -720,7 +720,7 @@ class Generator(
         val narrowedName = bindingName ?: narrowableName(withoutParens(w.subject()))
         val whole = nameBinding(bindingName, subjectCode)
         val mayBeNull = subjectType != null && subjectType.nullable()
-        val selector = if (byIndex) armIndex(subjectCode, w, mayBeNull) else subjectCode
+        val selector = if (byIndex) armIndex(subjectCode, w, mayBeNull) else if (boxesSubject(w, subjectType)) "Nulls.box(" + subjectCode + ")" else subjectCode
         em.line(line, head + "switch (" + selector + ") {")
         em.indent()
         val outerValues = whenValues
@@ -742,6 +742,9 @@ class Generator(
         if (form == WhenForm.RESULT && needsUnreachableDefault(w)) {
             // The checker found the constants to be all those of an enum, which a switch statement does not see.
             em.line(w.end().line(), "default -> throw new IllegalStateException();")
+        } else if (form == WhenForm.STATEMENT && !byIndex && hasNullArm(w) && needsUnreachableDefault(w)) {
+            // Java wants a switch with `case null` to cover every value, which a statement `when` need not.
+            em.line(w.end().line(), "default -> {}")
         }
         em.dedent()
         em.line(w.end().line(), if (form == WhenForm.VALUE) "};" else "}")
@@ -811,11 +814,6 @@ class Generator(
         if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
             return "default"
         }
-        // Without a written type the subject may be a primitive, which `case null` does not compile for;
-        // type tests, strings and enum constants need an object.
-        if (subjectType == null && !testsObjects(w)) {
-            return "default"
-        }
         if (subjectType == null) {
             return "case null, default"
         }
@@ -823,6 +821,13 @@ class Generator(
         val covered = w.arms() |> anyMatch { a -> a.conditions() |> anyMatch { c -> testsType(c, subjectType) } }
         return if (covered) "case null" else "case null, default"
     }
+
+    /**
+     * Without a written type the subject may be a primitive, which `case null` does not compile for;
+     * boxing it lets null go to `else`. Type tests, strings and enum constants need an object anyway.
+     */
+    private fn boxesSubject(w: Expr.When, subjectType: TypeRef?) -> Boolean =
+        subjectType == null && !testsObjects(w) && !hasNullArm(w) && !switchesByIndex(w, subjectType)
 
     /** A `null ->` branch already takes null, which Java allows only once. */
     private fn hasNullArm(w: Expr.When) -> Boolean = nullArmIndex(w) >= 0

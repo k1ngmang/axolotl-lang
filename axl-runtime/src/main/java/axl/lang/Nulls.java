@@ -22,6 +22,9 @@ import org.jspecify.annotations.Nullable;
     // `c ? a : b` with an Integer `a` and a Long `b` unboxes both; converting `a` first keeps a null.
     public static @Nullable Long toLong(@Nullable Number a) { return a == null ? null : a.longValue(); }
     public static @Nullable Double toDouble(@Nullable Number a) { return a == null ? null : a.doubleValue(); }
+    // A `when` subject of a type the translator does not know: an int becomes an Integer, which a
+    // switch with `case null` takes.
+    public static <T extends @Nullable Object> T box(T a) { return a; }
     // Stream.map takes a JDK Function, whose result NullAway does not check either: a pipe's map
     // stage must not put nulls into a List<T>.
     @FunctionalInterface public interface NonNullFunction<T extends @Nullable Object, R> { R apply(T value); }
