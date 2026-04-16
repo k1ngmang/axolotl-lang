@@ -29,6 +29,7 @@ import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
 import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.services.LanguageClient;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -113,6 +114,11 @@ class WorkspaceTest {
         Files.createDirectories(project.resolve("src/main/axl/app"));
         workspace.connect(new Client());
         workspace.open(List.of(project));
+    }
+
+    @AfterEach
+    void stop() {
+        workspace.close();
     }
 
     private String open(String name, String text) throws Exception {
@@ -442,6 +448,27 @@ class WorkspaceTest {
             Thread.sleep(20);
         }
         assertEquals(List.of(3), errorLines(uri));
+    }
+
+    @Test
+    void deletesItsTemporaryDirectoriesOnClose() throws Exception {
+        Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+        List<Path> before = temporaryDirectories(tmp);
+        Workspace other = new Workspace();
+        other.open(List.of(project));
+        Path file = Files.writeString(project.resolve("src/main/axl/app/Main.axl"), "package app\n");
+        other.update(file.toUri().toString(), "package app\n");
+        List<Path> created = temporaryDirectories(tmp).stream().filter(p -> !before.contains(p)).toList();
+        assertFalse(created.isEmpty());
+
+        other.close();
+        assertTrue(created.stream().noneMatch(Files::exists), created.toString());
+    }
+
+    private static List<Path> temporaryDirectories(Path tmp) throws Exception {
+        try (var files = Files.list(tmp)) {
+            return files.filter(p -> p.getFileName().toString().startsWith("axl-lsp")).toList();
+        }
     }
 
     @Test

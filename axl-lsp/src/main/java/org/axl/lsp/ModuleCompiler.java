@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -86,7 +87,21 @@ final class ModuleCompiler {
         return result;
     }
 
+    /** Deletes the work directory. */
+    void close() {
+        try {
+            delete(work);
+        } catch (IOException | UncheckedIOException e) {
+            // A temporary directory left behind does no harm.
+        }
+    }
+
     private static Path clean(Path dir) throws IOException {
+        delete(dir);
+        return Files.createDirectories(dir);
+    }
+
+    static void delete(Path dir) throws IOException {
         if (Files.exists(dir)) {
             try (Stream<Path> walk = Files.walk(dir)) {
                 for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
@@ -94,7 +109,6 @@ final class ModuleCompiler {
                 }
             }
         }
-        return Files.createDirectories(dir);
     }
 
     private static List<Path> javaFiles(Module module) throws IOException {

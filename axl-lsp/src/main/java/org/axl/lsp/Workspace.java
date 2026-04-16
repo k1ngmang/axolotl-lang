@@ -97,6 +97,7 @@ final class Workspace {
 
     void open(List<Path> roots) throws IOException {
         project = ProjectModel.discover(roots);
+        deleteTemporaryFiles();
         compiler = new ModuleCompiler();
         drafts.clear();
         draftFiles.clear();
@@ -117,6 +118,20 @@ final class Workspace {
     void close() {
         compiles.shutdown();
         executor.shutdown();
+        deleteTemporaryFiles();
+    }
+
+    private void deleteTemporaryFiles() {
+        if (compiler != null) {
+            compiler.close();
+        }
+        for (Path dir : drafts.values()) {
+            try {
+                ModuleCompiler.delete(dir);
+            } catch (IOException | UncheckedIOException e) {
+                // A temporary directory left behind does no harm.
+            }
+        }
     }
 
     void update(String uri, String text) {
