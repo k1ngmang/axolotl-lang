@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonParseException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
@@ -29,19 +30,27 @@ final class ProjectModel {
     }
 
     private final List<Module> modules;
+    private final List<String> problems;
 
-    private ProjectModel(List<Module> modules) {
+    private ProjectModel(List<Module> modules, List<String> problems) {
         this.modules = modules;
+        this.problems = problems;
     }
 
+    /** A description that cannot be read is skipped, so that one stray file does not stop the others. */
     static ProjectModel discover(List<Path> workspaceRoots) {
         List<Module> modules = new ArrayList<>();
+        List<String> problems = new ArrayList<>();
         for (Path root : workspaceRoots) {
             try (Stream<Path> files = Files.walk(root)) {
                 List<Path> found = files.filter(ProjectModel::isCandidate).sorted().toList();
                 for (Path path : found) {
                     if (path.getFileName().toString().equals("axl.json")) {
-                        modules.add(fromConfig(path));
+                        try {
+                            modules.add(fromConfig(path));
+                        } catch (IOException | JsonParseException e) {
+                            problems.add("Ignored " + path + ": " + e.getMessage());
+                        }
                     }
                 }
                 for (Path path : found) {
@@ -55,7 +64,7 @@ final class ProjectModel {
                 throw new UncheckedIOException(e);
             }
         }
-        return new ProjectModel(modules);
+        return new ProjectModel(modules, problems);
     }
 
     private static boolean isCandidate(Path path) {
@@ -74,6 +83,9 @@ final class ProjectModel {
 
     private static Module fromConfig(Path file) throws IOException {
         Config config = new Gson().fromJson(Files.readString(file, StandardCharsets.UTF_8), Config.class);
+        if (config == null) {
+            throw new JsonParseException("no JSON object");
+        }
         Path dir = file.getParent();
         // build/axl/axl.json and target/axl/axl.json describe the project two levels up.
         if (dir.getFileName().toString().equals("axl") && dir.getParent() != null
@@ -109,5 +121,10 @@ final class ProjectModel {
 
     List<Module> modules() {
         return modules;
+    }
+
+    /** Why module descriptions were skipped. */
+    List<String> problems() {
+        return problems;
     }
 }

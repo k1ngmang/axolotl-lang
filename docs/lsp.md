@@ -32,7 +32,8 @@ The server looks for module descriptions in the workspace:
 }
 ```
 
-Relative paths are relative to the module directory. Without a description, every `src/NAME/axl`
+Relative paths are relative to the module directory. A description that is not valid JSON of this
+shape is skipped with a warning. Without a description, every `src/NAME/axl`
 directory is a module with `src/NAME/java` as its Java sources and only the Axolotl runtime on the
 classpath.
 

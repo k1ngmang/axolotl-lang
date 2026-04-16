@@ -29,6 +29,8 @@ import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.javac.Translation;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
+import org.eclipse.lsp4j.MessageParams;
+import org.eclipse.lsp4j.MessageType;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
@@ -91,6 +93,9 @@ final class Workspace {
         drafts.clear();
         draftFiles.clear();
         closedDocuments.clear();
+        if (client != null) {
+            project.problems().forEach(p -> client.showMessage(new MessageParams(MessageType.Warning, p)));
+        }
     }
 
     void publishTranslatorDiagnostics(boolean enabled) {

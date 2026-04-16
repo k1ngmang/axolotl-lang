@@ -3,6 +3,7 @@ package org.axl.lsp;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -28,6 +29,24 @@ class ProjectModelTest {
         assertEquals(List.of(module.resolve("src/main/java")), found.javaRoots());
         assertEquals(List.of(jar), found.classpath());
         assertTrue(found.strictNull());
+    }
+
+    @Test
+    void skipsDescriptionsThatCannotBeRead(@TempDir Path root) throws Exception {
+        Files.createDirectories(root.resolve("c"));
+        Files.writeString(root.resolve("c/axl.json"), "{\"sourceRoots\": [");
+        Files.createDirectories(root.resolve("d/build/axl"));
+        Files.writeString(root.resolve("d/build/axl/axl.json"), "{\"sourceRoots\": \"src/main/axl\"}");
+        Files.createDirectories(root.resolve("e"));
+        Files.writeString(root.resolve("e/axl.json"), "null");
+        Files.createDirectories(root.resolve("good/src/main/axl"));
+        Files.writeString(root.resolve("good/axl.json"), "{\"sourceRoots\": [\"src/main/axl\"]}");
+
+        ProjectModel model = ProjectModel.discover(List.of(root));
+
+        assertEquals(List.of(root.resolve("good/src/main/axl")), model.modules().stream().flatMap(m -> m.axlRoots().stream()).toList());
+        assertEquals(3, model.problems().size(), model.problems().toString());
+        assertTrue(model.problems().getFirst().contains("c" + File.separator + "axl.json"), model.problems().toString());
     }
 
     @Test
