@@ -1,7 +1,9 @@
 package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.PipedInputStream;
@@ -11,6 +13,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import org.eclipse.lsp4j.ClientCapabilities;
@@ -31,6 +34,7 @@ import org.eclipse.lsp4j.MessageActionItem;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
+import org.eclipse.lsp4j.RenameParams;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
 import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent;
@@ -38,7 +42,9 @@ import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceFolder;
+import org.eclipse.lsp4j.jsonrpc.ResponseErrorException;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode;
 import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
@@ -121,7 +127,7 @@ class LanguageServerTest {
         var toClient = new PipedOutputStream();
         var clientIn = new PipedInputStream(toClient, 1 << 16);
         AxlLanguageServer axl = new AxlLanguageServer(exitStatus::complete);
-        var serverLauncher = LSPLauncher.createServerLauncher(axl, serverIn, toClient);
+        var serverLauncher = AxlLanguageServer.launcher(axl, serverIn, toClient);
         axl.connect(serverLauncher.getRemoteProxy());
         serverLauncher.startListening();
         var clientLauncher = LSPLauncher.createClientLauncher(new Client(), clientIn, toServer);
@@ -269,6 +275,14 @@ class LanguageServerTest {
         Object java = server.getWorkspaceService().executeCommand(new ExecuteCommandParams(
                 AxlLanguageServer.SHOW_GENERATED_JAVA, List.of(uri()))).get(30, TimeUnit.SECONDS);
         assertTrue(String.valueOf(java).contains("@NullMarked public final class Main {"), String.valueOf(java));
+    }
+
+    @Test
+    void answersRequestsItDoesNotOfferWithMethodNotFound() throws Exception {
+        var rename = server.getTextDocumentService().rename(new RenameParams(new TextDocumentIdentifier(uri()), new Position(0, 0), "x"));
+        ExecutionException e = assertThrows(ExecutionException.class, () -> rename.get(30, TimeUnit.SECONDS));
+        ResponseErrorException error = assertInstanceOf(ResponseErrorException.class, e.getCause());
+        assertEquals(ResponseErrorCode.MethodNotFound.getValue(), error.getResponseError().getCode());
     }
 
     private List<CompletionItem> complete(int line, int character) throws Exception {

@@ -1,6 +1,8 @@
 package org.axl.lsp;
 
 import com.google.gson.JsonObject;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -24,7 +26,12 @@ import org.eclipse.lsp4j.SetTraceParams;
 import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.TextDocumentSyncOptions;
 import org.eclipse.lsp4j.WorkspaceFolder;
+import org.eclipse.lsp4j.jsonrpc.Launcher;
+import org.eclipse.lsp4j.jsonrpc.RemoteEndpoint;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseError;
+import org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode;
+import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageClientAware;
 import org.eclipse.lsp4j.services.LanguageServer;
@@ -53,6 +60,24 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
     /** exit: ends the process with a status, 0 after `shutdown` and 1 without, as LSP asks. */
     public AxlLanguageServer(IntConsumer exit) {
         this.exit = exit;
+    }
+
+    /**
+     * A launcher over the given streams. Requests the server does not offer, such as rename, get
+     * MethodNotFound, as LSP asks, and not an internal error.
+     */
+    public static Launcher<LanguageClient> launcher(AxlLanguageServer server, InputStream in, OutputStream out) {
+        return new LSPLauncher.Builder<LanguageClient>().setLocalService(server).setRemoteInterface(LanguageClient.class)
+                .setInput(in).setOutput(out).setExceptionHandler(AxlLanguageServer::responseError).create();
+    }
+
+    private static ResponseError responseError(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof UnsupportedOperationException) {
+                return new ResponseError(ResponseErrorCode.MethodNotFound, "not supported", null);
+            }
+        }
+        return RemoteEndpoint.DEFAULT_EXCEPTION_HANDLER.apply(error);
     }
 
     // rootUri is deprecated, but clients without workspace folders still send only that.
