@@ -35,7 +35,8 @@ The server looks for module descriptions in the workspace:
 Relative paths are relative to the module directory. A description that is not valid JSON of this
 shape is skipped with a warning. Without a description, every `src/NAME/axl`
 directory is a module with `src/NAME/java` as its Java sources and only the Axolotl runtime on the
-classpath.
+classpath. Every source set other than `main`, such as `src/test/axl`, also sees `src/main/axl`
+and `src/main/java`, as in Gradle and Maven.
 
 ## VS Code
 

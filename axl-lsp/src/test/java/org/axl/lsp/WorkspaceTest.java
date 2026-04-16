@@ -287,6 +287,20 @@ class WorkspaceTest {
     }
 
     @Test
+    void letsTestsUseTheMainSourcesWithoutADescription() throws Exception {
+        Files.writeString(project.resolve("src/main/axl/app/Util.axl"), "package app\n\nfn twice(x: Int) -> Int = x * 2\n");
+        Path test = Files.createDirectories(project.resolve("src/test/axl/app")).resolve("UtilTest.axl");
+        String text = "package app\n\nfn check() -> Int = Util.twice(2)\n";
+        Files.writeString(test, text);
+        workspace.open(List.of(project));
+        String uri = test.toUri().toString();
+        workspace.update(uri, text);
+        assertEquals(List.of(), workspace.document(uri).diagnostics());
+        workspace.saved(uri);
+        assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
     void hoverTellsLocalsOfTheSameNameApart() throws Exception {
         String uri = open("Main.axl", """
                 package app

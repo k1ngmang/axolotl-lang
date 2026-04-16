@@ -61,6 +61,21 @@ class ProjectModelTest {
     }
 
     @Test
+    void letsOtherSourceSetsOfTheLayoutSeeTheMainOne(@TempDir Path root) throws Exception {
+        Files.createDirectories(root.resolve("src/integrationTest/axl"));
+        Files.createDirectories(root.resolve("src/main/axl"));
+        Files.createDirectories(root.resolve("src/main/java"));
+        ProjectModel model = ProjectModel.discover(List.of(root));
+
+        Module test = model.moduleOf(root.resolve("src/integrationTest/axl/T.axl"), "");
+        Module main = model.moduleOf(root.resolve("src/main/axl/M.axl"), "");
+
+        assertEquals(List.of(root.resolve("src/integrationTest/axl"), root.resolve("src/main/axl")), test.axlRoots());
+        assertEquals(List.of(root.resolve("src/main/java")), test.javaRoots());
+        assertEquals(List.of(root.resolve("src/main/axl")), main.axlRoots());
+    }
+
+    @Test
     void derivesTheRootOfLooseFilesFromTheirPackage(@TempDir Path root) {
         Module found = ProjectModel.discover(List.of(root)).moduleOf(root.resolve("x/app/util/Main.axl"), "app.util");
         assertEquals(List.of(root.resolve("x")), found.axlRoots());

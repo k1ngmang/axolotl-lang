@@ -53,18 +53,29 @@ final class ProjectModel {
                         }
                     }
                 }
-                for (Path path : found) {
-                    if (Files.isDirectory(path) && modules.stream().noneMatch(m -> m.axlRootOf(path) != null)) {
-                        Path java = path.resolveSibling("java");
-                        modules.add(new Module(path.getParent().getParent().getParent(), List.of(path),
-                                Files.isDirectory(java) ? List.of(java) : List.of(), List.of(), false));
-                    }
+                List<Path> guessed = found.stream()
+                        .filter(p -> Files.isDirectory(p) && modules.stream().noneMatch(m -> m.axlRootOf(p) != null)).toList();
+                for (Path path : guessed) {
+                    modules.add(guessedModule(path, guessed));
                 }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
         return new ProjectModel(modules, problems);
+    }
+
+    /** `src/NAME/axl` with `src/NAME/java`; other source sets see `src/main` too, as tests do in Gradle and Maven. */
+    private static Module guessedModule(Path axl, List<Path> guessed) {
+        List<Path> axlRoots = new ArrayList<>(List.of(axl));
+        List<Path> javaRoots = new ArrayList<>(List.of(axl.resolveSibling("java")));
+        Path main = axl.getParent().resolveSibling("main").resolve("axl");
+        if (!main.equals(axl) && guessed.contains(main)) {
+            axlRoots.add(main);
+            javaRoots.add(main.resolveSibling("java"));
+        }
+        javaRoots.removeIf(java -> !Files.isDirectory(java));
+        return new Module(axl.getParent().getParent().getParent(), axlRoots, javaRoots, List.of(), false);
     }
 
     private static boolean isCandidate(Path path) {
@@ -101,8 +112,16 @@ final class ProjectModel {
         return paths == null ? List.of() : paths.stream().map(p -> root.resolve(p).normalize()).toList();
     }
 
-    /** The module of an .axl file; a file outside every module gets a module of its own source root. */
+    /**
+     * The module of an .axl file, the one whose first source root holds it before one that only sees
+     * it; a file outside every module gets a module of its own source root.
+     */
     Module moduleOf(Path file, String packageName) {
+        for (Module module : modules) {
+            if (!module.axlRoots().isEmpty() && file.startsWith(module.axlRoots().getFirst())) {
+                return module;
+            }
+        }
         for (Module module : modules) {
             if (module.axlRootOf(file) != null) {
                 return module;
