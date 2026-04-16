@@ -240,6 +240,53 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesNamesDeclaredEarlierOnTheLineBeingEdited() throws Exception {
+        String text = """
+                package app
+
+                data class Circle(val radius: Double)
+
+                fn main(sh: Any) {
+                    val xs = java.util.List.of(1, 2)
+                    val ys = xs |> map { v -> v }
+                    for (q in xs) { println(q) }
+                    if (sh is Circle) { println(sh) }
+                }
+                """;
+        String uri = open("Main.axl", text);
+        for (String line : List.of("map { v -> v", "println(q", "println(sh")) {
+            workspace.update(uri, text.replace(line, line + "."));
+            int number = text.substring(0, text.indexOf(line)).split("\n", -1).length - 1;
+            int character = workspace.document(uri).lines.get(number).indexOf(line) + line.length() + 1;
+            List<String> names = memberNames(uri, number, character);
+            assertTrue(names.contains(line.endsWith("sh") ? "radius" : "intValue"), line + ": " + names);
+        }
+    }
+
+    @Test
+    void completesInTheScopeOfTheCursorWhenTwoPlacesAreEdited() throws Exception {
+        String text = """
+                package app
+
+                fn first() {
+                    val word = "s"
+                    println(word.length())
+                }
+
+                fn second() {
+                    val xs = java.util.List.of(1, 2)
+                    println(xs.size())
+                }
+                """;
+        String uri = open("Main.axl", text);
+        workspace.update(uri, text.replace("word.length())", "word.length(")
+                .replace("println(xs.size())\n", "println(xs.size())\n    xs.\n"));
+        assertTrue(memberNames(uri, 10, 7).contains("size"), memberNames(uri, 10, 7).toString());
+        List<String> labels = new Completions(workspace).complete(uri, 10, 4).stream().map(CompletionItem::getLabel).toList();
+        assertTrue(labels.contains("xs") && !labels.contains("word"), labels.toString());
+    }
+
+    @Test
     void hoverTellsLocalsOfTheSameNameApart() throws Exception {
         String uri = open("Main.axl", """
                 package app

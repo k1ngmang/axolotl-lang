@@ -75,12 +75,43 @@ final class Completions {
     }
 
     /**
-     * The position in the version that parsed. The line being typed is usually the edited one; the
-     * start of the edit sees the same names.
+     * The position in the version that parsed. The line being typed is usually the edited one: the
+     * start of the edit on its earlier version sees the names declared before it on that line, as
+     * the parameters of a one-line lambda. A new line sees what the end of the line above sees.
      */
     private static Pos positionIn(Document current, Document parsed, int line, int character) {
-        int same = current.sameLineIn(parsed, line);
-        return same >= 0 ? parsed.pos(same, character) : new Pos(current.sharedLeadingLines(parsed) + 1, 1);
+        int[] same = current.linesIn(parsed);
+        if (same[line] >= 0) {
+            return parsed.pos(same[line], character);
+        }
+        int above = line - 1;
+        while (above >= 0 && same[above] < 0) {
+            above--;
+        }
+        int earlier = above < 0 ? line : same[above] + line - above;
+        if (earlier < nextKeptLine(same, line, parsed)) {
+            String was = parsed.lines.get(earlier);
+            return parsed.pos(earlier, Math.min(character, sharedPrefix(current.lines.get(line), was)));
+        }
+        return above < 0 ? new Pos(1, 1) : parsed.pos(same[above], parsed.lines.get(same[above]).length());
+    }
+
+    /** The line of the parsed version that the first unchanged line after a line is. */
+    private static int nextKeptLine(int[] same, int line, Document parsed) {
+        for (int i = line + 1; i < same.length; i++) {
+            if (same[i] >= 0) {
+                return same[i];
+            }
+        }
+        return parsed.lines.size();
+    }
+
+    private static int sharedPrefix(String a, String b) {
+        int length = 0;
+        while (length < a.length() && length < b.length() && a.charAt(length) == b.charAt(length)) {
+            length++;
+        }
+        return length;
     }
 
     /**

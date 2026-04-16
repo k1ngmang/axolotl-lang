@@ -177,17 +177,54 @@ final class Document {
         return new Position(pos.line() - 1, utf16Column(pos.line() - 1, pos.column() - 1));
     }
 
-    /**
-     * The line of another version of this text that a line is: it is in the unchanged lines before
-     * or after the edited ones. -1 for an edited line.
-     */
+    /** The line of another version of this text that a line is; -1 for an edited or inserted line. */
     int sameLineIn(Document other, int line) {
+        return line >= 0 && line < lines.size() ? linesIn(other)[line] : -1;
+    }
+
+    /**
+     * For each line, the line of another version of this text that it is, or -1 for an edited or
+     * inserted line. The unchanged lines between two edits are matched too, unless there are too
+     * many to compare.
+     */
+    int[] linesIn(Document other) {
+        int[] result = new int[lines.size()];
+        Arrays.fill(result, -1);
         int leading = sharedLeadingLines(other);
-        if (line < leading) {
-            return line;
+        int trailing = sharedTrailingLines(other, leading);
+        for (int i = 0; i < leading; i++) {
+            result[i] = i;
         }
-        int fromEnd = lines.size() - line;
-        return fromEnd <= sharedTrailingLines(other, leading) ? other.lines.size() - fromEnd : -1;
+        for (int i = 1; i <= trailing; i++) {
+            result[lines.size() - i] = other.lines.size() - i;
+        }
+        matchMiddle(result, lines.subList(leading, lines.size() - trailing),
+                other.lines.subList(leading, other.lines.size() - trailing), leading);
+        return result;
+    }
+
+    private static final long MAX_DIFF_CELLS = 1_000_000;
+
+    /** Matches the lines of a and b by their longest common subsequence. */
+    private static void matchMiddle(int[] result, List<String> a, List<String> b, int offset) {
+        if (a.isEmpty() || b.isEmpty() || (long) a.size() * b.size() > MAX_DIFF_CELLS) {
+            return;
+        }
+        int[][] common = new int[a.size() + 1][b.size() + 1];
+        for (int i = a.size() - 1; i >= 0; i--) {
+            for (int j = b.size() - 1; j >= 0; j--) {
+                common[i][j] = a.get(i).equals(b.get(j)) ? common[i + 1][j + 1] + 1 : Math.max(common[i + 1][j], common[i][j + 1]);
+            }
+        }
+        for (int i = 0, j = 0; i < a.size() && j < b.size(); ) {
+            if (a.get(i).equals(b.get(j))) {
+                result[offset + i++] = offset + j++;
+            } else if (common[i + 1][j] >= common[i][j + 1]) {
+                i++;
+            } else {
+                j++;
+            }
+        }
     }
 
     /** The number of lines at the start that are the same in both versions. */
