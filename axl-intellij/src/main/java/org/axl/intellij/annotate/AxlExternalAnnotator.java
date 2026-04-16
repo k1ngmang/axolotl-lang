@@ -13,6 +13,7 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.OrderEnumerator;
+import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiElement;
@@ -20,7 +21,9 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.axl.intellij.psi.AxlFile;
@@ -51,9 +54,7 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
         }
         List<String> command = new ArrayList<>(AxlServer.command(module, "org.axl.cli.Main"));
         command.add("check");
-        for (VirtualFile root : ModuleRootManager.getInstance(module).getSourceRoots(false)) {
-            command.add(root.getPath());
-        }
+        command.addAll(sourceRoots(module, virtualFile));
         String classpath = String.join(File.pathSeparator,
                 OrderEnumerator.orderEntries(module).withoutSdk().withoutModuleSourceEntries().recursively().getPathsList().getPathList());
         if (!classpath.isEmpty()) {
@@ -61,6 +62,26 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
             command.add(classpath);
         }
         return new Request(module, virtualFile.getPath(), command);
+    }
+
+    /**
+     * The source roots to check with a file: the production roots of its module, and for a test its
+     * test roots too, with the production roots of the modules it depends on, where Gradle puts
+     * the main sources of a project.
+     */
+    static List<String> sourceRoots(Module module, VirtualFile file) {
+        boolean test = ProjectFileIndex.getInstance(module.getProject()).isInTestSourceContent(file);
+        Set<String> roots = new LinkedHashSet<>();
+        for (VirtualFile root : ModuleRootManager.getInstance(module).getSourceRoots(test)) {
+            roots.add(root.getPath());
+        }
+        if (test) {
+            for (VirtualFile root : OrderEnumerator.orderEntries(module).withoutSdk().withoutLibraries()
+                    .withoutModuleSourceEntries().productionOnly().recursively().sources().getRoots()) {
+                roots.add(root.getPath());
+            }
+        }
+        return new ArrayList<>(roots);
     }
 
     @Override
