@@ -455,8 +455,9 @@ final class Workspace {
     }
 
     /**
-     * The source of a class: an .axl file or a .java file in a Java source root, of the module of the
-     * file asking first, which may be a loose module, then of any module.
+     * The source of a class: an .axl file, which may exist only in the editor, or a .java file in a
+     * Java source root, of the module of the file asking first, which may be a loose module, then of
+     * any module.
      */
     Path sourceOf(Module from, String qualifiedName) {
         String relative = qualifiedName.replace('.', '/');
@@ -465,7 +466,7 @@ final class Workspace {
         for (Module module : modules) {
             for (Path root : module.axlRoots()) {
                 Path axl = root.resolve(relative + ".axl");
-                if (Files.exists(axl)) {
+                if (findOpen(axl) != null || Files.exists(axl)) {
                     return axl;
                 }
             }

@@ -474,6 +474,16 @@ class WorkspaceTest {
     }
 
     @Test
+    void goesToMembersOfATypeWhoseFileIsOnlyInTheEditor() throws Exception {
+        String uri = project.resolve("src/main/axl/app/Counter.axl").toUri().toString();
+        workspace.update(uri, COUNTER);
+        List<Location> found = new Definitions(workspace).definition(uri, 19, 15);
+        assertEquals(List.of(new Position(7, 7)), found.stream().map(l -> l.getRange().getStart()).toList());
+        String hover = new Hovers(workspace).hover(uri, 19, 15).getContents().getRight().getValue();
+        assertTrue(hover.contains("fn next() -> Int"), hover);
+    }
+
+    @Test
     void logsTheFailuresOfNotifications() throws Exception {
         workspace.submitLogged("Opening x", () -> {
             throw new IllegalStateException("broken");
