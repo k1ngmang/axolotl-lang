@@ -43,7 +43,7 @@ final class AxlWorkspaceService implements WorkspaceService {
     @Override
     public void didChangeWatchedFiles(DidChangeWatchedFilesParams params) {
         List<Path> files = params.getChanges().stream().map(change -> Path.of(URI.create(change.getUri()))).toList();
-        workspace.submit(() -> {
+        workspace.submitLogged("Reading changed files", () -> {
             workspace.filesChanged(files);
             return null;
         });

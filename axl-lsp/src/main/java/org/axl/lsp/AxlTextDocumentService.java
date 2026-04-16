@@ -40,7 +40,7 @@ final class AxlTextDocumentService implements TextDocumentService {
 
     @Override
     public void didOpen(DidOpenTextDocumentParams params) {
-        workspace.submit(() -> {
+        workspace.submitLogged("Opening " + params.getTextDocument().getUri(), () -> {
             workspace.update(params.getTextDocument().getUri(), params.getTextDocument().getText());
             workspace.compileLater(params.getTextDocument().getUri(), true);
             return null;
@@ -51,7 +51,7 @@ final class AxlTextDocumentService implements TextDocumentService {
     @Override
     public void didChange(DidChangeTextDocumentParams params) {
         String text = params.getContentChanges().getLast().getText();
-        workspace.submit(() -> {
+        workspace.submitLogged("Changing " + params.getTextDocument().getUri(), () -> {
             workspace.update(params.getTextDocument().getUri(), text);
             return null;
         });
@@ -59,7 +59,7 @@ final class AxlTextDocumentService implements TextDocumentService {
 
     @Override
     public void didSave(DidSaveTextDocumentParams params) {
-        workspace.submit(() -> {
+        workspace.submitLogged("Saving " + params.getTextDocument().getUri(), () -> {
             workspace.compileLater(params.getTextDocument().getUri(), false);
             return null;
         });
@@ -67,7 +67,7 @@ final class AxlTextDocumentService implements TextDocumentService {
 
     @Override
     public void didClose(DidCloseTextDocumentParams params) {
-        workspace.submit(() -> {
+        workspace.submitLogged("Closing " + params.getTextDocument().getUri(), () -> {
             workspace.closeDocument(params.getTextDocument().getUri());
             return null;
         });

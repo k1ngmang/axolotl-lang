@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
@@ -108,6 +109,7 @@ class WorkspaceTest {
 
     private final Workspace workspace = new Workspace();
     private final Map<String, List<Diagnostic>> published = new ConcurrentHashMap<>();
+    private final List<String> logged = new CopyOnWriteArrayList<>();
 
     @BeforeEach
     void start() throws Exception {
@@ -469,6 +471,19 @@ class WorkspaceTest {
         try (var files = Files.list(tmp)) {
             return files.filter(p -> p.getFileName().toString().startsWith("axl-lsp")).toList();
         }
+    }
+
+    @Test
+    void logsTheFailuresOfNotifications() throws Exception {
+        workspace.submitLogged("Opening x", () -> {
+            throw new IllegalStateException("broken");
+        });
+        workspace.submit(() -> null).get(10, TimeUnit.SECONDS);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (logged.isEmpty() && System.nanoTime() < deadline) {
+            Thread.sleep(10);
+        }
+        assertTrue(logged.getFirst().startsWith("Opening x failed") && logged.getFirst().contains("broken"), logged.toString());
     }
 
     @Test
@@ -844,6 +859,7 @@ class WorkspaceTest {
 
         @Override
         public void logMessage(MessageParams params) {
+            logged.add(params.getMessage());
         }
     }
 }

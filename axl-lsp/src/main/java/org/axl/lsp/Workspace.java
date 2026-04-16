@@ -91,6 +91,15 @@ final class Workspace {
         }, executor);
     }
 
+    /** Work for a notification, which has no response to carry a failure, so failures go to the log. */
+    void submitLogged(String what, Callable<?> work) {
+        submit(work).whenComplete((result, e) -> {
+            if (e != null) {
+                logFailure(what, e);
+            }
+        });
+    }
+
     void connect(LanguageClient client) {
         this.client = client;
     }
