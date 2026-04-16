@@ -42,7 +42,7 @@ final class AxlTextDocumentService implements TextDocumentService {
     public void didOpen(DidOpenTextDocumentParams params) {
         workspace.submit(() -> {
             workspace.update(params.getTextDocument().getUri(), params.getTextDocument().getText());
-            workspace.saved(params.getTextDocument().getUri());
+            workspace.compileLater(params.getTextDocument().getUri(), true);
             return null;
         });
     }
@@ -60,7 +60,7 @@ final class AxlTextDocumentService implements TextDocumentService {
     @Override
     public void didSave(DidSaveTextDocumentParams params) {
         workspace.submit(() -> {
-            workspace.saved(params.getTextDocument().getUri());
+            workspace.compileLater(params.getTextDocument().getUri(), false);
             return null;
         });
     }

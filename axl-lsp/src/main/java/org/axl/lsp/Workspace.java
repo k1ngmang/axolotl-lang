@@ -1,6 +1,8 @@
 package org.axl.lsp;
 
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -14,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
@@ -51,11 +54,10 @@ final class Workspace {
     // javac and the scanners of its trees recurse once per nesting level of an expression, like the translator.
     private static final long STACK_SIZE = 512L * 1024 * 1024;
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
-        Thread thread = new Thread(null, r, "axl-lsp", STACK_SIZE);
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> thread(r, "axl-lsp"));
+    private final ExecutorService compiles = Executors.newSingleThreadExecutor(r -> thread(r, "axl-lsp-compile"));
+    // The number of compilations asked for by module, read by the compiling thread to skip outdated ones.
+    private final Map<Module, Integer> compileRequests = new ConcurrentHashMap<>();
     private LanguageClient client;
     private ProjectModel project = ProjectModel.discover(List.of());
     private final Map<String, Document> open = new HashMap<>();
@@ -72,6 +74,12 @@ final class Workspace {
     private ModuleCompiler compiler;
     // Off for a client that shows the translator's diagnostics itself, as the IntelliJ plugin does.
     private boolean translatorDiagnostics = true;
+
+    private static Thread thread(Runnable work, String name) {
+        Thread thread = new Thread(null, work, name, STACK_SIZE);
+        thread.setDaemon(true);
+        return thread;
+    }
 
     <T> CompletableFuture<T> submit(Callable<T> work) {
         return CompletableFuture.supplyAsync(() -> {
@@ -102,8 +110,13 @@ final class Workspace {
         translatorDiagnostics = enabled;
     }
 
+    /**
+     * Not interrupted: javac interrupted while reading ct.sym closes it for every later compilation
+     * in the JVM. The threads are daemons and end with it.
+     */
     void close() {
-        executor.shutdownNow();
+        compiles.shutdown();
+        executor.shutdown();
     }
 
     void update(String uri, String text) {
@@ -156,18 +169,61 @@ final class Workspace {
         }
     }
 
+    /** Compiles the module of a document and publishes the errors. */
     void saved(String uri) throws IOException {
         Document document = open.get(uri);
         if (document == null || document.translation.hasErrors()) {
             return;
         }
         List<Document> moduleDocuments = documentsOf(document.module);
-        Map<String, List<AxlDiagnostic>> errors = compiler.compile(document.module, moduleDocuments);
+        compiled(document.module, moduleDocuments, compiler.compile(document.module, moduleDocuments));
+    }
+
+    /**
+     * Like {@link #saved}, but compiles on another thread, so that requests are answered meanwhile.
+     * Of several compilations of a module waiting, only the last runs. firstOnly: skipped when the
+     * module was compiled already, as for a document being opened.
+     */
+    void compileLater(String uri, boolean firstOnly) {
+        Document document = open.get(uri);
+        if (document == null || document.translation.hasErrors() || firstOnly && compileRequests.containsKey(document.module)) {
+            return;
+        }
+        Module module = document.module;
+        List<Document> moduleDocuments = documentsOf(module);
+        int request = compileRequests.merge(module, 1, Integer::sum);
+        compiles.execute(() -> {
+            if (compileRequests.get(module) != request) {
+                return;
+            }
+            try {
+                Map<String, List<AxlDiagnostic>> errors = compiler.compile(module, moduleDocuments);
+                submit(() -> {
+                    compiled(module, moduleDocuments, errors);
+                    return null;
+                });
+            } catch (IOException | RuntimeException e) {
+                logFailure("Compiling " + module.root(), e);
+            }
+        });
+    }
+
+    /** Sends a failure to the client's log, since a notification has no response to carry it. */
+    void logFailure(String what, Throwable e) {
+        StringWriter trace = new StringWriter();
+        e.printStackTrace(new PrintWriter(trace));
+        System.err.println(what + " failed: " + trace);
+        if (client != null) {
+            client.logMessage(new MessageParams(MessageType.Error, what + " failed: " + trace));
+        }
+    }
+
+    private void compiled(Module module, List<Document> moduleDocuments, Map<String, List<AxlDiagnostic>> errors) {
         Map<String, Compiled> compiled = new HashMap<>();
         for (Document d : moduleDocuments) {
             compiled.put(d.uri, new Compiled(d, errors.getOrDefault(d.uri, List.of())));
         }
-        compileErrors.put(document.module, compiled);
+        compileErrors.put(module, compiled);
         for (Document d : moduleDocuments) {
             if (open.containsKey(d.uri)) {
                 publish(open.get(d.uri));

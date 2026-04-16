@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DocumentSymbol;
@@ -104,7 +106,7 @@ class WorkspaceTest {
     Path project;
 
     private final Workspace workspace = new Workspace();
-    private final Map<String, List<Diagnostic>> published = new HashMap<>();
+    private final Map<String, List<Diagnostic>> published = new ConcurrentHashMap<>();
 
     @BeforeEach
     void start() throws Exception {
@@ -425,6 +427,21 @@ class WorkspaceTest {
         workspace.update(uri, text.replace("\"not an int\"", "1"));
         workspace.saved(uri);
         assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
+    void compilesOffTheRequestThread() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n");
+        workspace.submit(() -> {
+            workspace.compileLater(uri, true);
+            assertEquals(List.of(), published.get(uri));
+            return null;
+        }).get(10, TimeUnit.SECONDS);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (published.get(uri).isEmpty() && System.nanoTime() < deadline) {
+            Thread.sleep(20);
+        }
+        assertEquals(List.of(3), errorLines(uri));
     }
 
     @Test
