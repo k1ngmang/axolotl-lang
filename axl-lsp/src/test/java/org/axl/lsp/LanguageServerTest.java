@@ -103,6 +103,7 @@ class LanguageServerTest {
 
     private final BlockingQueue<PublishDiagnosticsParams> diagnostics = new LinkedBlockingQueue<>();
     private LanguageServer server;
+    private final CompletableFuture<Integer> exitStatus = new CompletableFuture<>();
     private Path main;
 
     @BeforeEach
@@ -119,7 +120,7 @@ class LanguageServerTest {
         var serverIn = new PipedInputStream(toServer, 1 << 16);
         var toClient = new PipedOutputStream();
         var clientIn = new PipedInputStream(toClient, 1 << 16);
-        AxlLanguageServer axl = new AxlLanguageServer();
+        AxlLanguageServer axl = new AxlLanguageServer(exitStatus::complete);
         var serverLauncher = LSPLauncher.createServerLauncher(axl, serverIn, toClient);
         axl.connect(serverLauncher.getRemoteProxy());
         serverLauncher.startListening();
@@ -141,6 +142,7 @@ class LanguageServerTest {
     void stop() throws Exception {
         server.shutdown().get(10, TimeUnit.SECONDS);
         server.exit();
+        assertEquals(0, exitStatus.get(10, TimeUnit.SECONDS));
     }
 
     private String uri() {

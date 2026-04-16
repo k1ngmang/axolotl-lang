@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.IntConsumer;
 import org.eclipse.lsp4j.CompletionOptions;
 import org.eclipse.lsp4j.DidChangeWatchedFilesRegistrationOptions;
 import org.eclipse.lsp4j.ExecuteCommandOptions;
@@ -39,8 +40,20 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
     private final Workspace workspace = new Workspace();
     private final AxlTextDocumentService documents = new AxlTextDocumentService(workspace);
     private final AxlWorkspaceService workspaceService = new AxlWorkspaceService(workspace);
+    private final IntConsumer exit;
     private LanguageClient client;
     private boolean watchesFiles;
+    private boolean shutDown;
+
+    /** A server that leaves the process running on `exit`, as when it is embedded. */
+    public AxlLanguageServer() {
+        this(status -> {});
+    }
+
+    /** exit: ends the process with a status, 0 after `shutdown` and 1 without, as LSP asks. */
+    public AxlLanguageServer(IntConsumer exit) {
+        this.exit = exit;
+    }
 
     // rootUri is deprecated, but clients without workspace folders still send only that.
     @SuppressWarnings("deprecation")
@@ -97,12 +110,14 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
 
     @Override
     public CompletableFuture<Object> shutdown() {
+        shutDown = true;
         return CompletableFuture.completedFuture(null);
     }
 
     @Override
     public void exit() {
         workspace.close();
+        exit.accept(shutDown ? 0 : 1);
     }
 
     @Override
