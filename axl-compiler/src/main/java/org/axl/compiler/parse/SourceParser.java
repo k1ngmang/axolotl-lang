@@ -29,6 +29,8 @@ public final class SourceParser {
     private static final Pattern ESCAPE = Pattern.compile(
             "\\\\(?:[btnfr\"'\\\\]|[0-3]?[0-7]{1,2}|u+[0-9a-fA-F]{4})");
 
+    private static final Pattern TEMPLATE = Pattern.compile("(?<!\\\\)\\$(\\{|[A-Za-z_]\\w*)");
+
     /** file is null when the source has syntax errors. */
     public record Result(SourceFile file, List<AxlDiagnostic> diagnostics) {}
 
@@ -485,6 +487,13 @@ public final class SourceParser {
         return "unexpected `" + token + "`";
     }
 
+    /** Kotlin's `"${a + b}"` and `"Hello, $name"`; a string that is only `"$t"` is more likely meant as it is. */
+    private static boolean looksLikeTemplate(String literal) {
+        String inner = literal.substring(1, literal.length() - 1);
+        Matcher template = TEMPLATE.matcher(inner);
+        return template.find() && (template.group(1).equals("{") || template.group().length() < inner.length());
+    }
+
     /** A line that starts with `+` or `-` starts a new statement, which leaves the call on the line before open. */
     private static String missingParen(Token next) {
         boolean sign = next != null && (next.getType() == AxolotlLexer.PLUS || next.getType() == AxolotlLexer.MINUS);
@@ -680,6 +689,11 @@ public final class SourceParser {
             if (token.getType() == AxolotlLexer.IDENTIFIER && token.getText().indexOf('$') >= 0) {
                 diagnostics.add(AxlDiagnostic.error(path, token.getLine(), token.getCharPositionInLine() + 1,
                         ErrorCode.DOLLAR_IN_NAME, "`$` is not allowed in names: `" + token.getText() + "`"));
+            }
+            if (token.getType() == AxolotlLexer.STRING_LITERAL && looksLikeTemplate(token.getText())) {
+                diagnostics.add(AxlDiagnostic.warning(path, token.getLine(), token.getCharPositionInLine() + 1,
+                        ErrorCode.SYNTAX, "Axolotl has no string templates, so `$` stays in the text; "
+                                + "join the parts with `+`: `\"value is \" + x`"));
             }
         }
         try {

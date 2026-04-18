@@ -49,6 +49,24 @@ class AxlBuildTest {
         assertEquals(List.of(), warnings);
     }
 
+    @Test
+    void warnsAboutKotlinStringTemplates(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn main() {
+                    val name = "a"
+                    println("Hello, $name" + name)
+                    println("${name.length()}")
+                    println("$t")
+                    println("costs $5")
+                }
+                """);
+        String template = "Axolotl has no string templates, so `$` stays in the text; join the parts with `+`: "
+                + "`\"value is \" + x`";
+        assertEquals(List.of("5:13 " + template, "6:13 " + template), warnings);
+    }
+
     private static List<String> warnings(Path tmp, String source) throws Exception {
         Path src = tmp.resolve("src");
         Files.createDirectories(src.resolve("app"));
