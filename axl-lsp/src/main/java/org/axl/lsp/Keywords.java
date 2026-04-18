@@ -12,6 +12,7 @@ final class Keywords {
     private static final List<String> TOP_LEVEL = List.of("package", "import", "fn", "val", "private", "data", "class",
             "enum", "interface", "sealed");
     private static final List<String> IN_CLASS = List.of("val", "var", "fn", "private");
+    private static final List<String> IN_INTERFACE = List.of("val");
     private static final List<String> STATEMENT = List.of("val", "var", "return", "if", "while", "for", "when", "throw",
             "try", "attempt", "true", "false", "null");
     private static final List<String> ARM = List.of("is", "else", "true", "false", "null");
@@ -43,7 +44,8 @@ final class Keywords {
             return TOP_LEVEL;
         }
         return switch (head(before, brace)) {
-            case AxolotlLexer.CLASS, AxolotlLexer.INTERFACE -> IN_CLASS;
+            case AxolotlLexer.CLASS -> IN_CLASS;
+            case AxolotlLexer.INTERFACE -> IN_INTERFACE;
             case AxolotlLexer.ENUM -> List.of();
             case AxolotlLexer.WHEN -> ARM;
             default -> previous.getType() == AxolotlLexer.RBRACE ? withElse() : STATEMENT;

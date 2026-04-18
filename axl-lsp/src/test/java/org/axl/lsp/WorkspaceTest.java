@@ -744,6 +744,13 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesOnlyValInAnInterface() throws Exception {
+        String uri = open("Shape.axl", "package app\n\nsealed interface Shape {\n    \n}\n");
+        List<String> labels = new Completions(workspace).complete(uri, 3, 4).stream().map(CompletionItem::getLabel).toList();
+        assertTrue(labels.contains("val") && !labels.contains("var") && !labels.contains("fn"), labels.toString());
+    }
+
+    @Test
     void acceptsAFileWithDataClassesInterfacesLoopsAndWhen() throws Exception {
         String uri = open("Shapes.axl", SHAPES);
         assertEquals(List.of(), errorLines(uri));

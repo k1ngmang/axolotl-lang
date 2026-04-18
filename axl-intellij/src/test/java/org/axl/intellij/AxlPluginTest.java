@@ -137,6 +137,12 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(myFixture.getEditor().getDocument().getText().contains("sealed"));
     }
 
+    public void testCompletesOnlyValInAnInterface() {
+        myFixture.configureByText("Shape.axl", "package app\n\nsealed interface Shape {\n    v<caret>\n}\n");
+        myFixture.completeBasic();
+        assertTrue(myFixture.getEditor().getDocument().getText(), myFixture.getEditor().getDocument().getText().contains("    val"));
+    }
+
     public void testOffersToRunOnlyAPublicMain() {
         myFixture.configureByText("Main.axl", "package app\n\nfn ma<caret>in() {\n    println(1)\n}\n");
         assertEquals(1, myFixture.findGuttersAtCaret().size());
