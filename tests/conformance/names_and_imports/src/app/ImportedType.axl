@@ -1,0 +1,8 @@
+package app
+
+import model.Shapes.Circle
+import fn model.Shapes.area
+
+fn four() {
+    println(area(Circle(1.0), 2))
+}

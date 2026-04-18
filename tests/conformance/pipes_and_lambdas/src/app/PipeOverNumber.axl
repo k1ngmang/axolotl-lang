@@ -1,0 +1,7 @@
+package app
+
+fn one() {
+    val n = 5
+    val ys = n |> map { it + 1 }
+    println(ys)
+}

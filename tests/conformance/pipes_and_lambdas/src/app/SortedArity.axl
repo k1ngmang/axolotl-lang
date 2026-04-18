@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+fn two() {
+    val ys = List.of("a") |> sorted { a -> a.length() }
+    println(ys)
+}

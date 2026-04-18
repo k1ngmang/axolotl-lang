@@ -1,0 +1,14 @@
+package app
+
+class Account(val owner: String) {
+    var balance: Int = 0
+
+    fn show() {
+        println(ownr + balanse)
+    }
+}
+
+fn typo() {
+    val name = "a"
+    println(nmae)
+}

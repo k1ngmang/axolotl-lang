@@ -1,0 +1,5 @@
+package util
+
+fn shout(s: String) -> String = s.toUpperCase() + "!"
+
+private fn hidden() -> Int = 1

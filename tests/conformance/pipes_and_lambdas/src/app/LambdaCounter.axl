@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+
+fn three() {
+    var total = 0
+    List.of("a") |> forEach { total += it.length() }
+    println(total)
+}

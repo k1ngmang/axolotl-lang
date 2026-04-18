@@ -1,0 +1,7 @@
+package app
+
+import model.Circle
+
+fn three() {
+    println(Circle(1.0))
+}

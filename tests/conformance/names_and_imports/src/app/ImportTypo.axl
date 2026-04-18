@@ -1,0 +1,7 @@
+package app
+
+import fn util.Strings.shuot
+
+fn one() {
+    println(shuot("a"))
+}

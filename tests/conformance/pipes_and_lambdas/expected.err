@@ -1,0 +1,3 @@
+AXL100 app/LambdaCounter.axl:7:31: error: a lambda cannot change `total`; use a `for` loop, or compute the value with a pipe, such as `|> count`
+AXL100 app/PipeOverNumber.axl:5:14: error: `|>` needs a collection or a stream, found `Int`
+AXL100 app/SortedArity.axl:6:39: error: `sorted` takes a comparator with two parameters: `sorted { a, b -> a.compareTo(b) }`

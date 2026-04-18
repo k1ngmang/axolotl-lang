@@ -97,8 +97,20 @@ final class Messages {
     private static final Pattern OBJECT_TO_STRING = Pattern.compile("^\\[ObjectToString] ([\\w.$]+) is final and does not override");
     private static final Pattern ELVIS_FALLBACK = Pattern.compile("\\?:\\s*(\\S)");
     private static final Pattern ATTEMPT_FALLBACK = Pattern.compile("\\belse\\s+(?:\\w+\\s*->\\s*)?(\\S)");
+    private static final Pattern IMPORTED_NESTED = Pattern.compile("^import (?:[a-z]\\w*\\.)*([A-Z]\\w*)\\.([A-Z]\\w*);$");
+    private static final Pattern IMPORTED_MEMBER = Pattern.compile("^`[\\w.]+` has no function or value `(\\w+)`$");
+    private static final Pattern PIPE = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\"|[\\w.()]+)\\s*\\|>");
     private static final Pattern RETURN = Pattern.compile("\\breturn\\b");
     private static final Pattern TRY = Pattern.compile("\\btry\\b");
+    private static final Pattern ASSIGNMENT = Pattern.compile("^\\s*(\\w+)\\s*[-+*/%]?=(?!=)");
+    // The messages of an import that failed, with the name it would have brought in.
+    private static final Pattern FAILED_IMPORT = Pattern.compile("^(?:`[\\w.]+` has no function or value `(\\w+)`"
+            + "|unknown type `(?:\\w+\\.)*(\\w+)`; check the spelling$|`(\\w+)` is declared in |`(\\w+)` is private to "
+            + "|`[\\w.]+\\.(\\w+)` is not a type: )");
+    private static final Pattern UNKNOWN_USE = Pattern.compile("^unknown (?:function|name|type) `(\\w+)");
+    private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
+    private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
+            + "`sorted { a, b -> a.compareTo(b) }`";
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
     private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
 
@@ -121,10 +133,17 @@ final class Messages {
                 || translated.startsWith("`==` tests whether") || translated.equals("division by zero")
                 || translated.startsWith("both sides of this expression");
         Pattern anchor = anchor(translated, javaText);
-        return new Placement(operator, anchor, anchor == ELVIS_FALLBACK || anchor == ATTEMPT_FALLBACK);
+        return new Placement(operator, anchor, anchor != null && anchor != TRY);
     }
 
     private static Pattern anchor(String translated, String javaText) {
+        if (translated.startsWith(PIPE_SUBJECT)) {
+            return PIPE;
+        }
+        Matcher member = IMPORTED_MEMBER.matcher(translated);
+        if (member.find()) {
+            return Pattern.compile("\\.(" + Pattern.quote(member.group(1)) + ")\\b");
+        }
         if (translated.contains("` has no result type, so it cannot return a value")) {
             return RETURN;
         }
@@ -147,8 +166,43 @@ final class Messages {
     }
 
     private static boolean causes(AxlDiagnostic cause, AxlDiagnostic effect) {
+        boolean sameLine = cause.line() == effect.line() && cause.column() <= effect.column();
+        if (sameLine && (cause.message().startsWith(PIPE_SUBJECT) || cause.message().equals(SORTED_ARITY))) {
+            return true;
+        }
         Matcher usedBefore = USED_BEFORE.matcher(effect.message());
-        return usedBefore.find() && cause.message().startsWith("`" + usedBefore.group(1) + "` is used in its own value");
+        if (usedBefore.find()) {
+            return cause.message().startsWith("`" + usedBefore.group(1) + "` is used in its own value");
+        }
+        Matcher failedImport = FAILED_IMPORT.matcher(cause.message());
+        Matcher unknownUse = UNKNOWN_USE.matcher(effect.message());
+        if (cause.line() >= effect.line() || !failedImport.find() || !unknownUse.find()) {
+            return false;
+        }
+        for (int group = 1; group <= failedImport.groupCount(); group++) {
+            if (failedImport.group(group) != null) {
+                return failedImport.group(group).equals(unknownUse.group(1));
+            }
+        }
+        return false;
+    }
+
+    /** `nmae` for `name`: a name of the generated file one or two letters away. */
+    private static String unknownName(String symbol, String[] javaLines) {
+        String hint = Names.typeHint(symbol);
+        if (hint != null) {
+            return "unknown name `" + symbol + "`; " + hint;
+        }
+        String similar = Names.similar(symbol, javaLines);
+        return "unknown name `" + symbol + "`; " + (similar != null ? "did you mean `" + similar + "`?"
+                : "check the spelling or add an import");
+    }
+
+    private static String unknownFunction(String symbol, String name, String[] javaLines) {
+        String hint = Names.functionHint(name);
+        String similar = hint == null ? Names.similar(name, javaLines) : null;
+        return "unknown function `" + symbol + "`; " + (hint != null ? hint : similar != null ? "did you mean `" + similar + "`?"
+                : "check the spelling or add `import fn`");
     }
 
     /** Messages that javac reports twice for one mistake, at different columns of the same line. */
@@ -200,6 +254,12 @@ final class Messages {
             if (line.startsWith("    ") && !line.startsWith("     ") && nested.find() && !nested.group(1).equals(fileClass)) {
                 result = result.replaceAll("\\b(?:[a-z]\\w*\\.)*" + Pattern.quote(fileClass) + "\\." + nested.group(1) + "\\b",
                         nested.group(1));
+            }
+            // A type of another file is written as imported: `Circle` for `import model.Shapes.Circle`.
+            Matcher imported = IMPORTED_NESTED.matcher(line);
+            if (imported.find()) {
+                result = result.replaceAll("\\b(?:[a-z]\\w*\\.)*" + Pattern.quote(imported.group(1)) + "\\."
+                        + imported.group(2) + "\\b", imported.group(2));
             }
         }
         return result;
@@ -432,6 +492,9 @@ final class Messages {
         if (text.contains("Nulls.or(") && message.endsWith(" is not a functional interface)")) {
             return "the right side of `?:` returns nothing, so it cannot be the value when the left side is null";
         }
+        if (message.equals("incompatible types: incompatible parameter types in lambda expression") && text.contains(".sorted(")) {
+            return SORTED_ARITY;
+        }
         if (message.equals("incompatible types: incompatible parameter types in lambda expression")) {
             return "the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`";
         }
@@ -534,7 +597,7 @@ final class Messages {
         }
         Matcher unknownStatic = UNKNOWN_STATIC.matcher(message);
         if (unknownStatic.find()) {
-            return "`" + axlType(unknownStatic.group(2)) + "` has no static member `" + unknownStatic.group(1) + "`";
+            return "`" + simpleNames(axlType(unknownStatic.group(2))) + "` has no function or value `" + unknownStatic.group(1) + "`";
         }
         Matcher unknown = UNKNOWN.matcher(message);
         if (unknown.find()) {
@@ -548,19 +611,21 @@ final class Messages {
             if (symbol.equals("stream()") && text.contains(".stream().")) {
                 int ofType = location.indexOf(" of type ");
                 String type = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
-                return "`|>` needs a collection or a stream, found `" + axlType(type) + "`";
+                return PIPE_SUBJECT + ", found `" + axlType(type) + "`";
             }
             return switch (unknown.group(1)) {
-                case "variable" -> inThisFile ? "unknown name `" + symbol + "`; check the spelling or add an import"
+                case "variable" -> inThisFile ? unknownName(symbol, javaLines)
                         : memberOwner(location) + " has no field `" + symbol + "`";
-                case "method" -> inThisFile ? "unknown function `" + symbol + "`; check the spelling or add `import fn`"
+                case "method" -> inThisFile ? unknownFunction(symbol, name, javaLines)
                         : memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`";
-                default -> symbol.equals("Char") ? "unknown type `Char`; a character is a `Character`"
-                        : "unknown type `" + symbol + "`; check the spelling or add an import";
+                default -> Names.unknownType(symbol);
             };
         }
         Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);
-        if (notDereferenced.find()) {
+        if (notDereferenced.find() && text.contains(".stream().")) {
+            return PIPE_SUBJECT + ", found `" + axlType(notDereferenced.group(1)) + "`";
+        }
+        if (notDereferenced.find(0)) {
             return "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members";
         }
         Matcher badOperands = BAD_OPERANDS.matcher(message);
@@ -590,6 +655,12 @@ final class Messages {
             String name = varInitializer.group(1);
             return varInitializer.group(2).equals("void") ? "`" + name + "` cannot hold the result of a function that returns nothing"
                     : "`" + name + "` needs a type to hold `null`: `val " + name + ": Type? = null`";
+        }
+        Matcher assignment = ASSIGNMENT.matcher(text);
+        if (message.equals("local variables referenced from a lambda expression must be final or effectively final")
+                && assignment.find()) {
+            return "a lambda cannot change `" + assignment.group(1) + "`; use a `for` loop, or compute the value with a "
+                    + "pipe, such as `|> count`";
         }
         if (message.equals("local variables referenced from a lambda expression must be final or effectively final")) {
             return "a lambda uses a `var` that changes; copy it to a `val` first";

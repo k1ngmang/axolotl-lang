@@ -1,5 +1,5 @@
 AXL100 app/Types.axl:5:18: error: unknown type `java.util.Lisst`; check the spelling
-AXL100 app/Types.axl:6:1: error: `Math` has no static member `maxx`
+AXL100 app/Types.axl:6:26: error: `Math` has no function or value `maxx`
 AXL010 app/Types.axl:14:4: error: `twice` is already declared with the same parameter types
 AXL100 app/Types.axl:17:13: error: the value of type `String` has no method `foo()`
 AXL105 app/Types.axl:21:5: error: `try` needs a `Result`, found `Int`

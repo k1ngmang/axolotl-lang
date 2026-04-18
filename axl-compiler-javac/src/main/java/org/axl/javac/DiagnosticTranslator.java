@@ -17,12 +17,14 @@ public final class DiagnosticTranslator {
 
     private final Map<Path, GeneratedSource> byJavaFile = new HashMap<>();
     private final Function<Path, String> javaDisplay;
+    private final OtherFiles otherFiles;
 
     public DiagnosticTranslator(List<GeneratedSource> sources, Function<Path, String> javaDisplay) {
         for (GeneratedSource source : sources) {
             byJavaFile.put(normalize(source.javaFile()), source);
         }
         this.javaDisplay = javaDisplay;
+        this.otherFiles = new OtherFiles(sources);
     }
 
     /** Returns null for notes and for warnings about the shape of generated code. */
@@ -58,7 +60,8 @@ public final class DiagnosticTranslator {
         String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
         int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, Columns.javaColumn(javaLines, javaLine, diagnostic),
                 axlText, Messages.placement(translated.message(), javaText));
-        return new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(), translated.message());
+        return new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(),
+                otherFiles.reword(translated.message()));
     }
 
     /** javac puts symbol and location details on extra lines. */

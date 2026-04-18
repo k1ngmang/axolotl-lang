@@ -1,0 +1,5 @@
+package model
+
+data class Circle(val r: Double)
+
+fn area(c: Circle) -> Double = 3.14 * c.r() * c.r()

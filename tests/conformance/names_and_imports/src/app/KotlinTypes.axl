@@ -1,0 +1,8 @@
+package app
+
+fn kinds(a: Any, b: Bool, c: Array<String>) {
+    val xs = ArrayList<String>()
+    println(Int.MAX_VALUE)
+    print("a")
+    println(arrayOf(1, 2))
+}

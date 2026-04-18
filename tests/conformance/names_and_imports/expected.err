@@ -1,0 +1,14 @@
+AXL100 app/ImportDataClass.axl:3:14: error: `Circle` is declared in model/Shapes.axl: `import model.Shapes.Circle`
+AXL100 app/ImportPrivate.axl:3:24: error: `hidden` is private to `Strings` and can only be used in that file
+AXL100 app/ImportTypo.axl:3:24: error: `Strings` has no function or value `shuot`
+AXL100 app/ImportedType.axl:7:13: error: wrong arguments for `area`: expected (Circle), got (Circle, Int)
+AXL100 app/KotlinTypes.axl:3:13: error: unknown type `Any`; write `Object`
+AXL100 app/KotlinTypes.axl:3:21: error: unknown type `Bool`; write `Boolean`
+AXL100 app/KotlinTypes.axl:3:30: error: unknown type `Array`; Axolotl uses lists, such as `List<Int>`
+AXL100 app/KotlinTypes.axl:4:14: error: unknown type `ArrayList`; add `import java.util.ArrayList`
+AXL100 app/KotlinTypes.axl:5:13: error: unknown name `Int`; the constants of `Int` are in `Integer`, such as `Integer.MAX_VALUE`
+AXL100 app/KotlinTypes.axl:6:5: error: unknown function `print(String)`; did you mean `println`?
+AXL100 app/KotlinTypes.axl:7:13: error: unknown function `arrayOf(Int, Int)`; write `List.of(...)`
+AXL100 app/Typos.axl:7:17: error: unknown name `ownr`; did you mean `owner`?
+AXL100 app/Typos.axl:7:24: error: unknown name `balanse`; did you mean `balance`?
+AXL100 app/Typos.axl:13:13: error: unknown name `nmae`; did you mean `name`?
