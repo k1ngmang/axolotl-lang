@@ -346,7 +346,7 @@ public final class AxlParser implements PsiParser {
             }
             consume(SEMI);
             m.done(AxlElementTypes.RETURN);
-        } else if (at(IF)) {
+        } else if (at(IF) && !ifExpressionAhead()) {
             ifStatement();
         } else if (at(WHILE)) {
             PsiBuilder.Marker m = b.mark();
@@ -646,8 +646,8 @@ public final class AxlParser implements PsiParser {
         if (at(WHEN)) {
             return whenExpression();
         }
-        if (at(IF) && ifExpressionAhead()) {
-            return conditional();
+        if (at(IF)) {
+            return ifExpressionAhead() ? conditional() : ifWithBraces();
         }
         b.error("expression expected");
         return null;
@@ -678,6 +678,26 @@ public final class AxlParser implements PsiParser {
             expression();
         }
         m.done(AxlElementTypes.CONDITIONAL);
+        return m;
+    }
+
+    /**
+     * `= if (c) { 1 } else 2`: the grammar accepts it as a value, so that the translator can explain
+     * that braces make an `if` a statement.
+     */
+    private PsiBuilder.Marker ifWithBraces() {
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        condition();
+        block(LBRACE);
+        if (consume(ELSE)) {
+            if (at(LBRACE)) {
+                block();
+            } else {
+                expression();
+            }
+        }
+        m.done(AxlElementTypes.IF);
         return m;
     }
 

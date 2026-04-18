@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
 
@@ -48,6 +49,19 @@ public class AxlParserTest extends BasePlatformTestCase {
             myFixture.configureByText("Rejected.axl", "package app\n\n" + body);
             assertTrue(body, myFixture.doHighlighting().stream().anyMatch(h -> h.getSeverity() == HighlightSeverity.ERROR));
         }
+    }
+
+    public void testExplainsIfsWithBracesWhereAValueIsWantedAndWithoutWhereAStatementIs() {
+        Map<String, String> messages = Map.of(
+                "fn f(c: Boolean) {\n    if (c) println(\"a\") else println(\"b\")\n}\n", "an `if` statement needs braces",
+                "fn f(c: Boolean) -> Int = if (c) { 1 } else 2\n", "an `if` that gives a value takes expressions");
+        messages.forEach((body, message) -> {
+            PsiFile file = myFixture.configureByText("If.axl", "package app\n\n" + body);
+            assertNull(body, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+            List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
+                    .map(h -> h.getDescription()).toList();
+            assertTrue(body + errors, errors.stream().anyMatch(e -> e.contains(message)));
+        });
     }
 
     public void testEndsAStatementAtALineBreakInABlockComment() {
