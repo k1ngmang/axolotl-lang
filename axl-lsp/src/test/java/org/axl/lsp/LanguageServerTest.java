@@ -229,6 +229,9 @@ class LanguageServerTest {
         Location java = definition(3, 45);
         assertTrue(java.getUri().endsWith("app/Helper.java"), java.getUri());
         assertEquals(new Position(3, 25), java.getRange().getStart());
+        Location javaClass = definition(3, 37);
+        assertTrue(javaClass.getUri().endsWith("app/Helper.java"), javaClass.getUri());
+        assertEquals(new Position(2, 19), javaClass.getRange().getStart());
     }
 
     @Test

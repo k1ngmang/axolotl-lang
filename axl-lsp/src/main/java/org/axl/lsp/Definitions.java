@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -130,7 +131,7 @@ final class Definitions {
             return List.of(location(type.document().path, position));
         }
         Path source = workspace.sourceOf(module, qualifiedName);
-        return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
+        return source == null ? List.of() : List.of(location(source, javaClass(source, qualifiedName)));
     }
 
     private List<Location> member(Module module, String className, String name, Supplier<List<String>> argumentTypes) {
@@ -154,11 +155,23 @@ final class Definitions {
     /** The first declaration of a method or field with that name in a Java file. */
     private static Position javaMember(Path file, String name) {
         Pattern declaration = Pattern.compile("\\b[\\w<>\\[\\],.? ]+\\s+(" + Pattern.quote(name) + ")\\s*[(=;]");
+        return firstMatch(file, declaration, line -> !line.strip().startsWith("return"));
+    }
+
+    /** The declaration of a class in a Java file. */
+    private static Position javaClass(Path file, String qualifiedName) {
+        String name = qualifiedName.substring(qualifiedName.lastIndexOf('.') + 1);
+        Pattern declaration = Pattern.compile("\\b(?:class|interface|enum|record)\\s+(" + Pattern.quote(name) + ")\\b");
+        return firstMatch(file, declaration, line -> true);
+    }
+
+    /** Where group 1 of a pattern first matches on a line that passes a test; the start of the file if nowhere. */
+    private static Position firstMatch(Path file, Pattern pattern, Predicate<String> lineTest) {
         try {
             List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
             for (int i = 0; i < lines.size(); i++) {
-                Matcher m = declaration.matcher(lines.get(i));
-                if (m.find() && !lines.get(i).strip().startsWith("return")) {
+                Matcher m = pattern.matcher(lines.get(i));
+                if (m.find() && lineTest.test(lines.get(i))) {
                     return new Position(i, m.start(1));
                 }
             }
