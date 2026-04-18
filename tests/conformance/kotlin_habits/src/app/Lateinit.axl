@@ -1,0 +1,5 @@
+package app
+
+class Box(val v: Int) {
+    lateinit var name: String
+}

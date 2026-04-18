@@ -1,0 +1,3 @@
+package app
+
+static fn helper() -> Int = 1

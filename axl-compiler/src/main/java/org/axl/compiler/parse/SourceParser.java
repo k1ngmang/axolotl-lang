@@ -79,56 +79,81 @@ public final class SourceParser {
         List<Token> all = tokens.getTokens();
         for (int i = 0; i < all.size(); i++) {
             Token t = all.get(i);
-            String message = null;
-            if (t.getType() == AxolotlLexer.UNKNOWN_CHAR) {
-                message = switch (t.getText()) {
-                    case "\"" -> "unclosed string: add `\"` before the end of the line";
-                    case "'" -> adjacent(all, i) && all.get(i + 1).getText().equals("'")
-                            ? "a character literal holds one character; put one between the quotes"
-                            : "unclosed character literal: add `'`";
-                    default -> unexpected(t.getText().codePointAt(0));
-                };
-            } else if ((t.getType() == AxolotlLexer.IMPORT || t.getType() == AxolotlLexer.PACKAGE)
-                    && (previousCode(all, i) < 0 || all.get(previousCode(all, i)).getLine() < t.getLine())
-                    && (nextCode(all, i) >= all.size() || all.get(nextCode(all, i)).getLine() > t.getLine())) {
-                message = "`" + t.getText() + "` needs a name after it on the same line";
-            } else if (t.getType() == AxolotlLexer.SLASH && i + 1 < all.size() && all.get(i + 1).getType() == AxolotlLexer.STAR
-                    && all.get(i + 1).getStartIndex() == t.getStopIndex() + 1) {
-                message = "unclosed comment: add `*/`";
-            } else if (t.getType() == AxolotlLexer.INT_LITERAL && t.getText().matches("0[0-9_]+[lL]?")) {
-                message = "a number cannot start with 0: Java would read `" + t.getText() + "` as octal";
-            } else if ((t.getType() == AxolotlLexer.PLUS || t.getType() == AxolotlLexer.MINUS) && adjacent(all, i)
-                    && all.get(i + 1).getType() == t.getType()) {
-                message = "Axolotl has no `" + t.getText() + t.getText() + "`; write `" + t.getText() + "= 1`";
-            } else if (t.getType() == AxolotlLexer.INT_LITERAL && adjacent(all, i) && all.get(i + 1).getType() == AxolotlLexer.DOT) {
-                Token after = adjacent(all, i + 1) ? all.get(i + 2) : null;
-                if (after == null || after.getType() != AxolotlLexer.IDENTIFIER) {
-                    message = "`" + t.getText() + ".` is not a valid number; write `" + t.getText() + ".0`";
-                } else if (after.getText().matches("[fFdD]|[eE]\\d*")) {
-                    // Java reads `3.f` as a float and `1.e5` as a double.
-                    String fixed = t.getText() + ".0" + (after.getText().matches("[eE].*") ? after.getText() : "");
-                    message = "`" + t.getText() + "." + after.getText() + "` is not a valid number; write `" + fixed + "`";
-                } else {
-                    message = "a number has no members; for `" + t.getText() + "." + after.getText()
-                            + "`, call a method of its class, such as `Integer.toString(" + t.getText() + ")`";
-                }
-            } else if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
-                message = numberProblem(t, afterUnaryMinus(all, i), i + 1 < all.size() ? all.get(i + 1) : null);
-            } else if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
-                message = textProblem(t);
-            } else if (t.getType() == AxolotlLexer.IDENTIFIER && !isJavaName(t.getText())) {
-                message = "`" + t.getText() + "` is not a valid name: use the letters A to Z and a to z, digits and `_`";
-            }
+            // A word or symbol from Java or Kotlin gets more than "unexpected" from the parser; once is enough.
+            String habit = Habits.of(all, i);
+            String message = habit != null ? habit : tokenProblem(all, i);
             int line = t.getLine();
-            if (message != null && errors.stream().noneMatch(d -> d.line() == line)) {
+            boolean repeated = habit != null && errors.stream().anyMatch(d -> d.message().equals(habit));
+            if (message != null && !repeated && errors.stream().noneMatch(d -> d.line() == line)) {
                 errors.add(AxlDiagnostic.error(path, line, t.getCharPositionInLine() + 1, ErrorCode.SYNTAX, message));
             }
         }
         return errors;
     }
 
+    private static String tokenProblem(List<Token> all, int i) {
+        Token t = all.get(i);
+        if (t.getType() == AxolotlLexer.UNKNOWN_CHAR) {
+            return switch (t.getText()) {
+                case "\"" -> "unclosed string: add `\"` before the end of the line";
+                case "'" -> adjacent(all, i) && all.get(i + 1).getText().equals("'")
+                        ? "a character literal holds one character; put one between the quotes"
+                        : "unclosed character literal: add `'`";
+                default -> unexpected(t.getText().codePointAt(0));
+            };
+        }
+        if ((t.getType() == AxolotlLexer.IMPORT || t.getType() == AxolotlLexer.PACKAGE)
+                && (previousCode(all, i) < 0 || all.get(previousCode(all, i)).getLine() < t.getLine())
+                && (nextCode(all, i) >= all.size() || all.get(nextCode(all, i)).getLine() > t.getLine())) {
+            return "`" + t.getText() + "` needs a name after it on the same line";
+        }
+        if (t.getType() == AxolotlLexer.SLASH && i + 1 < all.size() && all.get(i + 1).getType() == AxolotlLexer.STAR
+                && all.get(i + 1).getStartIndex() == t.getStopIndex() + 1) {
+            return "unclosed comment: add `*/`";
+        }
+        if (t.getType() == AxolotlLexer.INT_LITERAL && t.getText().matches("0[0-9_]+[lL]?")) {
+            return "a number cannot start with 0: Java would read `" + t.getText() + "` as octal";
+        }
+        if ((t.getType() == AxolotlLexer.PLUS || t.getType() == AxolotlLexer.MINUS) && adjacent(all, i)
+                && all.get(i + 1).getType() == t.getType()) {
+            return "Axolotl has no `" + t.getText() + t.getText() + "`; write `" + t.getText() + "= 1`";
+        }
+        if (t.getType() == AxolotlLexer.INT_LITERAL && adjacent(all, i) && all.get(i + 1).getType() == AxolotlLexer.DOT) {
+            return numberWithDot(t, adjacent(all, i + 1) ? all.get(i + 2) : null);
+        }
+        if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
+            return numberProblem(t, afterUnaryMinus(all, i), i + 1 < all.size() ? all.get(i + 1) : null);
+        }
+        if (t.getType() == AxolotlLexer.STRING_LITERAL || t.getType() == AxolotlLexer.CHAR_LITERAL) {
+            return textProblem(t);
+        }
+        if (t.getType() == AxolotlLexer.IDENTIFIER && !isJavaName(t.getText())) {
+            return "`" + t.getText() + "` is not a valid name: use the letters A to Z and a to z, digits and `_`";
+        }
+        return null;
+    }
+
+    /** `3.`, `3.f`, `3.toString()` and Kotlin's range `0..10`; after is the token after the dot, or null. */
+    private static String numberWithDot(Token number, Token after) {
+        String text = number.getText();
+        if (after != null && after.getType() == AxolotlLexer.DOT) {
+            return "Axolotl has no ranges (`..`); count with a `while` loop, or use "
+                    + "`java.util.stream.IntStream.range(from, to)`";
+        }
+        if (after == null || after.getType() != AxolotlLexer.IDENTIFIER) {
+            return "`" + text + ".` is not a valid number; write `" + text + ".0`";
+        }
+        if (after.getText().matches("[fFdD]|[eE]\\d*")) {
+            // Java reads `3.f` as a float and `1.e5` as a double.
+            String fixed = text + ".0" + (after.getText().matches("[eE].*") ? after.getText() : "");
+            return "`" + text + "." + after.getText() + "` is not a valid number; write `" + fixed + "`";
+        }
+        return "a number has no members; for `" + text + "." + after.getText()
+                + "`, call a method of its class, such as `Integer.toString(" + text + ")`";
+    }
+
     /** Statements end at the end of a line or at `;`; the grammar alone would take `f() g()` as two. */
-    private static void sharedLines(String path, ParseTree node, List<AxlDiagnostic> diagnostics) {
+    private static void sharedLines(String path, CommonTokenStream tokens, ParseTree node, List<AxlDiagnostic> diagnostics) {
         List<? extends ParserRuleContext> statements = switch (node) {
             case AxolotlParser.CompilationUnitContext unit -> {
                 List<ParserRuleContext> all = new ArrayList<>();
@@ -149,7 +174,7 @@ public final class SourceParser {
             Token start = statements.get(i).getStart();
             if (end.getLine() == start.getLine() && end.getType() != AxolotlLexer.SEMI
                     && start.getType() != AxolotlLexer.SEMI && start.getLine() != reportedLine) {
-                AxlDiagnostic problem = sharedLine(path, statements.get(i - 1).getStart(), end, start);
+                AxlDiagnostic problem = sharedLine(path, tokens, statements.get(i - 1).getStart(), end, start);
                 diagnostics.add(problem);
                 // A misspelled or Java-style word splits one line into several statements; report it once.
                 if (!problem.message().startsWith(OWN_LINE)) {
@@ -158,7 +183,7 @@ public final class SourceParser {
             }
         }
         for (int i = 0; i < node.getChildCount(); i++) {
-            sharedLines(path, node.getChild(i), diagnostics);
+            sharedLines(path, tokens, node.getChild(i), diagnostics);
         }
     }
 
@@ -175,7 +200,7 @@ public final class SourceParser {
      */
     private static final String OWN_LINE = "put this statement on its own line, or end the one before it with `;`";
 
-    private static AxlDiagnostic sharedLine(String path, Token first, Token last, Token next) {
+    private static AxlDiagnostic sharedLine(String path, CommonTokenStream tokens, Token first, Token last, Token next) {
         String nextGuess = keywordLike(next);
         if (next.getType() == AxolotlLexer.IDENTIFIER && next.getText().equals("as")) {
             return error(path, next, "Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`");
@@ -185,6 +210,20 @@ public final class SourceParser {
         }
         if (last.getType() == AxolotlLexer.IDENTIFIER && last.getText().equals("new")) {
             return error(path, last, "Axolotl creates objects without `new`: `" + next.getText() + "(...)`");
+        }
+        Token beforeClose = last.getType() == AxolotlLexer.RPAREN ? previousToken(tokens, last) : null;
+        if (beforeClose != null && beforeClose.getType() == AxolotlLexer.IDENTIFIER
+                && previousToken(tokens, beforeClose).getType() == AxolotlLexer.LPAREN
+                && Character.isUpperCase(beforeClose.getText().charAt(0))) {
+            return error(path, previousToken(tokens, beforeClose), "Axolotl has no casts; test the type with `is`: "
+                    + "`if (x is " + beforeClose.getText() + ") { ... }`");
+        }
+        String control = controlLike(tokens, first, last, next);
+        if (control != null) {
+            return error(path, first, "unknown word `" + first.getText() + "`; did you mean `" + control + "`?");
+        }
+        if (next.getType() == AxolotlLexer.LBRACE && callee(tokens, last) != null) {
+            return error(path, next, trailingLambda(tokens, callee(tokens, last)));
         }
         String text = first.getText();
         if (first == last && (text.equals("let") || text.equals("const"))) {
@@ -199,6 +238,56 @@ public final class SourceParser {
             return error(path, first, "unknown word `" + text + "`; did you mean `" + guess + "`?");
         }
         return error(path, next, OWN_LINE);
+    }
+
+    private static final Set<String> PIPE_STAGES = Set.of("filter", "map", "forEach", "sorted", "peek");
+
+    private static final List<String> CONTROL_KEYWORDS = List.of("if", "while", "for", "when");
+
+    /** `iff (c) {` looks like a call with a lambda after it; only `if`, `while`, `for` and `when` are written so. */
+    private static String controlLike(CommonTokenStream tokens, Token first, Token last, Token next) {
+        int open = nextCode(tokens.getTokens(), first.getTokenIndex());
+        if (first.getType() != AxolotlLexer.IDENTIFIER || tokens.get(open).getType() != AxolotlLexer.LPAREN
+                || last.getType() != AxolotlLexer.RPAREN || next.getType() != AxolotlLexer.LBRACE) {
+            return null;
+        }
+        return CONTROL_KEYWORDS.stream().filter(k -> distance(first.getText(), k) <= (k.length() > 4 ? 2 : 1))
+                .findFirst().orElse(null);
+    }
+
+    /** The name of the call or member that ends a statement, or null: `xs.map` or `xs.forEach()`. */
+    private static Token callee(CommonTokenStream tokens, Token last) {
+        if (last.getType() == AxolotlLexer.IDENTIFIER) {
+            return last;
+        }
+        if (last.getType() != AxolotlLexer.RPAREN) {
+            return null;
+        }
+        int depth = 0;
+        for (int i = last.getTokenIndex(); i >= 0; i--) {
+            int type = tokens.get(i).getType();
+            if (type == AxolotlLexer.RPAREN) {
+                depth++;
+            } else if (type == AxolotlLexer.LPAREN && --depth == 0) {
+                Token name = previousToken(tokens, tokens.get(i));
+                return name != null && name.getType() == AxolotlLexer.IDENTIFIER ? name : null;
+            }
+        }
+        return null;
+    }
+
+    /** Kotlin's `xs.forEach { ... }` and `s?.let { ... }`. */
+    private static String trailingLambda(CommonTokenStream tokens, Token name) {
+        Token dot = previousToken(tokens, name);
+        if (dot != null && dot.getType() == AxolotlLexer.SAFE_DOT && name.getText().equals("let")) {
+            return "Axolotl has no `let`; check for null instead: `if (s != null) { ... }`";
+        }
+        boolean member = dot != null && (dot.getType() == AxolotlLexer.DOT || dot.getType() == AxolotlLexer.SAFE_DOT);
+        Token receiver = member ? previousToken(tokens, dot) : null;
+        String owner = receiver != null && receiver.getType() == AxolotlLexer.IDENTIFIER ? receiver.getText() + dot.getText() : "";
+        String hint = "a lambda argument goes inside the parentheses: `" + owner + name.getText() + "({ ... })`";
+        return member && PIPE_STAGES.contains(name.getText())
+                ? hint + "; for a collection, use a pipe: `xs |> " + name.getText() + " { ... }`" : hint;
     }
 
     private static AxlDiagnostic error(String path, Token at, String message) {
@@ -262,7 +351,7 @@ public final class SourceParser {
                 AxolotlLexer.FALSE, AxolotlLexer.NULL).contains(tokens.get(before).getType());
     }
 
-    private static int nextCode(List<Token> tokens, int i) {
+    static int nextCode(List<Token> tokens, int i) {
         int j = i + 1;
         while (j < tokens.size() && Set.of(AxolotlLexer.WS, AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT).contains(tokens.get(j).getType())) {
             j++;
@@ -270,7 +359,7 @@ public final class SourceParser {
         return j;
     }
 
-    private static int previousCode(List<Token> tokens, int i) {
+    static int previousCode(List<Token> tokens, int i) {
         int j = i - 1;
         while (j >= 0 && Set.of(AxolotlLexer.WS, AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT).contains(tokens.get(j).getType())) {
             j--;
@@ -396,8 +485,16 @@ public final class SourceParser {
         return "unexpected `" + token + "`";
     }
 
+    /** A line that starts with `+` or `-` starts a new statement, which leaves the call on the line before open. */
+    private static String missingParen(Token next) {
+        boolean sign = next != null && (next.getType() == AxolotlLexer.PLUS || next.getType() == AxolotlLexer.MINUS);
+        return sign ? "missing `)` at the end of the line: a line that starts with `" + next.getText()
+                + "` starts a new statement, so end this line with the `" + next.getText() + "` instead"
+                : "missing `)` at the end of the line";
+    }
+
     /** Whether the `)` closes the condition of an `if`. */
-    private static boolean closesIf(CommonTokenStream tokens, Token close) {
+    static boolean closesIf(CommonTokenStream tokens, Token close) {
         int depth = 0;
         for (int i = close.getTokenIndex(); i >= 0; i--) {
             int type = tokens.get(i).getType();
@@ -427,7 +524,11 @@ public final class SourceParser {
         };
     }
 
-    private static Token previousToken(CommonTokenStream tokens, Token at) {
+    static Token nextToken(CommonTokenStream tokens, Token at) {
+        return tokens.get(Math.min(nextCode(tokens.getTokens(), at.getTokenIndex()), tokens.size() - 1));
+    }
+
+    static Token previousToken(CommonTokenStream tokens, Token at) {
         for (int i = at.getTokenIndex() - 1; i >= 0; i--) {
             Token t = tokens.get(i);
             if (t.getChannel() == Token.DEFAULT_CHANNEL) {
@@ -449,16 +550,34 @@ public final class SourceParser {
         return open;
     }
 
+    /**
+     * The `{` left open. A `}` indented less than the line of the `{` it would close most likely
+     * belongs to an outer block, so that `{` is the one without its `}`.
+     */
     private static Token unclosedBrace(CommonTokenStream tokens) {
         java.util.ArrayDeque<Token> open = new java.util.ArrayDeque<>();
         for (Token t : tokens.getTokens()) {
             if (t.getType() == AxolotlLexer.LBRACE) {
                 open.push(t);
             } else if (t.getType() == AxolotlLexer.RBRACE && !open.isEmpty()) {
+                Token start = lineStart(tokens, open.peek());
+                Token before = previousToken(tokens, t);
+                boolean startsLine = before == null || before.getLine() < t.getLine();
+                if (open.size() > 1 && startsLine && t.getCharPositionInLine() < start.getCharPositionInLine()) {
+                    return open.peek();
+                }
                 open.pop();
             }
         }
         return open.peek();
+    }
+
+    static Token lineStart(CommonTokenStream tokens, Token at) {
+        Token first = at;
+        for (Token t = previousToken(tokens, at); t != null && t.getLine() == at.getLine(); t = previousToken(tokens, t)) {
+            first = t;
+        }
+        return first;
     }
 
     public static Result parse(String path, String className, String source) {
@@ -491,10 +610,21 @@ public final class SourceParser {
             return new Result(null, diagnostics);
         }
         var parserErrors = new BaseErrorListener() {
+            // After an unclosed `(`, the parser's recovery reports the lines after it too.
+            boolean unclosedParen;
+
             @Override
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
                                     int charPositionInLine, String msg, RecognitionException e) {
+                if (unclosedParen) {
+                    return;
+                }
                 Token at = offendingSymbol instanceof Token t ? t : null;
+                Mistakes.Placed known = at == null || at.getType() == Token.EOF ? null : Mistakes.find(tokens, at);
+                if (known != null) {
+                    report(known);
+                    return;
+                }
                 Token previous = at == null ? null : previousToken(tokens, at);
                 int reportLine = line;
                 int column = charPositionInLine + 1;
@@ -510,26 +640,38 @@ public final class SourceParser {
                     column = previous.getCharPositionInLine() + previous.getText().codePointCount(0, previous.getText().length()) + 1;
                 }
                 int finalLine = reportLine;
-                String message = reportLine < line && openParens(tokens, reportLine) > 0
-                        ? "missing `)` at the end of the line"
-                        : reportLine < line && nextDeclaration && !unfinished(previous)
-                        ? "the declaration is not finished at the end of this line"
+                boolean notFinished = reportLine < line && nextDeclaration && !unfinished(previous);
+                if (notFinished && Mistakes.unfinished(tokens, previous) != null) {
+                    report(Mistakes.unfinished(tokens, previous));
+                    return;
+                }
+                unclosedParen = reportLine < line && openParens(tokens, reportLine) > 0;
+                String message = unclosedParen ? missingParen(at)
+                        : notFinished ? "the declaration is not finished at the end of this line"
                         : previous != null && unfinished(previous) ? "`" + previous.getText() + "` needs "
                                 + (previous.getType() == AxolotlLexer.DOT ? "a name"
                                 : previous.getType() == AxolotlLexer.ARROW ? "a value or a block" : "a value") + " after it"
                         : parserMessage(msg, at, tokens);
                 // ANTLR recovery tends to report the same broken line several times, and the branches,
                 // braces and end of file after a broken `when` branch.
-                boolean cascade = !diagnostics.isEmpty() && at != null && (at.getType() == AxolotlLexer.ELSE
-                        || at.getType() == AxolotlLexer.ARROW || at.getType() == Token.EOF || at.getType() == AxolotlLexer.RBRACE);
+                boolean cascade = !diagnostics.isEmpty() && (notFinished || at != null && (at.getType() == AxolotlLexer.ELSE
+                        || at.getType() == AxolotlLexer.ARROW || at.getType() == Token.EOF || at.getType() == AxolotlLexer.RBRACE));
                 if (!cascade && diagnostics.stream().noneMatch(d -> d.line() == finalLine)) {
                     diagnostics.add(AxlDiagnostic.error(path, reportLine, column, ErrorCode.SYNTAX, message));
+                }
+            }
+
+            private void report(Mistakes.Placed known) {
+                Token at = known.at();
+                if (diagnostics.stream().noneMatch(d -> d.line() == at.getLine())) {
+                    diagnostics.add(AxlDiagnostic.error(path, at.getLine(), at.getCharPositionInLine() + 1,
+                            ErrorCode.SYNTAX, known.message()));
                 }
             }
         };
         var tree = parseTree(tokens, parserErrors);
         if (diagnostics.isEmpty()) {
-            sharedLines(path, tree, diagnostics);
+            sharedLines(path, tokens, tree, diagnostics);
         }
         if (!diagnostics.isEmpty()) {
             return new Result(null, diagnostics);

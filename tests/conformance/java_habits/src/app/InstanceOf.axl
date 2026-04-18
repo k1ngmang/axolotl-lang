@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val o: Object = "abc"
+    if (o instanceof String) {
+        println(o)
+    }
+}

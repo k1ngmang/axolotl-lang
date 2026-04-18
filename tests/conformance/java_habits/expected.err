@@ -1,8 +1,28 @@
+AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
+AXL001 app/BreakContinue.axl:8:13: error: Axolotl has no `continue`; put the rest of the loop body in an `if`
+AXL001 app/BreakContinue.axl:11:13: error: Axolotl has no `break`; end the loop with its condition, or move the loop into a function and `return`
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
+AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
+AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection: `for (x in xs) { ... }`; count with a `while` loop
+AXL001 app/DoWhile.axl:5:5: error: Axolotl has no `do`-`while`; write a `while` loop
 AXL001 app/EmptyArrow.axl:6:13: error: `->` needs a value or a block after it
+AXL001 app/ExtendsClass.axl:4:37: error: a class cannot extend another class; it can only implement interfaces
 AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?
+AXL001 app/Index.axl:7:15: error: Axolotl has no `[]` indexing; call `get`: `xs.get(0)`
+AXL001 app/InstanceOf.axl:5:11: error: Axolotl tests types with `is`: `if (x is String) { ... }`
+AXL001 app/JavaLambda.axl:6:28: error: lambdas are written in braces: `{ x -> ... }`
 AXL001 app/JavaType.axl:4:5: error: declare a local with its type after the name: `val count: Int = ...`
 AXL001 app/Let.axl:4:5: error: declare a value with `val`, or a variable with `var`
+AXL001 app/ListLiteral.axl:4:13: error: Axolotl has no list literals; write `List.of(1, 2, 3)`
 AXL001 app/MissingArrow.axl:6:11: error: missing `->` before `println`
 AXL001 app/New.axl:4:14: error: Axolotl creates objects without `new`: `StringBuilder(...)`
+AXL001 app/NewArray.axl:4:20: error: Axolotl has no arrays; use a list, such as `List<Int>` or `ArrayList<Int>()`
+AXL001 app/ParenCast.axl:5:13: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
+AXL001 app/PublicStatic.axl:3:1: error: declarations are public by default; remove `public`
+AXL001 app/StaticFn.axl:3:1: error: Axolotl has no `static`; remove it: functions and values at the top of a file need no object
+AXL001 app/Switch.axl:5:5: error: Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`
+AXL001 app/Ternary.axl:5:19: error: Axolotl has no `? :`; write `if (c) a else b`
+AXL001 app/TryCatch.axl:6:7: error: Axolotl has no `try`-`catch`; turn the exception into a `Result` with `attempt f() else e -> ...`
+AXL001 app/VoidMain.axl:3:1: error: functions are declared with `fn`: `fn main(...)`
 AXL001 app/WhenNoSubject.axl:5:10: error: `when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`
+AXL001 app/Wildcard.axl:3:1: error: Axolotl imports one type at a time: `import java.util.ArrayList`

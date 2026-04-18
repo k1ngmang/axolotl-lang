@@ -1,0 +1,7 @@
+package app
+
+import java.util.*
+
+fn main() {
+    println(ArrayList<String>())
+}

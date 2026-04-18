@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val x: Object = "a"
+    val s = (String) x
+    println(s)
+}

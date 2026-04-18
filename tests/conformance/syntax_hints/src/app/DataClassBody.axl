@@ -1,0 +1,5 @@
+package app
+
+data class P(val x: Int) {
+    fn twice() -> Int = x * 2
+}

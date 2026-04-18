@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val xs = List.of("a", "bb")
+    xs.forEach { x -> println(x) }
+}

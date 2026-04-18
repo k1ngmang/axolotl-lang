@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+
+fn main() {
+    for (String s : List.of("a")) {
+        println(s)
+    }
+}

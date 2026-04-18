@@ -1,0 +1,8 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> =
+    attempt Integer.parseInt(s)
+
+fn main() {
+    println(parse("1"))
+}

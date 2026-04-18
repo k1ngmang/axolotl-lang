@@ -1,0 +1,3 @@
+package app
+
+fn sum(vararg xs: Int) -> Int = 0

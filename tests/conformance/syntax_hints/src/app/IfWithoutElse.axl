@@ -1,0 +1,7 @@
+package app
+
+fn sign(n: Int) -> String = if (n < 0) "neg"
+
+fn main() {
+    println(sign(1))
+}

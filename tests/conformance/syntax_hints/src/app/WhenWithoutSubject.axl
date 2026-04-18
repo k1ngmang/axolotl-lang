@@ -1,0 +1,10 @@
+package app
+
+fn f(n: Int) -> String = when {
+    n > 5 -> "big"
+    else -> "other"
+}
+
+fn main() {
+    println(f(1))
+}

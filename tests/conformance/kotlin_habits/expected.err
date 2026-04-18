@@ -1,0 +1,20 @@
+AXL001 app/ColonResult.axl:3:13: error: the result type comes after `->`: `fn f(...) -> Int`
+AXL001 app/Companion.axl:4:5: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program
+AXL001 app/Const.axl:3:1: error: Axolotl has no `const`; a top-level `val` is already constant, so remove `const`
+AXL001 app/DefaultParameter.axl:3:41: error: parameters have no default values in Axolotl; declare a second function with fewer parameters
+AXL001 app/Destructuring.axl:4:9: error: Axolotl has no destructuring; declare each value: `val a = p.a()`
+AXL001 app/EnumConstructor.axl:3:11: error: an enum lists its constants only: `enum Color { RED, GREEN }`
+AXL001 app/Extension.axl:3:10: error: Axolotl has no extension functions; take the value as the first parameter: `fn shout(s: String)`
+AXL001 app/FatArrow.axl:4:7: error: write `->` after the condition of a `when` branch, and in a lambda
+AXL001 app/GenericClass.axl:3:15: error: Axolotl classes have no type parameters; write the types the class holds
+AXL001 app/GenericFunction.axl:5:4: error: Axolotl functions have no type parameters; write the types the function works with
+AXL001 app/Lateinit.axl:4:5: error: Axolotl has no `lateinit`; give the `var` a value, or make it nullable: `var x: T? = null`
+AXL001 app/NamedArguments.axl:6:24: error: Axolotl has no named arguments; pass the values in the order of the parameters
+AXL001 app/ObjectDeclaration.axl:3:1: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program
+AXL001 app/Override.axl:4:5: error: Axolotl has no `override`; remove it
+AXL001 app/Ranges.axl:4:15: error: Axolotl has no ranges (`..`); count with a `while` loop, or use `java.util.stream.IntStream.range(from, to)`
+AXL001 app/SafeLet.axl:5:12: error: Axolotl has no `let`; check for null instead: `if (s != null) { ... }`
+AXL001 app/TopLevelVar.axl:3:1: error: top-level values cannot change; use `val`, or keep the state in a class
+AXL001 app/TrailingLambda.axl:7:16: error: a lambda argument goes inside the parentheses: `xs.forEach({ ... })`; for a collection, use a pipe: `xs |> forEach { ... }`
+AXL001 app/TrailingLambdaCall.axl:4:12: error: a lambda argument goes inside the parentheses: `run({ ... })`
+AXL001 app/Vararg.axl:3:8: error: Axolotl has no `vararg`; take a `List` parameter

@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val a = 1
+    println(a
+        + 2)
+    println(a)
+}

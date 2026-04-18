@@ -1,0 +1,5 @@
+package app
+
+class Named(val name: String) {
+    override fun toString() -> String = name
+}

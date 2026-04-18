@@ -1,0 +1,3 @@
+package app
+
+fn greet(name: String, greeting: String = "hi") -> String = greeting + name

@@ -1,0 +1,7 @@
+package app
+
+class Box(val v: Int) {
+    companion object {
+        fn make() -> Box = Box(1)
+    }
+}

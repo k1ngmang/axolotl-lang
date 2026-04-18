@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+fn f(o: Object) -> String {
+    if (o is List<String>) {
+        return "list"
+    }
+    return "other"
+}

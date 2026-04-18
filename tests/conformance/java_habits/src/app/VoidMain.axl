@@ -1,0 +1,5 @@
+package app
+
+void main() {
+    println("hi")
+}

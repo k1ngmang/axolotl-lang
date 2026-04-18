@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+fn <T> first(xs: List<T>) -> T = xs.get(0)

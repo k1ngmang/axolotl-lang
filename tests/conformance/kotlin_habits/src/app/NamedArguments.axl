@@ -1,0 +1,7 @@
+package app
+
+fn greet(name: String, greeting: String) -> String = greeting + name
+
+fn main() {
+    println(greet(name = "a", greeting = "b"))
+}
