@@ -50,6 +50,32 @@ class AxlBuildTest {
     }
 
     @Test
+    void wordsErrorProneWarningsWithoutJavaTerms(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                class Empty
+
+                class Named(val name: String) : Runnable {
+                    fn run() { println(name) }
+                    fn toString() -> String = name
+                }
+
+                fn main() {
+                    val s = "a"
+                    if (s == "a") {
+                        println(Empty())
+                    }
+                }
+                """);
+        assertEquals(List.of(
+                "12:5 `==` tests whether both sides are the same object, not whether they are equal; compare them with "
+                        + "`a.equals(b)`",
+                "13:17 `Empty` has no `toString`, so it is shown as `Empty@4488aabb`; give it `fn toString() -> String`"),
+                warnings);
+    }
+
+    @Test
     void warnsAboutKotlinStringTemplates(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

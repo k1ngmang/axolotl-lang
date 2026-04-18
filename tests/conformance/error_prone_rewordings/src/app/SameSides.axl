@@ -1,0 +1,8 @@
+package app
+
+fn g() {
+    val x = 5
+    if (x == x) {
+        println("same")
+    }
+}

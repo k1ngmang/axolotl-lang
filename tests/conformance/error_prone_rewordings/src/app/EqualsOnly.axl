@@ -1,0 +1,5 @@
+package app
+
+class Pt(val x: Int) {
+    fn equals(o: Object?) -> Boolean = true
+}

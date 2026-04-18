@@ -1,0 +1,6 @@
+package app
+
+fn f() {
+    val x = 10 / 0
+    println(x)
+}

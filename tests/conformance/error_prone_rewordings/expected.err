@@ -1,0 +1,3 @@
+AXL100 app/DivisionByZero.axl:4:5: error: division by zero
+AXL100 app/EqualsOnly.axl:4:40: error: a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal objects have equal hash codes
+AXL100 app/SameSides.axl:5:14: error: both sides of this expression are the same, so its value is always `true`

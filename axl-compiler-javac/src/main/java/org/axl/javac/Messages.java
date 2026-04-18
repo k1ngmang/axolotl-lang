@@ -92,6 +92,9 @@ final class Messages {
     private static final Pattern RECEIVER = Pattern.compile("\\b([A-Z]\\w*)\\.(\\w+)\\b");
     private static final Pattern USED_BEFORE = Pattern.compile("^`(\\w+)` is used before it has a value$");
     private static final Pattern ABSTRACT = Pattern.compile("^([\\w.$]+) is abstract; cannot be instantiated$");
+    private static final Pattern DIVISION_BY_ZERO = Pattern.compile("[/%]\\s*0[lL]?\\b(?!\\.)");
+    private static final Pattern IDENTITY = Pattern.compile("^\\[IdentityBinaryExpression] .*equivalent to `(.+?)`");
+    private static final Pattern OBJECT_TO_STRING = Pattern.compile("^\\[ObjectToString] ([\\w.$]+) is final and does not override");
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
     private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
 
@@ -123,6 +126,8 @@ final class Messages {
         return message.startsWith("unreported exception <any>;")
                 || message.startsWith("[UnnecessaryParentheses]") || message.startsWith("[RefactorSwitch]")
                 || message.startsWith("[StatementSwitchToExpressionSwitch]")
+                // Axolotl has no @Override; the generated methods cannot carry one the author could write.
+                || message.startsWith("[MissingOverride]")
                 || message.startsWith("[UnusedVariable]") && UNUSED_GENERATED.matcher(message).find();
     }
 
@@ -205,7 +210,7 @@ final class Messages {
         }
         if (message.startsWith("[")) {
             String plain = SUGGESTION.matcher(ERROR_PRONE_LINK.matcher(message).replaceAll("")).replaceAll("");
-            return new Translated(ErrorCode.JAVAC, errorProne(plain));
+            return new Translated(ErrorCode.JAVAC, errorProne(plain, text));
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
@@ -238,7 +243,11 @@ final class Messages {
     }
 
     /** Error Prone findings, with Axolotl's names for types and declarations. */
-    private static String errorProne(String message) {
+    private static String errorProne(String message, String text) {
+        String reworded = errorProneReworded(message, text);
+        if (reworded != null) {
+            return reworded;
+        }
         if (message.startsWith("[BoxedPrimitiveEquality]")) {
             return "[BoxedPrimitiveEquality] `==` compares `Int?` values, and numbers taken from collections, as objects "
                     + "rather than by value; use `java.util.Objects.equals(a, b)`";
@@ -261,6 +270,35 @@ final class Messages {
         }
         return message.replaceFirst("^\\[UnusedVariable] The (?:local variable|parameter|field) '(\\w+)' is never read",
                 "`$1` is never read").replaceFirst("^\\[UnusedMethod] Method '(\\w+)' is never used", "`$1` is never used");
+    }
+
+    /** Findings whose Java words, such as override and reference equality, have plain Axolotl advice. */
+    private static String errorProneReworded(String message, String text) {
+        if (message.startsWith("[ReferenceEquality]")) {
+            return "`==` tests whether both sides are the same object, not whether they are equal; compare them with "
+                    + "`a.equals(b)`";
+        }
+        if (message.startsWith("[ConstantOverflow]") && DIVISION_BY_ZERO.matcher(text).find()) {
+            return "division by zero";
+        }
+        if (message.startsWith("[ConstantOverflow]")) {
+            return "this calculation is too large for its type; use `Long`, with `L` after a number";
+        }
+        Matcher identity = IDENTITY.matcher(message);
+        if (identity.find()) {
+            return "both sides of this expression are the same, so its value is always `" + identity.group(1) + "`";
+        }
+        if (message.startsWith("[EqualsHashCode]")) {
+            return "a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal objects have "
+                    + "equal hash codes";
+        }
+        Matcher toString = OBJECT_TO_STRING.matcher(message);
+        if (toString.find()) {
+            String type = simpleNames(axlType(toString.group(1)));
+            return "`" + type + "` has no `toString`, so it is shown as `" + type + "@4488aabb`; give it "
+                    + "`fn toString() -> String`";
+        }
+        return null;
     }
 
     private static Translated nullAway(String message, String text, String[] javaLines) {
