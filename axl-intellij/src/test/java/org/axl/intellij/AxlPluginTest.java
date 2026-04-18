@@ -148,6 +148,8 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(1, myFixture.findGuttersAtCaret().size());
         myFixture.configureByText("Hidden.axl", "package app\n\nprivate fn ma<caret>in() {\n    println(1)\n}\n");
         assertEquals(List.of(), myFixture.findGuttersAtCaret());
+        myFixture.configureByText("Runner.axl", "package app\n\nclass Runner(val n: Int) {\n    fn ma<caret>in() {\n        println(n)\n    }\n}\n");
+        assertEquals(List.of(), myFixture.findGuttersAtCaret());
     }
 
     public void testReportsSyntaxErrors() {
