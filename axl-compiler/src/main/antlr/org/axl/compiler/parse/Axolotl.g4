@@ -249,7 +249,13 @@ primary
     | whenExpression                                                # whenPrimary
     | {ifExpressionAhead()}? IF LPAREN expression RPAREN expression ELSE expression   # ifPrimary
     // Rejected with a message: braces make an `if` a statement.
-    | IF LPAREN expression RPAREN block (ELSE (block | expression))?                   # ifBlockPrimary
+    | IF LPAREN expression RPAREN braced (ELSE (braced | expression))?                 # ifBlockPrimary
+    ;
+
+// Only matches the braces: as statements, every `if` in them would also be tried as an `if`
+// statement, for each enclosing one, which takes exponential time.
+braced
+    : LBRACE (braced | ~(LBRACE | RBRACE))* RBRACE
     ;
 
 // `when (x) { is Circle -> x.radius(); 1, 2 -> "few"; else -> { ... } }`

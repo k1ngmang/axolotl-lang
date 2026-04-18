@@ -478,7 +478,7 @@ private fn buildPrimary(ctx: PrimaryContext) -> Expr = when (ctx) {
     is LambdaPrimaryContext -> buildLambda(ctx.lambda())
     is WhenPrimaryContext -> buildWhen(ctx.whenExpression())
     is IfPrimaryContext -> buildConditional(ctx)
-    is IfBlockPrimaryContext -> throw Rejected(pos(ctx.block(0).start), "an `if` that gives a value takes expressions " +
+    is IfBlockPrimaryContext -> throw Rejected(pos(ctx.braced(0).start), "an `if` that gives a value takes expressions " +
         "after `if (...)` and `else`, not braces: `if (c) a else b`; braces make an `if` a statement")
     is GenericConstructorContext -> buildGenericNew(ctx)
     else -> throw IllegalStateException("unknown primary " + ctx.getClass())

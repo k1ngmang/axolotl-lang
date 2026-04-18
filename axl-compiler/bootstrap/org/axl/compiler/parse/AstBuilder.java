@@ -502,7 +502,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
                 return buildConditional(ctx$6);
             }
             case IfBlockPrimaryContext ctx$7 -> {
-                throw new Rejected(pos(ctx$7.block(0).start), "an `if` that gives a value takes expressions " +
+                throw new Rejected(pos(ctx$7.braced(0).start), "an `if` that gives a value takes expressions " +
                         "after `if (...)` and `else`, not braces: `if (c) a else b`; braces make an `if` a statement");
             }
             case GenericConstructorContext ctx$8 -> {
