@@ -1,0 +1,6 @@
+package app
+
+fn five() {
+    println(helper())
+    println(shout("a"))
+}

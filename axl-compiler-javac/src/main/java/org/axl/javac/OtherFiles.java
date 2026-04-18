@@ -10,6 +10,9 @@ final class OtherFiles {
     private static final Pattern NO_MEMBER = Pattern.compile("^`(\\w+)` has no function or value `(\\w+)`$");
     private static final Pattern UNKNOWN_IMPORT = Pattern.compile("^unknown type `((?:[a-z]\\w*\\.)*)(\\w+)`; check the spelling$");
 
+    private static final Pattern UNKNOWN_FUNCTION = Pattern.compile(
+            "^(unknown function `(\\w+)\\(.*?\\)`); check the spelling or add `import fn`$");
+
     private final Collection<GeneratedSource> sources;
 
     OtherFiles(Collection<GeneratedSource> sources) {
@@ -21,6 +24,16 @@ final class OtherFiles {
         if (noMember.find() && isPrivate(noMember.group(1), noMember.group(2))) {
             return "`" + noMember.group(2) + "` is private to `" + noMember.group(1) + "` and can only be used in that file";
         }
+        if (noMember.find(0)) {
+            String similar = similarMember(noMember.group(1), noMember.group(2));
+            return similar == null ? message : message + "; did you mean `" + similar + "`?";
+        }
+        Matcher unknownFunction = UNKNOWN_FUNCTION.matcher(message);
+        if (unknownFunction.find()) {
+            String declaring = declaringFunction(unknownFunction.group(2));
+            return declaring == null ? message : unknownFunction.group(1) + "; it is declared in " + declaring + ".axl: "
+                    + "`import fn " + declaring.replace('/', '.') + "." + unknownFunction.group(2) + "`";
+        }
         Matcher unknownImport = UNKNOWN_IMPORT.matcher(message);
         if (unknownImport.find()) {
             String declaring = declaring(unknownImport.group(1), unknownImport.group(2));
@@ -31,6 +44,19 @@ final class OtherFiles {
             }
         }
         return message;
+    }
+
+    /** A public function of a file of the build, given as the path of the file without extension. */
+    private String declaringFunction(String name) {
+        Pattern declaration = Pattern.compile("^    public static [^=(]*\\b" + Pattern.quote(name) + "\\(", Pattern.MULTILINE);
+        return sources.stream().map(GeneratedSource::unit).filter(u -> declaration.matcher(u.javaSource()).find())
+                .map(u -> u.qualifiedName().replace('.', '/')).findFirst().orElse(null);
+    }
+
+    private String similarMember(String fileClass, String member) {
+        return sources.stream().filter(s -> s.unit().className().equals(fileClass))
+                .map(s -> Names.similar(member, s.unit().javaSource().split("\n"))).filter(n -> n != null)
+                .findFirst().orElse(null);
     }
 
     private boolean isPrivate(String fileClass, String member) {

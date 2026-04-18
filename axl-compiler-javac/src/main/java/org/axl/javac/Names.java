@@ -33,6 +33,8 @@ final class Names {
             "class", "new", "this", "null", "true", "false", "void", "else", "case", "default", "switch", "record",
             "interface", "enum", "import", "package", "while", "for", "if");
 
+    static final String NO_TYPE_PARAMETERS = "Axolotl functions and classes have no type parameters, so write the type itself";
+
     private static final Pattern WORD = Pattern.compile("(?<![\\w$.])[A-Za-z_]\\w*");
 
     private Names() {}
@@ -43,7 +45,8 @@ final class Names {
             case "Bool" -> "write `Boolean`";
             case "Char" -> "a character is a `Character`";
             case "Unit" -> "leave out the result type of a function that returns nothing";
-            default -> ARRAY_TYPES.contains(symbol) ? "Axolotl uses lists, such as `List<Int>`"
+            default -> symbol.matches("[A-Z]") ? NO_TYPE_PARAMETERS
+                    : ARRAY_TYPES.contains(symbol) ? "Axolotl uses lists, such as `List<Int>`"
                     : JDK_TYPES.containsKey(symbol) ? "add `import " + JDK_TYPES.get(symbol) + "." + symbol + "`"
                     : "check the spelling or add an import";
         };

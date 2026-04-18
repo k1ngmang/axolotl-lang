@@ -1,0 +1,15 @@
+package app
+
+import java.util.List
+
+fn first(xs: List<T>) -> T = xs.get(0)
+
+fn unit(x: Int) -> Unit {
+    println(x)
+}
+
+fn nothing(x: Int) -> Void {
+    println(x)
+}
+
+fn field(s: String) -> Int = s.length

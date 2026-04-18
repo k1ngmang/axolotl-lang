@@ -170,6 +170,9 @@ final class Messages {
         if (sameLine && (cause.message().startsWith(PIPE_SUBJECT) || cause.message().equals(SORTED_ARITY))) {
             return true;
         }
+        if (effect.message().startsWith("a function that returns nothing has no result type; remove `-> Unit`")) {
+            return cause.message().startsWith("unknown type `Unit`");
+        }
         Matcher usedBefore = USED_BEFORE.matcher(effect.message());
         if (usedBefore.find()) {
             return cause.message().startsWith("`" + usedBefore.group(1) + "` is used in its own value");
@@ -185,6 +188,20 @@ final class Messages {
             }
         }
         return false;
+    }
+
+    /** `s.length` for `s.length()`: a method of a JDK class without its parentheses. */
+    private static String methodHint(String location, String name) {
+        int ofType = location.indexOf(" of type ");
+        String type = (ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1))
+                .replaceAll("<.*", "");
+        try {
+            boolean method = Arrays.stream(Class.forName(type, false, Messages.class.getClassLoader()).getMethods())
+                    .anyMatch(m -> m.getName().equals(name) && m.getParameterCount() == 0);
+            return method ? "; `" + name + "` is a method: `" + name + "()`" : "";
+        } catch (ClassNotFoundException | LinkageError e) {
+            return "";
+        }
     }
 
     /** `nmae` for `name`: a name of the generated file one or two letters away. */
@@ -207,7 +224,8 @@ final class Messages {
 
     /** Messages that javac reports twice for one mistake, at different columns of the same line. */
     static boolean oncePerLine(String translated) {
-        return translated.equals(LAMBDA_VALUE) || translated.endsWith(UNKNOWN_IMPORTED_CLASS);
+        return translated.equals(LAMBDA_VALUE) || translated.endsWith(UNKNOWN_IMPORTED_CLASS)
+                || translated.endsWith(Names.NO_TYPE_PARAMETERS);
     }
 
     /** Warnings about the shape of generated code, which the author cannot change. */
@@ -281,6 +299,11 @@ final class Messages {
             if (tryProblem != null) {
                 return tryProblem;
             }
+        }
+        String returnType = enclosingReturnType(javaLines, javaLine);
+        if (message.equals("missing return statement") && ("Void".equals(returnType) || "Unit".equals(returnType))) {
+            return new Translated(ErrorCode.JAVAC, "a function that returns nothing has no result type; remove `-> "
+                    + returnType + "`");
         }
         if (message.startsWith("[NullAway] ")) {
             return nullAway(message, text, javaLines);
@@ -615,7 +638,7 @@ final class Messages {
             }
             return switch (unknown.group(1)) {
                 case "variable" -> inThisFile ? unknownName(symbol, javaLines)
-                        : memberOwner(location) + " has no field `" + symbol + "`";
+                        : memberOwner(location) + " has no field `" + symbol + "`" + methodHint(location, symbol);
                 case "method" -> inThisFile ? unknownFunction(symbol, name, javaLines)
                         : memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`";
                 default -> Names.unknownType(symbol);
