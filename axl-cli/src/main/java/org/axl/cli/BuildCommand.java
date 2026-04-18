@@ -41,7 +41,7 @@ final class BuildCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        if (!Paths.isDirectory(sourceDir)) {
+        if (!Paths.isDirectory(sourceDir) || !Paths.haveSources(List.of(sourceDir))) {
             return 2;
         }
         Paths.warnAboutMissingEntries(classpath);
@@ -63,6 +63,6 @@ final class BuildCommand implements Callable<Integer> {
     }
 
     static void report(List<AxlDiagnostic> diagnostics) {
-        diagnostics.forEach(d -> System.err.println(d.format()));
+        diagnostics.forEach(d -> System.err.println(Paths.format(d)));
     }
 }

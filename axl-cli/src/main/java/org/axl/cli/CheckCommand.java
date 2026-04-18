@@ -32,7 +32,7 @@ final class CheckCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws Exception {
-        if (!sourceDirs.stream().allMatch(Paths::isDirectory)) {
+        if (!sourceDirs.stream().allMatch(Paths::isDirectory) || !Paths.haveSources(sourceDirs)) {
             return 2;
         }
         Paths.warnAboutMissingEntries(classpath);
@@ -46,7 +46,7 @@ final class CheckCommand implements Callable<Integer> {
                     .display(p -> p.toAbsolutePath().toString())
                     .skip(Paths::isInWorkDirectory)
                     .run();
-            result.diagnostics().forEach(d -> System.out.println(d.format()));
+            result.diagnostics().forEach(d -> System.out.println(Paths.format(d)));
             return result.success() ? 0 : 1;
         } finally {
             WorkDirectories.delete(work);

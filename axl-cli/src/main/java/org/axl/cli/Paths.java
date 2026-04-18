@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
+import org.axl.compiler.AxlDiagnostic;
 
 final class Paths {
 
@@ -19,8 +20,28 @@ final class Paths {
             return true;
         }
         String problem = Files.exists(dir) ? "not a directory: " : "no such directory: ";
-        System.err.println(Main.withEncodingHint("axl: " + problem + dir, dir.toString()));
+        String hint = dir.toString().endsWith(".axl") && Files.exists(dir)
+                ? "; give the source directory that holds the package directories, such as src" : "";
+        System.err.println(Main.withEncodingHint("axl: " + problem + dir + hint, dir.toString()));
         return false;
+    }
+
+    /** Reports source directories that hold no .axl or .java file at all, which is most likely the wrong directory. */
+    static boolean haveSources(List<Path> dirs) throws IOException {
+        for (Path dir : dirs) {
+            try (Stream<Path> walk = Files.walk(dir)) {
+                if (walk.anyMatch(p -> p.toString().endsWith(".axl") || p.toString().endsWith(".java"))) {
+                    return true;
+                }
+            }
+        }
+        System.err.println("axl: no .axl or .java files in " + String.join(", ", dirs.stream().map(Path::toString).toList()));
+        return false;
+    }
+
+    /** A diagnostic as printed, with the code of an .axl diagnostic to look up in the documentation. */
+    static String format(AxlDiagnostic diagnostic) {
+        return diagnostic.file().endsWith(".axl") ? diagnostic.format() + " [" + diagnostic.code().id() + "]" : diagnostic.format();
     }
 
     /** Missing entries are not an error, as for javac, but are most likely a typo. */

@@ -155,7 +155,7 @@ class CliTest {
         int exit = axl("build", CASES.resolve("javac_error_mapping/src").toString(), "-d", tmp.toString());
         assertEquals(1, exit);
         String message = err.toString(StandardCharsets.UTF_8).strip();
-        assertTrue(message.endsWith("Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()`"), message);
+        assertTrue(message.endsWith("Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()` [AXL100]"), message);
     }
 
     @Test
@@ -193,7 +193,7 @@ class CliTest {
         Files.writeString(java.resolve("Names.java"), "package app;\npublic class Names { public static String name() { return \"x\"; } }\n");
         Files.writeString(axl.resolve("Main.axl"), "package app\n\nfn main() {\n    val n: String? = null\n    println(n.length() + Names.name())\n}\n");
         assertEquals(1, axl("check", tmp.resolve("axl").toString(), tmp.resolve("java").toString()));
-        assertEquals(axl.resolve("Main.axl").toAbsolutePath() + ":5:15: error: value `n` may be null: use `?.`, `?:` or check `if (n != null)`",
+        assertEquals(axl.resolve("Main.axl").toAbsolutePath() + ":5:15: error: value `n` may be null: use `?.`, `?:` or check `if (n != null)` [AXL102]",
                 out.toString(StandardCharsets.UTF_8).strip());
     }
 
@@ -220,6 +220,19 @@ class CliTest {
         assertEquals(2, axl("check", tmp.resolve("missing").toString()));
         assertEquals(2, axl("run", tmp.resolve("Missing.axl").toString()));
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("axl: no such directory: "), err.toString());
+    }
+
+    @Test
+    void rejectsDirectoriesWithoutSourcesAndFilesGivenAsSourceDirectory(@TempDir Path tmp) throws Exception {
+        Path empty = Files.createDirectories(tmp.resolve("empty"));
+        assertEquals(2, axl("check", empty.toString()));
+        assertEquals(2, axl("build", empty.toString(), "-d", tmp.resolve("out").toString()));
+        Path file = Files.writeString(Files.createDirectories(tmp.resolve("src/app")).resolve("Main.axl"), "package app\n");
+        assertEquals(2, axl("check", file.toString()));
+        String printed = err.toString(StandardCharsets.UTF_8);
+        assertTrue(printed.contains("axl: no .axl or .java files in " + empty), printed);
+        assertTrue(printed.contains("axl: not a directory: " + file + "; give the source directory that holds the package "
+                + "directories, such as src"), printed);
     }
 
     @Test
