@@ -1,8 +1,13 @@
 package org.axl.cli;
 
 import java.io.File;
+import java.io.FileDescriptor;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.io.UncheckedIOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -15,11 +20,25 @@ import picocli.CommandLine.Command;
 public final class Main {
 
     public static void main(String[] args) {
+        utf8WithoutLocale();
         int code = commandLine().execute(args);
         // A program started by `axl run` may still have threads running; the JVM ends when they do.
         if (code != 0 || !RunCommand.programRan) {
             System.exit(code);
         }
+    }
+
+    /** Without a locale Java writes ASCII, which turns every other character of a name or message into `?`. */
+    private static void utf8WithoutLocale() {
+        try {
+            if (!Charset.forName(System.getProperty("stdout.encoding", "UTF-8")).equals(StandardCharsets.US_ASCII)) {
+                return;
+            }
+        } catch (IllegalArgumentException e) {
+            return;
+        }
+        System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, StandardCharsets.UTF_8));
+        System.setErr(new PrintStream(new FileOutputStream(FileDescriptor.err), true, StandardCharsets.UTF_8));
     }
 
     static CommandLine commandLine() {
