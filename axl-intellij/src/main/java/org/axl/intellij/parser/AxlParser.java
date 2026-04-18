@@ -504,7 +504,7 @@ public final class AxlParser implements PsiParser {
         PsiBuilder.Marker m = b.mark();
         elvis();
         boolean negated = at(BANG) && b.lookAhead(1) == AxlTokenTypes.of(IS);
-        if (!newlineBefore() && (negated || at(IS))) {
+        if (!newlineBefore() && (negated || at(IS)) && !startsWhenArm(negated ? 2 : 1)) {
             consume(BANG);
             b.advanceLexer();
             typeName();
@@ -512,6 +512,22 @@ public final class AxlParser implements PsiParser {
         } else {
             m.drop();
         }
+    }
+
+    /**
+     * Whether the type that starts some tokens ahead is followed by `->`: then the `is` starts the
+     * next arm of a one-line `when`, as in `is Circle -> "c" is Square -> "s"`, since no expression
+     * is followed by `->`.
+     */
+    private boolean startsWhenArm(int typeStart) {
+        int i = typeStart;
+        if (b.lookAhead(i) != AxlTokenTypes.IDENTIFIER) {
+            return false;
+        }
+        while (b.lookAhead(i + 1) == AxlTokenTypes.of(DOT) && b.lookAhead(i + 2) == AxlTokenTypes.IDENTIFIER) {
+            i += 2;
+        }
+        return b.lookAhead(i + 1) == AxlTokenTypes.of(ARROW);
     }
 
     private void elvis() {

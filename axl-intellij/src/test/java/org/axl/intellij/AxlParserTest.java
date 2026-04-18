@@ -33,7 +33,9 @@ public class AxlParserTest extends BasePlatformTestCase {
 
     public void testAcceptsWhatTheGrammarAccepts() {
         for (String body : List.of("fn f(a: Int, b: Int) -> Int = a + b\n", "fn f() = g(1, 2)\n",
-                "fn f() = { a, b -> a }\n", "fn f(x: Boolean) = !!x\n", "fn f() {\n    a.b = 1\n    c = 2\n}\n")) {
+                "fn f() = { a, b -> a }\n", "fn f(x: Boolean) = !!x\n", "fn f() {\n    a.b = 1\n    c = 2\n}\n",
+                "fn f(s: Shape) -> String = when (s) { is Circle -> \"c\" is app.Square -> \"s\" }\n",
+                "fn f(s: Shape) -> Boolean = when (s) { is Circle -> s is Circle else -> false }\n")) {
             PsiFile file = myFixture.configureByText("Ok.axl", "package app\n\n" + body);
             assertNull(body, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
         }
