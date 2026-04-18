@@ -34,7 +34,7 @@
     "numbers": {
       "patterns": [
         { "name": "constant.numeric.hex.axl", "match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*[lL]?\\b" },
-        { "name": "constant.numeric.decimal.axl", "match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9]+)?[lLfFdD]?\\b" }
+        { "name": "constant.numeric.decimal.axl", "match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9][0-9_]*)?[lLfFdD]?\\b" }
       ]
     },
     "declarations": {
@@ -62,7 +62,7 @@
           }
         },
         {
-          "begin": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)\\s*(\\{)",
+          "begin": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
           "beginCaptures": {
             "1": { "name": "keyword.declaration.type.axl" },
             "2": { "name": "entity.name.type.enum.axl" }
@@ -72,13 +72,6 @@
             { "include": "#comments" },
             { "name": "variable.other.enummember.axl", "match": "[\\p{L}_$][\\p{L}\\p{N}_$]*" }
           ]
-        },
-        {
-          "match": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
-          "captures": {
-            "1": { "name": "keyword.declaration.type.axl" },
-            "2": { "name": "entity.name.type.enum.axl" }
-          }
         },
         {
           "match": "\\b(interface)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",

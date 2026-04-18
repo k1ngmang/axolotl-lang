@@ -2,12 +2,14 @@ package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,37 @@ class GrammarTest {
         assertEquals("variable.other.constant.axl", scope("types", "Color.RED", 6));
         assertEquals("entity.name.type.axl", scope("types", "Color.RED", 0));
         assertEquals("entity.name.type.axl", scope("types", "Thread.State.NEW", 7));
+    }
+
+    @Test
+    void highlightsExponentsWithUnderscores() {
+        for (String number : List.of("1e1_0", "2.5E-3_1d")) {
+            Pattern decimal = Pattern.compile(pattern("numbers", "constant.numeric.decimal.axl").get("match").getAsString());
+            assertTrue(decimal.matcher(number).matches(), number);
+        }
+    }
+
+    private static JsonObject pattern(String rule, String name) {
+        for (JsonElement element : REPOSITORY.getAsJsonObject(rule).getAsJsonArray("patterns")) {
+            if (element.getAsJsonObject().has("name") && element.getAsJsonObject().get("name").getAsString().equals(name)) {
+                return element.getAsJsonObject();
+            }
+        }
+        throw new AssertionError("no " + name + " in " + rule);
+    }
+
+    @Test
+    void startsAnEnumBodyOnTheLineAfterItsName() {
+        for (JsonElement element : REPOSITORY.getAsJsonObject("declarations").getAsJsonArray("patterns")) {
+            JsonObject pattern = element.getAsJsonObject();
+            if (pattern.has("begin") && pattern.get("begin").getAsString().contains("enum")) {
+                Matcher matcher = Pattern.compile(pattern.get("begin").getAsString()).matcher("enum Dir");
+                assertTrue(matcher.lookingAt());
+                assertEquals("enum Dir", matcher.group());
+                return;
+            }
+        }
+        throw new AssertionError("no rule for the body of an enum");
     }
 
     /** The scope of the first pattern of a rule that matches at an offset, as TextMate tries them in order. */
