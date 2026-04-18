@@ -52,6 +52,12 @@ final class Keywords {
         };
     }
 
+    /** Whether a type is wanted at a 0-based position, as after `is`. */
+    static boolean typeExpected(Document document, int line, int character) {
+        List<Token> before = tokensBefore(document, line, document.codePointColumn(line, character));
+        return !before.isEmpty() && before.getLast().getType() == AxolotlLexer.IS;
+    }
+
     private static List<String> withElse() {
         List<String> result = new ArrayList<>(STATEMENT);
         result.add("else");

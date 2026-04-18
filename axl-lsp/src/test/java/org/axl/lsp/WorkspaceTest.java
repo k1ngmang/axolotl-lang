@@ -744,6 +744,14 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesOnlyTypesAfterIs() throws Exception {
+        String uri = open("Shapes.axl", SHAPES);
+        workspace.update(uri, SHAPES.replace("is Square -> {", "is Sq -> {"));
+        List<String> labels = new Completions(workspace).complete(uri, 12, 9).stream().map(CompletionItem::getLabel).toList();
+        assertEquals(List.of("Shape", "Circle", "Square"), labels);
+    }
+
+    @Test
     void completesOnlyValInAnInterface() throws Exception {
         String uri = open("Shape.axl", "package app\n\nsealed interface Shape {\n    \n}\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 4).stream().map(CompletionItem::getLabel).toList();

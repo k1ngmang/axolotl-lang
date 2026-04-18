@@ -48,10 +48,12 @@ final class Completions {
             List<Receivers.Step> receiver = Receivers.steps(current, dot);
             return parsed == null || receiver == null ? List.of() : members(parsed, pos, receiver);
         }
+        boolean typeOnly = Keywords.typeExpected(current, line, character);
         List<CompletionItem> items = new ArrayList<>();
         if (parsed != null) {
             Map<String, Symbols.Symbol> names = new LinkedHashMap<>();
-            Symbols.visibleAt(parsed.ast, pos).forEach(s -> names.put(s.name(), s));
+            Symbols.visibleAt(parsed.ast, pos).stream().filter(s -> !typeOnly || isType(s))
+                    .forEach(s -> names.put(s.name(), s));
             for (Symbols.Symbol symbol : names.values()) {
                 CompletionItem item = new CompletionItem(symbol.name());
                 item.setKind(kind(symbol.kind()));
@@ -60,6 +62,9 @@ final class Completions {
                 }
                 items.add(item);
             }
+        }
+        if (typeOnly) {
+            return items;
         }
         for (String name : PRELUDE) {
             CompletionItem item = new CompletionItem(name);
@@ -159,6 +164,10 @@ final class Completions {
             items.add(item);
         }
         return items;
+    }
+
+    private static boolean isType(Symbols.Symbol symbol) {
+        return symbol.kind() == Symbols.Kind.TYPE || symbol.kind() == Symbols.Kind.DECLARED_TYPE;
     }
 
     private static CompletionItemKind kind(Symbols.Kind kind) {
