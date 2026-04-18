@@ -67,6 +67,36 @@ class AxlBuildTest {
         assertEquals(List.of("5:13 " + template, "6:13 " + template), warnings);
     }
 
+    @Test
+    void explainsCreatingAnInterfaceOrAbstractClass(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("src");
+        Files.createDirectories(src.resolve("app"));
+        Files.writeString(src.resolve("app/Main.axl"), """
+                package app
+
+                import java.util.AbstractList
+                import java.util.List
+
+                interface Named {
+                    val name: String
+                }
+
+                fn main() {
+                    println(List<String>())
+                    println(Named())
+                    println(AbstractList<String>())
+                }
+                """);
+        AxlBuild.Result result = new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).nullChecks(false).run();
+        List<String> errors = result.diagnostics().stream().filter(AxlDiagnostic::isError)
+                .map(d -> d.line() + ":" + d.column() + " " + d.message()).toList();
+        assertEquals(List.of(
+                "11:13 `List` is an interface and cannot be created; create a class that implements it, such as "
+                        + "`ArrayList<String>()`",
+                "12:13 `Named` is an interface and cannot be created; create a class that implements it",
+                "13:13 `AbstractList` is abstract and cannot be created; use a class that extends it"), errors);
+    }
+
     private static List<String> warnings(Path tmp, String source) throws Exception {
         Path src = tmp.resolve("src");
         Files.createDirectories(src.resolve("app"));

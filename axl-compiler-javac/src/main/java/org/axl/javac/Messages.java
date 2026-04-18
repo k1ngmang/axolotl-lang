@@ -91,6 +91,7 @@ final class Messages {
     private static final Pattern VOID_METHOD = Pattern.compile("\\bstatic void (\\w+)\\(|^\\s*public void (\\w+)\\(");
     private static final Pattern RECEIVER = Pattern.compile("\\b([A-Z]\\w*)\\.(\\w+)\\b");
     private static final Pattern USED_BEFORE = Pattern.compile("^`(\\w+)` is used before it has a value$");
+    private static final Pattern ABSTRACT = Pattern.compile("^([\\w.$]+) is abstract; cannot be instantiated$");
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
     private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
 
@@ -579,10 +580,44 @@ final class Messages {
             return "`" + missingMethod.group(1) + "` must give `fn " + missingMethod.group(2) + "(" + parameters
                     + ")`, which `" + simpleNames(axlType(missingMethod.group(4))) + "` requires";
         }
+        Matcher abstractType = ABSTRACT.matcher(message);
+        if (abstractType.find()) {
+            return abstractType(abstractType.group(1), text, javaLines);
+        }
         if (message.equals("interface expected here")) {
             return "a class cannot extend another class; it can only implement interfaces";
         }
         return null;
+    }
+
+    /** `List<String>()`: an interface or abstract class cannot be created, a class that implements it can. */
+    private static String abstractType(String javaName, String text, String[] javaLines) {
+        String name = simpleNames(axlType(javaName));
+        String simple = name.substring(name.lastIndexOf('.') + 1);
+        Matcher created = NEW_TYPE.matcher(text);
+        String typeArguments = created.find() && created.group(2) != null ? axlType(created.group(2)) : "";
+        String implementation = switch (simple) {
+            case "List", "Collection", "Iterable" -> "ArrayList";
+            case "Map" -> "HashMap";
+            case "Set" -> "HashSet";
+            case "Queue", "Deque" -> "ArrayDeque";
+            default -> null;
+        };
+        String suggestion = implementation == null ? "create a class that implements it"
+                : "create a class that implements it, such as `" + implementation + typeArguments + "()`";
+        return isInterface(javaName, simple, javaLines) ? "`" + name + "` is an interface and cannot be created; " + suggestion
+                : "`" + name + "` is abstract and cannot be created; use a class that extends it";
+    }
+
+    private static boolean isInterface(String javaName, String simple, String[] javaLines) {
+        if (Arrays.stream(javaLines).anyMatch(l -> l.matches(".*\\binterface " + Pattern.quote(simple) + "\\b.*"))) {
+            return true;
+        }
+        try {
+            return Class.forName(javaName, false, Messages.class.getClassLoader()).isInterface();
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
     }
 
     private static String selfReference(String name) {
