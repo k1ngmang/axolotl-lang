@@ -792,6 +792,17 @@ class WorkspaceTest {
     }
 
     @Test
+    void outlinesDeclarationsWithTheirWholeText() throws Exception {
+        String uri = open("Counter.axl", COUNTER);
+        List<DocumentSymbol> symbols = new Outline(workspace).symbols(uri);
+        DocumentSymbol counter = symbols.get(1);
+        assertEquals(new Range(new Position(4, 0), new Position(13, 1)), counter.getRange());
+        assertEquals(new Range(new Position(7, 4), new Position(10, 5)), counter.getChildren().get(3).getRange());
+        assertEquals(new Range(new Position(12, 4), new Position(12, 31)), counter.getChildren().get(4).getRange());
+        assertEquals(new Range(new Position(17, 0), new Position(20, 1)), symbols.get(3).getRange());
+    }
+
+    @Test
     void hoversAndGoesToClassesAndEnums() throws Exception {
         String uri = open("Counter.axl", COUNTER);
         assertTrue(hover(uri, 18, 14).contains("class Counter(val name: String, var step: Int)"), hover(uri, 18, 14));

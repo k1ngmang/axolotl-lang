@@ -2,10 +2,13 @@ package org.axl.lsp;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Pos;
+import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.DocumentSymbol;
+import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.SymbolKind;
 
@@ -24,7 +27,15 @@ final class Outline {
         if (document == null) {
             return List.of();
         }
-        return document.ast.decls().stream().map(decl -> symbol(document, decl)).toList();
+        List<Decl> decls = document.ast.decls();
+        List<DocumentSymbol> result = new ArrayList<>();
+        for (int i = 0; i < decls.size(); i++) {
+            Pos next = i + 1 < decls.size() ? decls.get(i + 1).pos() : null;
+            DocumentSymbol symbol = symbol(document, decls.get(i));
+            symbol.setRange(new Range(document.position(decls.get(i).pos()), end(document, decls.get(i).pos(), next)));
+            result.add(symbol);
+        }
+        return result;
     }
 
     private static DocumentSymbol symbol(Document document, Decl decl) {
@@ -42,18 +53,60 @@ final class Outline {
         };
     }
 
+    /**
+     * Where a declaration that starts at a position ends: at its last token before the next
+     * declaration, or before the brace that closes the class around it. The AST keeps only starts.
+     */
+    private static Position end(Document document, Pos start, Pos next) {
+        Token last = null;
+        int depth = 0;
+        for (Token token : document.tokens) {
+            Pos at = Document.start(token);
+            if (token.getChannel() != Token.DEFAULT_CHANNEL || !Symbols.before(start, at)) {
+                continue;
+            }
+            int type = token.getType();
+            boolean closing = type == AxolotlLexer.RBRACE || type == AxolotlLexer.RPAREN;
+            if (next != null && Symbols.before(next, at) || closing && depth == 0) {
+                break;
+            }
+            if (closing) {
+                depth--;
+            } else if (type == AxolotlLexer.LBRACE || type == AxolotlLexer.LPAREN) {
+                depth++;
+            }
+            last = token;
+        }
+        if (last == null) {
+            return document.position(start);
+        }
+        int length = last.getStopIndex() - last.getStartIndex() + 1;
+        return document.position(new Pos(last.getLine(), last.getCharPositionInLine() + 1 + length));
+    }
+
     private static List<DocumentSymbol> members(Document document, Decl.ClassDecl classDecl) {
         List<DocumentSymbol> result = new ArrayList<>();
         for (Decl.Property p : classDecl.parameters()) {
             result.add(symbol(document, p.namePos(), p.name(), SymbolKind.Field, List.of()));
         }
+        List<Pos> starts = new ArrayList<>(classDecl.properties().stream().map(Decl.Property::pos).toList());
+        classDecl.methods().forEach(m -> starts.add(m.pos()));
+        starts.sort((a, b) -> a.equals(b) ? 0 : Symbols.before(a, b) ? -1 : 1);
         for (Decl.Property p : classDecl.properties()) {
-            result.add(symbol(document, p.namePos(), p.name(), SymbolKind.Field, List.of()));
+            result.add(withBody(document, symbol(document, p.namePos(), p.name(), SymbolKind.Field, List.of()), p.pos(), starts));
         }
         for (Decl.Function m : classDecl.methods()) {
-            result.add(symbol(document, m.namePos(), m.name(), SymbolKind.Method, List.of()));
+            result.add(withBody(document, symbol(document, m.namePos(), m.name(), SymbolKind.Method, List.of()), m.pos(), starts));
         }
         return result;
+    }
+
+    /** A member's range runs from its start to the next member's. */
+    private static DocumentSymbol withBody(Document document, DocumentSymbol symbol, Pos start, List<Pos> starts) {
+        int index = starts.indexOf(start);
+        Pos next = index + 1 < starts.size() ? starts.get(index + 1) : null;
+        symbol.setRange(new Range(document.position(start), end(document, start, next)));
+        return symbol;
     }
 
     private static List<DocumentSymbol> constants(Document document, Decl.EnumDecl enumeration) {
