@@ -1,0 +1,7 @@
+package app
+
+enum Color { RED, GREEN }
+
+fn q() {
+    println(Color())
+}

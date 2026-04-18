@@ -1,0 +1,8 @@
+package app
+
+data class Point(val x: Int, val y: Int)
+
+fn r() {
+    val p = Point(1, 2)
+    p.x = 3
+}

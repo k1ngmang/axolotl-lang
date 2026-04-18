@@ -1,0 +1,4 @@
+package app
+
+class Animal(val name: String)
+class Dog(val name: String) : Animal

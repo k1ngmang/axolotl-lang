@@ -1,0 +1,6 @@
+package app
+
+fn area(s: String) -> Double = when (s) {
+    is Int -> 1.0
+    else -> 3.0
+}

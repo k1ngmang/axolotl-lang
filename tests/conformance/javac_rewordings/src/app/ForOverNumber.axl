@@ -1,0 +1,10 @@
+package app
+
+fn n() {
+    for (x in 5) {
+        println(x)
+    }
+    for (c in "abc") {
+        println(c)
+    }
+}

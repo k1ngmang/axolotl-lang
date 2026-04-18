@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+fn h() {
+    val xs: List<int> = List.of(1)
+    println(xs)
+}

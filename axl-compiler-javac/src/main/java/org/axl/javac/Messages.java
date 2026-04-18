@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
 
 /** Rewrites javac messages that have a clearer explanation in Axolotl terms. */
@@ -76,12 +77,39 @@ final class Messages {
     private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|char|Integer)\\b");
     private static final Pattern GENERATED = Pattern.compile("\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
+    // `is` becomes a type pattern in a switch or after instanceof.
+    private static final Pattern TYPE_PATTERN = Pattern.compile("\\bcase [\\w.<>]+ \\w+(?:\\$\\d+)? ->|\\binstanceof\\b");
+    private static final Pattern PRIMITIVE_ARGUMENT = Pattern.compile("[<,]\\s*(int|long|double|boolean|char)\\s*[,>]");
+    private static final Pattern SELF_REFERENCE = Pattern.compile(
+            "^cannot infer type for local variable (\\w+); \\(cannot use 'var' on self-referencing variable\\)$");
+    private static final Pattern UNINITIALIZED = Pattern.compile("^variable (\\w+) might not have been initialized$");
+    private static final Pattern NON_STATIC = Pattern.compile("^non-static (method|variable) (\\w+)(\\(.*\\))? cannot be referenced from a static context$");
+    private static final Pattern FOR_EACH = Pattern.compile("^for-each not applicable to expression type; required: array or java\\.lang\\.Iterable; found: (.+)$");
+    private static final Pattern UNARY = Pattern.compile("^bad operand type (.+) for unary operator '(.+)'$");
+    private static final Pattern MISSING_METHOD = Pattern.compile(
+            "^(\\w+) is not abstract and does not override abstract method (\\w+)\\((.*)\\) in ([\\w.$]+)$");
+    private static final Pattern VOID_METHOD = Pattern.compile("\\bstatic void (\\w+)\\(|^\\s*public void (\\w+)\\(");
+    private static final Pattern RECEIVER = Pattern.compile("\\b([A-Z]\\w*)\\.(\\w+)\\b");
+    private static final Pattern USED_BEFORE = Pattern.compile("^`(\\w+)` is used before it has a value$");
+    private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
+    private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
 
     private static final String LAMBDA_VALUE = "the lambda returns a value, but nothing is expected here; "
             + "use the value in a call, such as `println(...)`, or remove it";
     private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
 
     private Messages() {}
+
+    /** Whether the error only follows from another error of the same file, which already explains the mistake. */
+    static boolean followsFrom(AxlDiagnostic effect, List<AxlDiagnostic> all) {
+        return all.stream().anyMatch(cause -> cause != effect && cause.isError() && cause.file().equals(effect.file())
+                && causes(cause, effect));
+    }
+
+    private static boolean causes(AxlDiagnostic cause, AxlDiagnostic effect) {
+        Matcher usedBefore = USED_BEFORE.matcher(effect.message());
+        return usedBefore.find() && cause.message().startsWith("`" + usedBefore.group(1) + "` is used in its own value");
+    }
 
     /** Messages that javac reports twice for one mistake, at different columns of the same line. */
     static boolean oncePerLine(String translated) {
@@ -158,6 +186,11 @@ final class Messages {
         Matcher finalField = FINAL_FIELD.matcher(message);
         if (finalField.find()) {
             String name = finalField.group(1) != null ? finalField.group(1) : finalField.group(2);
+            String dataClass = dataClassWith(javaLines, name);
+            if (dataClass != null && text.contains("." + name + " ")) {
+                return new Translated(ErrorCode.ASSIGN_TO_VAL, "a data class cannot change; create a new `" + dataClass
+                        + "` with the new value of `" + name + "`");
+            }
             return new Translated(ErrorCode.ASSIGN_TO_VAL, "cannot assign to the `val` property `" + name + "`; declare it with `var`");
         }
         if (message.startsWith("[ReturnValueIgnored] Return value of 'toList' must be used")) {
@@ -331,13 +364,13 @@ final class Messages {
         if (equalityAndUpper.find()) {
             String expected = splitTopLevel(equalityAndUpper.group(2)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(equalityAndUpper.group(2));
-            return "type mismatch: expected `" + axlType(expected) + "`, found `" + axlType(equalityAndUpper.group(1)) + "`";
+            return mismatch(expected, equalityAndUpper.group(1));
         }
         Matcher bounds = BOUNDS.matcher(message);
         if (bounds.find()) {
             String expected = splitTopLevel(bounds.group(1)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(bounds.group(1));
-            return "type mismatch: expected `" + axlType(expected) + "`, found `" + axlType(splitTopLevel(bounds.group(2)).getFirst()) + "`";
+            return mismatch(expected, splitTopLevel(bounds.group(2)).getFirst());
         }
         if (message.startsWith("incompatible types: inferred type does not conform to upper bound(s)")) {
             return text.contains("Nulls.or(") ? "the two sides of `?:` have different types" : "the types in this expression do not fit together";
@@ -355,8 +388,15 @@ final class Messages {
             return lossyConversion(lossy.group(1), lossy.group(2));
         }
         Matcher incompatible = INCOMPATIBLE.matcher(message);
-        if (incompatible.find()) {
-            return "type mismatch: expected `" + axlType(incompatible.group(2)) + "`, found `" + axlType(incompatible.group(1)) + "`";
+        if (incompatible.find() && TYPE_PATTERN.matcher(text).find()) {
+            return "a value of type `" + axlType(incompatible.group(1)) + "` can never be `" + axlType(incompatible.group(2))
+                    + "`; remove the `is` test";
+        }
+        if (incompatible.find(0) && incompatible.group(1).equals("void")) {
+            return "this gives no value: the call returns nothing, but `" + axlType(incompatible.group(2)) + "` is expected";
+        }
+        if (incompatible.find(0)) {
+            return mismatch(incompatible.group(2), incompatible.group(1));
         }
         if (message.equals("incompatible types: missing return value")) {
             return "this function returns a value; give `return` one";
@@ -372,8 +412,9 @@ final class Messages {
             return "this expression does nothing on its own; use its value, for example in a `val`, or remove it";
         }
         if (message.matches("the switch (statement|expression) does not cover all possible input values")) {
-            return "this `when` does not cover every case; add an `else ->` branch, or a branch for each class of the "
-                    + "sealed interface";
+            boolean sealed = Arrays.stream(javaLines).anyMatch(l -> l.contains("sealed interface "));
+            return "this `when` does not cover every case; add an `else ->` branch"
+                    + (sealed ? ", or a branch for each class of the sealed interface" : "");
         }
         if (message.equals("this case label is dominated by a preceding case label")) {
             return "this branch is never chosen: an earlier branch already matches everything it matches";
@@ -461,8 +502,13 @@ final class Messages {
                     + "`val " + lambdaInitializer.group(1) + ": Function<String, Int> = ...`";
         }
         if (message.startsWith("unexpected type; required: reference; found: ")) {
-            String type = axlType(message.substring("unexpected type; required: reference; found: ".length()));
-            return "a value of type `" + type + "` can never be another type; remove the `is` test";
+            String javaType = message.substring("unexpected type; required: reference; found: ".length());
+            Matcher argument = PRIMITIVE_ARGUMENT.matcher(text);
+            if (argument.find() && argument.group(1).equals(javaType)) {
+                return "a type argument cannot be `" + javaType + "`; write `" + axlType(javaType) + "`, as in `List<"
+                        + axlType(javaType) + ">`";
+            }
+            return "a value of type `" + axlType(javaType) + "` can never be another type; remove the `is` test";
         }
         Matcher varInitializer = VAR_INITIALIZER.matcher(message);
         if (varInitializer.find()) {
@@ -474,7 +520,11 @@ final class Messages {
             return "a lambda uses a `var` that changes; copy it to a `val` first";
         }
         Matcher unreported = UNREPORTED.matcher(message);
-        if (unreported.find()) {
+        if (unreported.find() && text.strip().startsWith("throw ")) {
+            return "`" + axlType(unreported.group(1)) + "` is a checked exception and cannot be thrown here; throw a "
+                    + "`RuntimeException`, such as `IllegalStateException`, or return an `Err`";
+        }
+        if (unreported.find(0)) {
             String throwsIt = "this call can throw `" + axlType(unreported.group(1)) + "`";
             // Inside `attempt` the call is already wrapped; javac only gives up on it because the call returns nothing.
             return text.contains("Result.attempt(") ? throwsIt + "; `attempt` catches it only around a call that returns a value"
@@ -483,7 +533,140 @@ final class Messages {
         if (message.equals("illegal forward reference")) {
             return "a top-level value is used before it is declared; move its declaration up";
         }
-        return message;
+        String structural = structuralMessage(message, text, javaLines);
+        return structural != null ? structural : message;
+    }
+
+    /** Errors about what a class, enum or function is: static members, abstract types, missing methods. */
+    private static String structuralMessage(String message, String text, String[] javaLines) {
+        Matcher selfReference = SELF_REFERENCE.matcher(message);
+        if (selfReference.find()) {
+            return selfReference(selfReference.group(1));
+        }
+        Matcher uninitialized = UNINITIALIZED.matcher(message);
+        if (uninitialized.find()) {
+            return "`" + uninitialized.group(1) + "` is used before it has a value";
+        }
+        if (message.equals("incompatible types: unexpected return value")) {
+            String function = enclosingVoidFunction(javaLines, text);
+            return function == null ? "nothing is expected here, so `return` cannot give a value"
+                    : "`" + function + "` has no result type, so it cannot return a value; add one after `->`, as in `fn " + function
+                    + "(...) -> Int`";
+        }
+        Matcher nonStatic = NON_STATIC.matcher(message);
+        if (nonStatic.find()) {
+            return nonStatic(nonStatic.group(1), nonStatic.group(2), text);
+        }
+        Matcher forEach = FOR_EACH.matcher(message);
+        if (forEach.find()) {
+            String type = axlType(forEach.group(1));
+            return "`for` needs a list or another collection, found `" + type + "`"
+                    + (type.equals("String") ? "; for the characters of a string, use `s.toCharArray()`" : "");
+        }
+        Matcher unary = UNARY.matcher(message);
+        if (unary.find()) {
+            return "`" + unary.group(2) + "` cannot be applied to `" + axlType(unary.group(1)) + "`";
+        }
+        Matcher newType = NEW_TYPE.matcher(text);
+        if (message.equals("enum classes may not be instantiated") && newType.find()) {
+            String name = simpleNames(newType.group(1));
+            return "`" + name + "` is an enum and cannot be created; use one of its constants, such as `" + name + "."
+                    + firstConstant(javaLines, name) + "`";
+        }
+        Matcher missingMethod = MISSING_METHOD.matcher(message);
+        if (missingMethod.find()) {
+            String parameters = missingMethod.group(3).isEmpty() ? "" : "...";
+            return "`" + missingMethod.group(1) + "` must give `fn " + missingMethod.group(2) + "(" + parameters
+                    + ")`, which `" + simpleNames(axlType(missingMethod.group(4))) + "` requires";
+        }
+        if (message.equals("interface expected here")) {
+            return "a class cannot extend another class; it can only implement interfaces";
+        }
+        return null;
+    }
+
+    private static String selfReference(String name) {
+        return "`" + name + "` is used in its own value; a line that ends with an operator goes on to the next line";
+    }
+
+    /** `String.length()` and `Box.v`: a member of each object, used on the class. */
+    private static String nonStatic(String kind, String name, String text) {
+        if (name.equals("this")) {
+            return "`this` can only be used inside a class";
+        }
+        String member = kind.equals("method") ? name + "()" : name;
+        Matcher receiver = RECEIVER.matcher(text);
+        while (receiver.find()) {
+            if (receiver.group(2).equals(name)) {
+                String type = receiver.group(1);
+                String value = Character.toLowerCase(type.charAt(0)) + type.substring(1);
+                return "`" + member + "` belongs to each `" + type + "`, not to the class; use it on a value, such as `"
+                        + value + "." + member + "`";
+            }
+        }
+        return "`" + member + "` belongs to each object of its class; use it on a value";
+    }
+
+    /** The function a `return` is in, unless a lambda is in between. */
+    private static String enclosingVoidFunction(String[] javaLines, String text) {
+        for (int i = javaLines.length - 1; i >= 0; i--) {
+            if (!javaLines[i].equals(text)) {
+                continue;
+            }
+            for (int j = i - 1; j >= 0; j--) {
+                if (javaLines[j].contains("-> {")) {
+                    return null;
+                }
+                Matcher method = VOID_METHOD.matcher(javaLines[j]);
+                if (method.find()) {
+                    return method.group(1) != null ? method.group(1) : method.group(2);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** The data class of the file that has a field of this name, or null. */
+    private static String dataClassWith(String[] javaLines, String field) {
+        Pattern component = Pattern.compile("[(,][^,()]* " + Pattern.quote(field) + "[,)]");
+        for (String line : javaLines) {
+            Matcher record = RECORD.matcher(line);
+            if (record.find() && component.matcher(record.group(2)).find()) {
+                return record.group(1);
+            }
+        }
+        return null;
+    }
+
+    private static String firstConstant(String[] javaLines, String enumName) {
+        Pattern declaration = Pattern.compile("\\benum " + Pattern.quote(enumName) + " \\{\\s*(\\w+)");
+        for (String line : javaLines) {
+            Matcher matcher = declaration.matcher(line);
+            if (matcher.find()) {
+                return matcher.group(1);
+            }
+        }
+        return "NAME";
+    }
+
+    /** Java gives a mix of types, as from `if (c) 1 else "a"`, as an intersection such as `Object&Serializable&...`. */
+    private static String mismatch(String expected, String found) {
+        if (isIntersection(found)) {
+            return "type mismatch: expected `" + axlType(expected) + "`, found values of different types; give every "
+                    + "branch of the `if` or `?:`, or every element, the same type";
+        }
+        return "type mismatch: expected `" + axlType(expected) + "`, found `" + axlType(found) + "`";
+    }
+
+    private static boolean isIntersection(String type) {
+        int depth = 0;
+        for (char c : type.toCharArray()) {
+            depth += c == '<' ? 1 : c == '>' ? -1 : 0;
+            if (c == '&' && depth == 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** javac lists private overloads of JDK classes too, which nobody outside can call. */
@@ -627,6 +810,9 @@ final class Messages {
     }
 
     private static String axlType(String javaType) {
+        if (isIntersection(javaType)) {
+            return "Object";
+        }
         String type = NULLABLE_TYPE.matcher(javaType.strip()).replaceAll("$1?");
         type = simpleNames(QUALIFIED_TYPE.matcher(type).replaceAll("$1"));
         return PRIMITIVE.matcher(type).replaceAll(m -> switch (m.group(1)) {

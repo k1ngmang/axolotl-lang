@@ -1,0 +1,5 @@
+package app
+
+fn f(x: Int) {
+    return x + 1
+}

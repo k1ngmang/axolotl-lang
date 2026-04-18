@@ -1,0 +1,6 @@
+package app
+
+fn f(s: String?) {
+    val x = s?.trim()?.length() ?: "x"
+    val y: Int = x
+}

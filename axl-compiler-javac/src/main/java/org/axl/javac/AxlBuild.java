@@ -123,6 +123,7 @@ public final class AxlBuild {
         diagnostics.removeIf(d -> !d.isError() && errors.stream().anyMatch(e -> samePosition(e, d)));
         List<AxlDiagnostic> all = List.copyOf(diagnostics);
         diagnostics.removeIf(d -> d.column() == 1 && all.stream().anyMatch(other -> placedBetter(other, d)));
+        diagnostics.removeIf(d -> Messages.followsFrom(d, all));
         return new Result(outcome.success(), sorted(diagnostics), generated);
     }
 

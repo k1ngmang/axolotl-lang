@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+
+fn g() {
+    val xs = List.of(1, "a")
+    val n: Int = xs.get(0)
+    println(n)
+}

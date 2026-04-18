@@ -1,0 +1,12 @@
+package app
+
+interface Named {
+    val name: String
+}
+data class First(val name: String) : Named
+data class Second(val name: String) : Named
+
+fn f(n: Named) -> String = when (n) {
+    is First -> "a"
+    is Second -> "b"
+}

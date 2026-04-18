@@ -1,0 +1,12 @@
+package app
+
+class Box(val v: Int) {
+    fn get() -> Int = v
+}
+
+fn m() {
+    println(String.length())
+    println(Box.get())
+    println(Box.v)
+    println(this)
+}

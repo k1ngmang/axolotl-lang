@@ -6,4 +6,4 @@ AXL100 app/LambdaLocal.axl:5:9: error: write the type of `x`, since a lambda tak
 AXL100 app/MultiLineIf.axl:7:9: error: unknown name `qq`; check the spelling or add an import
 AXL100 app/ThrowUnknown.axl:6:23: error: unknown type `Foo`; check the spelling or add an import
 AXL100 app/TypeTest.axl:4:9: error: a value of type `Int` can never be another type; remove the `is` test
-AXL100 app/TypeTest.axl:7:9: error: type mismatch: expected `Int`, found `String`
+AXL100 app/TypeTest.axl:7:9: error: a value of type `String` can never be `Int`; remove the `is` test

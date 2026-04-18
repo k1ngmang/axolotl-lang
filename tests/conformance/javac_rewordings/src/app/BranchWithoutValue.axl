@@ -1,0 +1,8 @@
+package app
+
+fn f(n: Int) -> String = when (n) {
+    1 -> "one"
+    else -> {
+        println("x")
+    }
+}

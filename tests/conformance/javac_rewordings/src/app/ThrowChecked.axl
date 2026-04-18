@@ -1,0 +1,5 @@
+package app
+
+fn risky() {
+    throw Exception("boom")
+}

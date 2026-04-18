@@ -1,0 +1,8 @@
+package app
+
+fn p() {
+    val x = 5
+    val n = !x
+    val s = -"a"
+    println(n)
+}
