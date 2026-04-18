@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+fn g() {
+    val xs = List.of("a")
+    val ys = xs |> map { s -> s.length() + "x" * 2 }
+    println(ys)
+    val b = 1 > "1"
+}

@@ -1,0 +1,4 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> =
+    attempt Integer.parseInt(s) else e -> e

@@ -1,7 +1,7 @@
 AXL100 app/Main.axl:11:28: error: `Int` is a primitive value and has no members
 AXL100 app/Main.axl:12:26: error: type mismatch: expected `Int`, found `String`
-AXL100 app/Main.axl:13:5: error: type mismatch: expected `Int`, found `String`
 AXL100 app/Main.axl:13:18: error: type mismatch: expected `Int`, found `String?`
+AXL100 app/Main.axl:13:23: error: type mismatch: expected `Int`, found `String`
 AXL105 app/Main.axl:18:5: error: `try` needs a `Result`, found `String`
 AXL105 app/Main.axl:19:5: error: `try` needs a `Result`, found `List<Int>`
 AXL101 app/Main.axl:24:5: error: `mapResult`: the error is `Exception`, but the function returns errors of type `String`; convert it with `mapErr`

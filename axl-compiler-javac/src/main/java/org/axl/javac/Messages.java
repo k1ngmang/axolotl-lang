@@ -95,6 +95,10 @@ final class Messages {
     private static final Pattern DIVISION_BY_ZERO = Pattern.compile("[/%]\\s*0[lL]?\\b(?!\\.)");
     private static final Pattern IDENTITY = Pattern.compile("^\\[IdentityBinaryExpression] .*equivalent to `(.+?)`");
     private static final Pattern OBJECT_TO_STRING = Pattern.compile("^\\[ObjectToString] ([\\w.$]+) is final and does not override");
+    private static final Pattern ELVIS_FALLBACK = Pattern.compile("\\?:\\s*(\\S)");
+    private static final Pattern ATTEMPT_FALLBACK = Pattern.compile("\\belse\\s+(?:\\w+\\s*->\\s*)?(\\S)");
+    private static final Pattern RETURN = Pattern.compile("\\breturn\\b");
+    private static final Pattern TRY = Pattern.compile("\\btry\\b");
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
     private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
 
@@ -103,6 +107,38 @@ final class Messages {
     private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
 
     private Messages() {}
+
+    /**
+     * Where a message belongs in its .axl line. operator: at the operator javac points at, for messages about
+     * an operator rather than the whole expression. anchor: the part of the line to use when javac points into
+     * code generated for it, such as the lambda of `?:`; its group 1, if present, marks the exact place.
+     * anchorFirst: the anchor is better than any place javac points at, which is code generated for it.
+     */
+    record Placement(boolean operator, Pattern anchor, boolean anchorFirst) {}
+
+    static Placement placement(String translated, String javaText) {
+        boolean operator = translated.contains("` cannot be applied to `") || translated.startsWith("[BoxedPrimitiveEquality]")
+                || translated.startsWith("`==` tests whether") || translated.equals("division by zero")
+                || translated.startsWith("both sides of this expression");
+        Pattern anchor = anchor(translated, javaText);
+        return new Placement(operator, anchor, anchor == ELVIS_FALLBACK || anchor == ATTEMPT_FALLBACK);
+    }
+
+    private static Pattern anchor(String translated, String javaText) {
+        if (translated.contains("` has no result type, so it cannot return a value")) {
+            return RETURN;
+        }
+        if (!translated.startsWith("type mismatch")) {
+            return null;
+        }
+        if (javaText.contains("Nulls.or(")) {
+            return ELVIS_FALLBACK;
+        }
+        if (javaText.contains("Result.attempt(")) {
+            return ATTEMPT_FALLBACK;
+        }
+        return javaText.contains("Result.unwrap(") || javaText.contains("Result.propagate(") ? TRY : null;
+    }
 
     /** Whether the error only follows from another error of the same file, which already explains the mistake. */
     static boolean followsFrom(AxlDiagnostic effect, List<AxlDiagnostic> all) {

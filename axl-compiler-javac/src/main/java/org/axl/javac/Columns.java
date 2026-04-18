@@ -14,12 +14,13 @@ import org.axl.compiler.LineMap;
  */
 final class Columns {
 
+    private static final Pattern OPERATOR = Pattern.compile("==|!=|<=|>=|&&|\\|\\||[-+*/%<>!]");
     private static final Pattern NAME = Pattern.compile("[A-Za-z_$][\\w$]*");
     private static final Pattern LITERAL = Pattern.compile("\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'");
     private static final Pattern NUMBER = Pattern.compile("(?<![\\w.])\\d[\\w.]*");
     private static final Pattern IMPLICIT_IT = Pattern.compile("it\\s*->");
     private static final Pattern COMMENT = Pattern.compile("//.*|/\\*.*?(\\*/|$)");
-    private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:public|private) static (.+?) ([\\w$]+)\\((.*)\\) \\{$");
+    private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:public|private) (?:static )?(.+?) ([\\w$]+)\\((.*)\\) \\{$");
     private static final Pattern AXL_SIGNATURE = Pattern.compile("^\\s*(?:private\\s+)?fn\\s+[\\w$]+\\s*\\(");
 
     private Columns() {}
@@ -37,24 +38,50 @@ final class Columns {
      * @param javaLine   1-based line of the diagnostic
      * @param javaColumn 1-based column in the generated line, or a non-positive value if unknown
      * @param axlLine    the text of the .axl line the diagnostic belongs to
+     * @param placement  what the message is about, from {@link Messages#placement}
      * @return 1-based column in the .axl line
      */
-    static int find(String[] javaLines, LineMap lineMap, int javaLine, long javaColumn, String axlLine) {
+    static int find(String[] javaLines, LineMap lineMap, int javaLine, long javaColumn, String axlLine,
+                    Messages.Placement placement) {
         String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
-        int fallback = fallback(axlLine);
-        if (javaColumn <= 0 || javaColumn > javaText.length()) {
-            return fallback;
+        Integer anchored = placement.anchor() == null ? null : anchored(placement.anchor(), axlLine);
+        if (anchored != null && placement.anchorFirst()) {
+            return axlLine.codePointCount(0, anchored) + 1;
         }
-        int column = (int) javaColumn - 1;
+        Integer found = javaColumn <= 0 || javaColumn > javaText.length() ? null
+                : index(javaLines, lineMap, javaLine, (int) javaColumn - 1, axlLine, placement.operator());
+        if (found == null) {
+            found = anchored;
+        }
+        return found == null ? fallback(axlLine) : axlLine.codePointCount(0, found) + 1;
+    }
+
+    private static Integer index(String[] javaLines, LineMap lineMap, int javaLine, int column, String axlLine,
+                                 boolean operator) {
+        String javaText = javaLines[javaLine - 1];
+        Matcher symbol = OPERATOR.matcher(javaText).region(column, javaText.length());
+        Integer same = operator && symbol.lookingAt()
+                ? sameOccurrence(javaLines, lineMap, javaLine, column, operator(symbol.group()), true, axlLine) : null;
+        if (same != null) {
+            return same;
+        }
         // javac places a call at its parenthesis: the name before it, if the .axl line has it, else the next one.
         if (javaText.charAt(column) == '(' && column > 0 && Character.isJavaIdentifierPart(javaText.charAt(column - 1))) {
             Integer before = column(javaLines, lineMap, javaLine, column - 1, axlLine);
             if (before != null) {
-                return axlLine.codePointCount(0, before) + 1;
+                return before;
             }
         }
-        Integer found = column(javaLines, lineMap, javaLine, column, axlLine);
-        return found == null ? fallback : axlLine.codePointCount(0, found) + 1;
+        return column(javaLines, lineMap, javaLine, column, axlLine);
+    }
+
+    /** The index of the anchor in the .axl line, of its group 1 if it has one, or null. */
+    private static Integer anchored(Pattern anchor, String axlLine) {
+        Matcher matcher = anchor.matcher(axlLine);
+        if (!matcher.find(bodyStart(axlLine))) {
+            return null;
+        }
+        return matcher.groupCount() > 0 && matcher.group(1) != null ? matcher.start(1) : matcher.start();
     }
 
     /** The index in the .axl line of the name at or after the index in the Java line, or null. */
@@ -63,11 +90,17 @@ final class Columns {
         Matcher literal = LITERAL.matcher(javaText).region(index, javaText.length());
         if (literal.lookingAt() && axlLine.contains(literal.group())) {
             // A string or character javac points at is written the same way in the .axl line.
-            return axlLine.indexOf(literal.group());
+            Integer same = sameOccurrence(javaLines, lineMap, javaLine, index, Pattern.compile(Pattern.quote(literal.group())), false, axlLine);
+            return same != null ? same : axlLine.indexOf(literal.group());
         }
         Matcher number = NUMBER.matcher(javaText).region(index, javaText.length());
         if (number.lookingAt()) {
-            Matcher same = Pattern.compile("(?<![\\w.])" + Pattern.quote(number.group()) + "(?![\\w.])").matcher(axlLine);
+            Pattern samePattern = Pattern.compile("(?<![\\w.])" + Pattern.quote(number.group()) + "(?![\\w.])");
+            Integer occurrence = sameOccurrence(javaLines, lineMap, javaLine, index, samePattern, true, axlLine);
+            Matcher same = samePattern.matcher(axlLine);
+            if (occurrence != null) {
+                return occurrence;
+            }
             if (same.find(bodyStart(axlLine))) {
                 return same.start();
             }
@@ -138,6 +171,41 @@ final class Columns {
         String javaText = javaLines[javaLine - 1];
         int occurrence = before + index(javaText, null, javaName, word);
         return nth(axlLine, new Region(bodyStart(axlLine), axlLine.length()), word, occurrence);
+    }
+
+    /** An operator alone, not the start or end of a longer one such as `<=` or `->`. */
+    private static Pattern operator(String text) {
+        return Pattern.compile("(?<![=!<>&|+\\-*/%])" + Pattern.quote(text) + "(?![=&|+\\-*/%>])");
+    }
+
+    /**
+     * The same occurrence of a literal or operator in the .axl line, counted over the Java lines of that
+     * line as {@link #inBody} counts names; literals and comments do not count for an operator.
+     */
+    private static Integer sameOccurrence(String[] javaLines, LineMap lineMap, int javaLine, int index, Pattern token,
+                                          boolean inCode, String axlLine) {
+        int axl = lineMap.nearestAxlLine(javaLine);
+        int occurrence = 0;
+        for (int line = 1; line < javaLine; line++) {
+            if (lineMap.axlLine(line) == axl && !JAVA_SIGNATURE.matcher(javaLines[line - 1]).matches()) {
+                occurrence += starts(token, inCode, javaLines[line - 1], Integer.MAX_VALUE).size();
+            }
+        }
+        occurrence += starts(token, inCode, javaLines[javaLine - 1], index).size();
+        List<Integer> inAxl = starts(token, inCode, axlLine, Integer.MAX_VALUE).stream().filter(s -> s >= bodyStart(axlLine)).toList();
+        return occurrence < inAxl.size() ? inAxl.get(occurrence) : null;
+    }
+
+    /** Where the token starts in the line before the limit; inCode leaves out literals and comments. */
+    private static List<Integer> starts(Pattern token, boolean inCode, String line, int limit) {
+        String code = !inCode ? line : COMMENT.matcher(LITERAL.matcher(line).replaceAll(m -> " ".repeat(m.group().length())))
+                .replaceAll(m -> " ".repeat(m.group().length()));
+        List<Integer> result = new ArrayList<>();
+        Matcher matcher = token.matcher(code);
+        while (matcher.find() && matcher.start() < limit) {
+            result.add(matcher.start());
+        }
+        return result;
     }
 
     /** The start of the line, or of an expression body after a signature. */

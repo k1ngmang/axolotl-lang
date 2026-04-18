@@ -55,7 +55,9 @@ public final class DiagnosticTranslator {
         Messages.Translated translated = Messages.translate(message, javaLines, javaLine);
         int line = Math.max(axlLine, 1);
         String axlText = line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
-        int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, Columns.javaColumn(javaLines, javaLine, diagnostic), axlText);
+        String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
+        int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, Columns.javaColumn(javaLines, javaLine, diagnostic),
+                axlText, Messages.placement(translated.message(), javaText));
         return new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(), translated.message());
     }
 

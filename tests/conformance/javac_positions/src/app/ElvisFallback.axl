@@ -1,0 +1,6 @@
+package app
+
+fn f(s: String?) {
+    val n: Int = s?.length() ?: "none"
+    println(n)
+}

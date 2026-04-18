@@ -152,7 +152,9 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         String translated = Messages.translate(message, mapping.javaLines(), javaLine).message();
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
-        int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic), axlText);
+        String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
+        int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic),
+                axlText, Messages.placement(translated, javaText));
         JCDiagnostic moved = factory.create(type, new DiagnosticSource(axl, log),
                 new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager", translated);
         // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.

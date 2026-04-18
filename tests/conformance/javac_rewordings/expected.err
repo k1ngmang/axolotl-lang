@@ -17,5 +17,5 @@ AXL100 app/StaticContext.axl:9:17: error: `get()` belongs to each `Box`, not to 
 AXL100 app/StaticContext.axl:10:17: error: `v` belongs to each `Box`, not to the class; use it on a value, such as `box.v`
 AXL100 app/StaticContext.axl:11:13: error: `this` can only be used inside a class
 AXL100 app/ThrowChecked.axl:4:5: error: `Exception` is a checked exception and cannot be thrown here; throw a `RuntimeException`, such as `IllegalStateException`, or return an `Err`
-AXL100 app/UnaryOperators.axl:5:14: error: `!` cannot be applied to `Int`
-AXL100 app/UnaryOperators.axl:6:5: error: `-` cannot be applied to `String`
+AXL100 app/UnaryOperators.axl:5:13: error: `!` cannot be applied to `Int`
+AXL100 app/UnaryOperators.axl:6:13: error: `-` cannot be applied to `String`

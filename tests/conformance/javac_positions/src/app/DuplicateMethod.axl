@@ -1,0 +1,6 @@
+package app
+
+class Shown(val id: Int) {
+    fn show() -> Int = 1
+    fn show() -> Int = 2
+}

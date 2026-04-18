@@ -1,0 +1,7 @@
+AXL100 app/AttemptFallback.axl:4:43: error: type mismatch: expected `String`, found `Exception`
+AXL010 app/DuplicateMethod.axl:5:8: error: `show` is already declared with the same parameter types
+AXL100 app/ElvisFallback.axl:4:33: error: type mismatch: expected `Int`, found `String`
+AXL100 app/LiteralArgument.axl:6:20: error: type mismatch: expected `Int`, found `String`
+AXL100 app/NumberInBranch.axl:3:51: error: type mismatch: expected `String`, found `Int`
+AXL100 app/Operators.axl:7:48: error: `*` cannot be applied to `String` and `Int`
+AXL100 app/Operators.axl:9:15: error: `>` cannot be applied to `Int` and `String`

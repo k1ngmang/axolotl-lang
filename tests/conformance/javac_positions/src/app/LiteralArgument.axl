@@ -1,0 +1,7 @@
+package app
+
+fn f(a: String, b: Int) -> Int = b
+
+fn main() {
+    println(f("b", "b"))
+}
