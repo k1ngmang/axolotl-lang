@@ -10,3 +10,5 @@ AXL001 app/Main.axl:49:32: error: a `when` over constants that gives a value nee
 AXL001 app/Main.axl:53:56: error: a `when` that gives a value cannot be inside `attempt`; compute it in a `val` first
 AXL001 app/Main.axl:56:16: error: a `when` that gives a value cannot be an argument after `?.`; compute it in a `val` first
 AXL001 app/Main.axl:59:21: error: this `when` has no branches; add one for each case, or an `else ->` branch
+AXL001 app/Main.axl:61:34: error: the branches of this `if` give values of different types, `Int` and `String`; give every branch the same type
+AXL001 app/Main.axl:63:34: error: the branches of this `when` give values of different types, `Int` and `Boolean`; give every branch the same type

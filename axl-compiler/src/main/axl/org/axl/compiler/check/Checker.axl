@@ -5,6 +5,7 @@ import java.util.Collections
 import java.util.HashMap
 import java.util.HashSet
 import java.util.IdentityHashMap
+import java.util.LinkedHashSet
 import java.util.List
 import java.util.Map
 import java.util.Set
@@ -63,6 +64,10 @@ private val GENERATED_CODE_RECEIVERS: Set<String> = Set.of("System", "Nulls", "R
 
 // Names that would hide the `java` and `axl` packages the generated code qualifies names with.
 private val PACKAGE_ROOTS: Set<String> = Set.of("java", "axl")
+
+private val BASIC_TYPES: Set<String> = Set.of("Int", "Long", "Double", "Boolean", "String", "Char")
+
+private val NUMBER_TYPES: Set<String> = Set.of("Int", "Long", "Double")
 
 enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
 
@@ -643,6 +648,7 @@ class Checker(val file: SourceFile) {
             is Expr.Is -> expr(e.target())
             is Expr.Conditional -> {
                 expr(e.condition())
+                checkBranchTypes(e.pos(), "`if`", List.of(e.then(), e.otherwise()))
                 conditionalDepth = conditionalDepth + 1
                 expr(e.then())
                 expr(e.otherwise())
@@ -740,6 +746,9 @@ class Checker(val file: SourceFile) {
             declare(bindingPos, bindingName, Kind.LOCAL, null)
         }
         checkArms(w, gives || returns)
+        if (gives || returns) {
+            checkBranchTypes(w.pos(), "`when`", armValues(w))
+        }
         val outerDepth = valueWhenDepth
         if (gives) {
             valueWhenDepth = lambdaDepth
@@ -749,6 +758,34 @@ class Checker(val file: SourceFile) {
         }
         valueWhenDepth = outerDepth
         pop()
+    }
+
+    /** Java would give such a value a type like `Object & Serializable`, which no Axolotl type names. */
+    private fn checkBranchTypes(pos: Pos, construct: String, branches: List<Expr>) {
+        val types = LinkedHashSet<String>()
+        for (b in branches) {
+            val type = TypeInference.typeOf(file, b)
+            if (type != null && !type.nullable() && BASIC_TYPES.contains(type.name())) {
+                types.add(if (NUMBER_TYPES.contains(type.name())) "number" else type.name())
+            }
+        }
+        if (types.size() > 1) {
+            val names = String.join("` and `", types |> map { t -> if (t.equals("number")) "Int" else t })
+            error(pos, ErrorCode.SYNTAX, "the branches of this " + construct + " give values of different types, `" +
+                names + "`; give every branch the same type")
+        }
+    }
+
+    private fn armValues(w: Expr.When) -> List<Expr> {
+        val values = ArrayList<Expr>()
+        for (arm in w.arms()) {
+            val body = arm.body()
+            val last = if (body.size() == 1) body.getFirst() else null
+            if (last is Stmt.ExprStmt) {
+                values.add(last.expr())
+            }
+        }
+        return values
     }
 
     private fn checkWhenPlace(w: Expr.When, gives: Boolean) {

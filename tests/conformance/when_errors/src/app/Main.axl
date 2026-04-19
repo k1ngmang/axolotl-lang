@@ -57,3 +57,10 @@ fn appended(sb: StringBuilder?, n: Int) {
 }
 
 fn empty() -> Int = when (1) { }
+
+fn mixed(c: Boolean) -> Object = if (c) 1 else "s"
+
+fn mixedWhen(n: Int) -> Object = when (n) {
+    1 -> 2
+    else -> true
+}

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -628,6 +629,7 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Expr.Conditional e$12 -> {
                 expr(e$12.condition());
+                checkBranchTypes(e$12.pos(), "`if`", List.of(e$12.then(), e$12.otherwise()));
                 conditionalDepth = conditionalDepth + 1;
                 expr(e$12.then());
                 expr(e$12.otherwise());
@@ -731,6 +733,9 @@ import org.axl.compiler.ast.TypeRef;
             declare(bindingPos, bindingName, Kind.LOCAL, null);
         }
         checkArms(w, gives || returns);
+        if (gives || returns) {
+            checkBranchTypes(w.pos(), "`when`", armValues(w));
+        }
         final var outerDepth = valueWhenDepth;
         if (gives) {
             valueWhenDepth = lambdaDepth;
@@ -740,6 +745,32 @@ import org.axl.compiler.ast.TypeRef;
         }
         valueWhenDepth = outerDepth;
         pop();
+    }
+    private void checkBranchTypes(Pos pos, String construct, List<Expr> branches) {
+        final var types = new LinkedHashSet<String>();
+        for (final var b : branches) {
+            final var type = TypeInference.typeOf(file, b);
+            if (type != null && !type.nullable() && BASIC_TYPES.contains(type.name())) {
+                types.add((NUMBER_TYPES.contains(type.name()) ? "number" : type.name()));
+            }
+        }
+        if (types.size() > 1) {
+            final var names = String.join("` and `", types.stream().map(Nulls.nonNull(t -> (t.equals("number") ? "Int" : t))).toList());
+            error(pos, ErrorCode.SYNTAX, "the branches of this " + construct + " give values of different types, `" +
+                    names +
+                    "`; give every branch the same type");
+        }
+    }
+    private List<Expr> armValues(Expr.When w) {
+        final var values = new ArrayList<Expr>();
+        for (final var arm : w.arms()) {
+            final var body = arm.body();
+            final var last = (body.size() == 1 ? body.getFirst() : null);
+            if (last instanceof Stmt.ExprStmt last$1) {
+                values.add(last$1.expr());
+            }
+        }
+        return values;
     }
     private void checkWhenPlace(Expr.When w, boolean gives) {
         if (!gives) {
@@ -1075,6 +1106,8 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
+    private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Double", "Boolean", "String", "Char");
+    private static final Set<String> NUMBER_TYPES = Set.of("Int", "Long", "Double");
     public enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
     public record Symbol(Kind kind, Pos pos, @Nullable TypeRef type) {}
     public static final class Scope {
