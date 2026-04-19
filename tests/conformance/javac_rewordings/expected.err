@@ -8,6 +8,7 @@ AXL100 app/ImpossibleIs.axl:4:5: error: a value of type `String` can never be `I
 AXL100 app/MissingMethod.axl:5:1: error: `Task` must give `fn run()`, which `Runnable` requires
 AXL100 app/MixedList.axl:7:21: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
 AXL100 app/MixedTypes.axl:5:18: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
+AXL100 app/OneLineReturn.axl:3:10: error: `g` has no result type, so it cannot return a value; add one after `->`, as in `fn g(...) -> Int`
 AXL100 app/PrimitiveArgument.axl:6:18: error: a type argument cannot be `int`; write `Int`, as in `List<Int>`
 AXL100 app/ReturnWithoutType.axl:4:5: error: `f` has no result type, so it cannot return a value; add one after `->`, as in `fn f(...) -> Int`
 AXL100 app/SelfReference.axl:4:9: error: `x` is used in its own value; a line that ends with an operator goes on to the next line

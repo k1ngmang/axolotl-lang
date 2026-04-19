@@ -225,7 +225,10 @@ final class Columns {
             return 0;
         }
         int paramsEnd = closingParen(axlLine, signature.end() - 1);
-        int body = paramsEnd < 0 ? -1 : axlLine.indexOf('=', paramsEnd);
+        int equals = paramsEnd < 0 ? -1 : axlLine.indexOf('=', paramsEnd);
+        int brace = paramsEnd < 0 ? -1 : axlLine.indexOf('{', paramsEnd);
+        // `fn f() = x` or `fn f() { return x }`: whichever starts the body first.
+        int body = equals < 0 ? brace : brace < 0 ? equals : Math.min(equals, brace);
         return body < 0 ? axlLine.length() : body + 1;
     }
 
