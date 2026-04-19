@@ -67,7 +67,7 @@ final class Messages {
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
     private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
-    private static final Pattern LAMBDA_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\((?:lambda expression|method reference) needs an explicit target-type\\)$");
+    private static final Pattern LAMBDA_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\((lambda expression|method reference) needs an explicit target-type\\)$");
     private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
@@ -666,8 +666,10 @@ final class Messages {
         }
         Matcher lambdaInitializer = LAMBDA_INITIALIZER.matcher(message);
         if (lambdaInitializer.find()) {
-            return "write the type of `" + lambdaInitializer.group(1) + "`, since a lambda takes it from there: "
-                    + "`val " + lambdaInitializer.group(1) + ": Function<String, Int> = ...`";
+            String kind = lambdaInitializer.group(2).equals("lambda expression") ? "lambda" : "method reference";
+            return "write the type of `" + lambdaInitializer.group(1) + "`, since a " + kind + " takes its type from "
+                    + "there: `val " + lambdaInitializer.group(1) + ": Type = ...`, with a functional interface such as "
+                    + "`Supplier<R>` or `Function<T, R>`";
         }
         if (message.startsWith("unexpected type; required: reference; found: ")) {
             String javaType = message.substring("unexpected type; required: reference; found: ".length());

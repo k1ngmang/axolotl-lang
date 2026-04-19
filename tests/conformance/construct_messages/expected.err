@@ -2,7 +2,7 @@ AXL100 app/ClassParams.axl:3:25: error: unknown type `Strng`; check the spelling
 AXL100 app/ClassParams.axl:3:43: error: unknown type `Foo`; check the spelling or add an import
 AXL100 app/ExpressionBody.axl:3:30: error: type mismatch: expected `String`, found `Int`
 AXL100 app/LambdaArgument.axl:7:25: error: `Stream<String>` has no method `mapp({ ... })`
-AXL100 app/LambdaLocal.axl:5:9: error: write the type of `x`, since a lambda takes it from there: `val x: Function<String, Int> = ...`
+AXL100 app/LambdaLocal.axl:5:9: error: write the type of `x`, since a lambda takes its type from there: `val x: Type = ...`, with a functional interface such as `Supplier<R>` or `Function<T, R>`
 AXL100 app/MultiLineIf.axl:7:9: error: unknown name `qq`; check the spelling or add an import
 AXL100 app/ThrowUnknown.axl:6:23: error: unknown type `Foo`; check the spelling or add an import
 AXL100 app/TypeTest.axl:4:9: error: a value of type `Int` can never be another type; remove the `is` test

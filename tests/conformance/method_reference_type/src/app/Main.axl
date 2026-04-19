@@ -1,0 +1,8 @@
+package app
+
+fn twice(n: Int) -> Int = n * 2
+
+fn main() {
+    val f = Main::twice
+    println(f)
+}
