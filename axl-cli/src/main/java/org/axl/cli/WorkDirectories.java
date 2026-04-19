@@ -7,6 +7,7 @@ import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,8 +42,11 @@ final class WorkDirectories {
     static synchronized Path create(String prefix) throws IOException {
         deleteFinished(prefix);
         Path dir = Files.createTempDirectory(prefix);
-        FileChannel lock = FileChannel.open(dir.resolve(LOCK), StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+        Path unlocked = dir.resolve(LOCK + ".new");
+        FileChannel lock = FileChannel.open(unlocked, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         lock.lock();
+        // Other JVMs delete a directory whose `.lock` is free, so the file gets that name only once it is locked.
+        Files.move(unlocked, dir.resolve(LOCK), StandardCopyOption.ATOMIC_MOVE);
         HELD.put(dir, lock);
         return dir;
     }
