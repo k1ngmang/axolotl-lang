@@ -123,6 +123,19 @@ class AxlBuildTest {
                 "13:13 `AbstractList` is abstract and cannot be created; use a class that extends it"), errors);
     }
 
+    @Test
+    void reportsAJoinedStringTooLongForJava(@TempDir Path tmp) throws Exception {
+        Path src = tmp.resolve("src");
+        Files.createDirectories(src.resolve("app"));
+        String half = "\"" + "a".repeat(40000) + "\"";
+        Files.writeString(src.resolve("app/Main.axl"),
+                "package app\n\nfn main() {\n    val s = " + half + " + " + half + "\n    println(s)\n}\n");
+        AxlBuild.Result result = new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).nullChecks(false).run();
+        List<String> errors = result.diagnostics().stream().filter(AxlDiagnostic::isError)
+                .map(d -> d.line() + ":" + d.column() + " " + d.message().substring(0, 32)).toList();
+        assertEquals(List.of("4:13 this string is too long for Java"), errors);
+    }
+
     private static List<String> warnings(Path tmp, String source) throws Exception {
         Path src = tmp.resolve("src");
         Files.createDirectories(src.resolve("app"));

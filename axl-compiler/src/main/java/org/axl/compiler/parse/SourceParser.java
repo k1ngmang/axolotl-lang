@@ -29,6 +29,9 @@ public final class SourceParser {
     private static final Pattern ESCAPE = Pattern.compile(
             "\\\\(?:[btnfr\"'\\\\]|[0-3]?[0-7]{1,2}|u+[0-9a-fA-F]{4})");
 
+    // The class file format stores a string constant's length in two bytes.
+    private static final int MAX_CONSTANT_BYTES = 65535;
+
     private static final Pattern TEMPLATE = Pattern.compile("(?<!\\\\)\\$(\\{|[A-Za-z_]\\w*)");
 
     /** file is null when the source has syntax errors. */
@@ -405,8 +408,10 @@ public final class SourceParser {
         String text = t.getText();
         String inner = text.substring(1, text.length() - 1);
         int count = 0;
+        int bytes = 0;
         for (int i = 0; i < inner.length(); count++) {
             if (inner.charAt(i) != '\\') {
+                bytes += constantBytes(inner.codePointAt(i));
                 i += Character.charCount(inner.codePointAt(i));
                 continue;
             }
@@ -418,6 +423,7 @@ public final class SourceParser {
                 }
                 return "unknown escape `" + shown + "`; write `\\\\` for a backslash";
             }
+            bytes += constantBytes(escaped(escape.group()));
             i = escape.end();
         }
         if (text.startsWith("'") && count != 1) {
@@ -426,7 +432,27 @@ public final class SourceParser {
         if (text.startsWith("'") && Character.isSupplementaryCodePoint(inner.codePointAt(0))) {
             return "`" + inner + "` takes two Java chars, so it does not fit in a `Character`; write it in double quotes";
         }
+        if (bytes > MAX_CONSTANT_BYTES) {
+            return "this string is too long for Java, which allows " + MAX_CONSTANT_BYTES + " bytes of UTF-8 in a "
+                    + "string constant; read long text from a file instead";
+        }
         return null;
+    }
+
+    /** The character an escape stands for, or one of the same size in a class file. */
+    private static int escaped(String escape) {
+        if (escape.charAt(1) == 'u') {
+            return Integer.parseInt(escape.substring(escape.length() - 4), 16);
+        }
+        return Character.isDigit(escape.charAt(1)) ? Integer.parseInt(escape.substring(1), 8) : 'n';
+    }
+
+    /** The size in a class file, whose UTF-8 writes U+0000 in two bytes and a surrogate pair in six. */
+    private static int constantBytes(int c) {
+        if (Character.isSupplementaryCodePoint(c)) {
+            return 6;
+        }
+        return c == 0 || c >= 0x80 ? (c >= 0x800 ? 3 : 2) : 1;
     }
 
     private static boolean adjacent(List<Token> tokens, int i) {

@@ -73,7 +73,7 @@ final class Names {
             return null;
         }
         for (String line : javaLines) {
-            Matcher word = WORD.matcher(line.replaceAll("\"(\\\\.|[^\"\\\\])*\"", "\"\""));
+            Matcher word = WORD.matcher(line.replaceAll("\"[^\"\\\\]*+(\\\\.[^\"\\\\]*+)*+\"", "\"\""));
             while (word.find()) {
                 String candidate = word.group();
                 if (!candidate.equals(name) && !JAVA_WORDS.contains(candidate)

@@ -16,7 +16,7 @@ final class Columns {
 
     private static final Pattern OPERATOR = Pattern.compile("==|!=|<=|>=|&&|\\|\\||[-+*/%<>!]");
     private static final Pattern NAME = Pattern.compile("[A-Za-z_$][\\w$]*");
-    private static final Pattern LITERAL = Pattern.compile("\"(\\\\.|[^\"\\\\])*\"|'(\\\\.|[^'\\\\])*'");
+    private static final Pattern LITERAL = Pattern.compile("\"[^\"\\\\]*+(\\\\.[^\"\\\\]*+)*+\"|'[^'\\\\]*+(\\\\.[^'\\\\]*+)*+'");
     private static final Pattern NUMBER = Pattern.compile("(?<![\\w.])\\d[\\w.]*");
     private static final Pattern IMPLICIT_IT = Pattern.compile("it\\s*->");
     private static final Pattern COMMENT = Pattern.compile("//.*|/\\*.*?(\\*/|$)");

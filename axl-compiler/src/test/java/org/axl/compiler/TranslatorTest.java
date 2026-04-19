@@ -76,6 +76,23 @@ class TranslatorTest {
     }
 
     @Test
+    void stringsLongerThanAJavaConstantAreRejected() {
+        assertTrue(stringDiagnostics("a".repeat(65535)).isEmpty());
+        assertTrue(stringDiagnostics("\\n".repeat(65535)).isEmpty());
+        List<AxlDiagnostic> tooLong = stringDiagnostics("a".repeat(65536));
+        assertEquals(1, tooLong.size());
+        assertEquals(3, tooLong.get(0).line());
+        assertEquals(13, tooLong.get(0).column());
+        assertTrue(tooLong.get(0).message().startsWith("this string is too long for Java"), tooLong.get(0).message());
+        assertEquals(1, stringDiagnostics("é".repeat(32768)).size());
+    }
+
+    private static List<AxlDiagnostic> stringDiagnostics(String text) {
+        String source = "package p\nfn main() {\n    println(\"" + text + "\")\n}\n";
+        return Translator.translate("A.axl", "A.axl", source).diagnostics();
+    }
+
+    @Test
     void nestedIfsParseQuickly() {
         StringBuilder chain = new StringBuilder("package p\nfn f(x: Int) {\n    if (x > 0) {\n        println(0)\n");
         StringBuilder nested = new StringBuilder("package p\nfn g(x: Int) {\n");

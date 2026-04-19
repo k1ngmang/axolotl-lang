@@ -308,6 +308,11 @@ final class Messages {
         if (message.startsWith("[NullAway] ")) {
             return nullAway(message, text, javaLines);
         }
+        if (message.equals("constant string too long")) {
+            // Java joins constant strings at compile time, so `+` does not get past the limit.
+            return new Translated(ErrorCode.JAVAC, "this string is too long for Java, which allows 65535 bytes of UTF-8 "
+                    + "in a string constant, also when joined with `+`; read long text from a file instead");
+        }
         Matcher finalField = FINAL_FIELD.matcher(message);
         if (finalField.find()) {
             String name = finalField.group(1) != null ? finalField.group(1) : finalField.group(2);
