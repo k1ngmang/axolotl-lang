@@ -1,0 +1,25 @@
+package app
+
+fn next(c: Boolean, n: Int?, k: Int) -> Int? = if (c) n else k + 1
+
+fn size(c: Boolean, n: Int?, s: String) -> Int? = if (c) n else s.length()
+
+fn nested(c: Boolean, n: Int?) -> Int? = if (c) n else if (!c) 42 else 7
+
+fn chosen(c: Int, n: Int?, k: Int) {
+    val r = when (c) {
+        1 -> n
+        else -> k + 1
+    }
+    println(r)
+}
+
+fn main() {
+    println(next(true, null, 1))
+    println(next(false, null, 1))
+    println(size(true, null, "abc"))
+    println(size(false, null, "abc"))
+    println(nested(true, null))
+    chosen(1, null, 1)
+    chosen(2, null, 1)
+}

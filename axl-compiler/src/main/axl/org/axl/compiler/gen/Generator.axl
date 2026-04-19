@@ -1179,8 +1179,16 @@ class Generator(
     private fn boxedBranch(code: String, branch: Expr, branches: List<Expr>) -> String {
         val type = typeOf(branch)
         val noneNull = branches |> noneMatch { b -> mayBeNull(b) }
-        if (type == null || noneNull) {
+        if (noneNull) {
             return code
+        }
+        if (type == null) {
+            // It may be an int, such as `k + 1` or a Java call: boxing it keeps Java from unboxing a
+            // branch written to hold null.
+            val nullable = branches |> anyMatch { b -> typedNullable(b) }
+            val inner = withoutParens(branch)
+            val plain = inner is Expr.Literal || inner is Expr.Lambda || inner is Expr.MethodRef
+            return if (nullable && !plain) "Nulls.box(" + code + ")" else code
         }
         val widest = widestNumber(type.name(), branches)
         if (primitiveType(branch) != null) {
@@ -1190,6 +1198,11 @@ class Generator(
             return code
         }
         return "Nulls.to" + widest + "(" + code + ")"
+    }
+
+    private fn typedNullable(e: Expr) -> Boolean {
+        val type = typeOf(e)
+        return type != null && type.nullable()
     }
 
     /** The Axolotl name of the primitive type of an expression, if the code says it is one. */

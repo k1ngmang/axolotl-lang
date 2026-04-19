@@ -560,8 +560,8 @@ import org.axl.compiler.check.Whens;
         final var line = ifStmt.pos().line();
         final var and = b.op().equals("&&");
         final var otherwise = asBlock(ifStmt.elseBranch());
-        final Stmt.@Nullable Block inside = (and ? ifStmt.then() : otherwise);
-        final Stmt.@Nullable Block after = (and ? otherwise : ifStmt.then());
+        final Stmt.@Nullable Block inside = (and ? Nulls.box(ifStmt.then()) : otherwise);
+        final Stmt.@Nullable Block after = (and ? otherwise : Nulls.box(ifStmt.then()));
         em.line(line, "do {");
         em.indent();
         final var left = lifted(line, b.left()).code();
@@ -1071,8 +1071,14 @@ import org.axl.compiler.check.Whens;
     private String boxedBranch(String code, Expr branch, List<Expr> branches) {
         final var type = typeOf(branch);
         final var noneNull = branches.stream().noneMatch(b -> mayBeNull(b));
-        if (type == null || noneNull) {
+        if (noneNull) {
             return code;
+        }
+        if (type == null) {
+            final var nullable = branches.stream().anyMatch(b -> typedNullable(b));
+            final var inner = withoutParens(branch);
+            final var plain = inner instanceof Expr.Literal inner$1 || inner instanceof Expr.Lambda inner$2 || inner instanceof Expr.MethodRef inner$3;
+            return (nullable && !plain ? "Nulls.box(" + code + ")" : code);
         }
         final var widest = widestNumber(type.name(), branches);
         if (primitiveType(branch) != null) {
@@ -1082,6 +1088,10 @@ import org.axl.compiler.check.Whens;
             return code;
         }
         return "Nulls.to" + widest + "(" + code + ")";
+    }
+    private boolean typedNullable(Expr e) {
+        final var type = typeOf(e);
+        return type != null && type.nullable();
     }
     private @Nullable String primitiveType(Expr e) {
         final var type = typeOf(e);
