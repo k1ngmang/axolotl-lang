@@ -1,0 +1,10 @@
+package app
+
+fn shout(s: String) -> String = s + "!"
+
+fn main() {
+    val s: String? = null
+    val c = System.nanoTime() > 0
+    println(if (c) (s?.length() ?: 1000) else if (false) 42 else 7)
+    println(shout(if (c) (s?.trim() ?: "none") else "other"))
+}

@@ -1093,6 +1093,25 @@ import org.axl.compiler.check.Whens;
         }
         return "Nulls.to" + widest + "(" + code + ")";
     }
+    private String typedConditional(Expr.Conditional c, String code) {
+        return ((givesValue(c) ? "Nulls.present(" : "Nulls.typed(")) + code + ").value()";
+    }
+    private boolean branchBecomesCall(Expr.Conditional c) {
+        return List.of(c.then(), c.otherwise()).stream().anyMatch(b -> becomesCallSomewhere(withoutParens(b)));
+    }
+    private boolean becomesCallSomewhere(Expr e) {
+        return becomesCall(e) || e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1);
+    }
+    private boolean givesValue(Expr e) {
+        final var inner = withoutParens(e);
+        if (inner instanceof Expr.Elvis inner$1) {
+            return givesValue(inner$1.right());
+        }
+        if (inner instanceof Expr.Conditional inner$2) {
+            return givesValue(inner$2.then()) && givesValue(inner$2.otherwise());
+        }
+        return !mayBeNull(inner);
+    }
     private boolean typedNullable(Expr e) {
         final var type = typeOf(e);
         return type != null && type.nullable();
@@ -1320,6 +1339,9 @@ import org.axl.compiler.check.Whens;
         if (arg instanceof Expr.Elvis arg$3 && hasSafeElvis(arg$3) && !mayBeNull(arg$3.right())) {
             return "Nulls.present(" + exprIn(arg$3, inLambda) + ").value()";
         }
+        if (arg instanceof Expr.Conditional arg$4 && branchBecomesCall(arg$4)) {
+            return typedConditional(arg$4, exprIn(arg$4, inLambda));
+        }
         if (Chains.hasSafeStep(arg) || hasSafeElvis(arg)) {
             return "Nulls.typed(" + exprIn(arg, inLambda) + ").value()";
         }
@@ -1504,6 +1526,8 @@ import org.axl.compiler.check.Whens;
                 final var temp = newTemp();
                 em.line(at, "final var " + temp + " = " + operand.code() + ";");
                 operand = new Lifted(temp, true);
+            } else if (e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1)) {
+                operand = new Lifted(typedConditional(e$1, operand.code()), operand.pure());
             }
             result.add(operand);
             k += 1;
