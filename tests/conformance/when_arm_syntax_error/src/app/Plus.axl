@@ -1,0 +1,10 @@
+package app
+
+fn plus(n: Int) {
+    when (n) {
+        1, 5 -> {
+            println(n +)
+        }
+        else -> println("b")
+    }
+}

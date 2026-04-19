@@ -502,7 +502,7 @@ public final class SourceParser {
         if (previous != null && previous.getType() == AxolotlLexer.WHEN && at.getType() == AxolotlLexer.LBRACE) {
             return "`when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`";
         }
-        if (!token.equals("->") && (msg.contains("'->'") && !msg.startsWith("missing ") || brokenArm(msg, previous, at))) {
+        if (!token.equals("->") && (msg.contains("'->'") && !msg.startsWith("missing ") || brokenArm(msg, tokens, at))) {
             return "missing `->` before `" + token + "`";
         }
         if (msg.startsWith("missing ")) {
@@ -534,23 +534,49 @@ public final class SourceParser {
 
     /** Whether the `)` closes the condition of an `if`. */
     static boolean closesIf(CommonTokenStream tokens, Token close) {
+        Token before = beforeParens(tokens, close);
+        return before != null && before.getType() == AxolotlLexer.IF;
+    }
+
+    /** The token before the `(` that the `)` closes, or null. */
+    private static Token beforeParens(CommonTokenStream tokens, Token close) {
         int depth = 0;
         for (int i = close.getTokenIndex(); i >= 0; i--) {
             int type = tokens.get(i).getType();
             if (type == AxolotlLexer.RPAREN) {
                 depth++;
             } else if (type == AxolotlLexer.LPAREN && --depth == 0) {
-                Token before = previousToken(tokens, tokens.get(i));
-                return before != null && before.getType() == AxolotlLexer.IF;
+                return previousToken(tokens, tokens.get(i));
+            }
+        }
+        return null;
+    }
+
+    /** Whether the innermost `{` open at the token is the one of a `when`, not of an arm's block. */
+    private static boolean inWhenBraces(CommonTokenStream tokens, Token at) {
+        int depth = 0;
+        for (int i = at.getTokenIndex() - 1; i >= 0; i--) {
+            int type = tokens.get(i).getType();
+            if (type == AxolotlLexer.RBRACE) {
+                depth++;
+            } else if ((type == AxolotlLexer.LBRACE || type == AxolotlParser.BLOCK_START) && depth-- == 0) {
+                Token close = previousToken(tokens, tokens.get(i));
+                Token before = close == null || close.getType() != AxolotlLexer.RPAREN ? null : beforeParens(tokens, close);
+                return before != null && before.getType() == AxolotlLexer.WHEN;
             }
         }
         return false;
     }
 
     /** ANTLR gives up on the whole `when` when an arm's condition runs into its value. */
-    private static boolean brokenArm(String msg, Token previous, Token at) {
-        return msg.startsWith("no viable alternative at input 'when") && previous != null
-                && previous.getLine() == at.getLine();
+    private static boolean brokenArm(String msg, CommonTokenStream tokens, Token at) {
+        if (at == null || !msg.startsWith("no viable alternative at input 'when")) {
+            return false;
+        }
+        Token first = lineStart(tokens, at);
+        boolean arrowBefore = tokens.getTokens().subList(first.getTokenIndex(), at.getTokenIndex()).stream()
+                .anyMatch(t -> t.getType() == AxolotlLexer.ARROW);
+        return first != at && !arrowBefore && inWhenBraces(tokens, at);
     }
 
     /** A token name or literal from an ANTLR message, as a person would say it. */
@@ -652,14 +678,18 @@ public final class SourceParser {
         var parserErrors = new BaseErrorListener() {
             // After an unclosed `(`, the parser's recovery reports the lines after it too.
             boolean unclosedParen;
+            // Prediction may look ahead over a whole `when` and fail at a later line first; the
+            // recovery then parses the tokens before that point again and reports them too.
+            int furthest = -1;
 
             @Override
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
                                     int charPositionInLine, String msg, RecognitionException e) {
-                if (unclosedParen) {
+                Token at = offendingSymbol instanceof Token t ? t : null;
+                if (unclosedParen || at != null && at.getTokenIndex() < furthest) {
                     return;
                 }
-                Token at = offendingSymbol instanceof Token t ? t : null;
+                furthest = at == null ? furthest : at.getTokenIndex();
                 Mistakes.Placed known = at == null || at.getType() == Token.EOF ? null : Mistakes.find(tokens, at);
                 if (known != null) {
                     report(known);
