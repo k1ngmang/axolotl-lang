@@ -836,7 +836,7 @@ import org.axl.compiler.ast.TypeRef;
         for (final var arm : w.arms()) {
             for (final var condition : arm.conditions()) {
                 final var constant = condition.constant();
-                if (constant != null) {
+                if (constant != null && !isNullConstant(condition)) {
                     named.add(constant.text());
                 }
             }

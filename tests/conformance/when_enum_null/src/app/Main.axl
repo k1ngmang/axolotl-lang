@@ -1,0 +1,13 @@
+package app
+
+enum Dir { N, E }
+
+fn name(d: Dir?) -> String = when (d) {
+    Dir.N -> "n"
+    Dir.E -> "e"
+    null -> "none"
+}
+
+fn main() {
+    println(name(null) + name(Dir.N) + name(Dir.E))
+}

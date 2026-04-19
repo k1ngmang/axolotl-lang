@@ -852,7 +852,7 @@ class Checker(val file: SourceFile) {
         for (arm in w.arms()) {
             for (condition in arm.conditions()) {
                 val constant = condition.constant()
-                if (constant != null) {
+                if (constant != null && !isNullConstant(condition)) {
                     named.add(constant.text())
                 }
             }
