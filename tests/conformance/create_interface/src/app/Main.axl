@@ -1,0 +1,14 @@
+package app
+
+import java.util.AbstractList
+import java.util.List
+
+interface Named {
+    val name: String
+}
+
+fn main() {
+    println(List<String>())
+    println(Named())
+    println(AbstractList<String>())
+}

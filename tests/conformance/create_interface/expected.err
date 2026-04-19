@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:11:13: error: `List` is an interface and cannot be created; create a class that implements it, such as `ArrayList<String>()`
+AXL100 app/Main.axl:12:13: error: `Named` is an interface and cannot be created; create a class that implements it
+AXL100 app/Main.axl:13:13: error: `AbstractList` is abstract and cannot be created; use a class that extends it
