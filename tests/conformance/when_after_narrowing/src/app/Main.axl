@@ -1,0 +1,22 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val r: Int) : Shape
+
+data class Sq(val side: Int) : Shape
+
+fn size(s: Shape) -> Int {
+    if (s !is Sq) {
+        return 0
+    }
+    return when (s) {
+        is Circle -> 1
+        is Sq -> s.side()
+    }
+}
+
+fn main() {
+    println(size(Sq(5)))
+    println(size(Circle(1)))
+}

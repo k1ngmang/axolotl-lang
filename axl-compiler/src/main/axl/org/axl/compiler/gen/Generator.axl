@@ -725,7 +725,7 @@ class Generator(
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";")
                 subject.add(name)
             } else {
-                subject.add(lifted(line, w.subject()).code())
+                subject.add(unnarrowed(w.subject()) ?: lifted(line, w.subject()).code())
             }
         })
         val subjectCode = subject.getFirst()
@@ -761,6 +761,15 @@ class Generator(
         }
         em.dedent()
         em.line(w.end().line(), if (form == WhenForm.VALUE) "};" else "}")
+    }
+
+    /**
+     * A name narrowed by an earlier test is switched on as it was declared: its `is` branches may test
+     * the other classes, which Java rejects for the narrowed type.
+     */
+    private fn unnarrowed(subject: Expr) -> String? {
+        val inner = withoutParens(subject)
+        return if (inner is Expr.Name && smart.containsKey(inner.name())) inner.name() else null
     }
 
     private fn narrowableName(subject: Expr) -> String? {

@@ -661,7 +661,7 @@ import org.axl.compiler.check.Whens;
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";");
                 subject.add(name);
             } else {
-                subject.add(lifted(line, w.subject()).code());
+                subject.add(Nulls.or(unnarrowed(w.subject()), () -> lifted(line, w.subject()).code()));
             }
         });
         final var subjectCode = subject.getFirst();
@@ -694,6 +694,10 @@ import org.axl.compiler.check.Whens;
         }
         em.dedent();
         em.line(w.end().line(), (form == WhenForm.VALUE ? "};" : "}"));
+    }
+    private @Nullable String unnarrowed(Expr subject) {
+        final var inner = withoutParens(subject);
+        return (inner instanceof Expr.Name inner$1 && smart.containsKey(inner$1.name()) ? inner$1.name() : null);
     }
     private @Nullable String narrowableName(Expr subject) {
         if (subject instanceof Expr.Name subject$1 && neverChanges(subject$1)) {
