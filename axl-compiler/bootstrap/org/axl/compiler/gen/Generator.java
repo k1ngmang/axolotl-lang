@@ -1733,7 +1733,9 @@ import org.axl.compiler.check.Whens;
         final var temp = newTemp();
         final var bodyLine = lambda.pos().line();
         em.line(bodyLine, "final var " + temp + " = " + expr(body) + ";");
-        em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");");
+        if (!isOkCall(body)) {
+            em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");");
+        }
         em.line(bodyLine, list + ".add(Result.<" + element + ">unwrap(" + temp + "));");
         em.dedent();
         em.line(line, "}");
@@ -2183,6 +2185,10 @@ import org.axl.compiler.check.Whens;
             return first$1.expr();
         }
         return null;
+    }
+    private static boolean isOkCall(Expr e) {
+        final var inner = withoutParens(e);
+        return inner instanceof Expr.Call inner$1 && inner$1.target() == null && inner$1.name().equals("Ok");
     }
     private static boolean hasSafeElvis(Expr e) {
         return e instanceof Expr.Elvis e$1 && Chains.hasSafeStep(e$1.left());

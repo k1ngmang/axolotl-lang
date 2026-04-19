@@ -1898,7 +1898,10 @@ class Generator(
         val temp = newTemp()
         val bodyLine = lambda.pos().line()
         em.line(bodyLine, "final var " + temp + " = " + expr(body) + ";")
-        em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");")
+        // `Ok(...)` is never an error, and Java would give it an Object error, which the function does not return.
+        if (!isOkCall(body)) {
+            em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");")
+        }
         em.line(bodyLine, list + ".add(Result.<" + element + ">unwrap(" + temp + "));")
         em.dedent()
         em.line(line, "}")
@@ -2350,6 +2353,11 @@ private fn lambdaExpression(body: List<Stmt>) -> Expr? {
         return first.expr()
     }
     return null
+}
+
+private fn isOkCall(e: Expr) -> Boolean {
+    val inner = withoutParens(e)
+    return inner is Expr.Call && inner.target() == null && inner.name().equals("Ok")
 }
 
 private fn hasSafeElvis(e: Expr) -> Boolean = e is Expr.Elvis && Chains.hasSafeStep(e.left())

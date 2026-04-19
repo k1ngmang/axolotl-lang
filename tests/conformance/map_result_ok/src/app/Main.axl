@@ -1,0 +1,14 @@
+package app
+
+import java.util.List
+
+fn p(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else "bad " + s
+
+fn f(xss: List<List<String>>) -> Result<List<List<Int>>, String> {
+    val r: List<List<Int>> = xss |> mapResult { row -> Ok(row |> map { it.length() }) }
+    return Ok(r)
+}
+
+fn main() {
+    println(f(List.of(List.of("a", "bb"))))
+}
