@@ -1,6 +1,7 @@
 AXL001 app/ColonResult.axl:3:13: error: the result type comes after `->`: `fn f(...) -> Int`
 AXL001 app/Companion.axl:4:5: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program
 AXL001 app/Const.axl:3:1: error: Axolotl has no `const`; a top-level `val` is already constant, so remove `const`
+AXL001 app/DataClassVar.axl:3:30: error: a data class cannot change; declare its fields with `val`
 AXL001 app/DefaultParameter.axl:3:41: error: parameters have no default values in Axolotl; declare a second function with fewer parameters
 AXL001 app/Destructuring.axl:4:9: error: Axolotl has no destructuring; declare each value: `val a = p.a()`
 AXL001 app/EnumConstructor.axl:3:11: error: an enum lists its constants only: `enum Color { RED, GREEN }`
@@ -8,6 +9,7 @@ AXL001 app/Extension.axl:3:10: error: Axolotl has no extension functions; take t
 AXL001 app/FatArrow.axl:4:7: error: write `->` after the condition of a `when` branch, and in a lambda
 AXL001 app/GenericClass.axl:3:15: error: Axolotl classes have no type parameters; write the types the class holds
 AXL001 app/GenericFunction.axl:5:4: error: Axolotl functions have no type parameters; write the types the function works with
+AXL001 app/InfixTo.axl:4:23: error: Axolotl has no `to`; a map takes keys and values in turn: `Map.of("a", 1)`
 AXL001 app/Lateinit.axl:4:5: error: Axolotl has no `lateinit`; give the `var` a value, or make it nullable: `var x: T? = null`
 AXL001 app/NamedArguments.axl:6:24: error: Axolotl has no named arguments; pass the values in the order of the parameters
 AXL001 app/ObjectDeclaration.axl:3:1: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program

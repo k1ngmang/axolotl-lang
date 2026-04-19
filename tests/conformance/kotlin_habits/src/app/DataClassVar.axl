@@ -1,0 +1,3 @@
+package app
+
+data class Point(val x: Int, var y: Int)

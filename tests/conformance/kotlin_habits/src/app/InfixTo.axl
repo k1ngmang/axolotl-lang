@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val m = mapOf("a" to 1)
+    println(m)
+}

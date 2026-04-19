@@ -39,17 +39,17 @@ final class Habits {
 
     private static String word(List<Token> tokens, int i) {
         String text = tokens.get(i).getText();
-        int next = type(tokens, SourceParser.nextCode(tokens, i));
+        int nextIndex = SourceParser.nextCode(tokens, i);
+        int next = type(tokens, nextIndex);
         // `const x = 1` from JavaScript has a message of its own.
         boolean declares = !text.equals("const") || next == AxolotlLexer.VAL;
         if (MODIFIERS.contains(text)) {
             return declares && modifierPosition(tokens, i) ? modifier(text) : null;
         }
         return switch (text) {
-            case "void" -> next == AxolotlLexer.IDENTIFIER && type(tokens, SourceParser.nextCode(tokens,
-                    SourceParser.nextCode(tokens, i))) == AxolotlLexer.LPAREN && startsDeclaration(tokens, i)
-                    ? "functions are declared with `fn`: `fn " + text(tokens, SourceParser.nextCode(tokens, i)) + "(...)`"
-                    : null;
+            case "void" -> next == AxolotlLexer.IDENTIFIER && startsDeclaration(tokens, i)
+                    && type(tokens, SourceParser.nextCode(tokens, nextIndex)) == AxolotlLexer.LPAREN
+                    ? "functions are declared with `fn`: `fn " + text(tokens, nextIndex) + "(...)`" : null;
             case "switch" -> next == AxolotlLexer.LPAREN
                     ? "Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`" : null;
             case "case" -> startsLine(tokens, i)

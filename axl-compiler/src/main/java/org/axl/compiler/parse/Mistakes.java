@@ -16,7 +16,9 @@ final class Mistakes {
     /** The cause of an error the parser found at the token at, or null. */
     static Placed find(CommonTokenStream tokens, Token at) {
         if (at.getType() == AxolotlLexer.VAR && braceDepth(tokens, at) == 0) {
-            return new Placed(at, "top-level values cannot change; use `val`, or keep the state in a class");
+            boolean field = enclosingParen(tokens, at) != null;
+            return new Placed(at, field ? "a data class cannot change; declare its fields with `val`"
+                    : "top-level values cannot change; use `val`, or keep the state in a class");
         }
         Token ifWithoutBraces = ifWithoutBraces(tokens, at);
         if (ifWithoutBraces != null) {
@@ -130,8 +132,11 @@ final class Mistakes {
         return "lambdas are written in braces: `{ " + params + " -> ... }`";
     }
 
-    /** `fn add(a: Int b: Int)` and `add(1 2)`. */
+    /** `fn add(a: Int b: Int)` and `add(1 2)`, and Kotlin's `"a" to 1`. */
     private static String missingComma(CommonTokenStream tokens, Token at, Token previous) {
+        if (at.getText().equals("to") && enclosingParen(tokens, at) != null) {
+            return "Axolotl has no `to`; a map takes keys and values in turn: `Map.of(\"a\", 1)`";
+        }
         boolean value = at.getType() == AxolotlLexer.IDENTIFIER || literal(at);
         boolean afterValue = previous.getType() == AxolotlLexer.IDENTIFIER || literal(previous);
         if (!value || !afterValue || previous.getLine() != at.getLine() || enclosingParen(tokens, at) == null) {
