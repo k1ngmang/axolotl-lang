@@ -1472,6 +1472,10 @@ class Generator(
             return "java.util.Objects.requireNonNull(" + argument(arg.target(), inLambda) + ")"
         }
         // As the receiver of `.value()`, the expansion gets its type without the overloads of the call.
+        // A `?:` gives a value when its right side does, which Nulls.present keeps.
+        if (arg is Expr.Elvis && hasSafeElvis(arg) && !mayBeNull(arg.right())) {
+            return "Nulls.present(" + exprIn(arg, inLambda) + ").value()"
+        }
         if (Chains.hasSafeStep(arg) || hasSafeElvis(arg)) {
             return "Nulls.typed(" + exprIn(arg, inLambda) + ").value()"
         }

@@ -39,6 +39,8 @@ import org.jspecify.annotations.Nullable;
     // and println(String) and println(char[]) both fit. As the receiver of `.value()` it is typed first.
     public record Typed<T extends @Nullable Object>(@Nullable T value) {}
     public static <T extends @Nullable Object> Typed<T> typed(@Nullable T value) { return new Typed<>(value); }
+    public record Present<T>(T value) {}
+    public static <T> Present<T> present(T value) { return new Present<>(value); }
     public static <T, R> @Nullable R map(@Nullable T a, Function<? super T, ? extends @Nullable R> f) {
         return a == null ? null : f.apply(a);
     }

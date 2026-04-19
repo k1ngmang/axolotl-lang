@@ -1313,6 +1313,9 @@ import org.axl.compiler.check.Whens;
         if (arg instanceof Expr.NotNull arg$2) {
             return "java.util.Objects.requireNonNull(" + argument(arg$2.target(), inLambda) + ")";
         }
+        if (arg instanceof Expr.Elvis arg$3 && hasSafeElvis(arg$3) && !mayBeNull(arg$3.right())) {
+            return "Nulls.present(" + exprIn(arg$3, inLambda) + ").value()";
+        }
         if (Chains.hasSafeStep(arg) || hasSafeElvis(arg)) {
             return "Nulls.typed(" + exprIn(arg, inLambda) + ").value()";
         }

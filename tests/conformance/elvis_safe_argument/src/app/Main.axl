@@ -1,0 +1,14 @@
+package app
+
+fn shout(n: String) -> String = n + "!"
+
+fn length(s: String?, k: Int) -> Result<Int, String> = Ok(s?.length() ?: k)
+
+fn main() {
+    val s: String? = " a "
+    val none: String? = null
+    println(shout(s?.trim() ?: "none"))
+    println(shout(none?.trim() ?: "none"))
+    println(Integer.valueOf(none?.length() ?: 3))
+    println(length(null, 4))
+}
