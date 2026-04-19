@@ -1,5 +1,7 @@
 grammar Axolotl;
 
+tokens { BLOCK_START }
+
 @parser::members {
     // Newlines are hidden, so a call or a binary +/- must start on the line of
     // the previous token; otherwise `f()` followed by `(x)` would become `f()(x)`.
@@ -151,8 +153,10 @@ varDecl
     : VAR identifier (COLON type)? ASSIGN expression
     ;
 
+// The source parser marks the braces of an `if` statement as BLOCK_START, so that they are never
+// tried as a lambda or an expression: for nested ifs that took exponential time.
 block
-    : LBRACE statement* RBRACE
+    : (LBRACE | BLOCK_START) statement* RBRACE
     ;
 
 statement
@@ -248,14 +252,6 @@ primary
     | lambda                                                        # lambdaPrimary
     | whenExpression                                                # whenPrimary
     | {ifExpressionAhead()}? IF LPAREN expression RPAREN expression ELSE expression   # ifPrimary
-    // Rejected with a message: braces make an `if` a statement.
-    | IF LPAREN expression RPAREN braced (ELSE (braced | expression))?                 # ifBlockPrimary
-    ;
-
-// Only matches the braces: as statements, every `if` in them would also be tried as an `if`
-// statement, for each enclosing one, which takes exponential time.
-braced
-    : LBRACE (braced | ~(LBRACE | RBRACE))* RBRACE
     ;
 
 // `when (x) { is Circle -> x.radius(); 1, 2 -> "few"; else -> { ... } }`

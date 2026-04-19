@@ -455,6 +455,10 @@ public final class SourceParser {
             return open != null ? "unexpected end of file: the `{` at line " + open.getLine() + " is not closed"
                     : "unexpected end of file";
         }
+        if (at != null && at.getType() == AxolotlParser.BLOCK_START) {
+            return "an `if` that gives a value takes expressions after `if (...)` and `else`, not braces: "
+                    + "`if (c) a else b`; braces make an `if` a statement";
+        }
         String token = at == null ? "" : at.getText();
         String guess = at == null ? null : keywordLike(at);
         if (guess != null) {
@@ -600,7 +604,7 @@ public final class SourceParser {
         // A byte order mark is not code, and a lone \r ends a line in every editor.
         String text = source.replaceFirst("^\uFEFF", "").replace("\r\n", "\n").replace('\r', '\n');
         var lexer = new AxolotlLexer(CharStreams.fromString(text, path));
-        var tokens = new CommonTokenStream(lexer);
+        var tokens = new BlockTokens(lexer);
         var lexerErrors = new BaseErrorListener() {
             @Override
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
@@ -613,6 +617,7 @@ public final class SourceParser {
         lexer.removeErrorListeners();
         lexer.addErrorListener(lexerErrors);
         tokens.fill();
+        tokens.markIfBlocks();
         diagnostics.addAll(lexicalErrors(path, tokens));
         if (!diagnostics.isEmpty()) {
             // The parser's errors after a broken token only repeat the problem.
@@ -661,9 +666,11 @@ public final class SourceParser {
                                 + (previous.getType() == AxolotlLexer.DOT ? "a name"
                                 : previous.getType() == AxolotlLexer.ARROW ? "a value or a block" : "a value") + " after it"
                         : parserMessage(msg, at, tokens);
-                // ANTLR recovery tends to report the same broken line several times, and the branches,
-                // braces and end of file after a broken `when` branch.
-                boolean cascade = !diagnostics.isEmpty() && (notFinished || at != null && (at.getType() == AxolotlLexer.ELSE
+                // ANTLR recovery tends to report the same broken line several times, the branches,
+                // braces and end of file after a broken `when` branch, and statements left outside their
+                // function when it took a `}` too early.
+                boolean cascade = !diagnostics.isEmpty() && (notFinished || msg.startsWith("extraneous input")
+                        || at != null && (at.getType() == AxolotlLexer.ELSE
                         || at.getType() == AxolotlLexer.ARROW || at.getType() == Token.EOF || at.getType() == AxolotlLexer.RBRACE));
                 if (!cascade && diagnostics.stream().noneMatch(d -> d.line() == finalLine)) {
                     diagnostics.add(AxlDiagnostic.error(path, reportLine, column, ErrorCode.SYNTAX, message));

@@ -3,8 +3,10 @@ package org.axl.compiler;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -71,5 +73,21 @@ class TranslatorTest {
                 """);
         // `(a)` and `- 1` are statements of their own, which do nothing.
         assertEquals(List.of(4, 6), result.diagnostics().stream().map(AxlDiagnostic::line).toList());
+    }
+
+    @Test
+    void nestedIfsParseQuickly() {
+        StringBuilder chain = new StringBuilder("package p\nfn f(x: Int) {\n    if (x > 0) {\n        println(0)\n");
+        StringBuilder nested = new StringBuilder("package p\nfn g(x: Int) {\n");
+        for (int i = 1; i <= 30; i++) {
+            chain.append("    } else if (x > ").append(i).append(") {\n        println(").append(i).append(")\n");
+            nested.append("if (x > ").append(i).append(") {\n");
+        }
+        chain.append("    }\n}\n");
+        nested.append("println(x)\n").append("}\n".repeat(30)).append("}\n");
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> {
+            assertTrue(Translator.translate("A.axl", "A.axl", chain.toString()).diagnostics().isEmpty());
+            assertTrue(Translator.translate("B.axl", "B.axl", nested.toString()).diagnostics().isEmpty());
+        });
     }
 }

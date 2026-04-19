@@ -77,7 +77,6 @@ import org.axl.compiler.parse.AxolotlParser.FunctionBodyContext;
 import org.axl.compiler.parse.AxolotlParser.FunctionDeclContext;
 import org.axl.compiler.parse.AxolotlParser.GenericConstructorContext;
 import org.axl.compiler.parse.AxolotlParser.IdentifierContext;
-import org.axl.compiler.parse.AxolotlParser.IfBlockPrimaryContext;
 import org.axl.compiler.parse.AxolotlParser.IfPrimaryContext;
 import org.axl.compiler.parse.AxolotlParser.IfStatementContext;
 import org.axl.compiler.parse.AxolotlParser.IfStatementAltContext;
@@ -501,12 +500,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             case IfPrimaryContext ctx$6 -> {
                 return buildConditional(ctx$6);
             }
-            case IfBlockPrimaryContext ctx$7 -> {
-                throw new Rejected(pos(ctx$7.braced(0).start), "an `if` that gives a value takes expressions " +
-                        "after `if (...)` and `else`, not braces: `if (c) a else b`; braces make an `if` a statement");
-            }
-            case GenericConstructorContext ctx$8 -> {
-                return buildGenericNew(ctx$8);
+            case GenericConstructorContext ctx$7 -> {
+                return buildGenericNew(ctx$7);
             }
             default -> {
                 throw new IllegalStateException("unknown primary " + ctx.getClass());
