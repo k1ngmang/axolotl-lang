@@ -155,12 +155,15 @@ final class NullChecker implements TaskListener {
     private final Types types;
     private final Elements elements;
     private final boolean strict;
+    // Null when NullAway does not run.
+    private final NullAwayReports nullAway;
 
-    NullChecker(JavacTask task, boolean strict) {
+    NullChecker(JavacTask task, boolean strict, NullAwayReports nullAway) {
         this.trees = Trees.instance(task);
         this.types = task.getTypes();
         this.elements = task.getElements();
         this.strict = strict;
+        this.nullAway = nullAway;
     }
 
     private record Report(String message, Tree tree, CompilationUnitTree unit) {}
@@ -169,8 +172,51 @@ final class NullChecker implements TaskListener {
     private final List<Report> reports = new ArrayList<>();
 
     void report() {
-        reports.forEach(r -> trees.printMessage(Diagnostic.Kind.ERROR, r.message(), r.tree(), r.unit()));
+        reports.stream().filter(r -> !reportedByNullAway(r))
+                .forEach(r -> trees.printMessage(Diagnostic.Kind.ERROR, r.message(), r.tree(), r.unit()));
         reports.clear();
+    }
+
+    /**
+     * NullAway sees more than this checker assumes, such as `List<String?>` written out in a type. A
+     * problem NullAway reports for a whole class or method starts on a line of its own.
+     */
+    private boolean reportedByNullAway(Report report) {
+        if (nullAway == null) {
+            return false;
+        }
+        CompilationUnitTree unit = report.unit();
+        long start = start(unit, report.tree());
+        long end = end(unit, report.tree());
+        return nullAway.starts(unit.getSourceFile().toUri()).stream()
+                .anyMatch(p -> line(unit, p) == line(unit, start) && p <= end && start <= extent(unit, p));
+    }
+
+    /** Where the largest tree that starts at the position ends. */
+    private long extent(CompilationUnitTree unit, long position) {
+        long[] end = {position};
+        new TreeScanner<Void, Void>() {
+            @Override
+            public Void scan(Tree tree, Void unused) {
+                if (tree != null && start(unit, tree) == position) {
+                    end[0] = Math.max(end[0], end(unit, tree));
+                }
+                return super.scan(tree, unused);
+            }
+        }.scan(unit, null);
+        return end[0];
+    }
+
+    private long start(CompilationUnitTree unit, Tree tree) {
+        return trees.getSourcePositions().getStartPosition(unit, tree);
+    }
+
+    private long end(CompilationUnitTree unit, Tree tree) {
+        return Math.max(start(unit, tree), trees.getSourcePositions().getEndPosition(unit, tree));
+    }
+
+    private static long line(CompilationUnitTree unit, long position) {
+        return position < 0 ? -1 : unit.getLineMap().getLineNumber(position);
     }
 
     @Override

@@ -58,7 +58,10 @@ public final class DiagnosticsPlugin implements Plugin {
                 roots.add(Root.parse(arg));
             }
         }
-        NullChecker nullChecker = new NullChecker(task, strict);
+        if (!roots.isEmpty()) {
+            new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
+        }
+        NullChecker nullChecker = new NullChecker(task, strict, nullAwayReports(task));
         InitCycles initCycles = new InitCycles(task);
         task.addTaskListener(nullChecker);
         task.addTaskListener(initCycles);
@@ -66,9 +69,17 @@ public final class DiagnosticsPlugin implements Plugin {
             initCycles.report();
             nullChecker.report();
         }));
-        if (!roots.isEmpty()) {
-            new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
-        }
+    }
+
+    /**
+     * Installed after the handler that moves diagnostics to .axl files, so that it sees them first,
+     * at their Java positions. Null without access to javac's internals, which Error Prone needs too.
+     */
+    private static NullAwayReports nullAwayReports(JavacTask task) {
+        boolean internals = ModuleLayer.boot().findModule("jdk.compiler")
+                .map(m -> m.isExported("com.sun.tools.javac.util", DiagnosticsPlugin.class.getModule()))
+                .orElse(false);
+        return internals && task instanceof BasicJavacTask basic ? new NullAwayReports(basic.getContext()) : null;
     }
 
     public static String option(List<Root> roots) {

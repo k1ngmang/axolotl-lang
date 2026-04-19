@@ -1,0 +1,17 @@
+package app
+
+import java.util.HashMap
+import java.util.List
+import java.util.function.Function
+
+fn main() {
+    val m = HashMap<String, String?>()
+    for (v in m.values()) {
+        println(v.length())
+    }
+    val xs: List<String?> = List.of()
+    println(xs.stream().map({ s -> s.length() }).toList())
+    val names = HashMap<String, String>()
+    val f: Function<String, String> = { k -> names.get(k) }
+    println(f.apply("a"))
+}
