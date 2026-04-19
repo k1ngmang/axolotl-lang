@@ -1,0 +1,29 @@
+package app
+
+fn q(n: Int) -> Result<Int, String> = if (n > 1000) Err("big") else Ok(n)
+
+fn word(s: String) -> Result<String, String> = Ok(s)
+
+fn doubled(n: Int?) -> Result<Int, String> {
+    val x = (n ?: try q(7)) * 2
+    return Ok(x)
+}
+
+fn shout(s: String?) -> Result<String, String> {
+    val x = (s ?: try word("fallback")) + "!"
+    return Ok(x)
+}
+
+fn added(n: Int?) -> Result<Boolean, String> {
+    val x = 0 + (n ?: try q(7)) > 5
+    return Ok(x)
+}
+
+fn main() {
+    println(doubled(null))
+    println(doubled(3))
+    println(shout(null))
+    println(shout("val"))
+    println(added(3))
+    println(added(null))
+}

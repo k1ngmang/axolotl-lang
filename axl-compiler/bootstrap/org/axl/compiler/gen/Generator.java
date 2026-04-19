@@ -1625,10 +1625,10 @@ import org.axl.compiler.check.Whens;
         final var result = newTemp();
         em.line(line, "final var " + result + " = java.util.Objects.isNull(" + value + ") ? " + expr(t.inner()) + " : null;");
         em.line(line, "if (" + result + " != null && " + result + ".isErr()) return Result.propagate(" + result + ");");
-        return new Lifted("java.util.Objects.nonNull(" + value + ") ? " + value +
+        return new Lifted("(java.util.Objects.nonNull(" + value + ") ? " + value +
                 " : Result.unwrap(java.util.Objects.requireNonNull(" +
                 result +
-                "))",
+                ")))",
                 false);
     }
     private Lifted chainLifted(int line, Chains.Chain chain) {

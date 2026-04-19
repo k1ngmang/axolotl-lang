@@ -1777,8 +1777,9 @@ class Generator(
         val result = newTemp()
         em.line(line, "final var " + result + " = java.util.Objects.isNull(" + value + ") ? " + expr(t.inner()) + " : null;")
         em.line(line, "if (" + result + " != null && " + result + ".isErr()) return Result.propagate(" + result + ");")
-        return Lifted("java.util.Objects.nonNull(" + value + ") ? " + value +
-            " : Result.unwrap(java.util.Objects.requireNonNull(" + result + "))", false)
+        // In parentheses: it may be an operand, as in `(n ?: try q()) * 2`.
+        return Lifted("(java.util.Objects.nonNull(" + value + ") ? " + value +
+            " : Result.unwrap(java.util.Objects.requireNonNull(" + result + ")))", false)
     }
 
     /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */
