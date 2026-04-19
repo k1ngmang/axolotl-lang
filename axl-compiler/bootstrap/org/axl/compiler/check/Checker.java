@@ -800,6 +800,10 @@ import org.axl.compiler.ast.TypeRef;
         pop();
     }
     private void checkArms(Expr.When w, boolean needsElse) {
+        if (w.arms().isEmpty()) {
+            error(w.pos(), ErrorCode.SYNTAX, "this `when` has no branches; add one for each case, or an `else ->` branch");
+            return;
+        }
         var sawElse = false;
         var types = false;
         var constants = false;

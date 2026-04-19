@@ -813,6 +813,10 @@ class Checker(val file: SourceFile) {
     }
 
     private fn checkArms(w: Expr.When, needsElse: Boolean) {
+        if (w.arms().isEmpty()) {
+            error(w.pos(), ErrorCode.SYNTAX, "this `when` has no branches; add one for each case, or an `else ->` branch")
+            return
+        }
         var sawElse = false
         var types = false
         var constants = false

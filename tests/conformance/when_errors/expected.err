@@ -9,3 +9,4 @@ AXL001 app/Main.axl:46:21: error: this `when` does not test `is Square`; add a b
 AXL001 app/Main.axl:49:32: error: a `when` over constants that gives a value needs an `else` branch
 AXL001 app/Main.axl:53:56: error: a `when` that gives a value cannot be inside `attempt`; compute it in a `val` first
 AXL001 app/Main.axl:56:16: error: a `when` that gives a value cannot be an argument after `?.`; compute it in a `val` first
+AXL001 app/Main.axl:59:21: error: this `when` has no branches; add one for each case, or an `else ->` branch
