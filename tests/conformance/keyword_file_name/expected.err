@@ -1,1 +1,2 @@
-AXL012 app/record.axl:1:1: error: file name `record` is not a valid class name
+AXL012 app/main-file.axl:1:1: error: file name `main-file` is not a valid class name; rename it to `MainFile.axl`
+AXL012 app/record.axl:1:1: error: file name `record` is not a valid class name; rename it to `Record.axl`

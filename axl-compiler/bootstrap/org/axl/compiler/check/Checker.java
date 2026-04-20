@@ -100,10 +100,26 @@ import org.axl.compiler.ast.TypeRef;
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message());
         }
     }
+    private @Nullable String classNameLike(String name) {
+        final var sb = new StringBuilder();
+        for (final var part : name.split("[^A-Za-z0-9]+")) {
+            if (!part.isEmpty()) {
+                sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+            }
+        }
+        var digits = 0;
+        while (digits < sb.length() && Character.isDigit(sb.charAt(digits))) {
+            digits += 1;
+        }
+        final var result = sb.substring(digits) + sb.substring(0, digits);
+        return (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result) ? null : result);
+    }
     private void checkFileName() {
         final var name = file.className();
         if (!isJavaIdentifier(name) || RESERVED.contains(name)) {
-            error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` is not a valid class name");
+            final var suggestion = classNameLike(name);
+            final var hint = (suggestion == null ? "" : "; rename it to `" + suggestion + ".axl`");
+            error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` is not a valid class name" + hint);
         } else if (PACKAGE_ROOTS.contains(name)) {
             error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` would hide the `" +
                     name +
