@@ -88,6 +88,8 @@ final class NullChecker implements TaskListener {
     static final String STRICT_PREFIX = "strict null: ";
 
     private static final String FIX = "use `?.`, `?:`, a null check or `!!`";
+    private static final String CHANGING_FIX = "a null check does not narrow a `var` property or the result of a call, "
+            + "which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`";
     private static final Set<String> BOXES = Set.of("java.lang.Integer", "java.lang.Long", "java.lang.Double",
             "java.lang.Boolean", "java.lang.Character", "java.lang.Short", "java.lang.Byte", "java.lang.Float");
     // JDK methods whose function argument may return null: Java documents what null means for them.
@@ -340,7 +342,7 @@ final class NullChecker implements TaskListener {
                     && (targetElement.getKind().isClass() || targetElement.getKind().isInterface()
                     || targetElement.getKind() == ElementKind.PACKAGE);
             if (!isTypeOrPackage) {
-                report(select, origin(target), true, describe(target) + "; " + FIX);
+                reportValue(select, target, true, "");
             }
             return super.visitMemberSelect(select, unused);
         }
@@ -409,8 +411,7 @@ final class NullChecker implements TaskListener {
                 Boolean nullable = targetTypeArgNullable(getCurrentPath(), owner.equals("axl.lang.Ok") ? 0 : 1);
                 ExpressionTree value = newClass.getArguments().getFirst();
                 if (Boolean.FALSE.equals(nullable)) {
-                    report(value, origin(value), !resultOfLambda(getCurrentPath()),
-                            describe(value) + ", but the result type has no `?` there; " + FIX);
+                    reportValue(value, value, !resultOfLambda(getCurrentPath()), ", but the result type has no `?` there");
                 }
             }
             return null;
@@ -483,7 +484,7 @@ final class NullChecker implements TaskListener {
             scan(selector, null);
             // NullAway checks the selector, but not for values from Java code without annotations.
             if (!takesNull(cases)) {
-                report(selector, origin(selector), true, describe(selector) + ", but `when` needs a value to test; " + FIX);
+                reportValue(selector, selector, true, ", but `when` needs a value to test");
             }
             Map<Element, Origin> entry = new HashMap<>(state);
             boolean hasDefault = cases.stream().anyMatch(c -> c.getLabels().stream().anyMatch(l -> l instanceof DefaultCaseLabelTree));
@@ -518,8 +519,7 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitEnhancedForLoop(EnhancedForLoopTree loop, Void unused) {
             scan(loop.getExpression(), null);
-            report(loop.getExpression(), origin(loop.getExpression()), true,
-                    describe(loop.getExpression()) + ", but `for` needs something to go through; " + FIX);
+            reportValue(loop.getExpression(), loop.getExpression(), true, ", but `for` needs something to go through");
             Element variable = trees.getElement(new TreePath(getCurrentPath(), loop.getVariable()));
             Shape loopElements = elementShape(loop.getExpression());
             if (variable != null) {
@@ -822,8 +822,8 @@ final class NullChecker implements TaskListener {
                 report(result, origin, false, describe(result) + ", but the result type has no `?` there; " + FIX);
                 return;
             }
-            report(result, origin, isNullMarked(iface), describe(result) + ", but the lambda must not return null: " + name
-                    + " returns `" + typeName(returned) + "` here; " + FIX);
+            reportValue(result, result, isNullMarked(iface), ", but the lambda must not return null: " + name
+                    + " returns `" + typeName(returned) + "` here");
         }
 
         private boolean resultMayBeNull(TreePath lambda, TypeElement iface, ExecutableElement method, TypeMirror returned) {
@@ -1064,7 +1064,7 @@ final class NullChecker implements TaskListener {
             if (type.getKind().isPrimitive()) {
                 checkUnboxing(value, nullAwayChecks);
             } else if (type.getKind() != TypeKind.VOID && !PlatformValues.isNullable(declaration, type)) {
-                report(value, origin(value), nullAwayChecks, describe(value) + ", but " + why + "; " + FIX);
+                reportValue(value, value, nullAwayChecks, ", but " + why);
             }
         }
 
@@ -1074,7 +1074,7 @@ final class NullChecker implements TaskListener {
                 // A switch takes the primitive type it is assigned to, and NullAway does not look into its branches.
                 yielded(tree).forEach(branch -> checkUnboxing(branch, false));
             } else if (type != null && BOXES.contains(erasedName(type))) {
-                report(value, origin(value), nullAwayChecks, describe(value) + ", but is used as a number or boolean here; " + FIX);
+                reportValue(value, value, nullAwayChecks, ", but is used as a number or boolean here");
             }
         }
 
@@ -1108,15 +1108,43 @@ final class NullChecker implements TaskListener {
         }
 
         /**
-         * A check narrows a variable named on its own: a local, a parameter or a field of this class.
-         * The element of `xs.get(0)` or `a.name` stands for every call or access, not for this one.
+         * A check narrows a variable named on its own: a local, a parameter or a `val` property of this
+         * class. The element of `xs.get(0)` or `a.name` stands for every call or access, not for this one.
          */
         private Element narrowable(ExpressionTree expression) {
             if (!(unwrap(expression) instanceof IdentifierTree)) {
                 return null;
             }
             Element element = element(expression);
-            return element instanceof VariableElement ? element : null;
+            return element instanceof VariableElement && stable(expression) ? element : null;
+        }
+
+        /**
+         * A `var` property or the result of a call declared with `?`. NullAway narrows them after a null
+         * check, although a call in between may change them, so where it checks a use they are checked here.
+         */
+        private boolean mayChange(ExpressionTree expression) {
+            ExpressionTree e = unwrap(expression);
+            if (e instanceof MethodInvocationTree && element(e) instanceof ExecutableElement method) {
+                // `a?.b` and `a ?: b` call the runtime afresh each time.
+                return !isRuntime(method) && PlatformValues.isNullable(method, method.getReturnType());
+            }
+            Element element = element(e);
+            return element != null && element.getKind() == ElementKind.FIELD && !stable(e);
+        }
+
+        /** A local, a parameter, `this`, a class, or a `val` property of one: what no call can change. */
+        private boolean stable(ExpressionTree expression) {
+            ExpressionTree e = unwrap(expression);
+            Element element = element(e);
+            if (element == null || e instanceof MethodInvocationTree) {
+                return false;
+            }
+            if (element.getKind() != ElementKind.FIELD) {
+                return true;
+            }
+            return element.getModifiers().contains(Modifier.FINAL)
+                    && (!(e instanceof MemberSelectTree select) || stable(select.getExpression()));
         }
 
         @Override
@@ -1507,6 +1535,15 @@ final class NullChecker implements TaskListener {
                 };
             }
             return "the value may be null";
+        }
+
+        /** Reports a value that may be null where a use needs one that is not; see `report`. */
+        private boolean reportValue(Tree at, ExpressionTree value, boolean nullAwayChecks, String problem) {
+            Origin origin = origin(value);
+            if (nullAwayChecks && origin == Origin.DECLARED && mayChange(value)) {
+                return report(at, origin, false, describe(value) + problem + "; " + CHANGING_FIX);
+            }
+            return report(at, origin, nullAwayChecks, describe(value) + problem + "; " + FIX);
         }
 
         /** Reports unless NullAway reports the same problem; returns whether anything is wrong. */

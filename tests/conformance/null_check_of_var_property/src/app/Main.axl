@@ -1,0 +1,59 @@
+package app
+
+import java.util.HashMap
+
+class Node(val name: String, val tag: String?) {
+    var next: Node? = null
+
+    fn clear() { next = null }
+
+    fn length() -> Int {
+        if (next == null) {
+            return 1
+        }
+        clear()
+        return 1 + next.length()
+    }
+
+    fn tagLength() -> Int {
+        if (tag != null) {
+            clear()
+            return tag.length()
+        }
+        return 0
+    }
+
+    fn nextName() -> String {
+        if (next != null) {
+            return next.name
+        }
+        return ""
+    }
+}
+
+fn take(s: String) -> Int = s.length()
+
+fn maybe(n: Node) -> String? = n.tag
+
+fn use(n: Node, m: HashMap<String, String>) {
+    if (n.next != null) {
+        println(n.next.name)
+    }
+    if (n.tag != null) {
+        println(take(n.tag))
+    }
+    if (maybe(n) != null) {
+        println(take(maybe(n)))
+    }
+    if (m.get("a") != null) {
+        println(m.get("a").length())
+    }
+    val next = n.next
+    if (next != null) {
+        println(next.name)
+    }
+}
+
+fn main() {
+    use(Node("a", null), HashMap<String, String>())
+}

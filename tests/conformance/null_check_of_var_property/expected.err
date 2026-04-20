@@ -1,0 +1,5 @@
+AXL102 app/Main.axl:15:25: error: `next` may be null; a null check does not narrow a `var` property or the result of a call, which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:28:25: error: `next` may be null; a null check does not narrow a `var` property or the result of a call, which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:40:24: error: the value of `next` may be null; a null check does not narrow a `var` property or the result of a call, which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:46:22: error: the argument may be null, but the parameter does not accept null: use `?:` or a null check
+AXL102 app/Main.axl:49:28: error: the result of `get()` may be null; a null check does not narrow a `var` property or the result of a call, which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`

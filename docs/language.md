@@ -175,8 +175,9 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   the value is `null`. As a statement, `listener?.onEvent(e)` works with void methods.
 - `a ?: b` is `a` unless it is null, then `b`; `b` is evaluated only when needed.
 - `a!!` is `a` when it is not null and throws `NullPointerException` otherwise, at the `!!`.
-- After `if (x != null)`, an early `return` or inside `&&`/`||`, a local or parameter is known to be
-  non-null. A nullable field is copied to a local `val` first.
+- After `if (x != null)`, an early `return` or inside `&&`/`||`, a local, a parameter or a `val`
+  property (also `a.b` when each step is a `val`) is known to be non-null. A `var` property or the
+  result of a call such as `m.get(k)` may change in between, so it is copied to a local `val` first.
 - `?` in a type argument counts too: `get` on a `List<String?>` returns `String?`, the `it` of a pipe
   over it may be null, `sorted` needs elements that are not null, and `|> first` gives `null` for a
   null element as for an empty pipe. `add` on an `ArrayList<String>` does not accept null. This
