@@ -14,4 +14,6 @@ fn main() {
     val names = HashMap<String, String>()
     val f: Function<String, String> = { k -> names.get(k) }
     println(f.apply("a"))
+    val words: List<String> = xs |> filter { it != "x" }
+    println(words)
 }

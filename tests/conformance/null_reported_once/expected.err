@@ -1,3 +1,4 @@
 AXL102 app/Main.axl:10:19: error: value `v` may be null: use `?.`, `?:` or check `if (v != null)`
 AXL102 app/Main.axl:13:38: error: value `s` may be null: use `?.`, `?:` or check `if (s != null)`
 AXL102 app/Main.axl:15:41: error: the returned value may be null, but the result type has no `?`; add `?` to the result type or return a value that is not null
+AXL102 app/Main.axl:17:9: error: type mismatch: expected `List<String>`, found `List<String?>`

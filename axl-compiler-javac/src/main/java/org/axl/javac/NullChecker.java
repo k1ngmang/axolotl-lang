@@ -197,23 +197,30 @@ final class NullChecker implements TaskListener {
         CompilationUnitTree unit = report.unit();
         long start = start(unit, report.tree());
         long end = end(unit, report.tree());
-        return nullAway.starts(unit.getSourceFile().toUri()).stream()
-                .anyMatch(p -> line(unit, p) == line(unit, start) && p <= end && start <= extent(unit, p));
+        return nullAway.starts(unit.getSourceFile().toUri()).stream().map(p -> reportedTree(unit, p)).filter(t -> t != null)
+                .anyMatch(t -> line(unit, start(unit, t)) == line(unit, start) && start(unit, t) <= end && start <= end(unit, t));
     }
 
-    /** Where the largest tree that starts at the position ends. */
-    private long extent(CompilationUnitTree unit, long position) {
-        long[] end = {position};
+    /**
+     * The tree NullAway reported at a position: the largest one that starts there or else, for a
+     * position such as the name of a variable, the smallest one around it.
+     */
+    private Tree reportedTree(CompilationUnitTree unit, long position) {
+        Tree[] found = new Tree[2];
         new TreeScanner<Void, Void>() {
             @Override
             public Void scan(Tree tree, Void unused) {
-                if (tree != null && start(unit, tree) == position) {
-                    end[0] = Math.max(end[0], end(unit, tree));
+                if (tree != null && start(unit, tree) == position && (found[0] == null || end(unit, tree) > end(unit, found[0]))) {
+                    found[0] = tree;
+                }
+                if (tree != null && start(unit, tree) <= position && position <= end(unit, tree)
+                        && (found[1] == null || end(unit, tree) - start(unit, tree) < end(unit, found[1]) - start(unit, found[1]))) {
+                    found[1] = tree;
                 }
                 return super.scan(tree, unused);
             }
         }.scan(unit, null);
-        return end[0];
+        return found[0] != null ? found[0] : found[1];
     }
 
     private long start(CompilationUnitTree unit, Tree tree) {
