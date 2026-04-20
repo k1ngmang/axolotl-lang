@@ -1987,8 +1987,28 @@ class Generator(
             "count" -> sb.append(".count()")
             "first" -> sb.insert(0, "Nulls.first(").append(".iterator())")
             "map" -> sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))")
+            "filter" -> {
+                sb.append(".filter(").append(lambdaText).append(')')
+                if (dropsNulls(stage)) {
+                    sb.insert(0, "Nulls.nonNulls(").append(')')
+                }
+            }
             else -> sb.append('.').append(name).append('(').append(lambdaText).append(')')
         }
+    }
+
+    /** `filter { it != null }`: Nulls.nonNulls tells NullAway too that the elements are not null. */
+    private fn dropsNulls(stage: Expr.Stage) -> Boolean {
+        val lambda = stage.lambda()
+        if (lambda == null || lambda.params().size() > 1 || lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda)) {
+            return false
+        }
+        val param = if (lambda.params().isEmpty()) "it" else lambda.params().getFirst().name()
+        val body = lambdaExpression(lambda.body())
+        if (body !is Expr.Binary || !body.op().equals("!=")) {
+            return false
+        }
+        return isName(body.left(), param) && isNullLiteral(body.right()) || isNullLiteral(body.left()) && isName(body.right(), param)
     }
     /** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */
     private fn joinedArgs(args: List<Expr>, codes: List<String>, line: Int) -> String {
@@ -2394,6 +2414,10 @@ private fn isOkCall(e: Expr) -> Boolean {
     val inner = withoutParens(e)
     return inner is Expr.Call && inner.target() == null && inner.name().equals("Ok")
 }
+
+private fn isName(e: Expr, name: String) -> Boolean = e is Expr.Name && e.name().equals(name)
+
+private fn isNullLiteral(e: Expr) -> Boolean = e is Expr.Literal && e.text().equals("null")
 
 private fn hasSafeElvis(e: Expr) -> Boolean = e is Expr.Elvis && Chains.hasSafeStep(e.left())
 

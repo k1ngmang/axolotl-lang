@@ -3,7 +3,9 @@ package axl.lang;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class NullsTest {
@@ -37,5 +39,10 @@ class NullsTest {
     @Test
     void mapAppliesFunctionOnValue() {
         assertEquals(3, Nulls.map("abc", String::length));
+    }
+
+    @Test
+    void nonNullsDropsNulls() {
+        assertEquals(List.of("a", "b"), Nulls.nonNulls(Stream.of("a", null, "b")).toList());
     }
 }

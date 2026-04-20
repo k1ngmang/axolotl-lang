@@ -183,7 +183,8 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   null element as for an empty pipe. `add` on an `ArrayList<String>` does not accept null, and
   `addAll`, `Collections.addAll` and `ArrayList<String>(xs)` do not take elements that may be null. This
   follows nested type arguments (`Map<String, List<String?>>`), copies such as `ArrayList<>(xs)` and
-  `collect(Collectors.toList())`, and fields of Java generic classes.
+  `collect(Collectors.toList())`, and fields of Java generic classes. `xs |> filter { it != null }`
+  drops the `?`: its value fits a `List<String>`.
 - `Map.get` may return null, as NullAway knows.
 - A method reference is checked like the lambda it stands for: `xs.forEach(Main::print)` on a
   `List<String?>` needs a `print` that accepts null.

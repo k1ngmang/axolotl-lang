@@ -1819,10 +1819,28 @@ import org.axl.compiler.check.Whens;
             case "map" -> {
                 sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))");
             }
+            case "filter" -> {
+                sb.append(".filter(").append(lambdaText).append(')');
+                if (dropsNulls(stage)) {
+                    sb.insert(0, "Nulls.nonNulls(").append(')');
+                }
+            }
             case null, default -> {
                 sb.append('.').append(name).append('(').append(lambdaText).append(')');
             }
         }
+    }
+    private boolean dropsNulls(Expr.Stage stage) {
+        final var lambda = stage.lambda();
+        if (lambda == null || lambda.params().size() > 1 || lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda)) {
+            return false;
+        }
+        final var param = (lambda.params().isEmpty() ? "it" : lambda.params().getFirst().name());
+        final var body = lambdaExpression(lambda.body());
+        if (!(body instanceof Expr.Binary body$1) || !body$1.op().equals("!=")) {
+            return false;
+        }
+        return isName(body$1.left(), param) && isNullLiteral(body$1.right()) || isNullLiteral(body$1.left()) && isName(body$1.right(), param);
     }
     private String joinedArgs(List<Expr> args, List<String> codes, int line) {
         final var sb = new StringBuilder();
@@ -2217,6 +2235,12 @@ import org.axl.compiler.check.Whens;
     private static boolean isOkCall(Expr e) {
         final var inner = withoutParens(e);
         return inner instanceof Expr.Call inner$1 && inner$1.target() == null && inner$1.name().equals("Ok");
+    }
+    private static boolean isName(Expr e, String name) {
+        return e instanceof Expr.Name e$1 && e$1.name().equals(name);
+    }
+    private static boolean isNullLiteral(Expr e) {
+        return e instanceof Expr.Literal e$1 && e$1.text().equals("null");
     }
     private static boolean hasSafeElvis(Expr e) {
         return e instanceof Expr.Elvis e$1 && Chains.hasSafeStep(e$1.left());

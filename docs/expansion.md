@@ -36,6 +36,7 @@ always gives byte-for-byte the same output.
 | `println(x)` | `System.out.println(x)` |
 | `{ x -> e }`, `{ it > 0 }` | `x -> e`, `it -> it > 0` |
 | `xs \|> filter { it > 0 } \|> map { it * 2 }` | `xs.stream().filter(it -> it > 0).map(Nulls.nonNull(it -> it * 2)).toList()`; `Nulls.nonNull` makes NullAway reject a `map` that may produce null |
+| `xs \|> filter { it != null }` | `Nulls.nonNulls(xs.stream().filter(it -> it != null)).toList()`; `Nulls.nonNulls` tells NullAway that the elements are not null, so the result fits a `List<String>` |
 | `xs \|> first` | `Nulls.first(xs.stream().iterator())`, which gives `null` for an empty pipe and for a null first element |
 | `xs \|> mapResult { f(it) }` | `final java.util.List<T> $p1 = new java.util.ArrayList<>(); for (final var it : xs) { final var $t1 = f(it); if ($t1.isErr()) return Result.propagate($t1); $p1.add(Result.<T>unwrap($t1)); }` |
 | A `var` captured by `?:`, `?.` or `attempt` | copied first: `final var $c1 = count;` |

@@ -1,6 +1,8 @@
 package axl.lang;
 import java.util.Iterator;
+import java.util.Objects;
 import java.util.function.Function;
+import java.util.stream.Stream;
 import org.jspecify.annotations.NullMarked;
 import org.jspecify.annotations.Nullable;
 @NullMarked public final class Nulls {
@@ -34,6 +36,11 @@ import org.jspecify.annotations.Nullable;
     // an overload for the call around `first`, such as println(char[]) or println(String).
     public static <T extends @Nullable Object> @Nullable T first(Iterator<T> items) {
         return items.hasNext() ? items.next() : null;
+    }
+    // Wraps the stream of `|> filter { it != null }`: NullAway keeps the `?` of the elements through
+    // Stream.filter, so the result could not be stored as a List<String>.
+    public static <T> Stream<T> nonNulls(Stream<? extends @Nullable T> items) {
+        return items.filter(Objects::nonNull).<T>map(item -> item);
     }
     // As an argument, a Nulls.map call takes its type from the overloads of the method it is passed to,
     // and println(String) and println(char[]) both fit. As the receiver of `.value()` it is typed first.

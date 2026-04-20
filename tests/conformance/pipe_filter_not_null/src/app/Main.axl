@@ -1,0 +1,19 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn main() {
+    val words = ArrayList<String?>()
+    words.add("axolotl")
+    words.add(null)
+    words.add("newt")
+    val present: List<String> = words |> filter { it != null }
+    val named: List<String> = words |> filter { w -> null != w }
+    val lengths: List<Int> = words |> filter { it != null } |> map { it.length() }
+    val sorted: List<String> = words |> filter { it != null } |> sorted
+    println(present)
+    println(named)
+    println(lengths)
+    println(sorted)
+}
