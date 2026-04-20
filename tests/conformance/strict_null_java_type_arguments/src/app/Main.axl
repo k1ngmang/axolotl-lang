@@ -1,0 +1,25 @@
+package app
+
+import java.util.ArrayList
+import lib.Legacy
+import lib.Legacy.Holder
+
+fn main() {
+    val names = Legacy.names()!!
+    for (name in names) {
+        println(name.length())
+    }
+    println(names.get(1).length())
+    println(names |> map { it.length() })
+    println(names |> filter { it.isEmpty() })
+    println(Holder<String>().get().length())
+
+    val known = ArrayList<String>()
+    known.add("a")
+    println(known.get(0).length())
+    println(names |> filter { it != null } |> map { it.length() })
+    val first = names.get(0)
+    if (first != null) {
+        println(first.length())
+    }
+}

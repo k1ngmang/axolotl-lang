@@ -67,7 +67,7 @@ final class PlatformValues {
         };
     }
 
-    private static boolean isJdk(Element element) {
+    static boolean isJdk(Element element) {
         for (Element e = element; e != null; e = e.getEnclosingElement()) {
             if (e instanceof PackageElement pkg) {
                 String name = pkg.getQualifiedName().toString();

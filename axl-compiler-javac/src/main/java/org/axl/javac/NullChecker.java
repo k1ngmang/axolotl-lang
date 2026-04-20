@@ -112,12 +112,17 @@ final class NullChecker implements TaskListener {
 
     /**
      * Which parts of a value may be null: the value itself and, by position, its type arguments. javac
-     * drops the `?` of type arguments when it infers types, so they are followed by hand.
+     * drops the `?` of type arguments when it infers types, so they are followed by hand. In strict
+     * mode a part is also from Java when Java code without nullness annotations wrote its type.
      */
-    private record Shape(boolean nullable, List<Shape> args) {
+    private record Shape(boolean nullable, boolean fromJava, List<Shape> args) {
         static final Shape NONE = new Shape(false, List.of());
         // A type variable that may stand for anything, nullable or not.
         static final Shape ANY = new Shape(true, List.of());
+
+        Shape(boolean nullable, List<Shape> args) {
+            this(nullable, false, args);
+        }
 
         Shape arg(int index) {
             return index < args.size() ? args.get(index) : NONE;
@@ -133,7 +138,7 @@ final class NullChecker implements TaskListener {
                 changed.add(NONE);
             }
             changed.set(index, arg);
-            return new Shape(nullable, changed);
+            return new Shape(nullable, fromJava, changed);
         }
 
         Shape or(Shape other) {
@@ -141,7 +146,7 @@ final class NullChecker implements TaskListener {
             for (int i = 0; i < Math.max(args.size(), other.args.size()); i++) {
                 merged.add(arg(i).or(other.arg(i)));
             }
-            return new Shape(nullable || other.nullable, merged);
+            return new Shape(nullable || other.nullable, fromJava || other.fromJava, merged);
         }
 
         /** Whether a type argument that has no `?` in the declared shape may be null in this one. */
@@ -532,7 +537,8 @@ final class NullChecker implements TaskListener {
             // NullAway sees the elements of an iterable whose type javac knows with its `?`.
             boolean seen = shapeAs(shapeOf(typeOf(loop.getExpression()), Map.of()), typeOf(loop.getExpression()),
                     elements.getTypeElement("java.lang.Iterable")).arg(0).nullable();
-            Origin elementOrigin = !loopElements.nullable() ? Origin.NONE : seen ? Origin.DECLARED : Origin.HIDDEN;
+            Origin elementOrigin = loopElements.nullable() ? (seen ? Origin.DECLARED : Origin.HIDDEN)
+                    : loopElements.fromJava() ? Origin.PLATFORM : Origin.NONE;
             state = loopBody(null, loop.getStatement(), variable == null ? null : Map.entry(variable, elementOrigin));
             return null;
         }
@@ -647,7 +653,7 @@ final class NullChecker implements TaskListener {
                 shapes.put(element, fromCall.or(fromType).nonNull());
                 state.put(element, element.asType().getKind().isPrimitive() ? Origin.NONE
                         : fromType.nullable() ? Origin.DECLARED : fromCall.nullable() ? Origin.HIDDEN
-                        : fromJava ? Origin.PLATFORM : Origin.NONE);
+                        : fromJava || fromCall.fromJava() ? Origin.PLATFORM : Origin.NONE);
             }
             super.visitLambdaExpression(lambda, unused);
             if (lambda.getBody() instanceof ExpressionTree body) {
@@ -1312,6 +1318,9 @@ final class NullChecker implements TaskListener {
                 return callOrigin(call, method);
             }
             Origin declared = unknownOrigin(element);
+            if (declared == Origin.NONE && shape(e).fromJava()) {
+                return Origin.PLATFORM;
+            }
             return declared == Origin.NONE && (nullableAnnotated(typeOf(e)) || shape(e).nullable()) ? Origin.HIDDEN : declared;
         }
 
@@ -1328,6 +1337,9 @@ final class NullChecker implements TaskListener {
             }
             if (declared != Origin.NONE) {
                 return declared;
+            }
+            if (shape(call).fromJava()) {
+                return Origin.PLATFORM;
             }
             if (isOneOf(method, NULL_ARGUMENT_ALLOWED) && !call.getArguments().isEmpty()) {
                 Origin given = origin(call.getArguments().getLast());
@@ -1349,7 +1361,8 @@ final class NullChecker implements TaskListener {
             }
             int position = owner.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
             DeclaredType seen = asSuper(typeOf(select.getExpression()), owner);
-            return position >= 0 && seen != null && position < seen.getTypeArguments().size()
+            // A JDK collection returns what went in; other Java classes may return null, as an unset field.
+            return PlatformValues.isJdk(owner) && position >= 0 && seen != null && position < seen.getTypeArguments().size()
                     && seen.getTypeArguments().get(position).getKind() == TypeKind.DECLARED;
         }
 
@@ -1389,7 +1402,7 @@ final class NullChecker implements TaskListener {
                 return shapes.containsKey(element) ? known.nonNull().or(shapes.get(element)) : known.nonNull();
             }
             if (e instanceof MemberSelectTree select && element instanceof VariableElement field && !isTypeName(select.getExpression())) {
-                return known.or(shapeOf(field.asType(), receiverBindings(select.getExpression(), field)));
+                return known.or(declaredShape(field, field.asType(), receiverBindings(select.getExpression(), field)));
             }
             return known;
         }
@@ -1417,11 +1430,20 @@ final class NullChecker implements TaskListener {
             for (int i = 0; i < written.size() && i < method.getTypeParameters().size(); i++) {
                 fixed.put(method.getTypeParameters().get(i), shapeOf(written.get(i)));
             }
-            Shape result = shapeOf(method.getReturnType(), bindings(fixed, method, args, true));
+            Shape result = declaredShape(method, method.getReturnType(), bindings(fixed, method, args, true));
             if (method.getSimpleName().contentEquals("ofNullable") || receiver != null && filtersNulls(call, method)) {
                 result = result.withArg(0, result.arg(0).nonNull());
             }
             return result;
+        }
+
+        /**
+         * The shape of the type of a member. In strict mode the type arguments that Java code without
+         * annotations wrote are from Java; the JDK does not put nulls into the collections it returns.
+         */
+        private Shape declaredShape(Element member, TypeMirror type, Map<Element, Shape> bindings) {
+            return strict && PlatformValues.isPlatform(member) && !PlatformValues.isJdk(member)
+                    ? shapeFromJava(type, bindings) : shapeOf(type, bindings);
         }
 
         /** `Collectors.toList()` and the like keep the elements of the stream. */
@@ -1771,6 +1793,34 @@ final class NullChecker implements TaskListener {
             args.add(shapeOf(array.getComponentType(), bindings));
         }
         return new Shape(nullableAnnotated(type), args);
+    }
+
+    /**
+     * The shape of a type that Java code without nullness annotations wrote: its type arguments are
+     * from Java, except where its type variables stand for the type arguments of the receiver.
+     */
+    private static Shape shapeFromJava(TypeMirror type, Map<Element, Shape> bindings) {
+        if (type instanceof TypeVariable) {
+            return shapeOf(type, bindings);
+        }
+        if (type instanceof WildcardType wildcard) {
+            TypeMirror limit = wildcard.getExtendsBound() != null ? wildcard.getExtendsBound() : wildcard.getSuperBound();
+            Shape inner = limit == null ? Shape.NONE : shapeFromJava(limit, bindings);
+            return nullableAnnotated(type) ? new Shape(true, inner.fromJava(), inner.args()) : inner;
+        }
+        List<? extends TypeMirror> parts = type instanceof DeclaredType declared ? declared.getTypeArguments()
+                : type instanceof ArrayType array ? List.of(array.getComponentType()) : List.of();
+        List<Shape> args = new ArrayList<>();
+        for (TypeMirror part : parts) {
+            Shape inner = shapeFromJava(part, bindings);
+            args.add(standsForVariable(part) ? inner : new Shape(inner.nullable(), true, inner.args()));
+        }
+        return new Shape(nullableAnnotated(type), args);
+    }
+
+    private static boolean standsForVariable(TypeMirror type) {
+        return type instanceof TypeVariable || type instanceof WildcardType wildcard
+                && (wildcard.getExtendsBound() instanceof TypeVariable || wildcard.getSuperBound() instanceof TypeVariable);
     }
 
     /** The shape of a written type. */

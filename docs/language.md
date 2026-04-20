@@ -214,8 +214,10 @@ such code.
 Trusted in strict mode: static final fields of the JDK such as `System.out`, constants, the Axolotl
 runtime, `Objects.requireNonNull`, the methods of `String`, `StringBuilder`, `Math` and the number
 classes (except `Integer.getInteger` and `Long.getLong`), `List.of`, `Set.of`, `Map.of`, `toString()`,
-the stream operations that pipes expand to, code in a `@NullMarked` scope, and what comes out of a
-type argument written without `?`, such as `get` on a `List<String>`.
+the stream operations that pipes expand to, code in a `@NullMarked` scope, and what a JDK class
+gives out of a type argument written in Axolotl without `?`, such as `get` on an `ArrayList<String>`.
+The elements of a `List<String>` returned by unannotated Java code may be null, also after `!!`, and
+so may what `get` of an unannotated generic Java class returns.
 
 ## Errors as values
 
