@@ -180,7 +180,8 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   result of a call such as `m.get(k)` may change in between, so it is copied to a local `val` first.
 - `?` in a type argument counts too: `get` on a `List<String?>` returns `String?`, the `it` of a pipe
   over it may be null, `sorted` needs elements that are not null, and `|> first` gives `null` for a
-  null element as for an empty pipe. `add` on an `ArrayList<String>` does not accept null. This
+  null element as for an empty pipe. `add` on an `ArrayList<String>` does not accept null, and
+  `addAll`, `Collections.addAll` and `ArrayList<String>(xs)` do not take elements that may be null. This
   follows nested type arguments (`Map<String, List<String?>>`), copies such as `ArrayList<>(xs)` and
   `collect(Collectors.toList())`, and fields of Java generic classes.
 - `Map.get` may return null, as NullAway knows.

@@ -1,0 +1,32 @@
+package app
+
+import java.util.ArrayList
+import java.util.Arrays
+import java.util.Collections
+import java.util.HashMap
+import java.util.List
+
+fn main() {
+    val a = ArrayList<String?>()
+    a.add(null)
+    val x: String? = null
+    val b = ArrayList<String>()
+    b.addAll(a)
+    val c: List<String> = ArrayList<String>(a)
+    val m = HashMap<String, List<String>>()
+    m.put("k", a)
+    Collections.addAll(b, x)
+    Collections.fill(b, x)
+    b.addAll(Arrays.asList(x))
+    b.addAll(Collections.singletonList(x))
+    Collections.addAll(b, a.get(0))
+
+    val n = ArrayList<String?>()
+    n.addAll(a)
+    Collections.addAll(n, x)
+    b.addAll(List.of("a"))
+    Collections.addAll(b, "b", "c")
+    m.put("k", b)
+    val d = ArrayList<String?>(a)
+    println(b.size() + c.size() + n.size() + d.size())
+}

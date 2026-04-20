@@ -116,6 +116,8 @@ final class NullChecker implements TaskListener {
      */
     private record Shape(boolean nullable, List<Shape> args) {
         static final Shape NONE = new Shape(false, List.of());
+        // A type variable that may stand for anything, nullable or not.
+        static final Shape ANY = new Shape(true, List.of());
 
         Shape arg(int index) {
             return index < args.size() ? args.get(index) : NONE;
@@ -370,6 +372,7 @@ final class NullChecker implements TaskListener {
                             + "drop the nulls first: `|> filter { it != null }`");
                 }
             } else if (method.getModifiers().contains(Modifier.STATIC)) {
+                checkTypeArgumentParameters(Map.of(), null, method, call.getArguments());
                 checkFactoryArguments(method, call.getArguments());
                 if (method.getSimpleName().contentEquals("sort") && call.getArguments().size() == 1
                         && erasedName(method.getEnclosingElement().asType()).equals("java.util.Collections")
@@ -980,35 +983,93 @@ final class NullChecker implements TaskListener {
         }
 
         /**
-         * `xs.add(x)` on an `ArrayList<String>`: Java says nothing about null there, but the type argument
-         * without `?` promises values that are not null.
+         * `xs.add(x)` and `xs.addAll(ys)` on an `ArrayList<String>`, `Collections.addAll(xs, x)`: Java
+         * says nothing about null there, but a type argument written without `?` promises values that
+         * are not null, also inside the type arguments of what goes in.
          *
-         * @param owner the type that declares the method, with the type arguments of the receiver
+         * @param owner the type that declares the method, with the type arguments of the receiver, or
+         *              null for a static method
          */
         private void checkTypeArgumentParameters(Map<Element, Shape> bindings, DeclaredType owner, ExecutableElement method,
                                                  List<? extends ExpressionTree> args) {
-            if (owner == null || !(owner.asElement() instanceof TypeElement type) || isNullMarked(type)
-                    || isOneOf(method, NULL_ARGUMENT_ALLOWED)) {
+            if (!(method.getEnclosingElement() instanceof TypeElement type) || isNullMarked(type)
+                    || isOneOf(method, NULL_ARGUMENT_ALLOWED) || method.getParameters().isEmpty()) {
                 return;
             }
-            List<? extends VariableElement> params = method.getParameters();
-            int checkedCount = method.isVarArgs() ? params.size() - 1 : params.size();
-            for (int i = 0; i < Math.min(checkedCount, args.size()); i++) {
-                if (!(params.get(i).asType() instanceof TypeVariable variable) || nullableAnnotated(variable)) {
-                    continue;
+            Map<Element, Shape> written = writtenBindings(type, owner, bindings);
+            Map<Element, Shape> fromArguments = new HashMap<>();
+            for (int i = 0; i < args.size(); i++) {
+                TypeMirror param = elementParameterType(method, i, args);
+                if (!(param instanceof TypeVariable)) {
+                    bindWritten(param, shape(args.get(i)), typeOf(args.get(i)), fromArguments);
                 }
-                int position = type.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
-                Shape bound = bindings.get(variable.asElement());
-                if (position >= 0 && position < owner.getTypeArguments().size()
-                        && owner.getTypeArguments().get(position).getKind() == TypeKind.DECLARED
-                        && bound != null && !bound.nullable()) {
-                    ExpressionTree arg = args.get(i);
-                    String name = method.getKind() == ElementKind.CONSTRUCTOR ? type.getSimpleName().toString()
-                            : method.getSimpleName().toString();
+            }
+            method.getTypeParameters().forEach(v -> written.put(v, fromArguments.getOrDefault(v, Shape.ANY)));
+            String name = method.getKind() == ElementKind.CONSTRUCTOR ? type.getSimpleName().toString()
+                    : method.getSimpleName().toString();
+            for (int i = 0; i < args.size(); i++) {
+                ExpressionTree arg = args.get(i);
+                TypeMirror param = elementParameterType(method, i, args);
+                Shape wanted = shapeOf(param, written);
+                if (param instanceof TypeVariable variable && !nullableAnnotated(variable) && !wanted.nullable()) {
                     report(arg, origin(arg), false, describe(arg) + ", but `" + name
                             + "` takes a type argument written without `?` here; add `?` to the type argument or " + FIX);
                 }
+                TypeMirror seen = param instanceof TypeVariable variable ? writtenType(type, owner, variable) : param;
+                if (!(unwrap(arg) instanceof LambdaExpressionTree) && !(unwrap(arg) instanceof MemberReferenceTree)
+                        && seen instanceof DeclaredType declared && declared.asElement() instanceof TypeElement element
+                        && shapeAs(shape(arg), typeOf(arg), element).losesQuestionMark(wanted)) {
+                    report(arg, Origin.HIDDEN, false, "a type argument of the value has `?`, but `" + name
+                            + "` takes a type argument written without `?` there; add `?` to the type argument or "
+                            + "drop the nulls first: `|> filter { it != null }`");
+                }
             }
+        }
+
+        /** The type variables of the owner that a type argument written without `?` gives; the others take anything. */
+        private Map<Element, Shape> writtenBindings(TypeElement type, DeclaredType owner, Map<Element, Shape> bindings) {
+            Map<Element, Shape> written = new HashMap<>();
+            for (TypeParameterElement variable : type.getTypeParameters()) {
+                TypeMirror argument = writtenType(type, owner, (TypeVariable) variable.asType());
+                Shape bound = bindings.get(variable);
+                written.put(variable, argument != null && bound != null ? bound : Shape.ANY);
+            }
+            return written;
+        }
+
+        /** The type argument of the owner for one of its type variables, when it is a class, or null. */
+        private static TypeMirror writtenType(TypeElement type, DeclaredType owner, TypeVariable variable) {
+            int position = type.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
+            if (owner == null || position < 0 || position >= owner.getTypeArguments().size()) {
+                return null;
+            }
+            TypeMirror argument = owner.getTypeArguments().get(position);
+            return argument.getKind() == TypeKind.DECLARED ? argument : null;
+        }
+
+        /** `Collection<? super T>` given an `ArrayList<String>` says that `T` is not null; `? extends T` says nothing. */
+        private void bindWritten(TypeMirror param, Shape arg, TypeMirror argType, Map<Element, Shape> bound) {
+            if (param instanceof TypeVariable variable && argType != null && argType.getKind() == TypeKind.DECLARED) {
+                bound.merge(variable.asElement(), arg, Shape::or);
+            } else if (param instanceof WildcardType wildcard && wildcard.getSuperBound() != null) {
+                bindWritten(wildcard.getSuperBound(), arg, argType, bound);
+            } else if (param instanceof DeclaredType declared && declared.asElement() instanceof TypeElement type) {
+                DeclaredType actual = asSuper(argType, type);
+                Shape seen = shapeAs(arg, argType, type);
+                List<? extends TypeMirror> params = declared.getTypeArguments();
+                for (int i = 0; i < params.size(); i++) {
+                    TypeMirror actualArg = actual != null && i < actual.getTypeArguments().size() ? actual.getTypeArguments().get(i) : null;
+                    bindWritten(params.get(i), seen.arg(i), actualArg, bound);
+                }
+            }
+        }
+
+        /** The type of the parameter an argument goes to; one element passed to varargs goes to the element type. */
+        private TypeMirror elementParameterType(ExecutableElement method, int index, List<? extends ExpressionTree> args) {
+            TypeMirror type = parameterType(method, index, args.size());
+            boolean element = method.isVarArgs() && index >= method.getParameters().size() - 1
+                    && type instanceof ArrayType && !(typeOf(args.get(index)) instanceof ArrayType);
+            return element ? ((ArrayType) type).getComponentType() : type;
         }
 
         /** `List.of(a, null)` throws. */
@@ -1406,7 +1467,7 @@ final class NullChecker implements TaskListener {
                                              List<? extends ExpressionTree> args, boolean withLambdas) {
             Map<Element, Shape> bound = new HashMap<>();
             for (int i = 0; i < args.size() && !method.getParameters().isEmpty(); i++) {
-                TypeMirror param = parameterType(method, i, args.size());
+                TypeMirror param = elementParameterType(method, i, args);
                 ExpressionTree arg = unwrap(args.get(i));
                 if (arg instanceof LambdaExpressionTree lambda) {
                     if (withLambdas && lambda.getBody() instanceof ExpressionTree body) {

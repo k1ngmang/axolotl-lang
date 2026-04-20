@@ -1,0 +1,8 @@
+AXL102 app/Main.axl:14:14: error: a type argument of the value has `?`, but `addAll` takes a type argument written without `?` there; add `?` to the type argument or drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:15:45: error: a type argument of the value has `?`, but `ArrayList` takes a type argument written without `?` there; add `?` to the type argument or drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:17:16: error: a type argument of the value has `?`, but `put` takes a type argument written without `?` there; add `?` to the type argument or drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:18:27: error: `x` may be null, but `addAll` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:19:25: error: `x` may be null, but `fill` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:20:21: error: a type argument of the value has `?`, but `addAll` takes a type argument written without `?` there; add `?` to the type argument or drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:21:26: error: a type argument of the value has `?`, but `addAll` takes a type argument written without `?` there; add `?` to the type argument or drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:22:29: error: the result of `get()` may be null: its type is a type argument written with `?`, but `addAll` takes a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
