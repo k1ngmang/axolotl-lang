@@ -1199,12 +1199,21 @@ final class NullChecker implements TaskListener {
          */
         private boolean mayChange(ExpressionTree expression) {
             ExpressionTree e = unwrap(expression);
-            if (e instanceof MethodInvocationTree && element(e) instanceof ExecutableElement method) {
+            if (e instanceof MethodInvocationTree call && element(e) instanceof ExecutableElement method) {
                 // `a?.b` and `a ?: b` call the runtime afresh each time.
-                return !isRuntime(method) && PlatformValues.isNullable(method, method.getReturnType());
+                return !isRuntime(method) && PlatformValues.isNullable(method, method.getReturnType())
+                        && !(isRecordAccessor(method) && call.getMethodSelect() instanceof MemberSelectTree select
+                        && stable(select.getExpression()));
             }
             Element element = element(e);
             return element != null && element.getKind() == ElementKind.FIELD && !stable(e);
+        }
+
+        /** `p.age()` of a data class reads a `val` property. */
+        private static boolean isRecordAccessor(ExecutableElement method) {
+            return method.getEnclosingElement() instanceof TypeElement owner && owner.getKind() == ElementKind.RECORD
+                    && ElementFilter.recordComponentsIn(owner.getEnclosedElements()).stream()
+                    .anyMatch(c -> method.equals(c.getAccessor()));
         }
 
         /** A local, a parameter, `this`, a class, or a `val` property of one: what no call can change. */

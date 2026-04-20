@@ -54,6 +54,15 @@ fn use(n: Node, m: HashMap<String, String>) {
     }
 }
 
+data class Point(val label: String?)
+
+fn label(p: Point) -> Int {
+    if (p.label() != null) {
+        return p.label().length()
+    }
+    return 0
+}
+
 fn main() {
     use(Node("a", null), HashMap<String, String>())
 }
