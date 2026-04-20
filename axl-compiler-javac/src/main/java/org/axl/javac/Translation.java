@@ -5,8 +5,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
@@ -51,6 +53,16 @@ public final class Translation {
     }
 
     private Translation() {}
+
+    /** Whether every error is about a value typed `Object` or a class whose own types are unknown. */
+    private static boolean fromDrafts(Translator.Result result, Set<String> drafts) {
+        return result.diagnostics().stream().filter(AxlDiagnostic::isError).allMatch(d -> d.message().contains("`Object`")
+                || drafts.stream().anyMatch(name -> d.message().startsWith("unknown name `" + simpleName(name) + "`")));
+    }
+
+    private static String simpleName(String qualified) {
+        return qualified.substring(qualified.lastIndexOf('.') + 1);
+    }
 
     /**
      * @param classpath  the classpath of the code
@@ -99,11 +111,22 @@ public final class Translation {
                 results.set(i, result);
             }
         }
+        Set<String> stillDrafts = new HashSet<>();
+        for (int i = 0; i < inputs.size(); i++) {
+            if (results.get(i).draft()) {
+                stillDrafts.add(results.get(i).unit().qualifiedName());
+            }
+        }
         for (int i = 0; i < inputs.size(); i++) {
             Translator.Result draft = results.get(i);
             if (draft.draft()) {
                 Input input = inputs.get(i);
                 Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(), typed);
+                if (result.unit() == null && fromDrafts(result, stillDrafts)) {
+                    // Values of files that read each other stay typed `Object`. javac's errors about
+                    // `Object` would not say that; asking for the types does.
+                    result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(), options);
+                }
                 results.set(i, result);
                 // The draft must not be compiled as if the translation had succeeded.
                 Files.deleteIfExists(outputDir.resolve(draft.unit().javaPath()));

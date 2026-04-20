@@ -1,0 +1,3 @@
+package app
+
+val a = B.b + 1
