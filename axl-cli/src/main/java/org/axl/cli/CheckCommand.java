@@ -36,6 +36,7 @@ final class CheckCommand implements Callable<Integer> {
             return 2;
         }
         Paths.warnAboutMissingEntries(classpath);
+        Paths.warnAboutTooDeep(sourceDirs);
         Path work = WorkDirectories.create(WorkDirectories.CHECK);
         try {
             AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))

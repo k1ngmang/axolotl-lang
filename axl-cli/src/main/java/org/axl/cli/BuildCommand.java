@@ -45,6 +45,7 @@ final class BuildCommand implements Callable<Integer> {
             return 2;
         }
         Paths.warnAboutMissingEntries(classpath);
+        Paths.warnAboutTooDeep(List.of(sourceDir));
         Path generated = generatedDir != null ? generatedDir : classesDir;
         StaleOutputs.remove(sourceDir, generated, classesDir);
         AxlBuild.Result result = new AxlBuild(sourceDir, generated, classesDir)

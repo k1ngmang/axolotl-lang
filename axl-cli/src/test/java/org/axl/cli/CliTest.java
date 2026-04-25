@@ -254,6 +254,16 @@ class CliTest {
     }
 
     @Test
+    void warnsAboutASourceDirectoryOneLevelTooDeep(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
+        assertEquals(0, axl("check", app.toString()));
+        String printed = err.toString(StandardCharsets.UTF_8);
+        assertTrue(printed.contains("axl: warning: " + app.resolve("Main.axl") + " is in package `app`; give the source "
+                + "directory that holds its package directories, such as " + tmp.resolve("src")), printed);
+    }
+
+    @Test
     void reportsUnusableOutputDirectoriesAndNonUtf8Sources(@TempDir Path tmp) throws Exception {
         Path app = Files.createDirectories(tmp.resolve("src/app"));
         Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");

@@ -1,6 +1,7 @@
 package org.axl.cli;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
@@ -37,6 +38,35 @@ final class Paths {
         }
         System.err.println("axl: no .axl or .java files in " + String.join(", ", dirs.stream().map(Path::toString).toList()));
         return false;
+    }
+
+    /**
+     * `axl check src/app` with `package app` in the files: the source directory is one level too deep,
+     * which gives no error but other files would not find these classes where Java looks for them.
+     */
+    static void warnAboutTooDeep(List<Path> dirs) throws IOException {
+        for (Path dir : dirs) {
+            Path name = dir.toAbsolutePath().normalize().getFileName();
+            try (Stream<Path> files = Files.list(dir)) {
+                for (Path file : files.filter(p -> p.toString().endsWith(".axl")).toList()) {
+                    String declared = declaredPackage(file);
+                    if (declared != null && name != null && (declared.equals(name.toString()) || declared.endsWith("." + name))) {
+                        System.err.println("axl: warning: " + file + " is in package `" + declared + "`; give the source "
+                                + "directory that holds its package directories, such as " + dir.toAbsolutePath().normalize().getParent());
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    private static String declaredPackage(Path file) throws IOException {
+        try (Stream<String> lines = Files.lines(file)) {
+            return lines.map(String::strip).filter(l -> l.startsWith("package ")).findFirst()
+                    .map(l -> l.substring("package ".length()).strip()).orElse(null);
+        } catch (UncheckedIOException e) {
+            return null;
+        }
     }
 
     /** A diagnostic as printed, with the code of an .axl diagnostic to look up in the documentation. */
