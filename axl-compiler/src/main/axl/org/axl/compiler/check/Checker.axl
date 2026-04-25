@@ -5,10 +5,12 @@ import java.util.Collections
 import java.util.HashMap
 import java.util.HashSet
 import java.util.IdentityHashMap
+import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 import java.util.List
 import java.util.Map
 import java.util.Set
+import java.util.regex.Pattern
 import org.axl.compiler.AxlDiagnostic
 import org.axl.compiler.ErrorCode
 import org.axl.compiler.ast.Decl
@@ -98,6 +100,9 @@ class Scope(val parent: Scope?, val fileScope: Boolean) {
 class Checker(val file: SourceFile) {
 
     val diagnostics: ArrayList<AxlDiagnostic> = ArrayList<AxlDiagnostic>()
+
+    // `var` locals not assigned after their declaration, by where they are declared.
+    val unassigned: LinkedHashMap<Pos, String> = LinkedHashMap<Pos, String>()
     val implicitIt: Set<Expr.Lambda> = Collections.newSetFromMap(IdentityHashMap<Expr.Lambda, Boolean>())
     val mutableRefs: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
     val stableNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
@@ -139,6 +144,10 @@ class Checker(val file: SourceFile) {
             }
         }
         checkInitOrder()
+        for (entry in unassigned.entrySet()) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), entry.getKey().line(), entry.getKey().column(), ErrorCode.UNNEEDED,
+                "`" + entry.getValue() + "` is never assigned again; declare it with `val`"))
+        }
         checkFileTypeMembers()
         for (mismatch in Implementations.check(file)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message())
@@ -148,7 +157,7 @@ class Checker(val file: SourceFile) {
     /** `main-file` and `2d shapes` as `MainFile` and `Shapes2d`, or null when nothing usable is left. */
     private fn classNameLike(name: String) -> String? {
         val sb = StringBuilder()
-        for (part in name.split("[^A-Za-z0-9]+")) {
+        for (part in Pattern.compile("[^A-Za-z0-9]+").splitAsStream(name).toList()) {
             if (!part.isEmpty()) {
                 sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1))
             }
@@ -183,7 +192,7 @@ class Checker(val file: SourceFile) {
                 "missing `package` declaration: every .axl file starts with `package name`")
             return
         }
-        for (segment in packageName.split("\\.")) {
+        for (segment in Pattern.compile("\\.").splitAsStream(packageName).toList()) {
             if (RESERVED.contains(segment)) {
                 error(file.packagePos() ?: Pos(1, 1), ErrorCode.RESERVED_NAME, "`" + segment +
                     "` is a reserved word in Java and cannot be part of a package name")
@@ -410,7 +419,7 @@ class Checker(val file: SourceFile) {
         current = f
         scope = Scope(scope, false)
         for (p in f.params()) {
-            declare(p.pos(), p.name(), Kind.PARAM, null)
+            declare(p.pos(), p.name(), Kind.PARAM, p.type())
         }
         val exprBody = f.exprBody()
         val body = f.body()
@@ -503,6 +512,9 @@ class Checker(val file: SourceFile) {
         }
         val kind = if (stmt.mutable()) Kind.MUTABLE_LOCAL else Kind.LOCAL
         declare(stmt.namePos(), stmt.name(), kind, type)
+        if (stmt.mutable()) {
+            unassigned.put(stmt.namePos(), stmt.name())
+        }
     }
 
     private fn assign(stmt: Stmt.Assign) {
@@ -510,6 +522,9 @@ class Checker(val file: SourceFile) {
         if (target is Expr.Name) {
             val symbol = scope.lookup(target.name())
             val notNull = declaredNotNull(symbol)
+            if (symbol != null) {
+                unassigned.remove(symbol.pos())
+            }
             if (symbol != null && symbol.kind() != Kind.MUTABLE_LOCAL && symbol.kind() != Kind.MUTABLE_FIELD) {
                 error(stmt.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(target.name(), symbol))
             } else if (notNull != null && isNull(stmt.value())) {
@@ -566,10 +581,10 @@ class Checker(val file: SourceFile) {
         }
         if (e is Expr.Lambda) {
             error(e.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces")
-        } else if (inner is Expr.Conditional && stmt != lastInLambda) {
+        } else if (inner is Expr.Conditional && !stmt.equals(lastInLambda)) {
             error(e.pos(), ErrorCode.SYNTAX, "an `if` statement needs braces: `if (c) { ... } else { ... }`")
         } else if (!doesSomething(e)) {
-            val hint = if (stmt == lastInLambda) "to return it from the lambda, write `return` before it" else "use its value, for example in a `val`, or remove it"
+            val hint = if (stmt.equals(lastInLambda)) "to return it from the lambda, write `return` before it" else "use its value, for example in a `val`, or remove it"
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint)
         }
         if (e is Expr.Try) {
@@ -649,11 +664,19 @@ class Checker(val file: SourceFile) {
         when (e) {
             is Expr.Literal -> { }
             is Expr.Name -> name(e)
-            is Expr.Member -> expr(e.target())
+            is Expr.Member -> {
+                if (e.safe()) {
+                    warnNeverNull(e.target(), "write `.` instead of `?.`")
+                }
+                expr(e.target())
+            }
             is Expr.Call -> call(e)
             is Expr.GenericNew -> exprs(e.args())
             is Expr.MethodRef -> expr(e.target())
-            is Expr.NotNull -> expr(e.target())
+            is Expr.NotNull -> {
+                warnNeverNull(e.target(), "remove `!!`")
+                expr(e.target())
+            }
             is Expr.Unary -> expr(e.operand())
             is Expr.Binary -> {
                 expr(e.left())
@@ -716,6 +739,9 @@ class Checker(val file: SourceFile) {
 
     private fn call(e: Expr.Call) {
         val target = e.target()
+        if (target != null && e.safe()) {
+            warnNeverNull(target, "write `.` instead of `?.`")
+        }
         if (target != null) {
             expr(target)
         } else if (localLookup(e.name()) != null) {
@@ -1000,7 +1026,7 @@ class Checker(val file: SourceFile) {
         scope = Scope(scope, false)
         lambdaDepth = lambdaDepth + 1
         for (p in l.params()) {
-            declare(p.pos(), p.name(), Kind.PARAM, null)
+            declare(p.pos(), p.name(), Kind.PARAM, p.type())
         }
         declareIt(l, takesElement)
         val body = l.body()
@@ -1130,6 +1156,19 @@ class Checker(val file: SourceFile) {
     private fn inMain() -> Boolean {
         val f = current
         return f != null && isMain(f)
+    }
+
+    /** A parameter or local whose written type has no `?` holds a value. */
+    private fn warnNeverNull(target: Expr, fix: String) {
+        if (target !is Expr.Name) {
+            return
+        }
+        val symbol = scope.lookup(target.name())
+        val written = declaredNotNull(symbol)
+        if (symbol != null && written != null && (symbol.kind() == Kind.PARAM || symbol.kind() == Kind.LOCAL)) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
+                "`" + target.name() + "` is a `" + written.name() + "`, which is never null; " + fix))
+        }
     }
 
     private fn error(pos: Pos, code: ErrorCode, message: String) {

@@ -6,10 +6,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
 import org.axl.compiler.ast.Decl;
@@ -23,6 +25,7 @@ import org.axl.compiler.ast.TypeRef;
 @NullMarked public final class Checker {
     public final SourceFile file;
     public final ArrayList<AxlDiagnostic> diagnostics;
+    public final LinkedHashMap<Pos, String> unassigned;
     public final Set<Expr.Lambda> implicitIt;
     public final Set<Expr.Name> mutableRefs;
     public final Set<Expr.Name> stableNames;
@@ -46,6 +49,7 @@ import org.axl.compiler.ast.TypeRef;
     public Checker(SourceFile file) {
         this.file = file;
         this.diagnostics = new ArrayList<AxlDiagnostic>();
+        this.unassigned = new LinkedHashMap<Pos, String>();
         this.implicitIt = Collections.newSetFromMap(new IdentityHashMap<Expr.Lambda, Boolean>());
         this.mutableRefs = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
         this.stableNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
@@ -95,6 +99,10 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         checkInitOrder();
+        for (final var entry : unassigned.entrySet()) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), entry.getKey().line(), entry.getKey().column(), ErrorCode.UNNEEDED,
+                    "`" + entry.getValue() + "` is never assigned again; declare it with `val`"));
+        }
         checkFileTypeMembers();
         for (final var mismatch : Implementations.check(file)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message());
@@ -102,7 +110,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private @Nullable String classNameLike(String name) {
         final var sb = new StringBuilder();
-        for (final var part : name.split("[^A-Za-z0-9]+")) {
+        for (final var part : Pattern.compile("[^A-Za-z0-9]+").splitAsStream(name).toList()) {
             if (!part.isEmpty()) {
                 sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
             }
@@ -138,7 +146,7 @@ import org.axl.compiler.ast.TypeRef;
                     "missing `package` declaration: every .axl file starts with `package name`");
             return;
         }
-        for (final var segment : packageName.split("\\.")) {
+        for (final var segment : Pattern.compile("\\.").splitAsStream(packageName).toList()) {
             if (RESERVED.contains(segment)) {
                 error(Nulls.or(file.packagePos(), () -> new Pos(1, 1)), ErrorCode.RESERVED_NAME, "`" + segment +
                         "` is a reserved word in Java and cannot be part of a package name");
@@ -373,7 +381,7 @@ import org.axl.compiler.ast.TypeRef;
         current = f;
         scope = new Scope(scope, false);
         for (final var p : f.params()) {
-            declare(p.pos(), p.name(), Kind.PARAM, null);
+            declare(p.pos(), p.name(), Kind.PARAM, p.type());
         }
         final var exprBody = f.exprBody();
         final var body = f.body();
@@ -478,12 +486,18 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var kind = (stmt.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL);
         declare(stmt.namePos(), stmt.name(), kind, type);
+        if (stmt.mutable()) {
+            unassigned.put(stmt.namePos(), stmt.name());
+        }
     }
     private void assign(Stmt.Assign stmt) {
         final var target = stmt.target();
         if (target instanceof Expr.Name target$1) {
             final var symbol = scope.lookup(target$1.name());
             final var notNull = declaredNotNull(symbol);
+            if (symbol != null) {
+                unassigned.remove(symbol.pos());
+            }
             if (symbol != null && symbol.kind() != Kind.MUTABLE_LOCAL && symbol.kind() != Kind.MUTABLE_FIELD) {
                 error(stmt.pos(), ErrorCode.ASSIGN_TO_VAL, assignmentProblem(target$1.name(), symbol));
             } else if (notNull != null && isNull(stmt.value())) {
@@ -536,10 +550,10 @@ import org.axl.compiler.ast.TypeRef;
         }
         if (e instanceof Expr.Lambda e$3) {
             error(e$3.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces");
-        } else if (inner instanceof Expr.Conditional inner$4 && stmt != lastInLambda) {
+        } else if (inner instanceof Expr.Conditional inner$4 && !stmt.equals(lastInLambda)) {
             error(e.pos(), ErrorCode.SYNTAX, "an `if` statement needs braces: `if (c) { ... } else { ... }`");
         } else if (!doesSomething(e)) {
-            final var hint = (stmt == lastInLambda ? "to return it from the lambda, write `return` before it" : "use its value, for example in a `val`, or remove it");
+            final var hint = (stmt.equals(lastInLambda) ? "to return it from the lambda, write `return` before it" : "use its value, for example in a `val`, or remove it");
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint);
         }
         if (e instanceof Expr.Try e$5) {
@@ -615,6 +629,9 @@ import org.axl.compiler.ast.TypeRef;
                 name(e$2);
             }
             case Expr.Member e$3 -> {
+                if (e$3.safe()) {
+                    warnNeverNull(e$3.target(), "write `.` instead of `?.`");
+                }
                 expr(e$3.target());
             }
             case Expr.Call e$4 -> {
@@ -627,6 +644,7 @@ import org.axl.compiler.ast.TypeRef;
                 expr(e$6.target());
             }
             case Expr.NotNull e$7 -> {
+                warnNeverNull(e$7.target(), "remove `!!`");
                 expr(e$7.target());
             }
             case Expr.Unary e$8 -> {
@@ -702,6 +720,9 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void call(Expr.Call e) {
         final var target = e.target();
+        if (target != null && e.safe()) {
+            warnNeverNull(target, "write `.` instead of `?.`");
+        }
         if (target != null) {
             expr(target);
         } else if (localLookup(e.name()) != null) {
@@ -970,7 +991,7 @@ import org.axl.compiler.ast.TypeRef;
         scope = new Scope(scope, false);
         lambdaDepth = lambdaDepth + 1;
         for (final var p : l.params()) {
-            declare(p.pos(), p.name(), Kind.PARAM, null);
+            declare(p.pos(), p.name(), Kind.PARAM, p.type());
         }
         declareIt(l, takesElement);
         final var body = l.body();
@@ -1088,6 +1109,17 @@ import org.axl.compiler.ast.TypeRef;
     private boolean inMain() {
         final var f = current;
         return f != null && isMain(f);
+    }
+    private void warnNeverNull(Expr target, String fix) {
+        if (!(target instanceof Expr.Name target$1)) {
+            return;
+        }
+        final var symbol = scope.lookup(target$1.name());
+        final var written = declaredNotNull(symbol);
+        if (symbol != null && written != null && (symbol.kind() == Kind.PARAM || symbol.kind() == Kind.LOCAL)) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), target$1.pos().line(), target$1.pos().column(), ErrorCode.UNNEEDED,
+                    "`" + target$1.name() + "` is a `" + written.name() + "`, which is never null; " + fix));
+        }
     }
     private void error(Pos pos, ErrorCode code, String message) {
         diagnostics.add(AxlDiagnostic.error(file.path(), pos.line(), pos.column(), code, message));

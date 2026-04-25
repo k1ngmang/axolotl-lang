@@ -40,6 +40,32 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutCodeWithoutEffect(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn size(s: String, t: String?) -> Int {
+                    var n = s?.length() ?: 0
+                    var m = 0
+                    m += 1
+                    val u: String = "x"
+                    println(u!!)
+                    println(t?.length())
+                    println(u.equals(t))
+                    return n + m
+                }
+
+                fn main() {
+                    println(size("a", null))
+                }
+                """);
+        assertEquals(List.of(
+                "4:9 `n` is never assigned again; declare it with `val`",
+                "4:13 `s` is a `String`, which is never null; write `.` instead of `?.`",
+                "8:13 `u` is a `String`, which is never null; remove `!!`"), warnings);
+    }
+
+    @Test
     void dropsAWarningAtTheSamePlaceAsAnError(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
