@@ -45,7 +45,7 @@ import org.axl.compiler.check.Whens;
     public final Options options;
     public final Map<String, String> valueTypes;
     public final Set<String> probed;
-    public final LinkedHashSet<String> declaredFunctions;
+    public final Set<String> declaredFunctions;
     public Emitter em;
     public Map<String, String> smart;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
@@ -115,7 +115,7 @@ import org.axl.compiler.check.Whens;
         }
         for (final var decl : file.decls()) {
             resetCounters();
-            if (decl != fileType) {
+            if (!decl.equals(fileType)) {
                 emitDecl(decl);
             }
         }
@@ -747,7 +747,7 @@ import org.axl.compiler.check.Whens;
         return -1;
     }
     private String elseLabelOf(Expr.When w, @Nullable TypeRef subjectType, boolean byIndex) {
-        if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
+        if (byIndex || (subjectType != null && !subjectType.nullable()) || hasNullArm(w)) {
             return "default";
         }
         if (subjectType == null) {
@@ -1100,7 +1100,7 @@ import org.axl.compiler.check.Whens;
         return List.of(c.then(), c.otherwise()).stream().anyMatch(b -> becomesCallSomewhere(withoutParens(b)));
     }
     private boolean becomesCallSomewhere(Expr e) {
-        return becomesCall(e) || e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1);
+        return becomesCall(e) || (e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1));
     }
     private boolean givesValue(Expr e) {
         final var inner = withoutParens(e);
@@ -1832,7 +1832,7 @@ import org.axl.compiler.check.Whens;
     }
     private boolean dropsNulls(Expr.Stage stage) {
         final var lambda = stage.lambda();
-        if (lambda == null || lambda.params().size() > 1 || lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda)) {
+        if (lambda == null || lambda.params().size() > 1 || (lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda))) {
             return false;
         }
         final var param = (lambda.params().isEmpty() ? "it" : lambda.params().getFirst().name());
@@ -1840,7 +1840,7 @@ import org.axl.compiler.check.Whens;
         if (!(body instanceof Expr.Binary body$1) || !body$1.op().equals("!=")) {
             return false;
         }
-        return isName(body$1.left(), param) && isNullLiteral(body$1.right()) || isNullLiteral(body$1.left()) && isName(body$1.right(), param);
+        return (isName(body$1.left(), param) && isNullLiteral(body$1.right())) || (isNullLiteral(body$1.left()) && isName(body$1.right(), param));
     }
     private String joinedArgs(List<Expr> args, List<String> codes, int line) {
         final var sb = new StringBuilder();
@@ -1964,7 +1964,7 @@ import org.axl.compiler.check.Whens;
         }
         return name;
     }
-    private static LinkedHashSet<String> declaredFunctionNames(SourceFile file) {
+    private static Set<String> declaredFunctionNames(SourceFile file) {
         final var names = new LinkedHashSet<String>();
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Function decl$1) {

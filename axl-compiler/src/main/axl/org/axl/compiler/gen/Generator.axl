@@ -72,7 +72,7 @@ class Generator(
     val probed: Set<String>
 ) {
 
-    val declaredFunctions: LinkedHashSet<String> = declaredFunctionNames(file)
+    val declaredFunctions: Set<String> = declaredFunctionNames(file)
     var em: Emitter = Emitter()
 
     // Names known as another type here, with the pattern variable that holds them: `x is Circle` makes
@@ -140,7 +140,7 @@ class Generator(
         }
         for (decl in file.decls()) {
             resetCounters()
-            if (decl != fileType) {
+            if (!decl.equals(fileType)) {
                 emitDecl(decl)
             }
         }
@@ -833,7 +833,7 @@ class Generator(
 
     /** A nullable subject goes to `else`, as Java sends null to no other branch than `case null`. */
     private fn elseLabelOf(w: Expr.When, subjectType: TypeRef?, byIndex: Boolean) -> String {
-        if (byIndex || subjectType != null && !subjectType.nullable() || hasNullArm(w)) {
+        if (byIndex || (subjectType != null && !subjectType.nullable()) || hasNullArm(w)) {
             return "default"
         }
         if (subjectType == null) {
@@ -1215,7 +1215,7 @@ class Generator(
     private fn branchBecomesCall(c: Expr.Conditional) -> Boolean =
         List.of(c.then(), c.otherwise()) |> anyMatch { b -> becomesCallSomewhere(withoutParens(b)) }
 
-    private fn becomesCallSomewhere(e: Expr) -> Boolean = becomesCall(e) || e is Expr.Conditional && branchBecomesCall(e)
+    private fn becomesCallSomewhere(e: Expr) -> Boolean = becomesCall(e) || (e is Expr.Conditional && branchBecomesCall(e))
 
     /** Whether an expression gives a value that is not null, as far as the code tells. */
     private fn givesValue(e: Expr) -> Boolean {
@@ -2000,7 +2000,7 @@ class Generator(
     /** `filter { it != null }`: Nulls.nonNulls tells NullAway too that the elements are not null. */
     private fn dropsNulls(stage: Expr.Stage) -> Boolean {
         val lambda = stage.lambda()
-        if (lambda == null || lambda.params().size() > 1 || lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda)) {
+        if (lambda == null || lambda.params().size() > 1 || (lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda))) {
             return false
         }
         val param = if (lambda.params().isEmpty()) "it" else lambda.params().getFirst().name()
@@ -2008,7 +2008,7 @@ class Generator(
         if (body !is Expr.Binary || !body.op().equals("!=")) {
             return false
         }
-        return isName(body.left(), param) && isNullLiteral(body.right()) || isNullLiteral(body.left()) && isName(body.right(), param)
+        return (isName(body.left(), param) && isNullLiteral(body.right())) || (isNullLiteral(body.left()) && isName(body.right(), param))
     }
     /** Arguments separated by commas; one that starts a new .axl line starts a new Java line. */
     private fn joinedArgs(args: List<Expr>, codes: List<String>, line: Int) -> String {
@@ -2120,7 +2120,7 @@ private fn primitive(type: TypeRef) -> String? {
     return name
 }
 
-private fn declaredFunctionNames(file: SourceFile) -> LinkedHashSet<String> {
+private fn declaredFunctionNames(file: SourceFile) -> Set<String> {
     val names = LinkedHashSet<String>()
     for (decl in file.decls()) {
         if (decl is Decl.Function) {

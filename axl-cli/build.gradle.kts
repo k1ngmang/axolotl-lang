@@ -50,7 +50,8 @@ val translateCompiler = tasks.register<JavaExec>("translateCompiler") {
             "-s", root.resolve("java").path,
             "-d", root.resolve("classes").path,
             "--no-smap",
-            "-cp", compilerClasspath.asPath,
+            // A project without resources has no resources directory, which axl would warn about.
+            "-cp", compilerClasspath.filter { it.exists() }.asPath,
         )
     })
 }

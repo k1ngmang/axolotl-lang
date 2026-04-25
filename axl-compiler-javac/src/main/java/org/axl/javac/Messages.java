@@ -416,6 +416,16 @@ final class Messages {
             return "a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal objects have "
                     + "equal hash codes";
         }
+        if (message.startsWith("[OperatorPrecedence]")) {
+            return "`&&` goes before `||`, and `*` before `+`; add parentheses to show which you mean, as in `(a && b) || c`";
+        }
+        if (message.startsWith("[StringSplitter]")) {
+            return "`split` takes a regular expression and drops empty strings at the end; check that this is what you want";
+        }
+        if (message.startsWith("[NonApiType]")) {
+            return "a parameter or result typed as a class such as `HashSet` ties callers to it; use its interface, "
+                    + "such as `Set`, `List` or `Map`";
+        }
         Matcher toString = OBJECT_TO_STRING.matcher(message);
         if (toString.find()) {
             String type = simpleNames(axlType(toString.group(1)));
