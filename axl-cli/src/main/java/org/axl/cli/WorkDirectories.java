@@ -41,7 +41,7 @@ final class WorkDirectories {
 
     static synchronized Path create(String prefix) throws IOException {
         deleteFinished(prefix);
-        Path dir = Files.createTempDirectory(prefix);
+        Path dir = Files.createTempDirectory(Paths.TEMP, prefix);
         Path unlocked = dir.resolve(LOCK + ".new");
         FileChannel lock = FileChannel.open(unlocked, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
         lock.lock();
@@ -60,7 +60,7 @@ final class WorkDirectories {
     private static void deleteFinished(String prefix) {
         try (DirectoryStream<Path> dirs = Files.newDirectoryStream(Paths.TEMP, dir -> isNamed(dir, prefix))) {
             for (Path dir : dirs) {
-                if (isFinished(dir)) {
+                if (!HELD.containsKey(dir) && isFinished(dir)) {
                     Paths.deleteRecursively(dir);
                 }
             }
@@ -70,8 +70,9 @@ final class WorkDirectories {
     }
 
     /**
-     * A lock held by this JVM throws OverlappingFileLockException. A directory whose lock file cannot
-     * be opened is just being created or belongs to another user.
+     * Never called for a directory of this JVM: on POSIX, closing any channel to a file releases all of
+     * the process's locks on it. A directory whose lock file cannot be opened is just being created or
+     * belongs to another user.
      */
     private static boolean isFinished(Path dir) {
         try (FileChannel channel = FileChannel.open(dir.resolve(LOCK), StandardOpenOption.WRITE)) {
