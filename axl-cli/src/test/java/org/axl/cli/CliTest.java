@@ -1,18 +1,14 @@
 package org.axl.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.PrintStream;
-import java.nio.channels.FileChannel;
-import java.nio.channels.OverlappingFileLockException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -79,9 +75,7 @@ class CliTest {
         assertTrue(Files.exists(creating));
         assertTrue(Files.exists(created.resolve(".lock")));
         assertTrue(Files.notExists(created.resolve(".lock.new")));
-        try (FileChannel lock = FileChannel.open(created.resolve(".lock"), StandardOpenOption.WRITE)) {
-            assertThrows(OverlappingFileLockException.class, lock::tryLock);
-        }
+        assertTrue(WorkDirectories.holds(created));
         Paths.deleteRecursively(creating);
     }
 

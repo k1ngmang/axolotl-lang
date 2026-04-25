@@ -51,6 +51,11 @@ final class WorkDirectories {
         return dir;
     }
 
+    /** Whether this JVM made the directory and holds its lock. */
+    static synchronized boolean holds(Path dir) {
+        return HELD.containsKey(dir);
+    }
+
     /** Releases the lock of a directory made by this JVM and deletes the directory. */
     static synchronized void delete(Path dir) throws IOException {
         HELD.remove(dir).close();
