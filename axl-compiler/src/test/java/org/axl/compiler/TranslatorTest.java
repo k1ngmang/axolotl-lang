@@ -107,4 +107,13 @@ class TranslatorTest {
             assertTrue(Translator.translate("B.axl", "B.axl", nested.toString()).diagnostics().isEmpty());
         });
     }
+
+    @Test
+    void packageMismatchPointsAtThePackageName() {
+        Translator.Result result = Translator.translate("other/A.axl", "other/A.axl", "package app\n\nfn f() -> Int = 1\n");
+        AxlDiagnostic warning = result.diagnostics().getFirst();
+        assertEquals(ErrorCode.PACKAGE_MISMATCH, warning.code());
+        assertEquals(1, warning.line());
+        assertEquals(9, warning.column());
+    }
 }

@@ -64,7 +64,7 @@ public final class Translator {
         SourceFile file = parsed.file();
         String directory = sourcePath.contains("/") ? sourcePath.substring(0, sourcePath.lastIndexOf('/')).replace('/', '.') : null;
         if (directory != null && file.packageName() != null && !directory.equals(file.packageName())) {
-            diagnostics.add(AxlDiagnostic.warning(displayPath, file.packagePos().line(), file.packagePos().column(),
+            diagnostics.add(AxlDiagnostic.warning(displayPath, file.packagePos().line(), packageNameColumn(file, text),
                     ErrorCode.PACKAGE_MISMATCH, "the package `" + file.packageName() + "` does not match the directory `"
                             + directory.replace('.', '/') + "`; Java and the IDE look for the class in its package directory"));
         }
@@ -89,6 +89,18 @@ public final class Translator {
         }
         unknown.forEach(name -> valueTypes.put(name, "Object"));
         return new Result(Generator.generate(sourcePath, file, analysis, options, valueTypes), diagnostics, !unknown.isEmpty());
+    }
+
+    /** The column of the name after `package`, where the package line is about. */
+    private static int packageNameColumn(SourceFile file, String text) {
+        List<String> lines = text.replace("\r\n", "\n").replace('\r', '\n').lines().toList();
+        int line = file.packagePos().line();
+        if (line > lines.size()) {
+            return file.packagePos().column();
+        }
+        String packageLine = lines.get(line - 1);
+        int name = packageLine.indexOf(file.packageName());
+        return name < 0 ? file.packagePos().column() : packageLine.codePointCount(0, name) + 1;
     }
 
     /**
