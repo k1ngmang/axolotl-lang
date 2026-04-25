@@ -6,7 +6,7 @@ import org.jspecify.annotations.*;
     private Main() {}
     public static void describe(@Nullable Double d) {
         final var $e1 = d;
-        switch ($e1 == null ? 0 : -1) {
+        switch (java.util.Objects.isNull($e1) ? 0 : -1) {
             case 0 -> {
                 System.out.println("nil");
             }
@@ -17,7 +17,7 @@ import org.jspecify.annotations.*;
     }
     public static String size(@Nullable Long n) {
         final var $e1 = n;
-        switch ($e1 == null ? 1 : $e1 == 1000L ? 0 : -1) {
+        switch (java.util.Objects.isNull($e1) ? 1 : $e1 == 1000L ? 0 : -1) {
             case 0 -> {
                 return "k";
             }
@@ -31,7 +31,7 @@ import org.jspecify.annotations.*;
     }
     public static String either(@Nullable Long n) {
         final var $e1 = n;
-        switch ($e1 == null ? 0 : $e1 == 5L ? 0 : -1) {
+        switch (java.util.Objects.isNull($e1) ? 0 : $e1 == 5L ? 0 : -1) {
             case 0 -> {
                 return "five or nil";
             }
@@ -42,7 +42,7 @@ import org.jspecify.annotations.*;
     }
     public static void flag(@Nullable Boolean x) {
         final var $e1 = x;
-        switch ($e1 == null ? 2 : $e1 == true ? 0 : $e1 == false ? 1 : -1) {
+        switch (java.util.Objects.isNull($e1) ? 2 : $e1 == true ? 0 : $e1 == false ? 1 : -1) {
             case 0 -> {
                 System.out.println("T");
             }

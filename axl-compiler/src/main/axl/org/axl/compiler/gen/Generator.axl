@@ -732,7 +732,8 @@ class Generator(
         // The name the branches narrow: a bound name, or a subject that is a name that never changes.
         val narrowedName = bindingName ?: narrowableName(withoutParens(w.subject()))
         val whole = nameBinding(bindingName, subjectCode)
-        val mayBeNull = subjectType != null && subjectType.nullable()
+        // A subject of unknown type may be a nullable Long, which comparing with a number would unbox.
+        val mayBeNull = subjectType == null || subjectType.nullable()
         val selector = if (byIndex) armIndex(subjectCode, w, mayBeNull) else if (boxesSubject(w, subjectType)) "Nulls.box(" + subjectCode + ")" else subjectCode
         em.line(line, head + "switch (" + selector + ") {")
         em.indent()
@@ -806,7 +807,8 @@ class Generator(
         val sb = StringBuilder()
         val nullArm = nullArmIndex(w)
         if (mayBeNull || nullArm >= 0) {
-            sb.append(subject).append(" == null ? ").append(nullArm).append(" : ")
+            // Objects.isNull also compiles when the subject turns out to be a primitive.
+            sb.append("java.util.Objects.isNull(").append(subject).append(") ? ").append(nullArm).append(" : ")
         }
         var i = 0
         while (i < w.arms().size()) {
@@ -981,10 +983,11 @@ class Generator(
      * of Nulls.or for numbers and for any type both apply, and Java cannot pick one.
      */
     private fn widens(number: Expr, left: TypeRef?) -> Boolean {
-        if (left == null) {
-            return true
-        }
         val type = TypeInference.typeOf(file, number)
+        if (left == null) {
+            // An Integer on the left fits or(Integer, int); a Long or Double literal would make the overloads ambiguous.
+            return type != null && type.name().equals("Int")
+        }
         return type != null && WIDENING.contains(type.name()) && WIDENING.indexOf(type.name()) <= WIDENING.indexOf(left.name())
     }
 

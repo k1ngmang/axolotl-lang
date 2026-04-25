@@ -667,7 +667,7 @@ import org.axl.compiler.check.Whens;
         final var subjectCode = subject.getFirst();
         final var narrowedName = Nulls.or(bindingName, () -> narrowableName(withoutParens(w.subject())));
         final var whole = nameBinding(bindingName, subjectCode);
-        final var mayBeNull = subjectType != null && subjectType.nullable();
+        final var mayBeNull = subjectType == null || subjectType.nullable();
         final var selector = (byIndex ? armIndex(subjectCode, w, mayBeNull) : (boxesSubject(w, subjectType) ? "Nulls.box(" + subjectCode + ")" : subjectCode));
         em.line(line, head + "switch (" + selector + ") {");
         em.indent();
@@ -723,7 +723,7 @@ import org.axl.compiler.check.Whens;
         final var sb = new StringBuilder();
         final var nullArm = nullArmIndex(w);
         if (mayBeNull || nullArm >= 0) {
-            sb.append(subject).append(" == null ? ").append(nullArm).append(" : ");
+            sb.append("java.util.Objects.isNull(").append(subject).append(") ? ").append(nullArm).append(" : ");
         }
         var i = 0;
         while (i < w.arms().size()) {
@@ -869,10 +869,10 @@ import org.axl.compiler.check.Whens;
         return "java.util.Objects.nonNull(" + temp + ") ? " + temp + " : " + expr(e$2.right());
     }
     private boolean widens(Expr number, @Nullable TypeRef left) {
-        if (left == null) {
-            return true;
-        }
         final var type = TypeInference.typeOf(file, number);
+        if (left == null) {
+            return type != null && type.name().equals("Int");
+        }
         return type != null && WIDENING.contains(type.name()) && WIDENING.indexOf(type.name()) <= WIDENING.indexOf(left.name());
     }
     private boolean inlinesElvis(Expr e) {

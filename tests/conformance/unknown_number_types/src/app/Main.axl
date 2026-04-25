@@ -1,0 +1,15 @@
+package app
+
+import java.util.HashMap
+
+fn main() {
+    val counts = HashMap<String, Int>()
+    println(counts.get("a") ?: 2.5)
+    println(counts.get("a") ?: 5L)
+    val longs = HashMap<String, Long>()
+    longs.put("five", 5L)
+    println(when (longs.get("b")) { 5L -> "five" else -> "other" })
+    println(when (longs.get("five")) { 5L -> "five" else -> "other" })
+    val flags = HashMap<String, Boolean>()
+    println(when (flags.get("b")) { true -> "t" else -> "other" })
+}
