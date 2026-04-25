@@ -113,6 +113,9 @@ final class InitCycles implements TaskListener {
             } else if (member instanceof MethodTree method && method.getBody() != null
                     && method.getName().contentEquals("<init>")) {
                 uses.addAll(uses(method.getBody(), unit));
+            } else if (member instanceof MethodTree method && method.getBody() != null
+                    && trees.getElement(TreePath.getPath(unit, method)) instanceof ExecutableElement instanceMethod) {
+                functions.put(instanceMethod, uses(method.getBody(), unit));
             }
         }
         return uses;
@@ -145,8 +148,8 @@ final class InitCycles implements TaskListener {
 
             @Override
             public Void visitMethodInvocation(MethodInvocationTree call, Void unused) {
-                if (trees.getElement(new TreePath(unitPath, call)) instanceof ExecutableElement method
-                        && method.getModifiers().contains(Modifier.STATIC)) {
+                // Instance methods count only if they are of a generated class; follow() checks that.
+                if (trees.getElement(new TreePath(unitPath, call)) instanceof ExecutableElement method) {
                     uses.add(new Use(method, call));
                 }
                 return super.visitMethodInvocation(call, unused);
@@ -181,9 +184,9 @@ final class InitCycles implements TaskListener {
         }
         if (used instanceof ExecutableElement function) {
             if (functions.containsKey(function) && followed.add(function)) {
-                boolean fromOtherFile = otherFile || !owner.equals(init.type());
+                boolean fromOtherFile = otherFile || !outermost(owner).equals(init.type());
                 // Calling a function of another file starts that class, which sets its values.
-                if (!owner.equals(init.type())) {
+                if (!owner.equals(init.type()) && function.getModifiers().contains(Modifier.STATIC)) {
                     reads.get(init.type()).add(new Read(init.type(), valueName(init), function, at, init.unit()));
                 }
                 functions.get(function).forEach(u -> follow(init, u.element(), at, fromOtherFile, followed));
@@ -192,7 +195,7 @@ final class InitCycles implements TaskListener {
         }
         if (used instanceof TypeElement created) {
             if (constructors.containsKey(created) && followed.add(created)) {
-                boolean fromOtherFile = otherFile || !owner.equals(init.type());
+                boolean fromOtherFile = otherFile || !outermost(owner).equals(init.type());
                 constructors.get(created).forEach(u -> follow(init, u.element(), at, fromOtherFile, followed));
             }
             return;
@@ -209,6 +212,14 @@ final class InitCycles implements TaskListener {
                     + "` is declared later; top-level values are set in order, so declare `" + name + "` first";
             trees.printMessage(Diagnostic.Kind.ERROR, PREFIX + message, at, init.unit());
         }
+    }
+
+    private static TypeElement outermost(TypeElement type) {
+        TypeElement current = type;
+        while (current.getEnclosingElement() instanceof TypeElement outer) {
+            current = outer;
+        }
+        return current;
     }
 
     private static String valueName(Init init) {

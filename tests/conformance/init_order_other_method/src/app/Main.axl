@@ -1,0 +1,6 @@
+package app
+import app.Other.Box
+val box: Box = Box()
+val a: Int = box.size()
+val b: String = "b".trim()
+fn main() { println(a) }
