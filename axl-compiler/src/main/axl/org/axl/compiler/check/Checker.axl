@@ -136,7 +136,10 @@ class Checker(val file: SourceFile) {
         for (decl in file.decls()) {
             when (decl) {
                 is Decl.Value -> topLevelValue(decl)
-                is Decl.Function -> function(decl)
+                is Decl.Function -> {
+                    checkMainSignature(decl)
+                    function(decl)
+                }
                 is Decl.ClassDecl -> classDecl(decl)
                 is Decl.EnumDecl -> enumConstants(decl)
                 is Decl.DataClass -> members(decl.fields(), "field")
@@ -168,6 +171,15 @@ class Checker(val file: SourceFile) {
         }
         val result = sb.substring(digits) + sb.substring(0, digits)
         return if (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result)) null else result
+    }
+
+    /** `fn main() -> Int` compiles, but `axl run` and Java look for a main that gives nothing. */
+    private fn checkMainSignature(f: Decl.Function) {
+        val result = f.returnType()
+        if (f.name().equals("main") && f.params().isEmpty() && !f.isPrivate() && result != null) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), f.namePos().line(), f.namePos().column(), ErrorCode.SYNTAX,
+                "a `main` with a result type does not start the program; remove `-> " + result.name() + "`"))
+        }
     }
 
     private fn checkFileName() {
@@ -914,7 +926,7 @@ class Checker(val file: SourceFile) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both")
         } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
             val missing = Exhaustiveness.missingConstants(w, file)
-            error(w.pos(), ErrorCode.SYNTAX, if (missing == null) "a `when` over constants that gives a value needs an `else` branch"
+            error(w.pos(), ErrorCode.SYNTAX, if (missing == null) elseMessage(w)
                 else "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch")
         } else if (types && !sawElse) {
             val problem = Exhaustiveness.typesProblem(w, file)
@@ -922,6 +934,17 @@ class Checker(val file: SourceFile) {
                 error(w.pos(), ErrorCode.SYNTAX, problem)
             }
         }
+    }
+
+    private fn elseMessage(w: Expr.When) -> String {
+        val booleans = w.arms() |> allMatch { a -> a.conditions() |> allMatch { c -> isBooleanConstant(c) } }
+        return if (booleans) "a `when` over `true` and `false` that gives a value still needs an `else` branch; use `if (c) a else b`"
+            else "a `when` over constants that gives a value needs an `else` branch"
+    }
+
+    private fn isBooleanConstant(c: Expr.Cond) -> Boolean {
+        val text = c.constant()?.text()
+        return "true".equals(text) || "false".equals(text)
     }
 
     /** Whether the constants are all the constants of an enum of this file, which leaves nothing for `else`. */

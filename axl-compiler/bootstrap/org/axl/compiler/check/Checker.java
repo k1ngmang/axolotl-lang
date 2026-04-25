@@ -82,6 +82,7 @@ import org.axl.compiler.ast.TypeRef;
                     topLevelValue(decl$1);
                 }
                 case Decl.Function decl$2 -> {
+                    checkMainSignature(decl$2);
                     function(decl$2);
                 }
                 case Decl.ClassDecl decl$3 -> {
@@ -121,6 +122,13 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var result = sb.substring(digits) + sb.substring(0, digits);
         return (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result) ? null : result);
+    }
+    private void checkMainSignature(Decl.Function f) {
+        final var result = f.returnType();
+        if (f.name().equals("main") && f.params().isEmpty() && !f.isPrivate() && result != null) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), f.namePos().line(), f.namePos().column(), ErrorCode.SYNTAX,
+                    "a `main` with a result type does not start the program; remove `-> " + result.name() + "`"));
+        }
     }
     private void checkFileName() {
         final var name = file.className();
@@ -887,7 +895,7 @@ import org.axl.compiler.ast.TypeRef;
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both");
         } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
             final var missing = Exhaustiveness.missingConstants(w, file);
-            error(w.pos(), ErrorCode.SYNTAX, (missing == null ? "a `when` over constants that gives a value needs an `else` branch" :
+            error(w.pos(), ErrorCode.SYNTAX, (missing == null ? elseMessage(w) :
                     "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch"));
         } else if (types && !sawElse) {
             final var problem = Exhaustiveness.typesProblem(w, file);
@@ -895,6 +903,15 @@ import org.axl.compiler.ast.TypeRef;
                 error(w.pos(), ErrorCode.SYNTAX, problem);
             }
         }
+    }
+    private String elseMessage(Expr.When w) {
+        final var booleans = w.arms().stream().allMatch(a -> a.conditions().stream().allMatch(c -> isBooleanConstant(c)));
+        return (booleans ? "a `when` over `true` and `false` that gives a value still needs an `else` branch; use `if (c) a else b`" :
+                "a `when` over constants that gives a value needs an `else` branch");
+    }
+    private boolean isBooleanConstant(Expr.Cond c) {
+        final var text = Nulls.map(c.constant(), $n1 -> $n1.text());
+        return "true".equals(text) || "false".equals(text);
     }
     private boolean coversEnum(Expr.When w) {
         final var named = new HashSet<String>();

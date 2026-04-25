@@ -71,3 +71,8 @@ fn bare(n: Int) {
         else -> println("b")
     }
 }
+
+fn flag(b: Boolean) -> String = when (b) {
+    true -> "yes"
+    false -> "no"
+}

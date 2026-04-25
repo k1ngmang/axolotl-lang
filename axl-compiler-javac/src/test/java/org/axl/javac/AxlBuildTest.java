@@ -66,6 +66,16 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutAMainWithAResultType(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn main() -> Int = 1
+                """);
+        assertEquals(List.of("3:4 a `main` with a result type does not start the program; remove `-> Int`"), warnings);
+    }
+
+    @Test
     void dropsAWarningAtTheSamePlaceAsAnError(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

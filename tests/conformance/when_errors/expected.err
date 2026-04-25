@@ -13,3 +13,4 @@ AXL001 app/Main.axl:59:21: error: this `when` has no branches; add one for each 
 AXL001 app/Main.axl:61:34: error: the branches of this `if` give values of different types, `Int` and `String`; give every branch the same type
 AXL001 app/Main.axl:63:34: error: the branches of this `when` give values of different types, `Int` and `Boolean`; give every branch the same type
 AXL001 app/Main.axl:70:14: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it
+AXL001 app/Main.axl:75:33: error: a `when` over `true` and `false` that gives a value still needs an `else` branch; use `if (c) a else b`
