@@ -2,8 +2,10 @@ package org.axl.compiler.check;
 import axl.lang.*;
 import org.jspecify.annotations.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
@@ -14,10 +16,12 @@ import org.axl.compiler.ast.Stmt;
     public final SourceFile file;
     public final HashSet<String> visited;
     public Decl.@Nullable ClassDecl owner;
+    public Map<String, String> paramTypes;
     public InitOrder(SourceFile file) {
         this.file = file;
         this.visited = new HashSet<String>();
         this.owner = null;
+        this.paramTypes = new HashMap<String, String>();
     }
     public List<Problem> problems() {
         final var values = new ArrayList<Decl.Value>();
@@ -169,9 +173,9 @@ import org.axl.compiler.ast.Stmt;
             function(call.name(), out);
         } else {
             names(target, hidden, out);
-            final var created = constructed(target);
-            if (created != null) {
-                method(created, call.name(), out);
+            final var receiver = classOf(target, hidden);
+            if (receiver != null) {
+                method(receiver, call.name(), out);
             }
             final var returned = returnedLambda(target);
             if (returned != null) {
@@ -179,6 +183,38 @@ import org.axl.compiler.ast.Stmt;
             }
         }
         arguments(call.args(), hidden, out);
+    }
+    private Decl.@Nullable ClassDecl classOf(Expr e, Set<String> hidden) {
+        final var created = constructed(e);
+        if (created != null) {
+            return created;
+        }
+        final var inner = unparenthesized(e);
+        if (inner instanceof Expr.Name inner$1) {
+            final var param = paramTypes.get(inner$1.name());
+            if (param != null) {
+                return classNamed(param);
+            }
+            return (hidden.contains(inner$1.name()) ? null : valueClass(inner$1.name()));
+        }
+        if (inner instanceof Expr.Call inner$2 && inner$2.target() == null) {
+            for (final var decl : file.decls()) {
+                final var result = (decl instanceof Decl.Function decl$3 && decl$3.name().equals(inner$2.name()) ? decl$3.returnType() : null);
+                if (result != null) {
+                    return classNamed(result.name());
+                }
+            }
+        }
+        return null;
+    }
+    private Decl.@Nullable ClassDecl valueClass(String name) {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Value decl$1 && decl$1.name().equals(name)) {
+                final var type = decl$1.type();
+                return (type != null ? classNamed(type.name()) : constructed(decl$1.init()));
+            }
+        }
+        return null;
     }
     private Decl.@Nullable ClassDecl constructed(Expr e) {
         final var inner = unparenthesized(e);
@@ -279,15 +315,26 @@ import org.axl.compiler.ast.Stmt;
             return;
         }
         out.add(name);
-        for (final var decl : file.decls()) {
-            if (decl instanceof Decl.Value decl$1 && decl$1.name().equals(name) && visited.add("val " + name)) {
-                final var init = unparenthesized(decl$1.init());
-                if (init instanceof Expr.Lambda init$2) {
-                    lambdaBody(init$2, Set.of(), out);
-                } else if (init instanceof Expr.MethodRef init$3 && isThisClass(init$3.target())) {
-                    function(init$3.name(), out);
+        final var c = owner;
+        if (c != null) {
+            for (final var p : c.properties()) {
+                final var init = p.init();
+                if (p.name().equals(name) && init != null && visited.add("property " + c.name() + "." + name)) {
+                    calledValue(unparenthesized(init), out);
                 }
             }
+        }
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Value decl$1 && decl$1.name().equals(name) && visited.add("val " + name)) {
+                calledValue(unparenthesized(decl$1.init()), out);
+            }
+        }
+    }
+    private void calledValue(Expr init, Set<String> out) {
+        if (init instanceof Expr.Lambda init$1) {
+            lambdaBody(init$1, Set.of(), out);
+        } else if (init instanceof Expr.MethodRef init$2 && (isThisClass(init$2.target()) || isThis(init$2.target()))) {
+            function(init$2.name(), out);
         }
     }
     private void lambdaBody(Expr.Lambda lambda, Set<String> hidden, Set<String> out) {
@@ -325,9 +372,16 @@ import org.axl.compiler.ast.Stmt;
     }
     private void body(Decl.Function f, Set<String> out) {
         final var scope = new HashSet<String>();
+        final var types = new HashMap<String, String>();
         for (final var param : f.params()) {
             scope.add(param.name());
+            final var type = param.type();
+            if (type != null) {
+                types.put(param.name(), type.name());
+            }
         }
+        final var outerTypes = paramTypes;
+        paramTypes = types;
         final var exprBody = f.exprBody();
         final var block = f.body();
         if (exprBody != null) {
@@ -335,6 +389,7 @@ import org.axl.compiler.ast.Stmt;
         } else if (block != null) {
             statements(block.statements(), scope, out);
         }
+        paramTypes = outerTypes;
     }
     private boolean isThisClass(Expr target) {
         final var text = dotted(target);

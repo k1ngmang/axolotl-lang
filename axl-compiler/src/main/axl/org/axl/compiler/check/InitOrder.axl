@@ -1,8 +1,10 @@
 package org.axl.compiler.check
 
 import java.util.ArrayList
+import java.util.HashMap
 import java.util.HashSet
 import java.util.List
+import java.util.Map
 import java.util.Set
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
@@ -21,6 +23,9 @@ class InitOrder(val file: SourceFile) {
 
     // The class whose code is being followed: its methods are called by their names alone.
     var owner: Decl.ClassDecl? = null
+
+    // The written types of the parameters of the function being followed.
+    var paramTypes: Map<String, String> = HashMap<String, String>()
 
     fn problems() -> List<Problem> {
         val values = ArrayList<Decl.Value>()
@@ -161,10 +166,10 @@ class InitOrder(val file: SourceFile) {
             function(call.name(), out)
         } else {
             names(target, hidden, out)
-            // `Box().size()` runs a method of a class of this file on the object it creates.
-            val created = constructed(target)
-            if (created != null) {
-                method(created, call.name(), out)
+            // `Box().size()`, `box.size()` or `make().size()` runs a method of a class of this file.
+            val receiver = classOf(target, hidden)
+            if (receiver != null) {
+                method(receiver, call.name(), out)
             }
             // `make().get()` calls the lambda that `make` returns.
             val returned = returnedLambda(target)
@@ -173,6 +178,44 @@ class InitOrder(val file: SourceFile) {
             }
         }
         arguments(call.args(), hidden, out)
+    }
+
+    /**
+     * The class of this file an expression has: an object it creates, a parameter, a top-level value
+     * or a function result of that class.
+     */
+    private fn classOf(e: Expr, hidden: Set<String>) -> Decl.ClassDecl? {
+        val created = constructed(e)
+        if (created != null) {
+            return created
+        }
+        val inner = unparenthesized(e)
+        if (inner is Expr.Name) {
+            val param = paramTypes.get(inner.name())
+            if (param != null) {
+                return classNamed(param)
+            }
+            return if (hidden.contains(inner.name())) null else valueClass(inner.name())
+        }
+        if (inner is Expr.Call && inner.target() == null) {
+            for (decl in file.decls()) {
+                val result = if (decl is Decl.Function && decl.name().equals(inner.name())) decl.returnType() else null
+                if (result != null) {
+                    return classNamed(result.name())
+                }
+            }
+        }
+        return null
+    }
+
+    private fn valueClass(name: String) -> Decl.ClassDecl? {
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && decl.name().equals(name)) {
+                val type = decl.type()
+                return if (type != null) classNamed(type.name()) else constructed(decl.init())
+            }
+        }
+        return null
     }
 
     /** The class of this file that an expression creates an object of, if it is a constructor call. */
@@ -285,16 +328,28 @@ class InitOrder(val file: SourceFile) {
             return
         }
         out.add(name)
-        // Reading a value that holds a lambda is usually done to call it.
-        for (decl in file.decls()) {
-            if (decl is Decl.Value && decl.name().equals(name) && visited.add("val " + name)) {
-                val init = unparenthesized(decl.init())
-                if (init is Expr.Lambda) {
-                    lambdaBody(init, Set.of(), out)
-                } else if (init is Expr.MethodRef && isThisClass(init.target())) {
-                    function(init.name(), out)
+        // Reading a value or a property that holds a lambda is usually done to call it.
+        val c = owner
+        if (c != null) {
+            for (p in c.properties()) {
+                val init = p.init()
+                if (p.name().equals(name) && init != null && visited.add("property " + c.name() + "." + name)) {
+                    calledValue(unparenthesized(init), out)
                 }
             }
+        }
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && decl.name().equals(name) && visited.add("val " + name)) {
+                calledValue(unparenthesized(decl.init()), out)
+            }
+        }
+    }
+
+    private fn calledValue(init: Expr, out: Set<String>) {
+        if (init is Expr.Lambda) {
+            lambdaBody(init, Set.of(), out)
+        } else if (init is Expr.MethodRef && (isThisClass(init.target()) || isThis(init.target()))) {
+            function(init.name(), out)
         }
     }
 
@@ -336,9 +391,16 @@ class InitOrder(val file: SourceFile) {
 
     private fn body(f: Decl.Function, out: Set<String>) {
         val scope = HashSet<String>()
+        val types = HashMap<String, String>()
         for (param in f.params()) {
             scope.add(param.name())
+            val type = param.type()
+            if (type != null) {
+                types.put(param.name(), type.name())
+            }
         }
+        val outerTypes = paramTypes
+        paramTypes = types
         val exprBody = f.exprBody()
         val block = f.body()
         if (exprBody != null) {
@@ -346,6 +408,7 @@ class InitOrder(val file: SourceFile) {
         } else if (block != null) {
             statements(block.statements(), scope, out)
         }
+        paramTypes = outerTypes
     }
 
     /** `Main.names` and `app.Main.names` name a value of this file too. */

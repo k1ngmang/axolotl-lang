@@ -2,3 +2,7 @@ AXL016 app/Main.axl:4:9: error: `label` is computed from `title`, which is decla
 AXL016 app/Main.axl:14:5: error: `box` is computed from `prefix`, which is declared later; top-level values are set in order, so declare `prefix` first
 AXL016 app/Main.axl:18:9: error: `n` passes `this` on before the properties declared after it are set, so the code it reaches may read them as null; declare `n` last, or compute it in a function
 AXL016 app/Main.axl:25:9: error: `n` is computed from `later`, which is declared later; properties are set in order, so declare `later` first
+AXL016 app/Main.axl:40:9: error: `n` is computed from `later`, which is declared later; properties are set in order, so declare `later` first
+AXL016 app/Main.axl:49:5: error: `count` is computed from `word`, which is declared later; top-level values are set in order, so declare `word` first
+AXL016 app/Main.axl:50:5: error: `made` is computed from `word`, which is declared later; top-level values are set in order, so declare `word` first
+AXL016 app/Main.axl:51:5: error: `used` is computed from `word`, which is declared later; top-level values are set in order, so declare `word` first

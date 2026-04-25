@@ -34,3 +34,23 @@ class Registered(val x: String) {
 }
 
 fn measureLast(r: Registered) -> Int = r.first.length()
+
+class Called(val x: String) {
+    val f: java.util.function.Supplier<Int> = { -> later.length() }
+    val n: Int = f.get()
+    val later: String = x + "!"
+}
+
+class Sized {
+    fn size() -> Int = word.length()
+}
+
+val sized: Sized = Sized()
+val count: Int = sized.size()
+val made: Int = makeSized().size()
+val used: Int = useSized(Sized())
+val word: String = "w".trim()
+
+fn makeSized() -> Sized = Sized()
+
+fn useSized(s: Sized) -> Int = s.size()
