@@ -1,4 +1,4 @@
-AXL011 app/Main.axl:3:18: error: `int` is a reserved word in Java and cannot be used as a name
-AXL011 app/Main.axl:6:5: error: `static` is a reserved word in Java and cannot be used as a name
-AXL011 app/Main.axl:9:6: error: `default` is a reserved word in Java and cannot be used as a name
+AXL011 app/Main.axl:3:18: error: `int` cannot be used as a name: Java, which the code becomes, reserves it
+AXL011 app/Main.axl:6:5: error: `static` cannot be used as a name: Java, which the code becomes, reserves it
+AXL011 app/Main.axl:9:6: error: `default` cannot be used as a name: Java, which the code becomes, reserves it
 AXL010 app/Main.axl:9:6: error: the constant `RED` of `Color` is declared twice

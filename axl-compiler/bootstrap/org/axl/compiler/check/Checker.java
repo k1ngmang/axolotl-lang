@@ -454,7 +454,9 @@ import org.axl.compiler.ast.TypeRef;
             case Stmt.For stmt$6 -> {
                 expr(stmt$6.iterable());
                 scope = new Scope(scope, false);
-                declare(stmt$6.namePos(), stmt$6.name(), Kind.LOOP_VARIABLE, null);
+                if (!stmt$6.name().equals("_")) {
+                    declare(stmt$6.namePos(), stmt$6.name(), Kind.LOOP_VARIABLE, null);
+                }
                 statements(stmt$6.body().statements());
                 pop();
             }
@@ -1105,7 +1107,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void checkReserved(Pos pos, String name) {
         if (RESERVED.contains(name)) {
-            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` is a reserved word in Java and cannot be used as a name");
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` cannot be used as a name: Java, which the code becomes, reserves it");
         } else if (PACKAGE_ROOTS.contains(name)) {
             error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the `" + name +
                     "` package that the generated code uses; choose another name");

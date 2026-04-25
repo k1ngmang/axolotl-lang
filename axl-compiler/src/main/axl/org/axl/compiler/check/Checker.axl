@@ -493,7 +493,10 @@ class Checker(val file: SourceFile) {
             is Stmt.For -> {
                 expr(stmt.iterable())
                 scope = Scope(scope, false)
-                declare(stmt.namePos(), stmt.name(), Kind.LOOP_VARIABLE, null)
+                // `for (_ in xs)` counts or repeats without a name.
+                if (!stmt.name().equals("_")) {
+                    declare(stmt.namePos(), stmt.name(), Kind.LOOP_VARIABLE, null)
+                }
                 statements(stmt.body().statements())
                 pop()
             }
@@ -1157,7 +1160,7 @@ class Checker(val file: SourceFile) {
 
     private fn checkReserved(pos: Pos, name: String) {
         if (RESERVED.contains(name)) {
-            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` is a reserved word in Java and cannot be used as a name")
+            error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` cannot be used as a name: Java, which the code becomes, reserves it")
         } else if (PACKAGE_ROOTS.contains(name)) {
             error(pos, ErrorCode.RESERVED_NAME, "`" + name + "` would hide the `" + name +
                 "` package that the generated code uses; choose another name")

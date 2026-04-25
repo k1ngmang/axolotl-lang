@@ -828,8 +828,10 @@ import org.axl.compiler.check.Whens;
     }
     private void emitFor(Stmt.For loop) {
         final var line = loop.pos().line();
-        withCopies(line, loop.iterable(), () ->
-                em.line(line, "for (final var " + loop.name() + " : " + lifted(line, loop.iterable()).code() + ") {"));
+        withCopies(line, loop.iterable(), () -> {
+            final var name = (loop.name().equals("_") ? "$unused" + newPattern() : loop.name());
+            em.line(line, "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {");
+        });
         emitBlock(loop.body());
         em.line(loop.body().end().line(), "}");
     }
