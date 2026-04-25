@@ -66,6 +66,30 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutNullChecksOfPropertiesAndValuesThatAreNeverNull(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                val top: String = "t"
+
+                class Box(val name: String) {
+                    fn size() -> Int = name?.length() ?: 0
+                }
+
+                fn f(s: String) -> String = s ?: "x"
+
+                fn main() {
+                    println(top!!)
+                    println(f("a") + Box("b").size())
+                }
+                """);
+        assertEquals(List.of(
+                "6:24 `name` has the type `String`, which is never null; write `.` instead of `?.`",
+                "9:29 `s` has the type `String`, which is never null; remove `?:` and its fallback",
+                "12:13 `top` has the type `String`, which is never null; remove `!!`"), warnings);
+    }
+
+    @Test
     void warnsAboutAMainWithAResultType(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

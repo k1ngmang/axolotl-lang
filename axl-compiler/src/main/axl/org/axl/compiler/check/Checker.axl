@@ -239,7 +239,7 @@ class Checker(val file: SourceFile) {
                     error(decl.namePos(), ErrorCode.DUPLICATE_NAME,
                         "`" + decl.name() + "` is already declared at line " + existing.pos().line())
                 }
-                scope.names.put(decl.name(), Symbol(Kind.TOP_LEVEL, decl.pos(), null))
+                scope.names.put(decl.name(), Symbol(Kind.TOP_LEVEL, decl.pos(), decl.type()))
             } else if (isTypeDecl(decl)) {
                 checkTypeName(decl)
             } else {
@@ -689,6 +689,10 @@ class Checker(val file: SourceFile) {
             is Expr.GenericNew -> exprs(e.args())
             is Expr.MethodRef -> expr(e.target())
             is Expr.NotNull -> {
+                if (isNull(e.target())) {
+                    diagnostics.add(AxlDiagnostic.warning(file.path(), e.pos().line(), e.pos().column(), ErrorCode.UNNEEDED,
+                        "`null!!` always fails; throw an exception that says what went wrong instead"))
+                }
                 warnNeverNull(e.target(), "remove `!!`")
                 expr(e.target())
             }
@@ -698,6 +702,7 @@ class Checker(val file: SourceFile) {
                 expr(e.right())
             }
             is Expr.Elvis -> {
+                warnNeverNull(e.left(), "remove `?:` and its fallback")
                 expr(e.left())
                 expr(e.right())
             }
@@ -1177,14 +1182,14 @@ class Checker(val file: SourceFile) {
         return f != null && isMain(f)
     }
 
-    /** A parameter or local whose written type has no `?` holds a value. */
+    /** A name whose written type has no `?` holds a value. */
     private fn warnNeverNull(target: Expr, fix: String) {
         if (target !is Expr.Name) {
             return
         }
         val symbol = scope.lookup(target.name())
         val written = declaredNotNull(symbol)
-        if (symbol != null && written != null && (symbol.kind() == Kind.PARAM || symbol.kind() == Kind.LOCAL)) {
+        if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
                 "`" + target.name() + "` has the type `" + written.name() + "`, which is never null; " + fix))
         }

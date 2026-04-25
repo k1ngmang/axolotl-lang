@@ -189,7 +189,7 @@ import org.axl.compiler.ast.TypeRef;
                     error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME,
                             "`" + decl$1.name() + "` is already declared at line " + existing.pos().line());
                 }
-                scope.names.put(decl$1.name(), new Symbol(Kind.TOP_LEVEL, decl$1.pos(), null));
+                scope.names.put(decl$1.name(), new Symbol(Kind.TOP_LEVEL, decl$1.pos(), decl$1.type()));
             } else if (isTypeDecl(decl)) {
                 checkTypeName(decl);
             } else {
@@ -654,6 +654,10 @@ import org.axl.compiler.ast.TypeRef;
                 expr(e$6.target());
             }
             case Expr.NotNull e$7 -> {
+                if (isNull(e$7.target())) {
+                    diagnostics.add(AxlDiagnostic.warning(file.path(), e$7.pos().line(), e$7.pos().column(), ErrorCode.UNNEEDED,
+                            "`null!!` always fails; throw an exception that says what went wrong instead"));
+                }
                 warnNeverNull(e$7.target(), "remove `!!`");
                 expr(e$7.target());
             }
@@ -665,6 +669,7 @@ import org.axl.compiler.ast.TypeRef;
                 expr(e$9.right());
             }
             case Expr.Elvis e$10 -> {
+                warnNeverNull(e$10.left(), "remove `?:` and its fallback");
                 expr(e$10.left());
                 expr(e$10.right());
             }
@@ -1128,7 +1133,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var symbol = scope.lookup(target$1.name());
         final var written = declaredNotNull(symbol);
-        if (symbol != null && written != null && (symbol.kind() == Kind.PARAM || symbol.kind() == Kind.LOCAL)) {
+        if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target$1.pos().line(), target$1.pos().column(), ErrorCode.UNNEEDED,
                     "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
         }
