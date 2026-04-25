@@ -7,7 +7,7 @@ fn main() {
     words.forEach({ println(it) })
     val upper: java.util.function.Function<String, String> = { s -> s.toUpperCase() }
     println(upper.apply("x"))
-    val sorted: List<String> = ArrayList(words)
+    val sorted: List<String> = ArrayList<>(words)
     sorted.sort({ a, b -> a.compareTo(b) })
     println(sorted)
     val counted: java.util.function.Function<String, Int> = { s ->

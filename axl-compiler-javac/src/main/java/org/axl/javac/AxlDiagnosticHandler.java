@@ -137,7 +137,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     }
 
     private JCDiagnostic move(JCDiagnostic diagnostic) {
-        DiagnosticType type = diagnostic.getType();
+        DiagnosticType type = rawType(diagnostic) ? DiagnosticType.ERROR : diagnostic.getType();
         if (type != DiagnosticType.ERROR && type != DiagnosticType.WARNING || diagnostic.getSource() == null
                 || !"file".equals(diagnostic.getSource().toUri().getScheme())) {
             return null;
@@ -160,6 +160,10 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.
         moved.setFlag(JCDiagnostic.DiagnosticFlag.API);
         return moved;
+    }
+
+    private static boolean rawType(JCDiagnostic diagnostic) {
+        return diagnostic.getType() == DiagnosticType.WARNING && diagnostic.getCode().endsWith("raw.class.use");
     }
 
     private Mapping mapping(Path javaFile) {

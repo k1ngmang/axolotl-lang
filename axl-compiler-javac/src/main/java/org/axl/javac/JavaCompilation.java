@@ -37,7 +37,7 @@ public final class JavaCompilation {
             .toList();
 
     /** The plugin argument; NullAway only checks classes annotated with {@code @NullMarked}. */
-    public static final String ERROR_PRONE_PLUGIN = "-Xplugin:ErrorProne -Xep:NullAway:ERROR "
+    public static final String ERROR_PRONE_PLUGIN = "-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR "
             + "-XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
 
     public record Outcome(boolean success, List<Diagnostic<? extends JavaFileObject>> diagnostics) {}
@@ -63,6 +63,8 @@ public final class JavaCompilation {
                     "--release", "21",
                     "-encoding", "UTF-8",
                     "-proc:none",
+                    // Reported as errors in generated code: a raw `ArrayList()` lets any element in.
+                    "-Xlint:rawtypes",
                     "-d", classesDir.toString(),
                     "-classpath", classpath.stream().map(Path::toString).collect(Collectors.joining(java.io.File.pathSeparator))));
             if (nullChecks) {

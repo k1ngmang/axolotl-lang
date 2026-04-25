@@ -52,8 +52,10 @@ the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `ja
 Calls, member access, `+ - * / %`, comparisons, `== !=` (Java's `==`), `&& || !`, string
 concatenation, lambdas and method references `String::length` work as in Java. A call of a
 capitalized name creates an object: `StringBuilder("x")`, `ArrayList<String>()`, also when it is
-qualified by a package: `java.sql.Timestamp(1L)`. Names use the letters A to Z and a to z, digits
-and `_`.
+qualified by a package: `java.sql.Timestamp(1L)`. A generic class needs its type arguments,
+`ArrayList<String>()`, or `ArrayList<>(xs)` where the type it is stored as gives them; a bare
+`ArrayList()` is an error, since any value could go in. Names use the letters A to Z and a to z,
+digits and `_`.
 
 Lambdas are written in braces: `{ x -> x + 1 }`, `{ a, b -> a.compareTo(b) }`. Without an arrow,
 `it` is the parameter if the body uses it: `{ it > 0 }`; `{ -> run() }` takes no parameters. Inside

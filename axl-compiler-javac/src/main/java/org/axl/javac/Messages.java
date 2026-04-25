@@ -36,6 +36,7 @@ final class Messages {
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
     private static final Pattern NO_INSTANCE = Pattern.compile(
             "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+)$");
+    private static final Pattern RAW_TYPE = Pattern.compile("^found raw type: ([\\w.$]+)");
     private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile(
             "^incompatible types: (?:bad type in conditional expression; )?(.+) cannot be converted to (.+?)(?: \\(.+ is a subtype of .+\\))?$");
@@ -416,6 +417,10 @@ final class Messages {
             return "a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal objects have "
                     + "equal hash codes";
         }
+        if (message.startsWith("[NarrowingCompoundAssignment]")) {
+            return "the result does not fit the type of the variable and would be cut, as `i += 1.7` gives 6 for an `Int`; "
+                    + "give the variable a type that holds the result, such as `Double` or `Long`";
+        }
         if (message.startsWith("[OperatorPrecedence]")) {
             return "`&&` goes before `||`, and `*` before `+`; add parentheses to show which you mean, as in `(a && b) || c`";
         }
@@ -558,6 +563,12 @@ final class Messages {
             return found.equals("Result") && text.contains("Result.attempt(")
                     ? "`attempt` gives a `Result`, but `" + expected + "` is expected"
                     : "type mismatch: expected `" + expected + "`, found `" + found + "`";
+        }
+        Matcher raw = RAW_TYPE.matcher(message);
+        if (raw.find()) {
+            String type = simpleNames(axlType(raw.group(1)));
+            return "`" + type + "` needs its type arguments, such as `" + type + "<String>`, or any value could go in; "
+                    + "a new object written `" + type + "<>()` takes them from the type it is stored as";
         }
         Matcher lossy = LOSSY.matcher(message);
         if (lossy.find()) {

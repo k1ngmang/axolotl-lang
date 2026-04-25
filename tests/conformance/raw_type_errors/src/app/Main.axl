@@ -1,0 +1,14 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn main() {
+    val raw = ArrayList()
+    raw.add(5)
+    val b: List<String> = raw
+    println(b)
+    var i = 5
+    i += 1.7
+    println(i)
+}

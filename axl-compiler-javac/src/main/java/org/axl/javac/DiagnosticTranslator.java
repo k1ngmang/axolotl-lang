@@ -52,6 +52,10 @@ public final class DiagnosticTranslator {
         if (Messages.ignored(message)) {
             return null;
         }
+        if (diagnostic.getCode().endsWith("raw.class.use")) {
+            // A raw `ArrayList()` in generated code lets values of any type in.
+            severity = AxlDiagnostic.Severity.ERROR;
+        }
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
         String[] javaLines = source.unit().javaSource().split("\n", -1);
         Messages.Translated translated = Messages.translate(message, javaLines, javaLine);

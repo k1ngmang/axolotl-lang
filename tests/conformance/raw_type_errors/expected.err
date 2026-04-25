@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:7:15: error: `ArrayList` needs its type arguments, such as `ArrayList<String>`, or any value could go in; a new object written `ArrayList<>()` takes them from the type it is stored as
+AXL100 app/Main.axl:12:5: error: the result does not fit the type of the variable and would be cut, as `i += 1.7` gives 6 for an `Int`; give the variable a type that holds the result, such as `Double` or `Long`

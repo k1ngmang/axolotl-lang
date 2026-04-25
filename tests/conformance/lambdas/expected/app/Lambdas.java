@@ -11,7 +11,7 @@ import java.util.ArrayList;
         words.forEach(it -> System.out.println(it));
         final java.util.function.Function<String, String> upper = s -> s.toUpperCase();
         System.out.println(upper.apply("x"));
-        final List<String> sorted = new ArrayList(words);
+        final List<String> sorted = new ArrayList<>(words);
         sorted.sort((a, b) -> a.compareTo(b));
         System.out.println(sorted);
         final java.util.function.Function<String, Integer> counted = s -> {
