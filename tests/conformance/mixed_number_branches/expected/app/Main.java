@@ -27,5 +27,18 @@ import org.jspecify.annotations.*;
         ratio(1, null);
         ratio(1, 4);
         ratio(2, null);
+        unknown(true, null);
+        unknown(false, "ab");
+    }
+    public static void unknown(boolean c, @Nullable String s) {
+        final var r = (c ? Nulls.toLong(Nulls.map(s, $n1 -> $n1.length())) : Long.valueOf(5L));
+        System.out.println(r);
+        final var counts = new java.util.HashMap<String, Integer>();
+        final var $e1 = c;
+        final var d = switch ($e1 == true ? 0 : -1) {
+            case 0 -> Nulls.toDouble(counts.get("a"));
+            default -> Double.valueOf(2.5);
+        };
+        System.out.println(d);
     }
 }

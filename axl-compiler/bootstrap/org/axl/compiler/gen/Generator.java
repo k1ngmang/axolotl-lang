@@ -1081,6 +1081,10 @@ import org.axl.compiler.check.Whens;
             return code;
         }
         if (type == null) {
+            final var wider = widestTypedNumber(branches);
+            if (wider != null && mayBeNull(branch)) {
+                return "Nulls.to" + wider + "(" + code + ")";
+            }
             final var nullable = branches.stream().anyMatch(b -> typedNullable(b));
             final var inner = withoutParens(branch);
             final var plain = inner instanceof Expr.Literal inner$1 || inner instanceof Expr.Lambda inner$2 || inner instanceof Expr.MethodRef inner$3;
@@ -1113,6 +1117,16 @@ import org.axl.compiler.check.Whens;
             return givesValue(inner$2.then()) && givesValue(inner$2.otherwise());
         }
         return !mayBeNull(inner);
+    }
+    private @Nullable String widestTypedNumber(List<Expr> branches) {
+        @Nullable String widest = null;
+        for (final var b : branches) {
+            final var name = Nulls.map(typeOf(b), $n1 -> $n1.name());
+            if ("Double".equals(name) || ("Long".equals(name) && widest == null)) {
+                widest = name;
+            }
+        }
+        return widest;
     }
     private boolean typedNullable(Expr e) {
         final var type = typeOf(e);

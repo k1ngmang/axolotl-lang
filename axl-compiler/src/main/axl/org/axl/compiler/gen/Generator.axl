@@ -1193,6 +1193,11 @@ class Generator(
             return code
         }
         if (type == null) {
+            // `s?.length()` next to a Long: Java would unbox the Integer to widen it.
+            val wider = widestTypedNumber(branches)
+            if (wider != null && mayBeNull(branch)) {
+                return "Nulls.to" + wider + "(" + code + ")"
+            }
             // It may be an int, such as `k + 1` or a Java call: boxing it keeps Java from unboxing a
             // branch written to hold null.
             val nullable = branches |> anyMatch { b -> typedNullable(b) }
@@ -1228,6 +1233,18 @@ class Generator(
             return givesValue(inner.then()) && givesValue(inner.otherwise())
         }
         return !mayBeNull(inner)
+    }
+
+    /** Long or Double when a branch has that type, which an Integer of another branch would be widened to. */
+    private fn widestTypedNumber(branches: List<Expr>) -> String? {
+        var widest: String? = null
+        for (b in branches) {
+            val name = typeOf(b)?.name()
+            if ("Double".equals(name) || ("Long".equals(name) && widest == null)) {
+                widest = name
+            }
+        }
+        return widest
     }
 
     private fn typedNullable(e: Expr) -> Boolean {

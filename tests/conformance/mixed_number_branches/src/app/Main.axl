@@ -22,4 +22,17 @@ fn main() {
     ratio(1, null)
     ratio(1, 4)
     ratio(2, null)
+    unknown(true, null)
+    unknown(false, "ab")
+}
+
+fn unknown(c: Boolean, s: String?) {
+    val r = if (c) s?.length() else 5L
+    println(r)
+    val counts = java.util.HashMap<String, Int>()
+    val d = when (c) {
+        true -> counts.get("a")
+        else -> 2.5
+    }
+    println(d)
 }
