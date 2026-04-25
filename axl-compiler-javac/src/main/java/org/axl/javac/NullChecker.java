@@ -978,12 +978,21 @@ final class NullChecker implements TaskListener {
         }
 
         private void checkArguments(ExecutableElement method, List<? extends ExpressionTree> args) {
+            if (isEquals(method)) {
+                // `a.equals(null)` is false, never an error; the JDK leaves the parameter unannotated.
+                return;
+            }
             List<? extends VariableElement> params = method.getParameters();
             int checkedCount = method.isVarArgs() ? params.size() - 1 : params.size();
             for (int i = 0; i < Math.min(checkedCount, args.size()); i++) {
                 VariableElement param = params.get(i);
                 checkValue(args.get(i), param.asType(), param, true, "the parameter `" + param.getSimpleName() + "` does not accept null");
             }
+        }
+
+        private static boolean isEquals(ExecutableElement method) {
+            return method.getSimpleName().contentEquals("equals") && method.getParameters().size() == 1
+                    && method.getParameters().getFirst().asType().toString().equals("java.lang.Object");
         }
 
         /** `Math.abs(x)` unboxes `x`. */

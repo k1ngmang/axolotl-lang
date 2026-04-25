@@ -1,0 +1,8 @@
+package app
+
+fn same(a: String, b: String?) -> Boolean = a.equals(b)
+
+fn main() {
+    println(same("x", null))
+    println(same("x", "x"))
+}
