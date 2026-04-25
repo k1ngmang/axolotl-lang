@@ -58,6 +58,18 @@ class CliTest {
     }
 
     @Test
+    void everyCommandHasHelp() {
+        for (String command : List.of("build", "run", "check", "retrace", "setup")) {
+            out.reset();
+            assertEquals(0, axl(command, "--help"), err.toString());
+            assertTrue(out.toString().startsWith("Usage: axl " + command), out.toString());
+        }
+        out.reset();
+        assertEquals(0, axl("help", "run"), err.toString());
+        assertTrue(out.toString().startsWith("Usage: axl run"), out.toString());
+    }
+
+    @Test
     void runKeepsItsClassesUntilALaterRunFindsThemUnused() throws Exception {
         Path finished = Files.createTempDirectory(WorkDirectories.RUN);
         Files.createFile(finished.resolve(".lock"));

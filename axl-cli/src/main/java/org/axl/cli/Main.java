@@ -13,10 +13,14 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
+import picocli.CommandLine.HelpCommand;
+import picocli.CommandLine.ScopeType;
 
-@Command(name = "axl", mixinStandardHelpOptions = true, versionProvider = Main.Version.class,
+// INHERIT gives every subcommand --help and --version too.
+@Command(name = "axl", mixinStandardHelpOptions = true, scope = ScopeType.INHERIT, versionProvider = Main.Version.class,
         description = "Axolotl compiler: translates .axl files to Java and compiles them.",
-        subcommands = {BuildCommand.class, RunCommand.class, CheckCommand.class, RetraceCommand.class, SetupCommand.class})
+        subcommands = {BuildCommand.class, RunCommand.class, CheckCommand.class, RetraceCommand.class, SetupCommand.class,
+                HelpCommand.class})
 public final class Main {
 
     public static void main(String[] args) {
