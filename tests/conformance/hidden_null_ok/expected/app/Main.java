@@ -16,7 +16,7 @@ import java.util.function.Supplier;
         xs.add("ab");
         System.out.println(Nulls.first(xs.stream().iterator()));
         System.out.println(Nulls.nonNulls(xs.stream().filter(it -> it != null)).map(Nulls.nonNull(it -> it.length())).toList());
-        System.out.println(xs.stream().map(Nulls.nonNull(it -> Nulls.or(it, () -> "-"))).sorted().toList());
+        System.out.println(xs.stream().map(Nulls.nonNull(it -> Nulls.or(it, () -> "-"))).sorted(java.util.Comparator.naturalOrder()).toList());
         final Supplier<@Nullable String> lazy = () -> maybe();
         System.out.println(lazy.get());
         final var m = new HashMap<String, @Nullable String>();

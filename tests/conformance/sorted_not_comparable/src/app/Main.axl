@@ -1,0 +1,7 @@
+package app
+
+data class P(val n: Int)
+
+fn main() {
+    println(java.util.List.of(P(2), P(1)) |> sorted)
+}

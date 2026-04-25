@@ -1835,6 +1835,9 @@ import org.axl.compiler.check.Whens;
             case "map" -> {
                 sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))");
             }
+            case "sorted" -> {
+                sb.append(".sorted(").append((lambdaText.isEmpty() ? "java.util.Comparator.naturalOrder()" : lambdaText)).append(')');
+            }
             case "filter" -> {
                 sb.append(".filter(").append(lambdaText).append(')');
                 if (dropsNulls(stage)) {

@@ -378,7 +378,7 @@ final class NullChecker implements TaskListener {
                     checkTypeArgumentParameters(receiverBindings(receiver, method), asSuper(typeOf(receiver), owner),
                             method, call.getArguments());
                 }
-                if (method.getSimpleName().contentEquals("sorted") && call.getArguments().isEmpty()
+                if (method.getSimpleName().contentEquals("sorted") && naturalOrder(call.getArguments())
                         && isStream(receiver) && shape(receiver).arg(0).nullable()) {
                     report(call, Origin.HIDDEN, false, "the elements may be null, and `sorted` compares them; "
                             + "drop the nulls first: `|> filter { it != null }`");
@@ -988,6 +988,11 @@ final class NullChecker implements TaskListener {
                 VariableElement param = params.get(i);
                 checkValue(args.get(i), param.asType(), param, true, "the parameter `" + param.getSimpleName() + "` does not accept null");
             }
+        }
+
+        /** A pipe's `sorted` without a comparator passes Comparator.naturalOrder(). */
+        private static boolean naturalOrder(List<? extends ExpressionTree> args) {
+            return args.isEmpty() || (args.size() == 1 && args.getFirst().toString().endsWith("Comparator.naturalOrder()"));
         }
 
         private static boolean isEquals(ExecutableElement method) {

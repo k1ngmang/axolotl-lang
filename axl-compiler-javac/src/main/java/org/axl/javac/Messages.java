@@ -246,6 +246,11 @@ final class Messages {
      */
     static Translated translate(String message, String[] javaLines, int javaLine) {
         Translated translated = rewrite(withoutFileClass(message, javaLines), javaLines, javaLine);
+        String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
+        if (translated.message().contains("`Comparable<") && text.contains("Comparator.naturalOrder()")) {
+            return new Translated(translated.code(), "`sorted` needs elements that can be compared, and these cannot; "
+                    + "say how to order them: `sorted { a, b -> ... }`");
+        }
         return new Translated(translated.code(), hideGenerated(translated.message()));
     }
 

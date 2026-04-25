@@ -2005,6 +2005,8 @@ class Generator(
             "count" -> sb.append(".count()")
             "first" -> sb.insert(0, "Nulls.first(").append(".iterator())")
             "map" -> sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))")
+            // naturalOrder makes javac check that the elements can be compared; sorted() would throw.
+            "sorted" -> sb.append(".sorted(").append(if (lambdaText.isEmpty()) "java.util.Comparator.naturalOrder()" else lambdaText).append(')')
             "filter" -> {
                 sb.append(".filter(").append(lambdaText).append(')')
                 if (dropsNulls(stage)) {

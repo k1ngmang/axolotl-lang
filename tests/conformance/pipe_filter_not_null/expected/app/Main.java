@@ -14,7 +14,7 @@ import java.util.List;
         final List<String> present = Nulls.nonNulls(words.stream().filter(it -> it != null)).toList();
         final List<String> named = Nulls.nonNulls(words.stream().filter(w -> null != w)).toList();
         final List<Integer> lengths = Nulls.nonNulls(words.stream().filter(it -> it != null)).map(Nulls.nonNull(it -> it.length())).toList();
-        final List<String> sorted = Nulls.nonNulls(words.stream().filter(it -> it != null)).sorted().toList();
+        final List<String> sorted = Nulls.nonNulls(words.stream().filter(it -> it != null)).sorted(java.util.Comparator.naturalOrder()).toList();
         System.out.println(present);
         System.out.println(named);
         System.out.println(lengths);
