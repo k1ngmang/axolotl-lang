@@ -111,6 +111,12 @@ class CliTest {
     }
 
     @Test
+    void setupRejectsABlankRepository() {
+        assertEquals(2, axl("setup", "--repository", ""));
+        assertTrue(err.toString().contains("--repository needs a directory"), err.toString());
+    }
+
+    @Test
     void setupCopiesTheBundledRepositoryOverOlderFiles(@TempDir Path tmp) throws Exception {
         Path bundled = Files.createDirectories(tmp.resolve("bundled/org/axl/axl-runtime/0.1.0"));
         Files.writeString(bundled.resolve("axl-runtime-0.1.0.pom"), "new");

@@ -23,13 +23,17 @@ final class SetupCommand implements Callable<Integer> {
 
     @Override
     public Integer call() throws IOException {
+        if (repository != null && repository.toString().isBlank()) {
+            System.err.println("axl: --repository needs a directory");
+            return 2;
+        }
         Path bundled = bundledRepository();
         if (bundled == null) {
             System.err.println("axl: this installation of axl has no libraries to install; build them with"
                     + " ./gradlew publishToMavenLocal in the Axolotl repository");
             return 1;
         }
-        Path target = repository != null ? repository : LocalRepository.find();
+        Path target = (repository != null ? repository : LocalRepository.find()).toAbsolutePath();
         int count = copy(bundled, target);
         System.out.println("Installed " + count + " files of Axolotl into " + target);
         System.out.println("Maven projects can now use org.axl:axl-maven-plugin; Gradle projects the plugin");
