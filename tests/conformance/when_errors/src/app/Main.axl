@@ -64,3 +64,10 @@ fn mixedWhen(n: Int) -> Object = when (n) {
     1 -> 2
     else -> true
 }
+
+fn bare(n: Int) {
+    when (n) {
+        1 -> "a"
+        else -> println("b")
+    }
+}

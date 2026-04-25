@@ -12,3 +12,4 @@ AXL001 app/Main.axl:56:16: error: a `when` that gives a value cannot be an argum
 AXL001 app/Main.axl:59:21: error: this `when` has no branches; add one for each case, or an `else ->` branch
 AXL001 app/Main.axl:61:34: error: the branches of this `if` give values of different types, `Int` and `String`; give every branch the same type
 AXL001 app/Main.axl:63:34: error: the branches of this `when` give values of different types, `Int` and `Boolean`; give every branch the same type
+AXL001 app/Main.axl:70:14: error: this expression does nothing on its own; use its value, for example in a `val`, or remove it

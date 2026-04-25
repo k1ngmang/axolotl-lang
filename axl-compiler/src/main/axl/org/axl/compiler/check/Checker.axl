@@ -857,13 +857,6 @@ class Checker(val file: SourceFile) {
         if (gives && !endsWithValue(arm.body())) {
             error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value")
         }
-        if (!arm.block() && !gives && !returns) {
-            val first = arm.body().getFirst()
-            if (first is Stmt.ExprStmt && !doesSomething(first.expr())) {
-                error(first.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " +
-                    "use its value, for example in a `val`, or remove it")
-            }
-        }
         if (gives) {
             valueArm(body)
         } else {
@@ -1167,7 +1160,7 @@ class Checker(val file: SourceFile) {
         val written = declaredNotNull(symbol)
         if (symbol != null && written != null && (symbol.kind() == Kind.PARAM || symbol.kind() == Kind.LOCAL)) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
-                "`" + target.name() + "` is a `" + written.name() + "`, which is never null; " + fix))
+                "`" + target.name() + "` has the type `" + written.name() + "`, which is never null; " + fix))
         }
     }
 

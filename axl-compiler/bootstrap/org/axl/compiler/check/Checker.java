@@ -833,13 +833,6 @@ import org.axl.compiler.ast.TypeRef;
         if (gives && !endsWithValue(arm.body())) {
             error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value");
         }
-        if (!arm.block() && !gives && !returns) {
-            final var first = arm.body().getFirst();
-            if (first instanceof Stmt.ExprStmt first$1 && !doesSomething(first$1.expr())) {
-                error(first$1.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " +
-                        "use its value, for example in a `val`, or remove it");
-            }
-        }
         if (gives) {
             valueArm(body);
         } else {
@@ -1118,7 +1111,7 @@ import org.axl.compiler.ast.TypeRef;
         final var written = declaredNotNull(symbol);
         if (symbol != null && written != null && (symbol.kind() == Kind.PARAM || symbol.kind() == Kind.LOCAL)) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target$1.pos().line(), target$1.pos().column(), ErrorCode.UNNEEDED,
-                    "`" + target$1.name() + "` is a `" + written.name() + "`, which is never null; " + fix));
+                    "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
         }
     }
     private void error(Pos pos, ErrorCode code, String message) {

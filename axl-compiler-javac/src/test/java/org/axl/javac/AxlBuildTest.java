@@ -61,8 +61,8 @@ class AxlBuildTest {
                 """);
         assertEquals(List.of(
                 "4:9 `n` is never assigned again; declare it with `val`",
-                "4:13 `s` is a `String`, which is never null; write `.` instead of `?.`",
-                "8:13 `u` is a `String`, which is never null; remove `!!`"), warnings);
+                "4:13 `s` has the type `String`, which is never null; write `.` instead of `?.`",
+                "8:13 `u` has the type `String`, which is never null; remove `!!`"), warnings);
     }
 
     @Test
