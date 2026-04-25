@@ -1063,6 +1063,23 @@ import org.axl.compiler.check.Whens;
         final var right = narrowedValue(rightNarrowing(b), () -> exprIn(b.right(), inLambda));
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()));
     }
+    private String withNullTests(String code, Expr condition) {
+        final var tests = new ArrayList<String>();
+        nullTests(condition, tests);
+        return (tests.isEmpty() || !Lifts.needed(condition) ? code : code + " && " + String.join(" && ", tests));
+    }
+    private void nullTests(Expr e, List<String> out) {
+        final var inner = withoutParens(e);
+        if (!(inner instanceof Expr.Binary inner$1)) {
+            return;
+        }
+        if (inner$1.op().equals("&&")) {
+            nullTests(inner$1.left(), out);
+            nullTests(inner$1.right(), out);
+        } else if (inner$1.op().equals("!=") && inner$1.left() instanceof Expr.Name && isNullLiteral(inner$1.right())) {
+            out.add(expr(inner$1));
+        }
+    }
     private String conditionalCode(Expr.Conditional c, boolean inLambda) {
         return conditional(exprIn(c.condition(), inLambda), c, inLambda);
     }
@@ -1460,7 +1477,7 @@ import org.axl.compiler.check.Whens;
                 return pipeLifted(line, e$12);
             }
             case Expr.Conditional e$13 -> {
-                return new Lifted(conditional(lifted(line, e$13.condition()).code(), e$13, false), false);
+                return new Lifted(conditional(withNullTests(lifted(line, e$13.condition()).code(), e$13.condition()), e$13, false), false);
             }
             case Expr.Is e$14 -> {
                 return new Lifted(liftedTypeCheck(line, e$14), false);

@@ -1171,6 +1171,29 @@ class Generator(
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()))
     }
 
+    /**
+     * `s != null && try check(s)` moved into statements leaves a temporary, which tells NullAway nothing
+     * about `s`; repeating the null tests after it does, and they hold whenever the temporary does.
+     */
+    private fn withNullTests(code: String, condition: Expr) -> String {
+        val tests = ArrayList<String>()
+        nullTests(condition, tests)
+        return if (tests.isEmpty() || !Lifts.needed(condition)) code else code + " && " + String.join(" && ", tests)
+    }
+
+    private fn nullTests(e: Expr, out: List<String>) {
+        val inner = withoutParens(e)
+        if (inner !is Expr.Binary) {
+            return
+        }
+        if (inner.op().equals("&&")) {
+            nullTests(inner.left(), out)
+            nullTests(inner.right(), out)
+        } else if (inner.op().equals("!=") && inner.left() is Expr.Name && isNullLiteral(inner.right())) {
+            out.add(expr(inner))
+        }
+    }
+
     private fn conditionalCode(c: Expr.Conditional, inLambda: Boolean) -> String =
         conditional(exprIn(c.condition(), inLambda), c, inLambda)
 
@@ -1620,7 +1643,7 @@ class Generator(
             is Expr.MethodRef -> Lifted(lifted(line, e.target()).code() + "::" + e.name(), false)
             is Expr.NotNull -> Lifted("java.util.Objects.requireNonNull(" + lifted(line, e.target()).code() + ")", false)
             is Expr.Pipe -> pipeLifted(line, e)
-            is Expr.Conditional -> Lifted(conditional(lifted(line, e.condition()).code(), e, false), false)
+            is Expr.Conditional -> Lifted(conditional(withNullTests(lifted(line, e.condition()).code(), e.condition()), e, false), false)
             is Expr.Is -> Lifted(liftedTypeCheck(line, e), false)
             else -> throw IllegalStateException("nothing to lift in " + e)
         }

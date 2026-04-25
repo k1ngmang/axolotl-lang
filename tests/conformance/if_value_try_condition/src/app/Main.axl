@@ -1,0 +1,14 @@
+package app
+
+fn check(s: String) -> Result<Boolean, String> = Ok(s.length() > 1)
+
+fn size(s: String?) -> Result<Int, String> {
+    val n = if (s != null && try check(s)) s.length() else 0
+    return Ok(n)
+}
+
+fn main() {
+    println(size("abc"))
+    println(size(null))
+    println(size("a"))
+}
