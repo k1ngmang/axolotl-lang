@@ -32,7 +32,8 @@ cd axolotl
 ./gradlew publishToMavenLocal
 ```
 
-This installs the runtime, the compiler and both build plugins into `~/.m2/repository`.
+This installs the runtime, the compiler and the Gradle plugin into `~/.m2/repository`. The Maven
+plugin and the archetype are Maven projects of their own; [Maven](#maven) shows how to install them.
 
 ## Gradle
 

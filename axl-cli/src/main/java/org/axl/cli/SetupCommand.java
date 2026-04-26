@@ -29,8 +29,9 @@ final class SetupCommand implements Callable<Integer> {
         }
         Path bundled = bundledRepository();
         if (bundled == null) {
-            System.err.println("axl: this installation of axl has no libraries to install; build them with"
-                    + " ./gradlew publishToMavenLocal in the Axolotl repository");
+            System.err.println("axl: this installation of axl has no libraries to install. In the Axolotl repository,"
+                    + " ./gradlew publishToMavenLocal installs the libraries and the Gradle plugin, and"
+                    + " ./mvnw install -Dinvoker.skip=true in axl-maven-plugin the Maven plugin (see docs/install.md)");
             return 1;
         }
         Path target = (repository != null ? repository : LocalRepository.find()).toAbsolutePath();
