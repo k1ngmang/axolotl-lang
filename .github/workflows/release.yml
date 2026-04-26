@@ -34,15 +34,16 @@ jobs:
     needs: verify
     uses: ./.github/workflows/installers.yml
 
-  release:
+  # Builds with a read-only token; only the job below can write, and it runs no build.
+  build:
     needs: installers
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       # The IntelliJ plugin build downloads an IDE, more than the runner has free by default.
       - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-java@v6
         with:
           distribution: temurin
@@ -54,11 +55,33 @@ jobs:
         with:
           cache-provider: basic
       - run: ./gradlew :axl-cli:distZip :axl-lsp:vsix :axl-intellij:buildPlugin
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: |
+            axl-cli/build/distributions/axl-*.zip
+            editors/vscode/axolotl-*.vsix
+            axl-intellij/build/distributions/axl-intellij-*.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: .github/release
       - uses: actions/download-artifact@v8
         with:
           pattern: installer-*
-          path: installers-out
+          path: release-files
           merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: packages
       - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ inputs.version || github.ref_name }}
@@ -66,7 +89,6 @@ jobs:
           name: Axolotl ${{ inputs.version || github.ref_name }}
           body_path: .github/release/${{ inputs.version || github.ref_name }}.md
           files: |
-            axl-cli/build/distributions/axl-*.zip
-            editors/vscode/axolotl-*.vsix
-            axl-intellij/build/distributions/axl-intellij-*.zip
-            installers-out/*
+            release-files/*
+            packages/**/*.zip
+            packages/**/*.vsix
