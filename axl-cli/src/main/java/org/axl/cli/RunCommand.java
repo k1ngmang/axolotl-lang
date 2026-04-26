@@ -100,8 +100,11 @@ final class RunCommand implements Callable<Integer> {
         Method main;
         try {
             main = loader.loadClass(mainClass).getMethod("main", String[].class);
-        } catch (ReflectiveOperationException e) {
+        } catch (ClassNotFoundException e) {
             System.err.println("axl: " + file + " has no `fn main()`");
+            return 1;
+        } catch (NoSuchMethodException e) {
+            System.err.println("axl: " + file + noMainReason(loader, mainClass));
             return 1;
         }
         Thread.currentThread().setContextClassLoader(loader);
@@ -119,6 +122,19 @@ final class RunCommand implements Callable<Integer> {
             System.err.println("axl: " + file + " has no `fn main()`");
             return 1;
         }
+    }
+
+    /** `fn main(args: List<String>)` compiles to an ordinary function that Java cannot start. */
+    private static String noMainReason(ClassLoader loader, String mainClass) {
+        try {
+            Method[] methods = loader.loadClass(mainClass).getMethods();
+            if (Arrays.stream(methods).anyMatch(m -> m.getName().equals("main"))) {
+                return ": `fn main` must have no parameters; the program's arguments are in `args`, a String[]";
+            }
+        } catch (ClassNotFoundException e) {
+            // Reported as a missing main below.
+        }
+        return " has no `fn main()`";
     }
 
     /** The program's stack trace at .axl lines, without the frames of this tool below its main. */

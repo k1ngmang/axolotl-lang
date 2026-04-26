@@ -70,6 +70,14 @@ class CliTest {
     }
 
     @Test
+    void runExplainsThatMainTakesNoParameters(@TempDir Path tmp) throws Exception {
+        Path file = Files.writeString(tmp.resolve("Main.axl"),
+                "package app\n\nimport java.util.List\n\nfn main(args: List<String>) {\n    println(args)\n}\n");
+        assertEquals(1, axl("run", "--no-null-checks", file.toString()));
+        assertTrue(err.toString().contains("`fn main` must have no parameters"), err.toString());
+    }
+
+    @Test
     void runKeepsItsClassesUntilALaterRunFindsThemUnused() throws Exception {
         Path finished = Files.createTempDirectory(WorkDirectories.RUN);
         Files.createFile(finished.resolve(".lock"));
