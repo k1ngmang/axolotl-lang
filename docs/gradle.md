@@ -8,6 +8,13 @@ pluginManagement {
         gradlePluginPortal()
     }
 }
+// The plugin adds the runtime, the javac plugin, Error Prone and NullAway as dependencies.
+dependencyResolutionManagement {
+    repositories {
+        mavenLocal()
+        mavenCentral()
+    }
+}
 
 // build.gradle.kts
 plugins {
