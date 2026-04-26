@@ -183,6 +183,11 @@ val appImage = tasks.register<Exec>("appImage") {
     val modules = runtimeModules.joinToString(",")
     val onWindows = windows
     val onMac = System.getProperty("os.name").startsWith("Mac")
+    val jlinkOptions = "--strip-debug --no-man-pages --no-header-files"
+    inputs.property("version", version)
+    inputs.property("modules", modules)
+    inputs.property("jvmArgs", jvmArgs)
+    inputs.property("jlinkOptions", jlinkOptions)
     doFirst { dest.get().asFile.deleteRecursively() }
     executable(jpackageTool.get())
     argumentProviders.add(CommandLineArgumentProvider {
@@ -192,7 +197,7 @@ val appImage = tasks.register<Exec>("appImage") {
             "--add-modules", modules,
             // Lands in the parent directory of the jars on each system, where SetupCommand looks for it.
             "--app-content", repository.get().path,
-            "--jlink-options", "--strip-debug --no-man-pages --no-header-files",
+            "--jlink-options", jlinkOptions,
             "--dest", dest.get().asFile.path,
         )
         jvmArgs.forEach { args += listOf("--java-options", it) }
@@ -215,6 +220,10 @@ tasks.register<Exec>("nativeInstaller") {
     val resources = rootProject.layout.projectDirectory.dir("installers")
     val dest = layout.buildDirectory.dir("installers")
     val version = packageVersion(project.version.toString())
+    // Packages of earlier versions would confuse the steps that rename the new one. The tarball shares the directory.
+    doFirst {
+        dest.get().asFile.listFiles { file -> file.extension == type.get() }?.forEach { it.delete() }
+    }
     executable(jpackageTool.get())
     argumentProviders.add(CommandLineArgumentProvider {
         val appDir = image.get().asFile.listFiles()!!.single()
