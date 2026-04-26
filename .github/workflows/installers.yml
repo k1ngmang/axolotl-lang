@@ -53,7 +53,7 @@ jobs:
       - name: Write the program the installed axl runs
         run: |
           mkdir -p "$RUNNER_TEMP/smoke"
-          printf 'package app\n\nfn main() {\n    val name: String? = null\n    println("Hello, " + (name ?: "Axolotl"))\n}\n' > "$RUNNER_TEMP/smoke/Hello.axl"
+          printf 'package app\n\nimport java.beans.Introspector\n\nfn main() {\n    val name: String? = null\n    println("Hello, " + (name ?: "Axolotl"))\n    println(Introspector.decapitalize("FooBar"))\n}\n' > "$RUNNER_TEMP/smoke/Hello.axl"
 
       - name: Build the Linux packages
         if: matrix.system == 'linux'
@@ -69,6 +69,7 @@ jobs:
           axl --version
           axl run "$RUNNER_TEMP/smoke/Hello.axl" | tee out.txt
           grep -q "Hello, Axolotl" out.txt
+          grep -q fooBar out.txt
           test -d ~/.m2/repository/org/axl/axl-maven-plugin
 
       - name: Build the macOS package
@@ -84,6 +85,7 @@ jobs:
           axl --version
           axl run "$RUNNER_TEMP/smoke/Hello.axl" | tee out.txt
           grep -q "Hello, Axolotl" out.txt
+          grep -q fooBar out.txt
           if [ ! -d ~/.m2/repository/org/axl/axl-maven-plugin ]; then
             echo "postinstall did not run axl setup for $(id -un); the console user is '$(stat -f%Su /dev/console)'" >&2
             exit 1
@@ -109,6 +111,7 @@ jobs:
           $out = & $axl run "$env:RUNNER_TEMP\smoke\Hello.axl"
           $out
           if (-not ($out -match 'Hello, Axolotl')) { throw 'axl run did not print the greeting' }
+          if (-not ($out -match 'fooBar')) { throw 'axl run cannot use java.desktop' }
           $path = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment').Path
           if (-not ($path -like '*C:\Program Files\Axolotl*')) { throw 'axl is not on the PATH' }
           if (-not (Test-Path "$HOME\.m2\repository\org\axl\axl-maven-plugin")) { throw 'axl setup did not run' }
