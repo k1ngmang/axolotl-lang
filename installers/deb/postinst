@@ -4,7 +4,7 @@ set -e
 
 case "$1" in
     configure)
-        # Version 0.1.0 created a plain link, which update-alternatives would not take over.
+        # Development builds before the first release created a plain link, which update-alternatives would not take over.
         if [ "$(readlink /usr/bin/axl 2>/dev/null)" = /opt/axolotl/bin/axl ]; then
             rm -f /usr/bin/axl
         fi

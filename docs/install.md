@@ -15,7 +15,8 @@ plugins into `~/.m2/repository`. Maven and Gradle projects then build without an
 
 Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another
 user. It follows a `localRepository` in `~/.m2/settings.xml` and a `-Dmaven.repo.local` in
-`MAVEN_OPTS`; `axl setup --repository <dir>` names the repository directly. Maven and Gradle
+`MAVEN_OPTS`; `axl setup --repository <dir>` names the repository directly. The installers run
+`axl setup` without your shell's environment, so run it again yourself if you set `MAVEN_OPTS`. Maven and Gradle
 themselves still need a JDK 21 of their own. The bundled runtime has every module of Java SE, AWT and
 Swing included, so the `.deb` depends on the X11, ALSA and font libraries.
 
