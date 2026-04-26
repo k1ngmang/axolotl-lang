@@ -9,7 +9,9 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -85,6 +87,29 @@ class CliTest {
         assertTrue(Files.notExists(finished));
         WorkDirectories.create(WorkDirectories.RUN);
         assertTrue(Files.exists(running));
+    }
+
+    @Test
+    void severalProcessesMayDeleteTheSameDirectory(@TempDir Path tmp) throws Exception {
+        for (int round = 0; round < 20; round++) {
+            Path dir = Files.createDirectories(tmp.resolve("work" + round + "/classes"));
+            for (int i = 0; i < 200; i++) {
+                Files.createFile(dir.resolve("F" + i + ".class"));
+            }
+            List<Thread> threads = new ArrayList<>();
+            List<Throwable> failures = new CopyOnWriteArrayList<>();
+            for (int t = 0; t < 4; t++) {
+                Thread thread = new Thread(() -> Paths.deleteRecursively(dir.getParent()));
+                thread.setUncaughtExceptionHandler((th, e) -> failures.add(e));
+                threads.add(thread);
+                thread.start();
+            }
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            assertEquals(List.of(), failures);
+            assertTrue(Files.notExists(dir.getParent()));
+        }
     }
 
     @Test

@@ -83,13 +83,16 @@ final class Paths {
         }
     }
 
-    /** Deletes a temporary directory and everything in it. */
+    /**
+     * Deletes a temporary directory and everything in it. Several axl processes may delete the same
+     * finished work directory at once, so the walk can meet files that are already gone.
+     */
     static void deleteRecursively(Path dir) {
         try (Stream<Path> walk = Files.walk(dir)) {
             for (Path p : walk.sorted(Comparator.reverseOrder()).toList()) {
                 Files.deleteIfExists(p);
             }
-        } catch (IOException e) {
+        } catch (IOException | UncheckedIOException e) {
             // Leftovers in the temporary directory do no harm.
         }
     }
