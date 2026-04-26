@@ -12,6 +12,31 @@ case "$prefix" in
     *) prefix="$PWD/$prefix" ;;
 esac
 
+# The path of a directory that may not exist yet, with the links of its nearest existing parent resolved.
+resolve() {
+    dir="$1"
+    rest=
+    while [ ! -d "$dir" ]; do
+        rest="/$(basename "$dir")$rest"
+        dir="$(dirname "$dir")"
+    done
+    echo "$(cd "$dir" && pwd -P)$rest"
+}
+
+# Replacing the directory would delete the files to install, or copy them into themselves.
+payload="$(cd "$here/axl" && pwd -P)"
+target="$(resolve "$prefix")"
+case "$target/" in
+    "$payload"/*) overlap=yes ;;
+esac
+case "$payload/" in
+    "$target"/*) overlap=yes ;;
+esac
+if [ -n "${overlap:-}" ]; then
+    echo "install.sh: AXL_HOME $prefix overlaps the unpacked files in $here; choose another AXL_HOME" >&2
+    exit 1
+fi
+
 # The directory is replaced as a whole, so it must be empty or hold an earlier installation.
 if [ -e "$prefix" ] && [ -n "$(ls -A "$prefix")" ]; then
     if [ ! -x "$prefix/bin/axl" ] || [ ! -f "$prefix/lib/app/axl.cfg" ]; then
