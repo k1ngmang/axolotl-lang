@@ -1,13 +1,40 @@
 name: Installers
 
 # Builds the native installers on each system and checks each by installing it and running a program.
+# The installers carry everything that axl setup installs, so the paths are those of all of it.
 on:
   workflow_dispatch:
   workflow_call:
+  push:
+    branches: [main]
+    paths:
+      - installers/**
+      - axl-cli/**
+      - axl-compiler/**
+      - axl-compiler-javac/**
+      - axl-smap/**
+      - axl-runtime/**
+      - axl-gradle-plugin/**
+      - axl-maven-plugin/**
+      - build.gradle.kts
+      - settings.gradle.kts
+      - gradle.properties
+      - gradle/**
+      - .github/workflows/installers.yml
   pull_request:
     paths:
       - installers/**
       - axl-cli/**
+      - axl-compiler/**
+      - axl-compiler-javac/**
+      - axl-smap/**
+      - axl-runtime/**
+      - axl-gradle-plugin/**
+      - axl-maven-plugin/**
+      - build.gradle.kts
+      - settings.gradle.kts
+      - gradle.properties
+      - gradle/**
       - .github/workflows/installers.yml
 
 permissions:
@@ -71,6 +98,20 @@ jobs:
           grep -q "Hello, Axolotl" out.txt
           grep -q fooBar out.txt
           test -d ~/.m2/repository/org/axl/axl-maven-plugin
+      - name: Install the tarball with install.sh and run axl
+        if: matrix.system == 'linux'
+        run: |
+          mkdir -p "$RUNNER_TEMP/tarball" "$RUNNER_TEMP/home"
+          tar xzf axl-cli/build/installers/axolotl-*-linux-x64.tar.gz -C "$RUNNER_TEMP/tarball"
+          HOME="$RUNNER_TEMP/home" sh "$RUNNER_TEMP"/tarball/axolotl-*/install.sh | tee install.txt
+          grep -q "not on your PATH yet" install.txt
+          axl="$RUNNER_TEMP/home/.local/bin/axl"
+          test "$(readlink "$axl")" = "$RUNNER_TEMP/home/.local/share/axolotl/bin/axl"
+          "$axl" run "$RUNNER_TEMP/smoke/Hello.axl" | tee out.txt
+          grep -q "Hello, Axolotl" out.txt
+          # A second run replaces the earlier installation.
+          HOME="$RUNNER_TEMP/home" sh "$RUNNER_TEMP"/tarball/axolotl-*/install.sh
+          "$axl" --version
 
       - name: Build the macOS package
         if: matrix.system == 'macos'
