@@ -183,7 +183,8 @@ val appImage = tasks.register<Exec>("appImage") {
     val modules = runtimeModules.joinToString(",")
     val onWindows = windows
     val onMac = System.getProperty("os.name").startsWith("Mac")
-    val jlinkOptions = "--strip-debug --no-man-pages --no-header-files"
+    // Not --strip-debug, which turns the JDK frames of stack traces into `Unknown Source`.
+    val jlinkOptions = "--no-man-pages --no-header-files"
     inputs.property("version", version)
     inputs.property("modules", modules)
     inputs.property("jvmArgs", jvmArgs)
