@@ -4,7 +4,8 @@
 
 The release page has an installer for each system. Each one brings its own Java runtime, puts `axl`
 on the `PATH` and runs `axl setup`, which copies the Axolotl libraries and the Maven and Gradle
-plugins into `~/.m2/repository`. Maven and Gradle projects then build without anything else.
+plugins into `~/.m2/repository`. Maven and Gradle projects then find Axolotl there; they still
+download Error Prone, NullAway and their other dependencies from Maven Central.
 
 | System | File | How |
 |--------|------|-----|
@@ -116,23 +117,26 @@ passed to the program unchanged: `axl run --no-null-checks app/Main.axl --verbos
 
 ## IntelliJ IDEA
 
-IntelliJ IDEA 2024.2 or newer, Community or Ultimate:
+IntelliJ IDEA 2024.2 or newer, Community or Ultimate. Install `axl-intellij-<version>.zip` from the
+release page with *Settings | Plugins | Install Plugin from Disk*. To build it from source:
 
 ```
 ./gradlew :axl-intellij:buildPlugin
 ```
 
-Install `axl-intellij/build/distributions/axl-intellij-0.1.0.zip` with
-*Settings | Plugins | Install Plugin from Disk*. Gradle and Maven projects are recognized on import.
-See [the IntelliJ plugin](intellij.md).
+The plugin is then `axl-intellij/build/distributions/axl-intellij-0.1.0.zip`. Gradle and Maven
+projects are recognized on import. See [the IntelliJ plugin](intellij.md).
 
 ## VS Code and other editors
+
+The release page has the extension: `code --install-extension axolotl-<version>.vsix`. To build it
+from source, which needs Node.js:
 
 ```
 ./gradlew :axl-lsp:vsix
 code --install-extension editors/vscode/axolotl-0.1.0.vsix
 ```
 
-Building the extension needs Node.js. The extension starts the language server with the JDK from
-the `axl.java.home` setting, `JAVA_HOME` or the `PATH`. Other editors can run the server from
+The extension starts the language server with the JDK from the `axl.java.home` setting,
+`JAVA_HOME` or the `PATH`. Other editors can run the server from
 `./gradlew :axl-lsp:installDist` over standard input and output; see [the language server](lsp.md).

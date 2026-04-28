@@ -1,12 +1,13 @@
 # Getting started
 
 This page builds a small Gradle project with Axolotl and Java code side by side. It takes about ten
-minutes. You need JDK 21 and Git.
+minutes. You need JDK 21.
 
-## 1. Build Axolotl
+## 1. Install Axolotl
 
-Axolotl is not published to a public repository yet, so build it once and install it into your local
-Maven repository (`~/.m2/repository`):
+Axolotl is not published to a public repository yet; it goes into your local Maven repository
+(`~/.m2/repository`) instead. The [installers](install.md#installers) on the release page do that
+for you. Without one, build it once from source, which needs Git too:
 
 ```
 git clone https://github.com/succubus-uwu/axolotl.git
