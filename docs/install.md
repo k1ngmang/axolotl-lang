@@ -8,8 +8,8 @@ plugins into `~/.m2/repository`. Maven and Gradle projects then build without an
 
 | System | File | How |
 |--------|------|-----|
-| Windows | `axolotl-<version>-windows-x64-setup.exe` | Run it. Open a new terminal afterwards so that it sees the new `PATH`. |
-| macOS (Apple silicon) | `axolotl-<version>-macos-arm64.pkg` | Open it. The package is not signed: if macOS refuses, right-click it and choose *Open*. |
+| Windows | `axolotl-<version>-windows-x64-setup.exe` | Run it. It is not signed, so SmartScreen may stop it: choose *More info*, then *Run anyway*. Open a new terminal afterwards so that it sees the new `PATH`. |
+| macOS (Apple silicon) | `axolotl-<version>-macos-arm64.pkg` | Open it. The package is not signed: if macOS refuses, open *System Settings > Privacy & Security* and choose *Open Anyway*, or run `xattr -d com.apple.quarantine axolotl-<version>-macos-arm64.pkg` first. |
 | Debian, Ubuntu | `axolotl-<version>-linux-amd64.deb` | `sudo apt install ./axolotl-<version>-linux-amd64.deb` |
 | Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root, or into the directory `AXL_HOME` names. |
 
@@ -21,8 +21,9 @@ themselves still need a JDK 21 of their own. The bundled runtime has every modul
 Swing included, so the `.deb` depends on the X11, ALSA and font libraries.
 
 To remove it: Windows lists Axolotl under *Installed apps*; on Debian and Ubuntu run
-`sudo apt remove axolotl`; on macOS delete `/Applications/axl.app` and `/usr/local/bin/axl`; after the
-tarball delete `~/.local/share/axolotl` and `~/.local/bin/axl`.
+`sudo apt remove axolotl`; on macOS delete `/Applications/axl.app` and `/usr/local/bin/axl`, then
+run `sudo pkgutil --forget org.axl.cli`; after the tarball delete `~/.local/share/axolotl` and
+`~/.local/bin/axl`.
 
 ## From source
 
