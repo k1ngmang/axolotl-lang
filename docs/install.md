@@ -110,10 +110,17 @@ were deleted since its previous run with the same source directory; it keeps a l
 
 Common options: `--no-null-checks` skips Error Prone and NullAway, `--strict-null` turns on
 [strict null mode](language.md#java-code-without-nullness-annotations), `--inline-elvis` expands a
-statement-level `?:` without a lambda.
+statement-level `?:` without a lambda. `axl <command> --help` lists the options of each command.
 
 Options of `axl run` go before the `.axl` file; everything after it, options and `--` included, is
-passed to the program unchanged: `axl run --no-null-checks app/Main.axl --verbose`.
+passed to the program unchanged: `axl run --no-null-checks app/Main.axl --verbose`. The program
+reads them from `args`, the `String[]` that every `fn main()` has; `fn main` itself takes no
+parameters. `axl run` has no `-cp`: a program that needs libraries besides the Axolotl runtime is
+built with `axl build -cp`, Gradle or Maven.
+
+Exit codes: 0 on success; 1 when the sources have errors, or when the program that `axl run`
+started throws; 2 for a wrong command line or a file that cannot be read. A program that calls
+`System.exit` sets the code itself.
 
 ## IntelliJ IDEA
 

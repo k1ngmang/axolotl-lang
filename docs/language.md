@@ -26,7 +26,9 @@ file are typed directly; anything else (a Java method, a function of another `.a
 javac from a draft translation of the module. When no type can be found, AXL009 asks for one.
 
 `Parse.axl` becomes `@NullMarked public final class Parse`. Top-level declarations are public
-unless marked `private`. `fn main()` becomes `public static void main(String[] args)`.
+unless marked `private`. `fn main()` becomes `public static void main(String[] args)`, so its body
+reads the command line arguments from `args`. A `main` with parameters is an ordinary function, not
+an entry point.
 
 ## Types
 
