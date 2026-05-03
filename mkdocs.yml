@@ -4,6 +4,9 @@ repo_url: https://github.com/succubus-uwu/axolotl
 edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: build/site
+# --strict fails on warnings; broken anchors are only reported as info by default.
+validation:
+  anchors: warn
 theme:
   name: mkdocs
   highlightjs: true
