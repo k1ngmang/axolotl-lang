@@ -24,6 +24,14 @@ val mavenPlugin = tasks.register<Exec>("mavenPlugin") {
     inputs.file("pom.xml")
     inputs.dir("src")
     inputs.dir(rootProject.layout.projectDirectory.dir("samples/maven-app"))
+    val version = project.version
+    inputs.files(rootProject.layout.buildDirectory.dir("test-repo").map { repo ->
+        repo.asFileTree.matching {
+            listOf("axl-runtime", "axl-compiler", "axl-compiler-javac", "axl-smap").forEach {
+                include("org/axl/$it/$version/*.jar", "org/axl/$it/$version/*.pom")
+            }
+        }
+    }).withPropertyName("axlArtifacts")
     outputs.file("target/axl-maven-plugin-${project.version}.jar")
     // Maven does not resolve an artifact again once it is in the repository; drop ours so the freshly published modules are used.
     val axlArtifacts = File(mavenRepo, "org/axl")
@@ -37,8 +45,14 @@ val archetype = tasks.register<Exec>("archetype") {
     val dir = file("axl-archetype-quickstart")
     inputs.dir(dir.resolve("src"))
     inputs.file(dir.resolve("pom.xml"))
+    inputs.files(mavenPlugin).withPropertyName("plugin")
     outputs.file(dir.resolve("target/axl-archetype-quickstart-${project.version}.jar"))
     maven(dir, "install")
+}
+
+// Maven builds into target, which the clean task of the base plugin does not know.
+tasks.clean {
+    delete("target", "axl-archetype-quickstart/target")
 }
 
 tasks.check {
