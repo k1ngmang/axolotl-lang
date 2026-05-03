@@ -1,0 +1,3 @@
+AXL104 app/Main.axl:10:21: error: Java code without nullness annotations may pass null to `add`, but `add` takes a type argument written without `?` here; pass a lambda that checks for null
+AXL104 app/Main.axl:11:30: error: Java code without nullness annotations may call `String::length` on null; pass a lambda that checks for null
+AXL104 app/Main.axl:12:21: error: Java code without nullness annotations may pass null to `P`, but the parameter `s` does not accept null; pass a lambda that checks for null

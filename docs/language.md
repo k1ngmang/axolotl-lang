@@ -191,7 +191,8 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   drops the `?`: its value fits a `List<String>`.
 - `Map.get` may return null, as NullAway knows.
 - A method reference is checked like the lambda it stands for: `xs.forEach(Main::print)` on a
-  `List<String?>` needs a `print` that accepts null.
+  `List<String?>` needs a `print` that accepts null, and so do `P::new` and `ys::add` on an
+  `ArrayList<String>`.
 - A local written with a type without `?` cannot hold a value that may be null, and a lambda passed
   to Java cannot return null where the interface's result type has no `?`: `Supplier<String>` must
   not return null, `Supplier<String?>` may.
@@ -213,8 +214,8 @@ Such a value may not be dereferenced, unboxed, passed to an Axolotl parameter, r
 Axolotl function or stored where the type is written without `?` until it is checked. A top-level
 `val` inferred from it gets a nullable type, a lambda that unannotated Java code calls gets nullable
 parameters (also when an Axolotl function hands it on as a parameter of a JDK interface type), and
-a reference to an Axolotl function with parameters without `?` cannot be passed to
-such code.
+a method reference passed to such code must accept null: not `Main::print` with a parameter without
+`?`, `String::length` or `ys::add` on an `ArrayList<String>`.
 
 Trusted in strict mode: static final fields of the JDK such as `System.out`, constants, the Axolotl
 runtime, `Objects.requireNonNull`, the methods of `String`, `StringBuilder`, `Math` and the number

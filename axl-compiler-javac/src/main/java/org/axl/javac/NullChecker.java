@@ -673,66 +673,109 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitMemberReference(MemberReferenceTree reference, Void unused) {
             super.visitMemberReference(reference, unused);
-            if (element(reference) instanceof ExecutableElement method && checkReference(reference, method)) {
-                return null;
-            }
-            if (strict && passedToJava(getCurrentPath()) && element(reference) instanceof ExecutableElement method
-                    && isAxolotlCode(method)) {
-                for (VariableElement param : method.getParameters()) {
-                    if (!param.asType().getKind().isPrimitive() && !PlatformValues.isNullable(param, param.asType())) {
-                        report(reference, Origin.PLATFORM, false, "Java code without nullness annotations may pass null to `"
-                                + method.getSimpleName() + "`, but the parameter `" + param.getSimpleName()
-                                + "` does not accept null; pass a lambda that checks for null");
-                        break;
-                    }
-                }
+            if (element(reference) instanceof ExecutableElement method) {
+                checkReference(reference, method);
             }
             return null;
         }
 
         /**
          * A method reference gets what a lambda in its place would get as parameters, and must return
-         * what it would return. Returns whether anything is wrong.
+         * what it would return. Reports the first problem.
          */
-        private boolean checkReference(MemberReferenceTree reference, ExecutableElement method) {
+        private void checkReference(MemberReferenceTree reference, ExecutableElement method) {
             TypeMirror target = trees.getTypeMirror(getCurrentPath());
             if (!(target instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement iface)
-                    || functionalMethod(iface) == null || method.getKind() == ElementKind.CONSTRUCTOR) {
-                return false;
+                    || functionalMethod(iface) == null) {
+                return;
             }
             ExecutableElement sam = functionalMethod(iface);
-            List<Shape> passed = passedShapes(getCurrentPath());
-            List<Shape> written = parameterShapes(target, Map.of());
-            boolean nullAwayChecks = isNullMarked(iface);
-            boolean unbound = !method.getModifiers().contains(Modifier.STATIC) && isTypeName(reference.getQualifierExpression());
-            String name = "`" + reference + "`";
-            for (int i = 0; i < sam.getParameters().size(); i++) {
-                Origin origin = i < passed.size() && passed.get(i).nullable() ? Origin.HIDDEN
-                        : i < written.size() && written.get(i).nullable() ? Origin.DECLARED : Origin.NONE;
+            List<Origin> given = referenceArguments(target, sam);
+            boolean unbound = method.getKind() == ElementKind.METHOD && !method.getModifiers().contains(Modifier.STATIC)
+                    && isTypeName(reference.getQualifierExpression());
+            for (int i = 0; i < given.size(); i++) {
                 int index = unbound ? i - 1 : i;
-                if (unbound && i == 0) {
-                    if (report(reference, origin, nullAwayChecks, name + " is called on values that may be null; "
-                            + "use a lambda with `?.`, or drop the nulls first")) {
-                        return true;
-                    }
-                } else if (isAxolotlCode(method) && index < method.getParameters().size()) {
-                    VariableElement param = method.getParameters().get(index);
-                    if (!param.asType().getKind().isPrimitive() && !PlatformValues.isNullable(param, param.asType())
-                            && report(reference, origin, nullAwayChecks, name + " may get null, but the parameter `"
-                            + param.getSimpleName() + "` does not accept null; pass a lambda that checks for null")) {
-                        return true;
-                    }
+                boolean wrong = unbound && i == 0 ? checkReferenceReceiver(reference, given.get(i), isNullMarked(iface))
+                        : index < method.getParameters().size()
+                        && checkReferenceParameter(reference, method, index, given.get(i), isNullMarked(iface));
+                if (wrong) {
+                    return;
                 }
             }
             TypeMirror returned = ((ExecutableType) types.asMemberOf(declared, sam)).getReturnType();
             if (returned.getKind() == TypeKind.VOID || returned.getKind().isPrimitive()
                     || !PlatformValues.isNullable(method, method.getReturnType())
                     || resultMayBeNull(getCurrentPath(), iface, sam, returned)) {
-                return false;
+                return;
             }
-            return report(reference, Origin.DECLARED, nullAwayChecks, name + " may return null, but `"
+            report(reference, Origin.DECLARED, isNullMarked(iface), "`" + reference + "` may return null, but `"
                     + iface.getSimpleName() + "." + sam.getSimpleName() + "` returns `" + typeName(returned)
                     + "` here; use a lambda with `?:`");
+        }
+
+        /** Why each value a method reference is called with may be null, as for the parameters of a lambda. */
+        private List<Origin> referenceArguments(TypeMirror target, ExecutableElement sam) {
+            List<Shape> passed = passedShapes(getCurrentPath());
+            List<Shape> written = parameterShapes(target, Map.of());
+            boolean fromJava = strict && passedToJava(getCurrentPath());
+            List<Origin> origins = new ArrayList<>();
+            for (int i = 0; i < sam.getParameters().size(); i++) {
+                Shape fromCall = i < passed.size() ? passed.get(i) : Shape.NONE;
+                Shape fromType = i < written.size() ? written.get(i) : Shape.NONE;
+                origins.add(fromCall.nullable() ? Origin.HIDDEN : fromType.nullable() ? Origin.DECLARED
+                        : fromJava || fromCall.fromJava() ? Origin.PLATFORM : Origin.NONE);
+            }
+            return origins;
+        }
+
+        private boolean checkReferenceReceiver(MemberReferenceTree reference, Origin origin, boolean nullAwayChecks) {
+            String problem = origin == Origin.PLATFORM
+                    ? "Java code without nullness annotations may call `" + reference + "` on null; pass a lambda that checks for null"
+                    : "`" + reference + "` is called on values that may be null; use a lambda with `?.`, or drop the nulls first";
+            return report(reference, origin, nullAwayChecks, problem);
+        }
+
+        /**
+         * The parameters of Axolotl code say whether they accept null; those of a JDK method whose type is
+         * a type argument of the receiver, such as `add` of `ys::add`, follow that type argument.
+         */
+        private boolean checkReferenceParameter(MemberReferenceTree reference, ExecutableElement method, int index,
+                                                Origin origin, boolean nullAwayChecks) {
+            VariableElement param = method.getParameters().get(index);
+            String rejects;
+            if (isAxolotlCode(method)) {
+                if (param.asType().getKind().isPrimitive() || PlatformValues.isNullable(param, param.asType())) {
+                    return false;
+                }
+                rejects = "the parameter `" + param.getSimpleName() + "` does not accept null";
+            } else if (takesWrittenTypeArgument(reference, method, param)) {
+                rejects = "`" + calledName(method) + "` takes a type argument written without `?` here";
+                nullAwayChecks = false;
+            } else {
+                return false;
+            }
+            String gets = origin == Origin.PLATFORM
+                    ? "Java code without nullness annotations may pass null to `" + calledName(method) + "`"
+                    : "`" + reference + "` may get null";
+            return report(reference, origin, nullAwayChecks, gets + ", but " + rejects + "; pass a lambda that checks for null");
+        }
+
+        private static String calledName(ExecutableElement method) {
+            return method.getKind() == ElementKind.CONSTRUCTOR ? method.getEnclosingElement().getSimpleName().toString()
+                    : method.getSimpleName().toString();
+        }
+
+        /** `ys::add` on an `ArrayList<String>`: the parameter is a type variable that the receiver gives without `?`. */
+        private boolean takesWrittenTypeArgument(MemberReferenceTree reference, ExecutableElement method, VariableElement param) {
+            ExpressionTree receiver = reference.getQualifierExpression();
+            if (!(param.asType() instanceof TypeVariable variable) || nullableAnnotated(variable) || isTypeName(receiver)
+                    || !(method.getEnclosingElement() instanceof TypeElement owner) || isNullMarked(owner)
+                    || isOneOf(method, NULL_ARGUMENT_ALLOWED)) {
+                return false;
+            }
+            Shape wanted = writtenBindings(owner, asSuper(typeOf(receiver), owner), receiverBindings(receiver, method))
+                    .getOrDefault(variable.asElement(), Shape.ANY);
+            return !wanted.nullable();
         }
 
         /** What may be null in the parameters that the call a lambda or method reference is passed to gives it. */
@@ -1032,8 +1075,7 @@ final class NullChecker implements TaskListener {
                 }
             }
             method.getTypeParameters().forEach(v -> written.put(v, fromArguments.getOrDefault(v, Shape.ANY)));
-            String name = method.getKind() == ElementKind.CONSTRUCTOR ? type.getSimpleName().toString()
-                    : method.getSimpleName().toString();
+            String name = calledName(method);
             for (int i = 0; i < args.size(); i++) {
                 ExpressionTree arg = args.get(i);
                 TypeMirror param = elementParameterType(method, i, args);

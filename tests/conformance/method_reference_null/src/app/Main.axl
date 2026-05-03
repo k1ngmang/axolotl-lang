@@ -1,0 +1,24 @@
+package app
+
+import java.util.ArrayList
+import java.util.TreeSet
+
+data class P(val s: String)
+data class Q(val s: String?)
+
+fn main() {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    println(xs.stream().map(P::new).toList())
+    println(xs.stream().map(Q::new).toList())
+    val ys = ArrayList<String>()
+    xs.forEach(ys::add)
+    xs.stream().forEach(ys::add)
+    val sorted = TreeSet<String>()
+    xs.forEach(sorted::add)
+    val maybe = ArrayList<String?>()
+    xs.forEach(maybe::add)
+    val names = ArrayList<String>()
+    ys.forEach(names::add)
+    println(ys.stream().map(P::new).toList())
+}

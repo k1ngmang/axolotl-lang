@@ -1,0 +1,16 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+data class P(val s: String)
+
+fn main() {
+    val ys = ArrayList<String>()
+    lib.Legacy.call(ys::add)
+    println(lib.Legacy.apply(String::length))
+    lib.Legacy.call(P::new)
+    val maybe = ArrayList<String?>()
+    lib.Legacy.call(maybe::add)
+    println(List.of("a").stream().map(String::length).toList())
+}
