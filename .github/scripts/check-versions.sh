@@ -1,7 +1,8 @@
 #!/bin/sh
 # Usage: check-versions.sh <tag>
 # Fails unless the tag, without its v, is the version of the Gradle build and of every file that
-# repeats it outside Gradle.
+# repeats it outside Gradle, the release notes for the tag exist, and the POMs use the library
+# versions of gradle/libs.versions.toml.
 set -e
 
 expected="${1#v}"
@@ -29,5 +30,50 @@ for pom in axl-maven-plugin/src/it/*/pom.xml; do
 done
 check editors/vscode/package.json "$(sed -n 's/^  "version": "\(.*\)",$/\1/p' editors/vscode/package.json)"
 check editors/vscode/package-lock.json "$(sed -n 's/^  "version": "\(.*\)",$/\1/p' editors/vscode/package-lock.json)"
+
+# Every version that a file names next to an Axolotl artifact.
+named_versions() {
+    grep -ohE 'org\.axl\.lang"\) version "[^"]+"|archetypeVersion=[^ ]+|axolotl-[0-9][^ /]*\.vsix|axl-intellij-[0-9][^ /]*\.zip|<axl\.version>[^<]+' "$1" |
+        sed -E 's/.*version "([^"]+)"/\1/; s/archetypeVersion=//; s/axolotl-(.*)\.vsix/\1/; s/axl-intellij-(.*)\.zip/\1/; s/<axl\.version>//'
+}
+for file in README.md docs/*.md editors/vscode/README.md samples/maven-app/pom.xml samples/multi-module-gradle/build.gradle.kts; do
+    for version in $(named_versions "$file"); do
+        check "$file" "$version"
+    done
+done
+
+notes=".github/release/$1.md"
+if [ ! -f "$notes" ]; then
+    echo "$notes is missing; the release takes its notes from there" >&2
+    status=1
+fi
+
+catalog() {
+    sed -n "s/^$1 = \"\(.*\)\"$/\1/p" gradle/libs.versions.toml
+}
+
+# A POM may leave a library out, but not use another version of it.
+check_library() {
+    if [ -n "$3" ] && [ "$3" != "$(catalog "$4")" ]; then
+        echo "$1 has $2 $3, gradle/libs.versions.toml has $(catalog "$4")" >&2
+        status=1
+    fi
+}
+
+property() {
+    sed -n "s#.*<$2>\(.*\)</$2>.*#\1#p" "$1" | head -1
+}
+
+version_after() {
+    sed -n "/<artifactId>$2<\/artifactId>/{n;s#.*<version>\(.*\)</version>.*#\1#p;}" "$1" | head -1
+}
+
+for pom in axl-maven-plugin/pom.xml axl-maven-plugin/axl-archetype-quickstart/src/main/resources/archetype-resources/pom.xml \
+        axl-maven-plugin/src/it/*/pom.xml samples/maven-app/pom.xml; do
+    check_library "$pom" "Error Prone" "$(property "$pom" errorprone.version)" errorprone
+    check_library "$pom" NullAway "$(property "$pom" nullaway.version)" nullaway
+    check_library "$pom" JUnit "$(version_after "$pom" junit-jupiter)" junit
+    check_library "$pom" Gson "$(version_after "$pom" gson)" gson
+done
 
 exit $status
