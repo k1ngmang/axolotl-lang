@@ -46,6 +46,24 @@ The `.axlmap` line maps stay next to the generated `.java` files, where the java
 | `skip`        | `axl.skip`        | `false` | Skip the goal. |
 | `nullAway`    | `axl.nullAway`    | `true`  | `axl:check` only: run Error Prone and NullAway. |
 
+The directories are parameters too, without a property:
+
+| Parameter              | Goals                             | Default                             |
+|------------------------|-----------------------------------|-------------------------------------|
+| `sourceDirectory`      | `generate`, `check`, `lsp-config` | `src/main/axl`                      |
+| `outputDirectory`      | `generate`, `check`, `smap`       | `target/generated-sources/axl`      |
+| `classesDirectory`     | `smap`                            | `target/classes`                    |
+| `testSourceDirectory`  | `generate-test`, `lsp-config`     | `src/test/axl`                      |
+| `testOutputDirectory`  | `generate-test`, `smap-test`      | `target/generated-test-sources/axl` |
+| `testClassesDirectory` | `smap-test`                       | `target/test-classes`               |
+| `outputFile`           | `lsp-config`                      | `target/axl/axl.json`               |
+
+`smap` and `check` read the generated files and their `.axlmap` line maps from their own
+`outputDirectory`, and `check` its own `sourceDirectory`. When `generate` uses other directories,
+give the same ones to `smap` and `check`, for example in the plugin's `<configuration>` rather than
+in one execution; otherwise `smap` finds no line maps and adds no SMAP. The same holds for
+`generate-test` and `smap-test`.
+
 ## Error Prone, NullAway and `.axl` error positions
 
 `maven-compiler-plugin` needs three things, all shown in the sample:
