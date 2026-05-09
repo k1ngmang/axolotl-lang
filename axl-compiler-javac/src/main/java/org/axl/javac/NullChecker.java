@@ -639,7 +639,8 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitEnhancedForLoop(EnhancedForLoopTree loop, Void unused) {
             scan(loop.getExpression(), null);
-            reportValue(loop.getExpression(), loop.getExpression(), true, ", but `for` needs something to go through");
+            reportValue(loop.getExpression(), loop.getExpression(), true, ", but `for` needs something to go through",
+                    "use `?:`, a null check or `!!`");
             Element variable = trees.getElement(new TreePath(getCurrentPath(), loop.getVariable()));
             Shape loopElements = elementShape(loop.getExpression());
             if (variable != null) {
@@ -1911,12 +1912,16 @@ final class NullChecker implements TaskListener {
 
         /** Reports a value that may be null where a use needs one that is not; see `report`. */
         private boolean reportValue(Tree at, ExpressionTree value, boolean nullAwayChecks, String problem) {
+            return reportValue(at, value, nullAwayChecks, problem, FIX);
+        }
+
+        private boolean reportValue(Tree at, ExpressionTree value, boolean nullAwayChecks, String problem, String fix) {
             Origin origin = origin(value);
             if (nullAwayChecks && origin == Origin.DECLARED && mayChange(value)) {
                 String fix = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
                 return report(at, origin, false, describe(value) + problem + "; " + fix);
             }
-            return report(at, origin, nullAwayChecks, describe(value) + problem + "; " + FIX);
+            return report(at, origin, nullAwayChecks, describe(value) + problem + "; " + fix);
         }
 
         /** Reports unless NullAway reports the same problem; returns whether anything is wrong. */
