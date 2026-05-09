@@ -319,6 +319,8 @@ final class NullChecker implements TaskListener {
                 store(assignment.getExpression(), target, null);
             } else if (isAxolotlCode(target)) {
                 checkValue(assignment.getExpression(), target.asType(), target, true, "`" + target.getSimpleName() + "` is not nullable");
+            } else if (assignment.getVariable() instanceof MemberSelectTree select) {
+                checkTypeArgumentField(select, target, assignment.getExpression());
             }
             return null;
         }
@@ -1075,23 +1077,38 @@ final class NullChecker implements TaskListener {
                 }
             }
             method.getTypeParameters().forEach(v -> written.put(v, fromArguments.getOrDefault(v, Shape.ANY)));
-            String name = calledName(method);
+            String takes = "`" + calledName(method) + "` takes";
             for (int i = 0; i < args.size(); i++) {
-                ExpressionTree arg = args.get(i);
-                TypeMirror param = elementParameterType(method, i, args);
-                Shape wanted = shapeOf(param, written);
-                if (param instanceof TypeVariable variable && !nullableAnnotated(variable) && !wanted.nullable()) {
-                    report(arg, origin(arg), false, describe(arg) + ", but `" + name
-                            + "` takes a type argument written without `?` here; add `?` to the type argument or " + FIX);
-                }
-                TypeMirror seen = param instanceof TypeVariable variable ? writtenType(type, owner, variable) : param;
-                if (!(unwrap(arg) instanceof LambdaExpressionTree) && !(unwrap(arg) instanceof MemberReferenceTree)
-                        && seen instanceof DeclaredType declared && declared.asElement() instanceof TypeElement element
-                        && shapeAs(shape(arg), typeOf(arg), element).losesQuestionMark(wanted)) {
-                    report(arg, Origin.HIDDEN, false, "a type argument of the value has `?`, but `" + name
-                            + "` takes a type argument written without `?` there; add `?` to the type argument or "
-                            + "drop the nulls first: `|> filter { it != null }`");
-                }
+                checkTypeArgumentValue(args.get(i), elementParameterType(method, i, args), written, type, owner, takes);
+            }
+        }
+
+        /** `box.value = x` on a `Box<String>` of Java, whose field `value` has the type `T`. */
+        private void checkTypeArgumentField(MemberSelectTree target, Element field, ExpressionTree value) {
+            ExpressionTree receiver = target.getExpression();
+            if (isTypeName(receiver) || !(field.getEnclosingElement() instanceof TypeElement type) || isNullMarked(type)) {
+                return;
+            }
+            DeclaredType owner = asSuper(typeOf(receiver), type);
+            Map<Element, Shape> written = writtenBindings(type, owner, receiverBindings(receiver, field));
+            checkTypeArgumentValue(value, field.asType(), written, type, owner, "`" + field.getSimpleName() + "` holds");
+        }
+
+        /** A value that goes where the type, or one of its type arguments, is a type argument written without `?`. */
+        private void checkTypeArgumentValue(ExpressionTree value, TypeMirror type, Map<Element, Shape> written,
+                                            TypeElement declaring, DeclaredType owner, String takes) {
+            Shape wanted = shapeOf(type, written);
+            if (type instanceof TypeVariable variable && !nullableAnnotated(variable) && !wanted.nullable()) {
+                report(value, origin(value), false, describe(value) + ", but " + takes
+                        + " a type argument written without `?` here; add `?` to the type argument or " + FIX);
+            }
+            TypeMirror seen = type instanceof TypeVariable variable ? writtenType(declaring, owner, variable) : type;
+            if (!(unwrap(value) instanceof LambdaExpressionTree) && !(unwrap(value) instanceof MemberReferenceTree)
+                    && seen instanceof DeclaredType declared && declared.asElement() instanceof TypeElement element
+                    && shapeAs(shape(value), typeOf(value), element).losesQuestionMark(wanted)) {
+                report(value, Origin.HIDDEN, false, "a type argument of the value has `?`, but " + takes
+                        + " a type argument written without `?` there; add `?` to the type argument or "
+                        + "drop the nulls first: `|> filter { it != null }`");
             }
         }
 

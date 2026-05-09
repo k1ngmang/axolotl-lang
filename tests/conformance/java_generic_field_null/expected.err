@@ -1,0 +1,3 @@
+AXL102 app/Main.axl:11:17: error: `x` may be null, but `value` holds a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:12:17: error: the result of `maybe()` may be null, but `value` holds a type argument written without `?` here; add `?` to the type argument or use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:21:19: error: a type argument of the value has `?`, but `value` holds a type argument written without `?` there; add `?` to the type argument or drop the nulls first: `|> filter { it != null }`

@@ -1,0 +1,25 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn maybe() -> String? = null
+
+fn main() {
+    val box = Box<String>()
+    val x: String? = maybe()
+    box.value = x
+    box.value = maybe()
+    box.value = x ?: "fallback"
+    if (x != null) {
+        box.value = x
+    }
+    val open = Box<String?>()
+    open.value = x
+    val lists = Box<List<String>>()
+    val withNulls = ArrayList<String?>()
+    lists.value = withNulls
+    lists.value = withNulls |> filter { it != null }
+    box.next = Box<String>()
+    println(box.value.length())
+}
