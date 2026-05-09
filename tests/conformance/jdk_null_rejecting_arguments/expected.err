@@ -1,0 +1,12 @@
+AXL102 app/Main.axl:15:28: error: `x` may be null, but `contains` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:16:26: error: `x` may be null, but `concat` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:17:30: error: `x` may be null, but `startsWith` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:18:29: error: `x` may be null, but `compareTo` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:19:27: error: `x` may be null, but `StringBuilder` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:20:34: error: `x` may be null, but `contains` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:21:34: error: `x` may be null, but `indexOf` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:34: error: `x` may be null, but `get` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:24:24: error: `x` may be null, but `get` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:27:28: error: `x` may be null, but `contains` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:29:23: error: `x` may be null, but `get` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:31:15: error: `x` may be null, but the parameter does not accept null: use `?:` or check `if (x != null)`

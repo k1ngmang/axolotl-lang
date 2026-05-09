@@ -105,6 +105,33 @@ final class NullChecker implements TaskListener {
     // Factories that throw on null elements.
     private static final Set<String> NULL_REJECTING_FACTORIES = Set.of("java.util.List.of", "java.util.List.copyOf",
             "java.util.Set.of", "java.util.Set.copyOf", "java.util.Map.of", "java.util.Map.copyOf", "java.util.Map.entry");
+    // JDK methods that throw on a null argument, by the class of the receiver ("new" for a constructor),
+    // and those that throw only on a null first argument, the key. See docs/decisions.md.
+    private static final Set<String> NULL_REJECTING = Set.of("java.lang.String.contains", "java.lang.String.concat",
+            "java.lang.String.startsWith", "java.lang.String.endsWith", "java.lang.String.compareTo",
+            "java.lang.String.compareToIgnoreCase", "java.lang.String.indexOf", "java.lang.String.lastIndexOf",
+            "java.lang.String.replace", "java.lang.String.replaceAll", "java.lang.String.replaceFirst",
+            "java.lang.String.split", "java.lang.String.matches", "java.lang.String.contentEquals",
+            "java.lang.String.join", "java.lang.String.new", "java.lang.StringBuilder.new", "java.lang.StringBuffer.new",
+            "java.lang.CharSequence.compare", "java.lang.Integer.compareTo", "java.lang.Long.compareTo",
+            "java.lang.Double.compareTo", "java.lang.Boolean.compareTo", "java.lang.Character.compareTo",
+            "java.util.TreeSet.add", "java.util.TreeSet.contains", "java.util.TreeSet.remove", "java.util.TreeSet.ceiling",
+            "java.util.TreeSet.floor", "java.util.TreeSet.higher", "java.util.TreeSet.lower",
+            "java.util.concurrent.ConcurrentHashMap.put", "java.util.concurrent.ConcurrentHashMap.putIfAbsent",
+            "java.util.concurrent.ConcurrentHashMap.replace", "java.util.concurrent.ConcurrentHashMap.containsValue",
+            "java.util.ArrayDeque.add", "java.util.ArrayDeque.addFirst", "java.util.ArrayDeque.addLast",
+            "java.util.ArrayDeque.offer", "java.util.ArrayDeque.offerFirst", "java.util.ArrayDeque.offerLast",
+            "java.util.ArrayDeque.push");
+    private static final Set<String> NULL_REJECTING_KEY = Set.of("java.util.TreeMap.get", "java.util.TreeMap.containsKey",
+            "java.util.TreeMap.remove", "java.util.TreeMap.put", "java.util.TreeMap.putIfAbsent",
+            "java.util.TreeMap.ceilingKey", "java.util.TreeMap.floorKey", "java.util.TreeMap.higherKey",
+            "java.util.TreeMap.lowerKey", "java.util.TreeMap.ceilingEntry", "java.util.TreeMap.floorEntry",
+            "java.util.TreeMap.higherEntry", "java.util.TreeMap.lowerEntry", "java.util.concurrent.ConcurrentHashMap.get",
+            "java.util.concurrent.ConcurrentHashMap.containsKey", "java.util.concurrent.ConcurrentHashMap.remove",
+            "java.util.concurrent.ConcurrentHashMap.getOrDefault");
+    // What the collections of `List.of` and the like throw on when asked about null.
+    private static final Set<String> IMMUTABLE_QUERIES = Set.of("contains", "indexOf", "lastIndexOf", "containsKey",
+            "containsValue", "get");
 
     /**
      * Why a value may be null, ordered so that merging two paths keeps the larger one. NullAway sees
@@ -405,6 +432,7 @@ final class NullChecker implements TaskListener {
                 checkArguments(method, call.getArguments());
             } else {
                 checkPrimitiveArguments(method, call.getArguments());
+                checkNullRejecting(call, method);
             }
             if (call.getMethodSelect() instanceof MemberSelectTree select && !isTypeName(select.getExpression())) {
                 ExpressionTree receiver = select.getExpression();
@@ -449,6 +477,8 @@ final class NullChecker implements TaskListener {
                 checkArguments(constructor, newClass.getArguments());
             } else {
                 checkPrimitiveArguments(constructor, newClass.getArguments());
+                checkNullRejecting(constructor, newClass.getArguments(),
+                        rejectedCount(created.getQualifiedName() + ".new", constructor));
             }
             if (newClass.getIdentifier() instanceof ParameterizedTypeTree generic && !generic.getTypeArguments().isEmpty()
                     && typeOf(newClass) instanceof DeclaredType createdType) {
@@ -1188,6 +1218,38 @@ final class NullChecker implements TaskListener {
             boolean element = method.isVarArgs() && index >= method.getParameters().size() - 1
                     && type instanceof ArrayType && !(typeOf(args.get(index)) instanceof ArrayType);
             return element ? ((ArrayType) type).getComponentType() : type;
+        }
+
+        /** `"abc".concat(x)`, `TreeMap.get(x)` and `List.of("a").contains(x)` throw on null. */
+        private void checkNullRejecting(MethodInvocationTree call, ExecutableElement method) {
+            ExpressionTree receiver = call.getMethodSelect() instanceof MemberSelectTree select
+                    && !isTypeName(select.getExpression()) ? select.getExpression() : null;
+            TypeMirror type = receiver != null ? typeOf(receiver) : method.getEnclosingElement().asType();
+            int checked = rejectedCount(erasedName(type) + "." + method.getSimpleName(), method);
+            if (receiver != null && immutable(receiver) && IMMUTABLE_QUERIES.contains(method.getSimpleName().toString())) {
+                checked = 1;
+            }
+            checkNullRejecting(method, call.getArguments(), checked);
+        }
+
+        private boolean immutable(ExpressionTree collection) {
+            return unwrap(collection) instanceof MethodInvocationTree factory
+                    && element(factory) instanceof ExecutableElement created && isOneOf(created, NULL_REJECTING_FACTORIES);
+        }
+
+        private static int rejectedCount(String name, ExecutableElement method) {
+            if (NULL_REJECTING.contains(name)) {
+                return method.isVarArgs() ? method.getParameters().size() - 1 : method.getParameters().size();
+            }
+            return NULL_REJECTING_KEY.contains(name) ? 1 : 0;
+        }
+
+        private void checkNullRejecting(ExecutableElement method, List<? extends ExpressionTree> args, int checked) {
+            for (int i = 0; i < Math.min(checked, args.size()); i++) {
+                if (!method.getParameters().get(i).asType().getKind().isPrimitive()) {
+                    reportValue(args.get(i), args.get(i), false, ", but `" + calledName(method) + "` does not take null");
+                }
+            }
         }
 
         /** `List.of(a, null)` throws. */

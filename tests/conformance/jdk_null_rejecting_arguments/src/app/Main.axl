@@ -1,0 +1,39 @@
+package app
+
+import java.util.ArrayDeque
+import java.util.List
+import java.util.Map
+import java.util.Set
+import java.util.TreeMap
+import java.util.TreeSet
+import java.util.concurrent.ConcurrentHashMap
+
+fn maybe() -> String? = null
+
+fn main() {
+    val x = maybe()
+    println("abc".contains(x))
+    println("abc".concat(x))
+    println("abc".startsWith(x))
+    println("abc".compareTo(x))
+    println(StringBuilder(x))
+    println(Set.of("a").contains(x))
+    println(List.of("a").indexOf(x))
+    println(Map.of("a", "b").get(x))
+    val sorted = TreeMap<String, String?>()
+    println(sorted.get(x))
+    sorted.put("k", x)
+    val names = TreeSet<String>()
+    println(names.contains(x))
+    val cache = ConcurrentHashMap<String, String>()
+    println(cache.get(x))
+    val queue = ArrayDeque<String?>()
+    queue.add(x)
+    println(String.join(",", "a", x))
+    println("abc".equalsIgnoreCase(x))
+    println(StringBuilder().append(x))
+    if (x != null) {
+        println("abc".contains(x) || "abc".startsWith(x ?: ""))
+    }
+    println("abc".concat(x ?: ""))
+}
