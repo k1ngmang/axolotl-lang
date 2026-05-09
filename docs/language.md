@@ -39,7 +39,8 @@ the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `ja
 ## Statements
 
 - `val x = e` declares a final local; `var x = e` a mutable one. A type is optional, except when the
-  value is `null` or a lambda: `val x: String? = null`.
+  value is `null` or a lambda: `val x: String? = null`. A `var` without a type has the type of its
+  first value, so `var s = "x"` cannot take null later; write `var s: String? = "x"` for that.
 - `x = e`, `x += e`, `-=`, `*=`, `/=`, `%=` assign to a `var` (or to a Java field).
 - `if (c) { ... } else if (d) { ... } else { ... }`, `while (c) { ... }`, `return e`.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
