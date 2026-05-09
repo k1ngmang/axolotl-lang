@@ -1,0 +1,5 @@
+AXL102 app/Main.axl:9:28: error: the result of `get()` may be null, but the `if` or `when` has a primitive type, so it is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:9:48: error: the result of `get()` may be null, but the `if` or `when` has a primitive type, so it is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:12:14: error: the value of `?.` may be null, but the `if` or `when` has a primitive type, so it is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:13:23: error: the result of `get()` may be null, but the `if` or `when` has a primitive type, so it is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:16:19: error: the result of `get()` may be null, but the `if` or `when` has a primitive type, so it is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`

@@ -1,0 +1,23 @@
+package app
+
+import java.util.HashMap
+
+fn main() {
+    val ints = HashMap<String, Int>()
+    val longs = HashMap<String, Long>()
+    val c = ints.isEmpty()
+    val both = if (c) ints.get("a") else longs.get("b")
+    val s: String? = null
+    val safe = when (ints.size()) {
+        0 -> s?.length()
+        else -> longs.get("b")
+    }
+    val n: Int = when (ints.size()) {
+        0 -> ints.get("a")
+        else -> 2
+    }
+    val same = if (c) ints.get("a") else ints.get("b")
+    val k = ints.get("k")
+    val checked = if (k != null) k else longs.get("b") ?: 0L
+    println("" + both + safe + n + same + checked)
+}

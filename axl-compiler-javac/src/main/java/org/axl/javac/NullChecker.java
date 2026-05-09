@@ -567,16 +567,20 @@ final class NullChecker implements TaskListener {
 
         @Override
         public Void visitSwitch(SwitchTree tree, Void unused) {
-            return cases(tree.getExpression(), tree.getCases());
+            return cases(tree.getExpression(), tree.getCases(), false);
         }
 
         @Override
         public Void visitSwitchExpression(SwitchExpressionTree tree, Void unused) {
-            return cases(tree.getExpression(), tree.getCases());
+            return cases(tree.getExpression(), tree.getCases(), isPrimitive(tree));
         }
 
-        /** Each branch starts from what was known before the switch; what follows may come from any of them. */
-        private Void cases(ExpressionTree selector, List<? extends CaseTree> cases) {
+        /**
+         * Each branch starts from what was known before the switch; what follows may come from any of them.
+         *
+         * @param promoted whether the switch has a primitive type, so that Java unboxes what its branches give
+         */
+        private Void cases(ExpressionTree selector, List<? extends CaseTree> cases, boolean promoted) {
             scan(selector, null);
             // NullAway checks the selector, but not for values from Java code without annotations.
             if (!takesNull(cases)) {
@@ -588,6 +592,9 @@ final class NullChecker implements TaskListener {
             for (CaseTree branch : cases) {
                 state = new HashMap<>(entry);
                 scan(branch, null);
+                if (promoted) {
+                    yielded(branch).forEach(this::checkPromotedBranch);
+                }
                 boolean leaves = branch.getBody() instanceof StatementTree body && exits(body);
                 if (!leaves) {
                     result = result == null ? state : merged(result, state);
@@ -717,11 +724,29 @@ final class NullChecker implements TaskListener {
             Map<Element, Origin> before = new HashMap<>(state);
             narrow(conditional.getCondition(), true);
             scan(conditional.getTrueExpression(), null);
+            if (isPrimitive(conditional)) {
+                checkPromotedBranch(conditional.getTrueExpression());
+            }
             state = new HashMap<>(before);
             narrow(conditional.getCondition(), false);
             scan(conditional.getFalseExpression(), null);
+            if (isPrimitive(conditional)) {
+                checkPromotedBranch(conditional.getFalseExpression());
+            }
             state = before;
             return null;
+        }
+
+        /**
+         * `c ? anInteger : aLong` has the type `long`: when the branches are numbers of different types,
+         * or a boxed and a primitive one, Java unboxes them all. So does a switch that goes where a
+         * primitive is expected. NullAway does not look into the branches.
+         */
+        private void checkPromotedBranch(ExpressionTree branch) {
+            if (BOXES.contains(erasedName(typeOf(branch)))) {
+                reportValue(branch, branch, false, ", but the `if` or `when` has a primitive type, so it is used as "
+                        + "a number or boolean here");
+            }
         }
 
         @Override
@@ -1348,8 +1373,10 @@ final class NullChecker implements TaskListener {
         private void checkUnboxing(ExpressionTree value, boolean nullAwayChecks) {
             TypeMirror type = typeOf(value);
             if (unwrap(value) instanceof SwitchExpressionTree tree) {
-                // A switch takes the primitive type it is assigned to, and NullAway does not look into its branches.
-                yielded(tree).forEach(branch -> checkUnboxing(branch, false));
+                // A switch of a primitive type had its branches checked where they were scanned.
+                if (!isPrimitive(tree)) {
+                    yielded(tree).forEach(branch -> checkUnboxing(branch, false));
+                }
             } else if (type != null && BOXES.contains(erasedName(type))) {
                 reportValue(value, value, nullAwayChecks, ", but is used as a number or boolean here");
             }
@@ -1357,29 +1384,31 @@ final class NullChecker implements TaskListener {
 
         /** The values the branches of a switch expression give, without those of switches nested in them. */
         private List<ExpressionTree> yielded(SwitchExpressionTree tree) {
+            return tree.getCases().stream().flatMap(c -> yielded(c).stream()).toList();
+        }
+
+        private List<ExpressionTree> yielded(CaseTree branch) {
             List<ExpressionTree> values = new ArrayList<>();
-            for (CaseTree branch : tree.getCases()) {
-                if (branch.getBody() instanceof ExpressionTree value) {
-                    values.add(value);
-                } else if (branch.getBody() != null) {
-                    new TreeScanner<Void, Void>() {
-                        @Override
-                        public Void visitYield(YieldTree yield, Void unused) {
-                            values.add(yield.getValue());
-                            return null;
-                        }
+            if (branch.getBody() instanceof ExpressionTree value) {
+                values.add(value);
+            } else if (branch.getBody() != null) {
+                new TreeScanner<Void, Void>() {
+                    @Override
+                    public Void visitYield(YieldTree yield, Void unused) {
+                        values.add(yield.getValue());
+                        return null;
+                    }
 
-                        @Override
-                        public Void visitSwitchExpression(SwitchExpressionTree nested, Void unused) {
-                            return null;
-                        }
+                    @Override
+                    public Void visitSwitchExpression(SwitchExpressionTree nested, Void unused) {
+                        return null;
+                    }
 
-                        @Override
-                        public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
-                            return null;
-                        }
-                    }.scan(branch.getBody(), null);
-                }
+                    @Override
+                    public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
+                        return null;
+                    }
+                }.scan(branch.getBody(), null);
             }
             return values;
         }
@@ -1819,6 +1848,12 @@ final class NullChecker implements TaskListener {
         /** Where a value that may be null came from. */
         private String describe(ExpressionTree expression) {
             ExpressionTree e = unwrap(expression);
+            if (e instanceof MethodInvocationTree call && call.getArguments().size() == 1
+                    && element(call) instanceof ExecutableElement method && method.getSimpleName().contentEquals("box")
+                    && isRuntime(method)) {
+                // `Nulls.box(x)` only gives `x` a boxed type.
+                return describe(call.getArguments().getFirst());
+            }
             Origin origin = origin(e);
             if (e.getKind() == Tree.Kind.NULL_LITERAL) {
                 return "the value is `null`";
