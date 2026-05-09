@@ -51,7 +51,7 @@ public final class DiagnosticTranslator {
         }
         String[] javaLines = source.unit().javaSource().split("\n", -1);
         String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
-        if (Messages.ignored(message, javaText)) {
+        if (Messages.ignored(message, javaText, String.join("\n", source.axlLines()))) {
             return null;
         }
         if (diagnostic.getCode().endsWith("raw.class.use")) {

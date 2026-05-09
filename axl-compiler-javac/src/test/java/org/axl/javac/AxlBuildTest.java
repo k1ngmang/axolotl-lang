@@ -213,10 +213,16 @@ class AxlBuildTest {
                     println("$t")
                     println("costs $5")
                 }
+
+                fn greet(a: Int, b: Int) {
+                    val unread = 1
+                    println("$a + ${a + b}")
+                }
                 """);
         String template = "Axolotl has no string templates, so `$` stays in the text; join the parts with `+`: "
                 + "`\"value is \" + x`";
-        assertEquals(List.of("5:13 " + template, "6:13 " + template), warnings);
+        assertEquals(List.of("5:13 " + template, "6:13 " + template, "12:9 `unread` is never read",
+                "13:13 " + template), warnings);
     }
 
     @Test
