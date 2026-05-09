@@ -1,0 +1,10 @@
+AXL102 app/Main.axl:9:47: error: the result of `poll()` may be null: the JDK method returns null when there is no value, but the function does not return null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:13:22: error: the result of `poll()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:14:27: error: the result of `peekFirst()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:16:29: error: the result of `put()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:17:27: error: the result of `remove()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:19:22: error: `previous` may be null: it holds the result of a JDK method that returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:20:52: error: the result of `firstEntry()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:21:44: error: the result of `ceiling()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:45: error: the result of `get()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:23:26: error: the result of `pollLast()` may be null: the JDK method returns null when there is no value, but `head` is not nullable; use `?.`, `?:`, a null check or `!!`

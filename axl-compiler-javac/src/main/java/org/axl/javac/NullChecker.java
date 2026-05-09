@@ -109,8 +109,9 @@ final class NullChecker implements TaskListener {
     /**
      * Why a value may be null, ordered so that merging two paths keeps the larger one. NullAway sees
      * {@code DECLARED} values itself, so where it checks a use, only the other kinds are reported here.
+     * {@code ABSENT} is the result of a JDK method that returns null when it has no value, such as `Queue.poll`.
      */
-    private enum Origin { NONE, HIDDEN, PLATFORM, DECLARED }
+    private enum Origin { NONE, HIDDEN, ABSENT, PLATFORM, DECLARED }
 
     /**
      * Which parts of a value may be null: the value itself and, by position, its type arguments. javac
@@ -1462,6 +1463,9 @@ final class NullChecker implements TaskListener {
                     && fallback.getBody() instanceof ExpressionTree body) {
                 return origin(body);
             }
+            if (PlatformValues.returnsNullByContract(method)) {
+                return Origin.ABSENT;
+            }
             Origin declared = unknownOrigin(method);
             if (declared == Origin.PLATFORM && returnsWrittenTypeArgument(call, method)) {
                 // `List<String>.get` returns what went in, and a type argument without `?` holds no nulls.
@@ -1543,7 +1547,8 @@ final class NullChecker implements TaskListener {
         private Shape valueShape(ExpressionTree expression) {
             Origin origin = origin(expression);
             Shape shape = shape(expression);
-            return origin == Origin.HIDDEN || origin == Origin.DECLARED ? new Shape(true, shape.args()) : shape.nonNull();
+            boolean nullable = origin == Origin.HIDDEN || origin == Origin.ABSENT || origin == Origin.DECLARED;
+            return nullable ? new Shape(true, shape.args()) : shape.nonNull();
         }
 
         private Shape callShape(MethodInvocationTree call, ExecutableElement method) {
@@ -1727,6 +1732,7 @@ final class NullChecker implements TaskListener {
                 return switch (origin) {
                     case PLATFORM -> name + ": it holds a value from Java code without nullness annotations";
                     case HIDDEN -> name + ": it holds a value of a type argument written with `?`";
+                    case ABSENT -> name + ": it holds the result of a JDK method that returns null when there is no value";
                     default -> name;
                 };
             }
@@ -1746,6 +1752,7 @@ final class NullChecker implements TaskListener {
                 return switch (origin) {
                     case PLATFORM -> name + " comes from Java code without nullness annotations and may be null";
                     case HIDDEN -> name + " may be null: its type is a type argument written with `?`";
+                    case ABSENT -> name + " may be null: the JDK method returns null when there is no value";
                     default -> name + " may be null";
                 };
             }

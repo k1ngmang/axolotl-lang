@@ -23,6 +23,22 @@ final class PlatformValues {
 
     // JDK methods that NullAway's library models treat as returning null, by name and parameter count.
     private static final Set<String> MODELED_NULLABLE = Set.of("java.util.Map.get/1", "java.lang.ref.Reference.get/0");
+    // JDK methods that return null by contract, for an empty collection, a missing key or no previous
+    // value, which NullAway's models leave out. Overrides are found through the supertypes.
+    private static final Set<String> NULL_BY_CONTRACT = Set.of("java.util.Queue.poll/0", "java.util.Queue.peek/0",
+            "java.util.Deque.pollFirst/0", "java.util.Deque.pollLast/0", "java.util.Deque.peekFirst/0",
+            "java.util.Deque.peekLast/0", "java.util.concurrent.BlockingQueue.poll/2",
+            "java.util.Map.put/2", "java.util.Map.remove/1", "java.util.Map.putIfAbsent/2", "java.util.Map.replace/2",
+            "java.util.NavigableMap.lowerKey/1", "java.util.NavigableMap.floorKey/1",
+            "java.util.NavigableMap.ceilingKey/1", "java.util.NavigableMap.higherKey/1",
+            "java.util.NavigableMap.lowerEntry/1", "java.util.NavigableMap.floorEntry/1",
+            "java.util.NavigableMap.ceilingEntry/1", "java.util.NavigableMap.higherEntry/1",
+            "java.util.NavigableMap.firstEntry/0", "java.util.NavigableMap.lastEntry/0",
+            "java.util.NavigableMap.pollFirstEntry/0", "java.util.NavigableMap.pollLastEntry/0",
+            "java.util.NavigableSet.lower/1", "java.util.NavigableSet.floor/1", "java.util.NavigableSet.ceiling/1",
+            "java.util.NavigableSet.higher/1", "java.util.NavigableSet.pollFirst/0", "java.util.NavigableSet.pollLast/0",
+            "java.util.concurrent.atomic.AtomicReference.get/0", "java.util.concurrent.atomic.AtomicReference.getAndSet/1",
+            "java.lang.ThreadLocal.get/0");
 
     private PlatformValues() {}
 
@@ -81,17 +97,23 @@ final class PlatformValues {
     static boolean isNullable(Element element, TypeMirror type) {
         return annotated(element, type, List.of("Nullable"))
                 || element instanceof ExecutableElement method && method.getEnclosingElement() instanceof TypeElement owner
-                && modeledNullable(owner, method.getSimpleName() + "/" + method.getParameters().size());
+                && listed(MODELED_NULLABLE, owner, method.getSimpleName() + "/" + method.getParameters().size());
     }
 
-    private static boolean modeledNullable(TypeElement type, String method) {
-        if (MODELED_NULLABLE.contains(type.getQualifiedName() + "." + method)) {
+    /** `poll` of a `Queue<String>` returns null when the queue is empty, although `String` has no `?`. */
+    static boolean returnsNullByContract(ExecutableElement method) {
+        return !method.getReturnType().getKind().isPrimitive() && method.getEnclosingElement() instanceof TypeElement owner
+                && listed(NULL_BY_CONTRACT, owner, method.getSimpleName() + "/" + method.getParameters().size());
+    }
+
+    private static boolean listed(Set<String> methods, TypeElement type, String method) {
+        if (methods.contains(type.getQualifiedName() + "." + method)) {
             return true;
         }
         List<TypeMirror> parents = new ArrayList<>(type.getInterfaces());
         parents.add(type.getSuperclass());
         for (TypeMirror parent : parents) {
-            if (parent instanceof DeclaredType declared && modeledNullable((TypeElement) declared.asElement(), method)) {
+            if (parent instanceof DeclaredType declared && listed(methods, (TypeElement) declared.asElement(), method)) {
                 return true;
             }
         }

@@ -190,7 +190,11 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   follows nested type arguments (`Map<String, List<String?>>`), copies such as `ArrayList<>(xs)` and
   `collect(Collectors.toList())`, and fields of Java generic classes. `xs |> filter { it != null }`
   drops the `?`: its value fits a `List<String>`.
-- `Map.get` may return null, as NullAway knows.
+- `Map.get` may return null, as NullAway knows, and so may the JDK methods that return null when
+  there is no value: `poll` and `peek` of a `Queue`, `pollFirst`, `peekFirst` and the like of a
+  `Deque`, `put`, `remove`, `putIfAbsent` and `replace` of a `Map` (the previous value), the
+  navigation methods of `NavigableMap` and `NavigableSet` (`ceiling`, `firstEntry`, ...),
+  `AtomicReference.get` and `getAndSet`, and `ThreadLocal.get`.
 - A method reference is checked like the lambda it stands for: `xs.forEach(Main::print)` on a
   `List<String?>` needs a `print` that accepts null, and so do `P::new` and `ys::add` on an
   `ArrayList<String>`.
@@ -222,7 +226,8 @@ Trusted in strict mode: static final fields of the JDK such as `System.out`, con
 runtime, `Objects.requireNonNull`, the methods of `String`, `StringBuilder`, `Math` and the number
 classes (except `Integer.getInteger` and `Long.getLong`), `List.of`, `Set.of`, `Map.of`, `toString()`,
 the stream operations that pipes expand to, code in a `@NullMarked` scope, and what a JDK class
-gives out of a type argument written in Axolotl without `?`, such as `get` on an `ArrayList<String>`.
+gives out of a type argument written in Axolotl without `?`, such as `get` on an `ArrayList<String>`,
+except the methods above that return null when there is no value.
 The elements of a `List<String>` returned by unannotated Java code may be null, also after `!!`, and
 so may what `get` of an unannotated generic Java class returns.
 

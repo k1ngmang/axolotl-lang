@@ -1,0 +1,33 @@
+package app
+
+import java.util.ArrayDeque
+import java.util.HashMap
+import java.util.TreeMap
+import java.util.TreeSet
+import java.util.concurrent.atomic.AtomicReference
+
+fn first(q: ArrayDeque<String>) -> String = q.poll()
+
+fn main() {
+    val q = ArrayDeque<String>()
+    println(q.poll().length())
+    println(q.peekFirst().length())
+    val m = HashMap<String, String>()
+    println(m.put("a", "b").length())
+    println(m.remove("a").length())
+    val previous = m.putIfAbsent("a", "c")
+    println(previous.length())
+    println(TreeMap<String, String>().firstEntry().getKey())
+    println(TreeSet<String>().ceiling("a").length())
+    println(AtomicReference<String>().get().length())
+    val head: String = q.pollLast()
+    println(head + first(q))
+    q.add("x")
+    m.put("k", "v")
+    println(q.poll()?.length() ?: 0)
+    val polled = q.poll()
+    if (polled != null) {
+        println(polled.length())
+    }
+    println(q.getFirst().length() + q.size())
+}
