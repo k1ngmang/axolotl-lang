@@ -2,5 +2,4 @@ AXL102 app/Main.axl:5:50: error: the fallback of `?:` may be null, but the value
 AXL102 app/Main.axl:7:40: error: the fallback of `?:` may be null, but the value is not nullable; give a fallback that is not null or add `?` to the type
 AXL102 app/Main.axl:9:42: error: the fallback of `?:` may be null, but the value is not nullable; give a fallback that is not null or add `?` to the type
 AXL102 app/Main.axl:12:25: error: the value of `?:` may be null, since its fallback may be null, but `local` is not nullable; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:13:19: error: value `local` may be null: use `?.`, `?:` or check `if (local != null)`
 AXL102 app/Main.axl:14:34: error: this value may be null: use `?.`, `?:` or a null check

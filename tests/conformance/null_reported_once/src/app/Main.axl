@@ -17,3 +17,5 @@ fn main() {
     val words: List<String> = xs |> filter { it != "x" }
     println(words)
 }
+
+fn wrap(s: String?) -> java.util.Optional<String> = java.util.Optional.of(s)

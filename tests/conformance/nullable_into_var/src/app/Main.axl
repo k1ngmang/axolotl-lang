@@ -1,0 +1,19 @@
+package app
+
+fn inferred(a: String?) -> Int {
+    var s = "x"
+    s = a
+    return s.length()
+}
+
+fn typed(a: String?) -> Int {
+    var s: String = "x"
+    s = a
+    return s.length()
+}
+
+fn startsNull(a: String?) -> Int {
+    var s = a
+    s = "y"
+    return s.length()
+}

@@ -219,7 +219,8 @@ final class NullChecker implements TaskListener {
         this.nullAway = nullAway;
     }
 
-    private record Report(String message, Tree tree, CompilationUnitTree unit) {}
+    /** tree is where the message is placed; covered is the whole value it is about. */
+    private record Report(String message, Tree tree, Tree covered, CompilationUnitTree unit) {}
 
     // Error Prone skips its analysis once the compilation has errors, so these wait until every class is analyzed.
     private final List<Report> reports = new ArrayList<>();
@@ -239,8 +240,8 @@ final class NullChecker implements TaskListener {
             return false;
         }
         CompilationUnitTree unit = report.unit();
-        long start = start(unit, report.tree());
-        long end = end(unit, report.tree());
+        long start = start(unit, report.covered());
+        long end = end(unit, report.covered());
         return nullAway.starts(unit.getSourceFile().toUri()).stream().map(p -> reportedTree(unit, p)).filter(t -> t != null)
                 .anyMatch(t -> line(unit, start(unit, t)) == line(unit, start) && start(unit, t) <= end && start <= end(unit, t));
     }
@@ -313,6 +314,8 @@ final class NullChecker implements TaskListener {
         private Map<Element, Origin> state = new HashMap<>();
         // Locals declared with `var`, whose nullness follows their value.
         private final Set<Element> inferredLocals = new HashSet<>();
+        // The `var` locals among them whose first value is not null, which keeps them from taking null later.
+        private final Set<Element> nonNullLocals = new HashSet<>();
         // The type arguments of `var` locals, lambda parameters and loop variables; their own nullness is in `state`.
         private final Map<Element, Shape> shapes = new HashMap<>();
         // Off while a loop body is scanned only to see which values it leaves nullable.
@@ -366,6 +369,9 @@ final class NullChecker implements TaskListener {
             if (element.getKind() == ElementKind.LOCAL_VARIABLE && isVar(variable)) {
                 inferredLocals.add(element);
                 state.put(element, origin(init));
+                if (origin(init) == Origin.NONE) {
+                    nonNullLocals.add(element);
+                }
                 shapes.put(element, shape(init).nonNull());
             } else if (element.getKind() == ElementKind.LOCAL_VARIABLE) {
                 store(init, element, variable.getType());
@@ -385,6 +391,8 @@ final class NullChecker implements TaskListener {
             }
             if (inferredLocals.contains(target) && target.asType().getKind().isPrimitive()) {
                 checkUnboxing(assignment.getExpression(), true);
+            } else if (nonNullLocals.contains(target)) {
+                storeInInferred(assignment.getExpression(), target);
             } else if (inferredLocals.contains(target)) {
                 state.put(target, origin(assignment.getExpression()));
                 shapes.merge(target, shape(assignment.getExpression()).nonNull(), Shape::or);
@@ -396,6 +404,15 @@ final class NullChecker implements TaskListener {
                 checkTypeArgumentField(select, target, assignment.getExpression());
             }
             return null;
+        }
+
+        /** `var s = "x"` takes the type of its first value, which has no `?` when that value is not null. */
+        private void storeInInferred(ExpressionTree value, Element local) {
+            String name = local.getSimpleName().toString();
+            String type = Messages.simpleNames(Messages.axlType(local.asType().toString()));
+            report(value, origin(value), false, describe(value) + ", but `" + name + "` has the type of its first value, `"
+                    + type + "`, which is not nullable; declare it `var " + name + ": " + type + "? = ...`");
+            shapes.merge(local, shape(value).nonNull(), Shape::or);
         }
 
         /** NullAway ignores the declared types of locals, so a store into a local without `?` is checked here. */
@@ -1910,7 +1927,7 @@ final class NullChecker implements TaskListener {
             if (reporting) {
                 String prefix = origin == Origin.PLATFORM ? STRICT_PREFIX : PREFIX;
                 Tree at = position(tree);
-                reports.add(new Report(prefix + message, at, unit));
+                reports.add(new Report(prefix + message, at, tree, unit));
             }
             return true;
         }

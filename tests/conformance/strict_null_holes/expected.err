@@ -4,5 +4,5 @@ AXL104 app/Main.axl:13:15: error: `b` may be null: it holds a value from Java co
 AXL104 app/Main.axl:14:32: error: the result of `getenv()` comes from Java code without nullness annotations and may be null, but `typed` is not nullable; use `?.`, `?:`, a null check or `!!`
 AXL104 app/Main.axl:15:26: error: the result of `getInteger()` comes from Java code without nullness annotations and may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
 AXL104 app/Main.axl:16:21: error: the result of `getInteger()` comes from Java code without nullness annotations and may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
-AXL104 app/Main.axl:20:19: error: `s` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:21:20: error: the result of `getenv()` comes from Java code without nullness annotations and may be null, but `s` has the type of its first value, `String`, which is not nullable; declare it `var s: String? = ...`
 AXL102 app/Main.axl:25:33: error: `e` may be null: it holds a value of a type argument written with `?`; use `?.`, `?:`, a null check or `!!`

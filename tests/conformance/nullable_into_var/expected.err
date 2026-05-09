@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:5:9: error: `a` may be null, but `s` has the type of its first value, `String`, which is not nullable; declare it `var s: String? = ...`
+AXL102 app/Main.axl:11:9: error: `a` may be null, but `s` is not nullable; use `?.`, `?:`, a null check or `!!`
