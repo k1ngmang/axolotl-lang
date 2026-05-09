@@ -88,6 +88,9 @@ final class NullChecker implements TaskListener {
     static final String STRICT_PREFIX = "strict null: ";
 
     private static final String FIX = "use `?.`, `?:`, a null check or `!!`";
+    private static final String FROM_JAVA = "a type argument of the value comes from Java code without nullness "
+            + "annotations and may hold null, but ";
+    private static final String DROP_NULLS = "drop the nulls first: `|> filter { it != null }`";
     private static final String CHANGING_FIX = "a null check does not narrow a `var` property or the result of a call, "
             + "which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`";
     private static final String REASSIGNED_FIX = "a null check does not narrow a property of a local that is assigned "
@@ -183,6 +186,17 @@ final class NullChecker implements TaskListener {
         boolean losesQuestionMark(Shape declared) {
             for (int i = 0; i < declared.args.size(); i++) {
                 if (!declared.arg(i).nullable && arg(i).nullable || arg(i).losesQuestionMark(declared.arg(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Whether a type argument that the declared shape gives without `?` is from Java in this one. */
+        boolean losesJavaArgument(Shape declared) {
+            for (int i = 0; i < declared.args.size(); i++) {
+                Shape wanted = declared.arg(i);
+                if (!wanted.nullable && !wanted.fromJava && arg(i).fromJava || arg(i).losesJavaArgument(wanted)) {
                     return true;
                 }
             }
@@ -440,19 +454,15 @@ final class NullChecker implements TaskListener {
                     checkTypeArgumentParameters(receiverBindings(receiver, method), asSuper(typeOf(receiver), owner),
                             method, call.getArguments());
                 }
-                if (method.getSimpleName().contentEquals("sorted") && naturalOrder(call.getArguments())
-                        && isStream(receiver) && shape(receiver).arg(0).nullable()) {
-                    report(call, Origin.HIDDEN, false, "the elements may be null, and `sorted` compares them; "
-                            + "drop the nulls first: `|> filter { it != null }`");
+                if (method.getSimpleName().contentEquals("sorted") && naturalOrder(call.getArguments()) && isStream(receiver)) {
+                    reportCompared(call, shape(receiver).arg(0), "sorted");
                 }
             } else if (method.getModifiers().contains(Modifier.STATIC)) {
                 checkTypeArgumentParameters(Map.of(), null, method, call.getArguments());
                 checkFactoryArguments(method, call.getArguments());
                 if (method.getSimpleName().contentEquals("sort") && call.getArguments().size() == 1
-                        && erasedName(method.getEnclosingElement().asType()).equals("java.util.Collections")
-                        && elementShape(call.getArguments().getFirst()).nullable()) {
-                    report(call, Origin.HIDDEN, false, "the elements may be null, and `sort` compares them; "
-                            + "drop the nulls first: `|> filter { it != null }`");
+                        && erasedName(method.getEnclosingElement().asType()).equals("java.util.Collections")) {
+                    reportCompared(call, elementShape(call.getArguments().getFirst()), "sort");
                 }
             }
             if (isRequireNonNull(method) && call.getArguments().size() == 1
@@ -463,6 +473,13 @@ final class NullChecker implements TaskListener {
                 }
             }
             return null;
+        }
+
+        private void reportCompared(MethodInvocationTree call, Shape elements, String method) {
+            Origin origin = elements.nullable() ? Origin.HIDDEN : elements.fromJava() ? Origin.PLATFORM : Origin.NONE;
+            String may = origin == Origin.PLATFORM ? "the elements come from Java code without nullness annotations and may be null"
+                    : "the elements may be null";
+            report(call, origin, false, may + ", and `" + method + "` compares them; " + DROP_NULLS);
         }
 
         @Override
@@ -1094,6 +1111,7 @@ final class NullChecker implements TaskListener {
             for (int i = 0; i < Math.min(checkedCount, args.size()); i++) {
                 VariableElement param = params.get(i);
                 checkValue(args.get(i), param.asType(), param, true, "the parameter `" + param.getSimpleName() + "` does not accept null");
+                checkJavaTypeArguments(args.get(i), param.asType(), "the parameter `" + param.getSimpleName() + "`");
             }
         }
 
@@ -1169,8 +1187,12 @@ final class NullChecker implements TaskListener {
                     && seen instanceof DeclaredType declared && declared.asElement() instanceof TypeElement element
                     && shapeAs(shape(value), typeOf(value), element).losesQuestionMark(wanted)) {
                 report(value, Origin.HIDDEN, false, "a type argument of the value has `?`, but " + takes
-                        + " a type argument written without `?` there; add `?` to the type argument or "
-                        + "drop the nulls first: `|> filter { it != null }`");
+                        + " a type argument written without `?` there; add `?` to the type argument or " + DROP_NULLS);
+            } else if (!(unwrap(value) instanceof LambdaExpressionTree) && seen instanceof DeclaredType declared
+                    && declared.asElement() instanceof TypeElement element
+                    && shapeAs(shape(value), typeOf(value), element).losesJavaArgument(wanted)) {
+                report(value, Origin.PLATFORM, false, FROM_JAVA + takes + " a type argument written without `?` there; "
+                        + DROP_NULLS);
             }
         }
 
@@ -1262,15 +1284,18 @@ final class NullChecker implements TaskListener {
                 TypeMirror param = parameterType(method, i, args.size());
                 Map<Element, Shape> bound = new HashMap<>();
                 bind(param, valueShape(arg), typeOf(arg), bound);
-                if (method.getTypeParameters().stream().noneMatch(v -> bound.containsKey(v) && bound.get(v).nullable())) {
+                boolean fromJava = method.getTypeParameters().stream().anyMatch(v -> bound.containsKey(v) && bound.get(v).fromJava());
+                if (method.getTypeParameters().stream().noneMatch(v -> bound.containsKey(v) && bound.get(v).nullable())
+                        && (param instanceof TypeVariable || !fromJava)) {
                     continue;
                 }
                 if (param instanceof TypeVariable) {
                     report(arg, origin(arg), false, describe(arg) + ", but `" + method.getSimpleName()
                             + "` does not take null; " + FIX);
                 } else {
-                    report(arg, Origin.HIDDEN, false, "the elements of the value may be null, but `" + method.getSimpleName()
-                            + "` does not take null elements; drop the nulls first: `|> filter { it != null }`");
+                    String may = fromJava ? "come from Java code without nullness annotations and may be null" : "may be null";
+                    report(arg, fromJava ? Origin.PLATFORM : Origin.HIDDEN, false, "the elements of the value " + may
+                            + ", but `" + method.getSimpleName() + "` does not take null elements; " + DROP_NULLS);
                 }
             }
         }
@@ -1293,6 +1318,17 @@ final class NullChecker implements TaskListener {
             if (shapeAs(shape(value), valueType, element).losesQuestionMark(wanted)) {
                 report(value, Origin.HIDDEN, false, "a type argument of the value has `?`, but " + target
                         + " has none there; add `?` to the type argument of " + target + " or drop the nulls first");
+            } else {
+                checkJavaTypeArguments(value, declared, target);
+            }
+        }
+
+        /** Strict mode: `val l: List<String> = J.list()!!` would make the elements that Java gives trusted. */
+        private void checkJavaTypeArguments(ExpressionTree value, TypeMirror declared, String target) {
+            if (declared instanceof DeclaredType type && type.asElement() instanceof TypeElement element
+                    && shapeAs(shape(value), typeOf(value), element).losesJavaArgument(shapeOf(declared, Map.of()))) {
+                report(value, Origin.PLATFORM, false, FROM_JAVA + target + " has no `?` there; add `?` to the type argument of "
+                        + target + " or " + DROP_NULLS);
             }
         }
 
@@ -1846,16 +1882,21 @@ final class NullChecker implements TaskListener {
 
         /**
          * Where the .axl column can be found: javac places a call at its parenthesis, and `a?.b` and
-         * `a ?: b` become calls of Nulls named nowhere in the .axl line, so they are placed at `a`.
+         * `a ?: b` become calls of Nulls named nowhere in the .axl line, so they are placed at `a`, and
+         * so is `a!!`, which becomes `Objects.requireNonNull(a)`.
          */
         private Tree position(Tree tree) {
             Tree at = tree instanceof ExpressionTree e ? unwrap(e) : tree;
-            while (at instanceof MethodInvocationTree call && call.getMethodSelect() instanceof MemberSelectTree select
-                    && select.getExpression() instanceof IdentifierTree owner && owner.getName().contentEquals("Nulls")
-                    && !call.getArguments().isEmpty()) {
+            while (at instanceof MethodInvocationTree call && !call.getArguments().isEmpty() && expandsOperator(call)) {
                 at = unwrap(call.getArguments().getFirst());
             }
             return at instanceof MethodInvocationTree call ? call.getMethodSelect() : at;
+        }
+
+        private boolean expandsOperator(MethodInvocationTree call) {
+            return call.getMethodSelect() instanceof MemberSelectTree select
+                    && select.getExpression() instanceof IdentifierTree owner && owner.getName().contentEquals("Nulls")
+                    || element(call) instanceof ExecutableElement method && isRequireNonNull(method);
         }
 
         /** `var x = ...`: javac keeps the declared type tree, so look at the source. */

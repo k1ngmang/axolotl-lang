@@ -1,0 +1,27 @@
+package app
+
+import java.util.ArrayList
+import java.util.Collections
+import java.util.List
+import lib.Legacy
+
+data class P(val items: List<String>)
+
+fn names() -> List<String> = Legacy.names()!!
+fn count(l: List<String>) -> Int = l.size()
+
+fn main() {
+    val typed: List<String> = Legacy.names()!!
+    println(P(Legacy.names()!!))
+    println(count(Legacy.names()!!))
+    val copy = ArrayList<String>(Legacy.names()!!)
+    copy.addAll(Legacy.names()!!)
+    println(Legacy.names()!! |> sorted)
+    val inferred = Legacy.names()!!
+    Collections.sort(inferred)
+    println(List.copyOf(inferred))
+    val checked: List<String> = Legacy.names()!! |> filter { it != null }
+    val again = ArrayList<>(inferred)
+    again.addAll(inferred)
+    println(typed.size() + names().size() + checked.size() + copy.size() + again.size())
+}

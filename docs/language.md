@@ -231,7 +231,10 @@ the stream operations that pipes expand to, code in a `@NullMarked` scope, and w
 gives out of a type argument written in Axolotl without `?`, such as `get` on an `ArrayList<String>`,
 except the methods above that return null when there is no value.
 The elements of a `List<String>` returned by unannotated Java code may be null, also after `!!`, and
-so may what `get` of an unannotated generic Java class returns.
+so may what `get` of an unannotated generic Java class returns. Such a list cannot be stored where
+Axolotl writes `List<String>` (a local, a parameter, a property, a result type, `addAll` or
+`ArrayList<String>(...)`), sorted or copied with `List.copyOf` until its nulls are dropped with
+`|> filter { it != null }`.
 
 ## Errors as values
 
