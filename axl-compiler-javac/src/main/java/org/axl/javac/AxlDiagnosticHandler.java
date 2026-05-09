@@ -90,7 +90,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         JCDiagnostic moved = move(diagnostic);
         if (moved == null) {
             prev.report(diagnostic);
-        } else if (Messages.ignored(DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT)))) {
+        } else if (ignored(diagnostic)) {
             return;
         } else if (reported.add(moved.getSource().toUri() + ":" + moved.getLineNumber() + ":" + moved.getMessage(Locale.ROOT))) {
             // One .axl line becomes several Java lines, which can repeat the same error.
@@ -160,6 +160,14 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.
         moved.setFlag(JCDiagnostic.DiagnosticFlag.API);
         return moved;
+    }
+
+    /** See `Messages.ignored`; the diagnostic is in a generated file. */
+    private boolean ignored(JCDiagnostic diagnostic) {
+        Mapping mapping = mapping(Path.of(diagnostic.getSource().toUri()).toAbsolutePath().normalize());
+        int line = (int) diagnostic.getLineNumber();
+        String javaText = line >= 1 && line <= mapping.javaLines().length ? mapping.javaLines()[line - 1] : "";
+        return Messages.ignored(DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT)), javaText, mapping.axl().text);
     }
 
     private static boolean rawType(JCDiagnostic diagnostic) {

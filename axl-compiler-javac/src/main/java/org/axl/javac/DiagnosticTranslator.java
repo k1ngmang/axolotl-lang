@@ -49,7 +49,9 @@ public final class DiagnosticTranslator {
             return new AxlDiagnostic(javaDisplay.apply(javaFile), javaLine, (int) diagnostic.getColumnNumber(),
                     severity, ErrorCode.JAVAC, message);
         }
-        if (Messages.ignored(message)) {
+        String[] javaLines = source.unit().javaSource().split("\n", -1);
+        String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
+        if (Messages.ignored(message, javaText)) {
             return null;
         }
         if (diagnostic.getCode().endsWith("raw.class.use")) {
@@ -57,11 +59,9 @@ public final class DiagnosticTranslator {
             severity = AxlDiagnostic.Severity.ERROR;
         }
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
-        String[] javaLines = source.unit().javaSource().split("\n", -1);
         Messages.Translated translated = Messages.translate(message, javaLines, javaLine);
         int line = Math.max(axlLine, 1);
         String axlText = line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
-        String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
         int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, Columns.javaColumn(javaLines, javaLine, diagnostic),
                 axlText, Messages.placement(translated.message(), javaText));
         return new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(),

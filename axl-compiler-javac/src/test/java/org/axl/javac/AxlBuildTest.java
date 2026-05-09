@@ -183,6 +183,25 @@ class AxlBuildTest {
     }
 
     @Test
+    void doesNotWarnAboutTheVariableOfACountingLoop(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.util.List
+
+                fn count(xs: List<String>) -> Int {
+                    var n = 0
+                    for (x in xs) {
+                        n += 1
+                    }
+                    val copy = n
+                    return n
+                }
+                """);
+        assertEquals(List.of("10:9 `copy` is never read"), warnings);
+    }
+
+    @Test
     void warnsAboutKotlinStringTemplates(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
