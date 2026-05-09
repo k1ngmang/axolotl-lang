@@ -1,0 +1,3 @@
+AXL102 app/Main.axl:7:56: error: `m.get("a")` may be null: copy it to a `val` and check that, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:9:37: error: `b.label` may be null: copy it to a `val` and check that, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:11:37: error: value `b.fixed` may be null: use `?.`, `?:` or check `if (b.fixed != null)`

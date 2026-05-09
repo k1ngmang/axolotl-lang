@@ -1,0 +1,11 @@
+package app
+
+import java.util.Map
+
+class Box(var label: String?, val fixed: String?)
+
+fn fromMap(m: Map<String, String>) -> Int = m.get("a").length()
+
+fn fromVar(b: Box) -> Int = b.label.length()
+
+fn fromVal(b: Box) -> Int = b.fixed.length()

@@ -1,0 +1,15 @@
+package app
+
+class Box(var label: String) {
+    fn clear(a: String?) {
+        label = a
+    }
+}
+
+fn rename(b: Box, a: String?) {
+    b.label = a
+}
+
+fn fromMap(b: Box, m: java.util.Map<String, String>) {
+    b.label = m.get("a")
+}

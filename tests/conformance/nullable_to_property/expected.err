@@ -1,0 +1,3 @@
+AXL102 app/Main.axl:5:17: error: `a` may be null, but `label` is declared as `String`; declare it `var label: String?` or use `?:`
+AXL102 app/Main.axl:10:15: error: `a` may be null, but `label` is declared as `String`; declare it `var label: String?` or use `?:`
+AXL102 app/Main.axl:14:15: error: the value may be null, but `label` is declared as `String`; declare it `var label: String?` or use `?:`
