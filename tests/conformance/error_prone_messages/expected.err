@@ -1,3 +1,7 @@
-AXL100 app/Main.axl:6:15: error: [BoxedPrimitiveEquality] `==` compares `Int?` values, and numbers taken from collections, as objects rather than by value; use `java.util.Objects.equals(a, b)`
-AXL100 app/Main.axl:7:16: error: [CollectionIncompatibleType] Argument '1' should not be passed to this method; its type Int is not compatible with its collection's type argument String
-AXL100 app/Main.axl:8:20: error: [FormatString] illegal format conversion: 'String' cannot be formatted using '%d'
+AXL100 app/Main.axl:6:15: error: `==` compares these numbers as objects, not by value, since they may be null or come from a collection; use `java.util.Objects.equals(a, b)`
+AXL100 app/Main.axl:7:16: error: `1` is of type `Int`, but the collection holds `String`, so this call never finds it
+AXL100 app/Main.axl:8:20: error: `%d` cannot format a value of type `String`
+AXL100 app/Main.axl:9:23: error: `==` compares these numbers as objects, not by value, since they may be null or come from a collection; use `java.util.Objects.equals(a, b)`
+AXL100 app/Main.axl:10:20: error: the format uses 1 of the values after it, but 2 are given
+AXL100 app/Main.axl:15:9: error: `n` is assigned to itself, which does nothing
+AXL100 app/Main.axl:16:7: error: `run` does the work on this thread; call `start` to run it on a thread of its own

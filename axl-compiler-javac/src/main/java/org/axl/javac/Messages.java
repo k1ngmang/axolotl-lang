@@ -1,12 +1,14 @@
 package org.axl.javac;
 
 import java.lang.reflect.Executable;
+import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
@@ -55,12 +57,11 @@ final class Messages {
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
+    private static final Pattern UNUSED_LOCAL = Pattern.compile(
+            "^\\[UnusedVariable] The (?:local variable|parameter) '(\\w+)' is never read");
+    private static final Pattern STRING_LITERAL = Pattern.compile("\"(?:[^\"\\\\\\n]|\\\\.)*\"");
     private static final Pattern UNUSED_GENERATED = Pattern.compile("'(?:it|\\$\\w+|\\w+\\$[es]?\\d+)'");
     private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
-    private static final Pattern EQUALS_TYPES = Pattern.compile("^(\\[EqualsIncompatibleType] .*incompatible types )(.+) and (.+)$");
-    private static final Pattern COLLECTION_TYPES = Pattern.compile(
-            "^(\\[CollectionIncompatibleType] .*its type )(.+?)( is not compatible with its collection's type argument )(.+)$");
-    private static final Pattern FORMAT_TYPE = Pattern.compile("'([\\w.$]+)' cannot be formatted");
     private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
@@ -89,13 +90,14 @@ final class Messages {
     private static final Pattern UNARY = Pattern.compile("^bad operand type (.+) for unary operator '(.+)'$");
     private static final Pattern MISSING_METHOD = Pattern.compile(
             "^(\\w+) is not abstract and does not override abstract method (\\w+)\\((.*)\\) in ([\\w.$]+)$");
+    private static final Pattern METHOD_DECLARATION = Pattern.compile(
+            "^\\s*(?:public |private )?(?:static )?(?!new )[\\w<>?,. @\\[\\]]+ (\\w+)\\([^()]*\\) \\{$");
     private static final Pattern VOID_METHOD = Pattern.compile("\\bstatic void (\\w+)\\(|^\\s*public void (\\w+)\\(");
     private static final Pattern RECEIVER = Pattern.compile("\\b([A-Z]\\w*)\\.(\\w+)\\b");
+    private static final Pattern NON_NULL_LOCAL = Pattern.compile(
+            ", but `(\\w+)` (?:is not nullable|has the type of its first value, `[^`]+`, which is not nullable);");
     private static final Pattern USED_BEFORE = Pattern.compile("^`(\\w+)` is used before it has a value$");
     private static final Pattern ABSTRACT = Pattern.compile("^([\\w.$]+) is abstract; cannot be instantiated$");
-    private static final Pattern DIVISION_BY_ZERO = Pattern.compile("[/%]\\s*0[lL]?\\b(?!\\.)");
-    private static final Pattern IDENTITY = Pattern.compile("^\\[IdentityBinaryExpression] .*equivalent to `(.+?)`");
-    private static final Pattern OBJECT_TO_STRING = Pattern.compile("^\\[ObjectToString] ([\\w.$]+) is final and does not override");
     private static final Pattern ELVIS_FALLBACK = Pattern.compile("\\?:\\s*(\\S)");
     private static final Pattern ATTEMPT_FALLBACK = Pattern.compile("\\belse\\s+(?:\\w+\\s*->\\s*)?(\\S)");
     private static final Pattern IMPORTED_NESTED = Pattern.compile("^import (?:[a-z]\\w*\\.)*([A-Z]\\w*)\\.([A-Z]\\w*);$");
@@ -103,6 +105,7 @@ final class Messages {
     private static final Pattern PIPE = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\"|[\\w.()]+)\\s*\\|>");
     private static final Pattern RETURN = Pattern.compile("\\breturn\\b");
     private static final Pattern TRY = Pattern.compile("\\btry\\b");
+    private static final Pattern FIELD_ASSIGNMENT = Pattern.compile("^\\s*(?:[\\w.]+\\.)?(\\w+)\\s*=\\s*(.+);$");
     private static final Pattern ASSIGNMENT = Pattern.compile("^\\s*(\\w+)\\s*[-+*/%]?=(?!=)");
     // The messages of an import that failed, with the name it would have brought in.
     private static final Pattern FAILED_IMPORT = Pattern.compile("^(?:`[\\w.]+` has no function or value `(\\w+)`"
@@ -115,6 +118,11 @@ final class Messages {
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
     private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
 
+    private static final Pattern MUST_GIVE = Pattern.compile("^`(\\w+)` must give `fn ");
+    private static final Pattern NO_PACKAGE = Pattern.compile("^package ([\\w.]+) does not exist$");
+    private static final String LAMBDA_PARAMETERS = " parameters; name them, as in `{ ";
+    private static final Pattern TYPED_LAMBDA = Pattern.compile("\\b([A-Z]\\w*)(?:<.*>)? \\w+ = (\\(\\)|it|\\([^()]*\\)|\\w+) ->");
+    private static final String LAMBDA_RETURN_VALUE = "`return` in a lambda ends only the lambda, not ";
     private static final String LAMBDA_VALUE = "the lambda returns a value, but nothing is expected here; "
             + "use the value in a call, such as `println(...)`, or remove it";
     private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
@@ -130,7 +138,7 @@ final class Messages {
     record Placement(boolean operator, Pattern anchor, boolean anchorFirst) {}
 
     static Placement placement(String translated, String javaText) {
-        boolean operator = translated.contains("` cannot be applied to `") || translated.startsWith("[BoxedPrimitiveEquality]")
+        boolean operator = translated.contains("` cannot be applied to `") || translated.equals(ErrorProneMessages.BOXED_EQUALITY)
                 || translated.startsWith("`==` tests whether") || translated.equals("division by zero")
                 || translated.startsWith("both sides of this expression");
         Pattern anchor = anchor(translated, javaText);
@@ -145,7 +153,12 @@ final class Messages {
         if (member.find()) {
             return Pattern.compile("\\.(" + Pattern.quote(member.group(1)) + ")\\b");
         }
-        if (translated.contains("` has no result type, so it cannot return a value")) {
+        Matcher mustGive = MUST_GIVE.matcher(translated);
+        if (mustGive.find()) {
+            return Pattern.compile("\\bclass\\s+(" + Pattern.quote(mustGive.group(1)) + ")\\b");
+        }
+        if (translated.contains("` has no result type, so it cannot return a value")
+                || translated.startsWith(LAMBDA_RETURN_VALUE)) {
             return RETURN;
         }
         if (!translated.startsWith("type mismatch")) {
@@ -171,8 +184,19 @@ final class Messages {
         if (sameLine && (cause.message().startsWith(PIPE_SUBJECT) || cause.message().equals(SORTED_ARITY))) {
             return true;
         }
+        // The names the lambda uses are unknown because its parameters are not declared.
+        if (cause.line() == effect.line() && cause.message().contains(LAMBDA_PARAMETERS)) {
+            return effect.message().startsWith("unknown name `");
+        }
         if (effect.message().startsWith("a function that returns nothing has no result type; remove `-> Unit`")) {
             return cause.message().startsWith("unknown type `Unit`");
+        }
+        Matcher nonNullLocal = NON_NULL_LOCAL.matcher(cause.message());
+        if (nonNullLocal.find() && cause.line() < effect.line()) {
+            String name = nonNullLocal.group(1);
+            // NullAway follows the value that was stored, not the declared type of the local.
+            return effect.message().startsWith("value `" + name + "` may be null")
+                    || effect.message().startsWith("`" + name + "` may be null, but the parameter");
         }
         Matcher usedBefore = USED_BEFORE.matcher(effect.message());
         if (usedBefore.find()) {
@@ -195,7 +219,10 @@ final class Messages {
     private static String methodHint(String location, String name) {
         int ofType = location.indexOf(" of type ");
         String type = (ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1))
-                .replaceAll("<.*", "");
+                .replaceAll("@\\S+ ", "").replaceAll("<.*", "");
+        if (type.equals("axl.lang.Result")) {
+            return "; a `Result` holds a value only when it is `Ok`: check it with `is Ok` first, or use `try`";
+        }
         try {
             boolean method = Arrays.stream(Class.forName(type, false, Messages.class.getClassLoader()).getMethods())
                     .anyMatch(m -> m.getName().equals(name) && m.getParameterCount() == 0);
@@ -207,7 +234,7 @@ final class Messages {
 
     /** `nmae` for `name`: a name of the generated file one or two letters away. */
     private static String unknownName(String symbol, String[] javaLines) {
-        String hint = Names.typeHint(symbol);
+        String hint = Names.typeHint(symbol) != null ? Names.typeHint(symbol) : Names.nameHint(symbol);
         if (hint != null) {
             return "unknown name `" + symbol + "`; " + hint;
         }
@@ -227,6 +254,24 @@ final class Messages {
     static boolean oncePerLine(String translated) {
         return translated.equals(LAMBDA_VALUE) || translated.endsWith(UNKNOWN_IMPORTED_CLASS)
                 || translated.endsWith(Names.NO_TYPE_PARAMETERS);
+    }
+
+    /**
+     * Also warnings about what Axolotl gives no way to avoid, judged by the Java line javaText, and
+     * warnings that follow from another one about the .axl file axlSource.
+     */
+    static boolean ignored(String message, String javaText, String axlSource) {
+        Matcher unused = UNUSED_LOCAL.matcher(message);
+        if (!unused.find()) {
+            return ignored(message);
+        }
+        String name = Pattern.quote(unused.group(1));
+        // A loop that only counts has no use for its variable.
+        boolean loopVariable = Pattern.compile("^\\s*for \\([^:]*\\b" + name + " :").matcher(javaText).find();
+        // The warning about the Kotlin template already explains why the name is not read.
+        Pattern template = Pattern.compile("\\$(?:" + name + "\\b|\\{[^}]*\\b" + name + "\\b)");
+        boolean inTemplate = STRING_LITERAL.matcher(axlSource).results().anyMatch(m -> template.matcher(m.group()).find());
+        return loopVariable || inTemplate || ignored(message);
     }
 
     /** Warnings about the shape of generated code, which the author cannot change. */
@@ -340,7 +385,7 @@ final class Messages {
         }
         if (message.startsWith("[")) {
             String plain = SUGGESTION.matcher(ERROR_PRONE_LINK.matcher(message).replaceAll("")).replaceAll("");
-            return new Translated(ErrorCode.JAVAC, errorProne(plain, text));
+            return new Translated(ErrorCode.JAVAC, ErrorProneMessages.translate(plain, text));
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
@@ -372,79 +417,6 @@ final class Messages {
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines)).replaceAll(""));
     }
 
-    /** Error Prone findings, with Axolotl's names for types and declarations. */
-    private static String errorProne(String message, String text) {
-        String reworded = errorProneReworded(message, text);
-        if (reworded != null) {
-            return reworded;
-        }
-        if (message.startsWith("[BoxedPrimitiveEquality]")) {
-            return "[BoxedPrimitiveEquality] `==` compares `Int?` values, and numbers taken from collections, as objects "
-                    + "rather than by value; use `java.util.Objects.equals(a, b)`";
-        }
-        if (message.startsWith("[ReturnAtTheEndOfVoidFunction]")) {
-            return "[ReturnAtTheEndOfVoidFunction] the `return` at the end of this function is unnecessary";
-        }
-        Matcher equalsTypes = EQUALS_TYPES.matcher(message);
-        if (equalsTypes.find()) {
-            return equalsTypes.group(1) + axlType(equalsTypes.group(2)) + " and " + axlType(equalsTypes.group(3));
-        }
-        Matcher collectionTypes = COLLECTION_TYPES.matcher(message);
-        if (collectionTypes.find()) {
-            return collectionTypes.group(1) + axlType(collectionTypes.group(2)) + collectionTypes.group(3)
-                    + axlType(collectionTypes.group(4));
-        }
-        Matcher formatType = FORMAT_TYPE.matcher(message);
-        if (formatType.find()) {
-            return formatType.replaceFirst(m -> Matcher.quoteReplacement("'" + axlType(m.group(1)) + "' cannot be formatted"));
-        }
-        return message.replaceFirst("^\\[UnusedVariable] The (?:local variable|parameter|field) '(\\w+)' is never read",
-                "`$1` is never read").replaceFirst("^\\[UnusedMethod] Method '(\\w+)' is never used", "`$1` is never used");
-    }
-
-    /** Findings whose Java words, such as override and reference equality, have plain Axolotl advice. */
-    private static String errorProneReworded(String message, String text) {
-        if (message.startsWith("[ReferenceEquality]")) {
-            return "`==` tests whether both sides are the same object, not whether they are equal; compare them with "
-                    + "`a.equals(b)`";
-        }
-        if (message.startsWith("[ConstantOverflow]") && DIVISION_BY_ZERO.matcher(text).find()) {
-            return "division by zero";
-        }
-        if (message.startsWith("[ConstantOverflow]")) {
-            return "this calculation is too large for its type; use `Long`, with `L` after a number";
-        }
-        Matcher identity = IDENTITY.matcher(message);
-        if (identity.find()) {
-            return "both sides of this expression are the same, so its value is always `" + identity.group(1) + "`";
-        }
-        if (message.startsWith("[EqualsHashCode]")) {
-            return "a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal objects have "
-                    + "equal hash codes";
-        }
-        if (message.startsWith("[NarrowingCompoundAssignment]")) {
-            return "the result does not fit the type of the variable and would be cut, as `i += 1.7` gives 6 for an `Int`; "
-                    + "give the variable a type that holds the result, such as `Double` or `Long`";
-        }
-        if (message.startsWith("[OperatorPrecedence]")) {
-            return "`&&` goes before `||`, and `*` before `+`; add parentheses to show which you mean, as in `(a && b) || c`";
-        }
-        if (message.startsWith("[StringSplitter]")) {
-            return "`split` takes a regular expression and drops empty strings at the end; check that this is what you want";
-        }
-        if (message.startsWith("[NonApiType]")) {
-            return "a parameter or result typed as a class such as `HashSet` ties callers to it; use its interface, "
-                    + "such as `Set`, `List` or `Map`";
-        }
-        Matcher toString = OBJECT_TO_STRING.matcher(message);
-        if (toString.find()) {
-            String type = simpleNames(axlType(toString.group(1)));
-            return "`" + type + "` has no `toString`, so it is shown as `" + type + "@4488aabb`; give it "
-                    + "`fn toString() -> String`";
-        }
-        return null;
-    }
-
     private static Translated nullAway(String message, String text, String[] javaLines) {
         Matcher dereference = DEREFERENCE.matcher(message);
         if (dereference.find()) {
@@ -455,6 +427,10 @@ final class Messages {
             }
             if (GENERATED.matcher(value).find()) {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "this value may be null: use `?.`, `?:` or a null check");
+            }
+            if (!narrowable(value, javaLines)) {
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`" + value + "` may be null: copy it to a `val` "
+                        + "and check that, or use `?.`, `?:` or `!!`");
             }
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "value `" + value
                     + "` may be null: use `?.`, `?:` or check `if (" + value + " != null)`");
@@ -498,8 +474,7 @@ final class Messages {
                     + "no `?`; add `?` to the result type or return a value that is not null");
         }
         if (plain.startsWith("assigning @Nullable expression to @NonNull field")) {
-            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "the value may be null, but the type of the value has no "
-                    + "`?`; add `?` to its type or give a default with `?:`");
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, nullableToField(text, javaLines));
         }
         if (plain.startsWith("unboxing of a @Nullable value") || plain.startsWith("unboxing of a @Nullable expression")) {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE,
@@ -511,6 +486,32 @@ final class Messages {
         }
         return new Translated(plain.startsWith("incompatible types: ") ? ErrorCode.NULLABLE_DEREFERENCE : ErrorCode.JAVAC,
                 javacMessage(plain, text, javaLines));
+    }
+
+    /** `b.label = a`, with the property's name and declared type. */
+    private static String nullableToField(String text, String[] javaLines) {
+        Matcher assigned = FIELD_ASSIGNMENT.matcher(text);
+        if (!assigned.find()) {
+            return "the value may be null, but the property has no `?` in its type; add `?` to its type or give a default "
+                    + "with `?:`";
+        }
+        String name = assigned.group(1);
+        String value = IDENTIFIER.matcher(assigned.group(2)).matches() ? "`" + assigned.group(2) + "`" : "the value";
+        Pattern declaration = Pattern.compile("^\\s+public ([\\w.<>?, ]+) " + Pattern.quote(name) + ";$");
+        String type = Arrays.stream(javaLines).map(declaration::matcher).filter(Matcher::find)
+                .map(m -> simpleNames(axlType(m.group(1)))).findFirst().orElse("Type");
+        return value + " may be null, but `" + name + "` is declared as `" + type + "`; declare it `var " + name + ": "
+                + type + "?` or use `?:`";
+    }
+
+    /** A null check narrows locals, parameters and `val` properties, but not a call or a `var` property. */
+    private static boolean narrowable(String value, String[] javaLines) {
+        if (value.contains("(")) {
+            return false;
+        }
+        String name = value.substring(value.lastIndexOf('.') + 1);
+        Pattern varField = Pattern.compile("^\\s+public (?!final )[\\w.<>?, @]+ " + Pattern.quote(name) + ";$");
+        return !value.contains(".") || Arrays.stream(javaLines).noneMatch(l -> varField.matcher(l).find());
     }
 
     /** Plain javac errors, in Axolotl's words and type names. */
@@ -544,7 +545,7 @@ final class Messages {
             return SORTED_ARITY;
         }
         if (message.equals("incompatible types: incompatible parameter types in lambda expression")) {
-            return "the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`";
+            return lambdaArity(text, javaLines);
         }
         Matcher equalityAndUpper = EQUALITY_AND_UPPER.matcher(message);
         if (equalityAndUpper.find()) {
@@ -667,6 +668,24 @@ final class Messages {
                 String type = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
                 return PIPE_SUBJECT + ", found `" + axlType(type) + "`";
             }
+            int ofType = location.indexOf(" of type ");
+            String owner = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
+            if (!inThisFile && owner.endsWith("[]")) {
+                String member = unknown.group(1).equals("method") ? "method `" + withoutLambdas(symbol) + "`"
+                        : "field `" + symbol + "`";
+                return arrayMember(axlType(owner.substring(0, owner.length() - 2)), member);
+            }
+            String constants = unknown.group(1).equals("variable") ? enumConstants(javaLines, simpleNames(axlType(owner))) : null;
+            if (!inThisFile && constants != null) {
+                return "`" + simpleNames(axlType(owner)) + "` has no constant `" + symbol + "`; its constants are " + constants;
+            }
+            String tested = inThisFile ? null : testedWithoutNarrowing(location, text, javaLines);
+            if (tested != null) {
+                return tested.contains(".") ? "`" + tested + "` is a property, so `is` does not narrow it; copy it to a "
+                        + "local `val` first: `val " + tested.substring(tested.lastIndexOf('.') + 1) + " = " + tested + "`"
+                        : "`" + tested + "` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare "
+                        + "it with `val` if it does not change";
+            }
             return switch (unknown.group(1)) {
                 case "variable" -> inThisFile ? unknownName(symbol, javaLines)
                         : memberOwner(location) + " has no field `" + symbol + "`" + methodHint(location, symbol);
@@ -732,6 +751,14 @@ final class Messages {
             return text.contains("Result.attempt(") ? throwsIt + "; `attempt` catches it only around a call that returns a value"
                     : throwsIt + ", which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`";
         }
+        if (message.equals("unreachable statement")) {
+            return "this statement is never run: the code before it always returns, throws or loops forever; remove it";
+        }
+        Matcher noPackage = NO_PACKAGE.matcher(message);
+        if (noPackage.find()) {
+            return noPackage.group(1).startsWith("kotlin") ? "Axolotl uses Java's library, not Kotlin's; import Java's "
+                    + "classes, such as `java.util.List`" : "unknown package `" + noPackage.group(1) + "`; check the spelling";
+        }
         if (message.equals("illegal forward reference")) {
             return "a top-level value is used before it is declared; move its declaration up";
         }
@@ -751,6 +778,11 @@ final class Messages {
         }
         if (message.equals("incompatible types: unexpected return value")) {
             String function = enclosingVoidFunction(javaLines, text);
+            String outer = function == null ? functionAroundLambda(javaLines, text) : null;
+            if (outer != null) {
+                return LAMBDA_RETURN_VALUE + "`" + outer + "`, and this lambda gives no value; compute the result with a "
+                        + "pipe, such as `|> anyMatch { ... }`, or use a `for` loop";
+            }
             return function == null ? "nothing is expected here, so `return` cannot give a value"
                     : "`" + function + "` has no result type, so it cannot return a value; add one after `->`, as in `fn " + function
                     + "(...) -> Int`";
@@ -862,6 +894,94 @@ final class Messages {
         return null;
     }
 
+    /**
+     * `x` or `b.v` when an `is` test of it comes before this line in the same function: the translator
+     * narrows only a `val` local or parameter, and leaves other tests without a binding.
+     */
+    private static String testedWithoutNarrowing(String location, String text, String[] javaLines) {
+        int ofType = location.indexOf(" of type ");
+        if (!location.startsWith("variable ") || ofType < 0) {
+            return null;
+        }
+        String name = location.substring("variable ".length(), ofType);
+        Pattern test = Pattern.compile("((?:\\w+\\.)*" + Pattern.quote(name) + ") instanceof [\\w.<>]+\\)");
+        int line = Arrays.asList(javaLines).lastIndexOf(text);
+        for (int j = line - 1; j >= 0 && !METHOD_DECLARATION.matcher(javaLines[j]).find(); j--) {
+            Matcher tested = test.matcher(javaLines[j]);
+            if (tested.find() && Pattern.compile("(?<![\\w.])" + Pattern.quote(tested.group(1) + ".")).matcher(text).find()) {
+                return tested.group(1);
+            }
+        }
+        return null;
+    }
+
+    /** `s.split(",").size()`: Axolotl has no arrays of its own, but Java methods return them. */
+    private static String arrayMember(String element, String member) {
+        boolean primitive = Character.isLowerCase(element.charAt(0));
+        return "this is a Java array of `" + element + "`, which has no " + member + "; read its `length`"
+                + (primitive ? "" : ", or turn it into a list with `List.of(...)`");
+    }
+
+    /** `val c: Comparator<String> = { a.compareTo(b) }`: the parameters the interface gives the lambda. */
+    private static String lambdaArity(String text, String[] javaLines) {
+        Matcher typed = TYPED_LAMBDA.matcher(text);
+        int wanted = typed.find() ? abstractMethodParameters(typed.group(1), javaLines) : -1;
+        if (wanted < 0) {
+            return "the lambda has the wrong number of parameters; for one parameter write `{ x -> ... }` or use `it`";
+        }
+        String type = "`" + typed.group(1) + "`";
+        if (wanted == 0) {
+            return type + " takes no parameters, so " + (typed.group(2).equals("it") ? "`it` is not available here"
+                    : "the lambda cannot have any") + "; write `{ -> ... }`";
+        }
+        if (wanted == 1) {
+            return type + " takes 1 parameter; name it, as in `{ x -> ... }`, or use `it`";
+        }
+        String names = String.join(", ", List.of("a", "b", "c", "d", "e").subList(0, Math.min(wanted, 5)));
+        return type + " takes " + wanted + LAMBDA_PARAMETERS + names + " -> ... }`";
+    }
+
+    /** The parameter count of the single abstract method of a JDK interface, or -1. */
+    private static int abstractMethodParameters(String simpleName, String[] javaLines) {
+        Pattern imported = Pattern.compile("^import ([\\w.]+\\." + Pattern.quote(simpleName) + ");$");
+        List<String> candidates = new ArrayList<>(List.of("java.lang." + simpleName, "java.util.function." + simpleName));
+        Arrays.stream(javaLines).map(l -> imported.matcher(l.strip())).filter(Matcher::find).forEach(m -> candidates.addFirst(m.group(1)));
+        for (String name : candidates) {
+            try {
+                List<Method> methods = Arrays.stream(Class.forName(name, false, Messages.class.getClassLoader()).getMethods())
+                        .filter(m -> Modifier.isAbstract(m.getModifiers()) && !isObjectMethod(m)).toList();
+                return methods.size() == 1 ? methods.getFirst().getParameterCount() : -1;
+            } catch (ClassNotFoundException | LinkageError e) {
+                // Try the next package.
+            }
+        }
+        return -1;
+    }
+
+    /** `Comparator` declares `equals` again, which a lambda does not implement. */
+    private static boolean isObjectMethod(Method method) {
+        try {
+            Object.class.getMethod(method.getName(), method.getParameterTypes());
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
+    }
+
+    /** The function that a lambda with this `return` is in, or null when the `return` is not in a lambda. */
+    private static String functionAroundLambda(String[] javaLines, String text) {
+        // javac may place the error at the lambda itself.
+        boolean inLambda = false;
+        for (int j = Arrays.asList(javaLines).lastIndexOf(text); j >= 0; j--) {
+            inLambda |= javaLines[j].contains("-> {");
+            Matcher method = METHOD_DECLARATION.matcher(javaLines[j]);
+            if (method.find()) {
+                return inLambda ? method.group(1) : null;
+            }
+        }
+        return null;
+    }
+
     /** The data class of the file that has a field of this name, or null. */
     private static String dataClassWith(String[] javaLines, String field) {
         Pattern component = Pattern.compile("[(,][^,()]* " + Pattern.quote(field) + "[,)]");
@@ -872,6 +992,14 @@ final class Messages {
             }
         }
         return null;
+    }
+
+    /** The constants of an enum of the file, as `RED`, `GREEN`, or null. */
+    private static String enumConstants(String[] javaLines, String enumName) {
+        Pattern declaration = Pattern.compile("\\benum " + Pattern.quote(enumName) + " \\{\\s*(\\w+(?:\\s*,\\s*\\w+)*)");
+        return Arrays.stream(javaLines).map(declaration::matcher).filter(Matcher::find).findFirst()
+                .map(m -> Arrays.stream(m.group(1).split("\\s*,\\s*")).map(c -> "`" + c + "`").collect(Collectors.joining(", ")))
+                .orElse(null);
     }
 
     private static String firstConstant(String[] javaLines, String enumName) {
@@ -1001,7 +1129,7 @@ final class Messages {
     }
 
     /** `java.util.Map<String, Int>` as `Map<String, Int>`, the way the function's own type is written. */
-    private static String simpleNames(String type) {
+    static String simpleNames(String type) {
         return type.replaceAll("\\b[a-z]\\w*(?:\\.[a-z]\\w*)*\\.(?=[A-Z])", "");
     }
 
@@ -1021,8 +1149,9 @@ final class Messages {
     private static String memberOwner(String location) {
         int ofType = location.indexOf(" of type ");
         if (location.startsWith("variable ") && ofType > 0) {
+            // Where a null check narrowed the value, its declared type still has `?`; a member is looked up without it.
             return "`" + location.substring("variable ".length(), ofType) + "` of type `"
-                    + axlType(location.substring(ofType + " of type ".length())) + "`";
+                    + axlType(location.substring(ofType + " of type ".length())).replaceFirst("\\?$", "") + "`";
         }
         return "`" + axlType(location.substring(location.indexOf(' ') + 1)) + "`";
     }
@@ -1045,7 +1174,7 @@ final class Messages {
         return String.join(", ", splitTopLevel(javac).stream().map(Messages::axlType).toList());
     }
 
-    private static String axlType(String javaType) {
+    static String axlType(String javaType) {
         if (isIntersection(javaType)) {
             return "Object";
         }

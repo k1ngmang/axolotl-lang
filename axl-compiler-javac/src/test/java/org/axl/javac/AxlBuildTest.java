@@ -34,8 +34,8 @@ class AxlBuildTest {
         assertEquals(List.of(
                 "3:13 `never` is never read",
                 "5:19 `a` is never read",
-                "7:4 [ReturnAtTheEndOfVoidFunction] the `return` at the end of this function is unnecessary",
-                "8:15 [EqualsIncompatibleType] Calling equals on incompatible types String and Int",
+                "7:4 the `return` at the end of this function is unnecessary",
+                "8:15 `String` and `Int` are never equal, so this `equals` is always false",
                 "16:12 `forgotten` is never used"), warnings);
     }
 
@@ -133,6 +133,53 @@ class AxlBuildTest {
                         + "`a.equals(b)`",
                 "13:17 `Empty` has no `toString`, so it is shown as `Empty@4488aabb`; give it `fn toString() -> String`"),
                 warnings);
+    }
+
+    @Test
+    void wordsCalculationAndCollectionWarningsWithoutJavaAdvice(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.util.ArrayList
+                import java.util.LinkedList
+                import java.util.Random
+
+                enum Color { RED, GREEN, BLUE }
+
+                fn half(a: Int) -> Double = a / 2
+                fn product(a: Int, b: Int) -> Long = a * b
+                fn digit(r: Random) -> Int = Math.abs(r.nextInt()) % 10
+
+                fn show(c: Color) {
+                    when (c) {
+                        Color.RED -> println("r")
+                    }
+                }
+
+                fn main() {
+                    var s: String? = null
+                    s = "x"
+                    println(s)
+                    val xs = ArrayList<String>()
+                    xs.add("a")
+                    println(LinkedList<String>())
+                    println(StringBuffer())
+                    println(StringBuilder().append("x").toString())
+                }
+                """);
+        assertEquals(List.of(
+                "9:29 this division of whole numbers drops the fraction before the result becomes a `Double`; make one "
+                        + "side a `Double`, as in `a / 2.0`",
+                "10:42 this `Int` calculation may overflow before its result becomes a `Long`; start it with a `Long`, "
+                        + "as in `1L * a * b`",
+                "11:35 `Math.abs` of the smallest `Int` is still negative; for a remainder that is never negative, use "
+                        + "`Math.floorMod(x, n)`",
+                "14:11 this `when` has no branch for `GREEN` and `BLUE`; add the missing branches or an `else ->` branch",
+                "20:9 the first value of `s` is replaced before it is read; declare `s` where its value is known",
+                "23:14 `xs` is filled but never read; use its values or remove it",
+                "25:13 `ArrayList` or `ArrayDeque` is almost always faster than `LinkedList`; use one of them",
+                "26:13 `StringBuffer` locks on every call, which is rarely needed; use `StringBuilder`",
+                "27:41 join strings with `+` instead of a `StringBuilder`; it reads better and is as fast"), warnings);
     }
 
     @Test

@@ -2,8 +2,17 @@ package app
 
 import java.util.List
 
-fn findings(x: Int?, y: Int?, xs: List<String>) {
+fn findings(x: Int?, y: Int?, xs: List<String>, ns: List<Long>) {
     println(x == y)
     println(xs.contains(1))
     println(String.format("%d", "x"))
+    println(ns.get(0) == ns.get(1))
+    println(String.format("%s", "a", "b"))
+}
+
+fn calls(t: Thread) {
+    var n = 1
+    n = n
+    t.run()
+    println(n)
 }
