@@ -90,6 +90,8 @@ final class NullChecker implements TaskListener {
     private static final String FIX = "use `?.`, `?:`, a null check or `!!`";
     private static final String CHANGING_FIX = "a null check does not narrow a `var` property or the result of a call, "
             + "which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`";
+    private static final String REASSIGNED_FIX = "a null check does not narrow a property of a local that is assigned "
+            + "again; copy the property to a local `val` first, or use `?.`, `?:` or `!!`";
     private static final Set<String> BOXES = Set.of("java.lang.Integer", "java.lang.Long", "java.lang.Double",
             "java.lang.Boolean", "java.lang.Character", "java.lang.Short", "java.lang.Byte", "java.lang.Float");
     // JDK methods whose function argument may return null: Java documents what null means for them.
@@ -243,7 +245,9 @@ final class NullChecker implements TaskListener {
         }
         TreePath path = trees.getPath(event.getTypeElement());
         if (path != null) {
-            new Scanner(event.getCompilationUnit()).scan(path, null);
+            Scanner scanner = new Scanner(event.getCompilationUnit());
+            scanner.findReassigned(path.getLeaf());
+            scanner.scan(path, null);
         }
     }
 
@@ -271,6 +275,8 @@ final class NullChecker implements TaskListener {
         private final Map<Element, Shape> shapes = new HashMap<>();
         // Off while a loop body is scanned only to see which values it leaves nullable.
         private boolean reporting = true;
+        // Locals that are not `final` and assigned after their declaration.
+        private final Set<Element> reassigned = new HashSet<>();
 
         Scanner(CompilationUnitTree unit) {
             this.unit = unit;
@@ -279,6 +285,31 @@ final class NullChecker implements TaskListener {
                 this.source = unit.getSourceFile().getCharContent(true).toString();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            }
+        }
+
+        void findReassigned(Tree type) {
+            new TreeScanner<Void, Void>() {
+                @Override
+                public Void visitAssignment(AssignmentTree assignment, Void unused) {
+                    addReassigned(assignment.getVariable());
+                    return super.visitAssignment(assignment, unused);
+                }
+
+                @Override
+                public Void visitCompoundAssignment(CompoundAssignmentTree assignment, Void unused) {
+                    addReassigned(assignment.getVariable());
+                    return super.visitCompoundAssignment(assignment, unused);
+                }
+            }.scan(type, null);
+        }
+
+        /** A `final` local is assigned once, also when its declaration has no value. */
+        private void addReassigned(ExpressionTree variable) {
+            Element element = element(variable);
+            if (element != null && element.getKind() == ElementKind.LOCAL_VARIABLE
+                    && !element.getModifiers().contains(Modifier.FINAL)) {
+                reassigned.add(element);
             }
         }
 
@@ -1276,7 +1307,7 @@ final class NullChecker implements TaskListener {
                 // `a?.b` and `a ?: b` call the runtime afresh each time.
                 return !isRuntime(method) && PlatformValues.isNullable(method, method.getReturnType())
                         && !(isRecordAccessor(method) && call.getMethodSelect() instanceof MemberSelectTree select
-                        && stable(select.getExpression()));
+                        && stableReceiver(select.getExpression()));
             }
             Element element = element(e);
             return element != null && element.getKind() == ElementKind.FIELD && !stable(e);
@@ -1300,7 +1331,19 @@ final class NullChecker implements TaskListener {
                 return true;
             }
             return element.getModifiers().contains(Modifier.FINAL)
-                    && (!(e instanceof MemberSelectTree select) || stable(select.getExpression()));
+                    && (!(e instanceof MemberSelectTree select) || stableReceiver(select.getExpression()));
+        }
+
+        /** `a` of `a.p` or `a.p()`, or else the expression itself. */
+        private static ExpressionTree receiver(ExpressionTree expression) {
+            ExpressionTree e = unwrap(expression);
+            ExpressionTree select = e instanceof MethodInvocationTree call ? call.getMethodSelect() : e;
+            return select instanceof MemberSelectTree member ? member.getExpression() : e;
+        }
+
+        /** `a` of `a.p`: a local assigned again may hold another object after `a.p` was checked. */
+        private boolean stableReceiver(ExpressionTree receiver) {
+            return stable(receiver) && !reassigned.contains(element(receiver));
         }
 
         @Override
@@ -1713,7 +1756,8 @@ final class NullChecker implements TaskListener {
         private boolean reportValue(Tree at, ExpressionTree value, boolean nullAwayChecks, String problem) {
             Origin origin = origin(value);
             if (nullAwayChecks && origin == Origin.DECLARED && mayChange(value)) {
-                return report(at, origin, false, describe(value) + problem + "; " + CHANGING_FIX);
+                String fix = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
+                return report(at, origin, false, describe(value) + problem + "; " + fix);
             }
             return report(at, origin, nullAwayChecks, describe(value) + problem + "; " + FIX);
         }

@@ -1,0 +1,3 @@
+AXL102 app/Main.axl:10:21: error: the value of `p` may be null; a null check does not narrow a property of a local that is assigned again; copy the property to a local `val` first, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:14:21: error: the value of `p` may be null; a null check does not narrow a property of a local that is assigned again; copy the property to a local `val` first, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:20:23: error: the result of `p()` may be null; a null check does not narrow a property of a local that is assigned again; copy the property to a local `val` first, or use `?.`, `?:` or `!!`

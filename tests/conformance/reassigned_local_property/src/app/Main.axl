@@ -1,0 +1,30 @@
+package app
+
+class H(val p: String?)
+data class D(val p: String?)
+
+fn main() {
+    var a = H("x")
+    if (a.p != null) {
+        a = H(null)
+        println(a.p.length())
+    }
+    var b: H = H("x")
+    if (b.p != null) {
+        println(b.p.length())
+    }
+    b = H(null)
+    var d = D("x")
+    if (d.p() != null) {
+        d = D(null)
+        println(d.p().length())
+    }
+    val c = H("y")
+    if (c.p != null) {
+        println(c.p.length())
+    }
+    var e = H("z")
+    if (e.p != null) {
+        println(e.p.length())
+    }
+}
