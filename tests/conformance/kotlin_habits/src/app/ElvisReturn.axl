@@ -1,0 +1,6 @@
+package app
+
+fn f(s: String?) -> Int {
+    val t = s ?: return 0
+    return t.length()
+}

@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+
+fn f(xs: List<Int>) {
+    for (x of xs) {
+        println(x)
+    }
+}

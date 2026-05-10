@@ -1,0 +1,3 @@
+package app
+
+val add = (a: Int, b: Int) => a + b

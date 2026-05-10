@@ -1,0 +1,7 @@
+package app
+
+class Box(val v: Int) {
+    init {
+        println(v)
+    }
+}

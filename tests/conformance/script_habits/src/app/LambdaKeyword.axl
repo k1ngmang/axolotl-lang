@@ -1,0 +1,5 @@
+package app
+
+import java.util.function.Function
+
+val f: Function<Int, Int> = lambda x: x + 1

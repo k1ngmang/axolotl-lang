@@ -1,0 +1,3 @@
+package app
+
+fn f(a: Boolean, b: Boolean) -> Boolean = a and not b
