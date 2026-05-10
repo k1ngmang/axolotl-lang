@@ -1,2 +1,2 @@
 AXL100 app/Main.axl:11:17: error: `node` of type `Node` has no method `text()`
-AXL100 app/Main.axl:17:24: error: `current` of type `Node` has no method `text()`
+AXL100 app/Main.axl:17:24: error: `current` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with `val` if it does not change

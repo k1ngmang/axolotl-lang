@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:8:18: error: `x` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with `val` if it does not change
+AXL100 app/Main.axl:16:20: error: `b.v` is a property, so `is` does not narrow it; copy it to a local `val` first: `val v = b.v`

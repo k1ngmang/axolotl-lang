@@ -1,0 +1,19 @@
+package app
+
+class Box(val v: Object)
+
+fn local(o: Object) -> Int {
+    var x = o
+    if (x is String) {
+        return x.length()
+    }
+    x = "a"
+    return 0
+}
+
+fn property(b: Box) -> Int {
+    if (b.v is String) {
+        return b.v.length()
+    }
+    return 0
+}
