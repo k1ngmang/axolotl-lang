@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+fn anyPositive(xs: List<Int>) -> Boolean {
+    xs |> forEach { if (it > 0) { return true } }
+    return false
+}
