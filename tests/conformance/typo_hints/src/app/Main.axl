@@ -1,0 +1,19 @@
+package app
+
+fn foreign(n: number, s: string) -> number = n
+
+fn words(s: String?) -> Boolean {
+    console.log(s)
+    if (s == undefined || s == None) {
+        return True
+    }
+    return ture
+}
+
+fn slips(count: Int) -> Strng? {
+    prinln("x")
+    println(Count)
+    Println("x")
+    val n: Itn = count
+    return nul
+}

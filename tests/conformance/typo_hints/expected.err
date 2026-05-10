@@ -1,0 +1,14 @@
+AXL100 app/Main.axl:3:15: error: unknown type `number`; write `Int` or `Double`
+AXL100 app/Main.axl:3:26: error: unknown type `string`; write `String`
+AXL100 app/Main.axl:3:37: error: unknown type `number`; write `Int` or `Double`
+AXL100 app/Main.axl:6:5: error: unknown name `console`; print with `println(...)`
+AXL100 app/Main.axl:7:14: error: unknown name `undefined`; write `null`
+AXL100 app/Main.axl:7:32: error: unknown name `None`; write `null`
+AXL100 app/Main.axl:8:16: error: unknown name `True`; write `true`
+AXL100 app/Main.axl:10:12: error: unknown name `ture`; did you mean `true`?
+AXL100 app/Main.axl:13:25: error: unknown type `Strng`; did you mean `String`?
+AXL100 app/Main.axl:14:5: error: unknown function `prinln(String)`; did you mean `println`?
+AXL100 app/Main.axl:15:13: error: unknown name `Count`; did you mean `count`?
+AXL100 app/Main.axl:16:5: error: unknown type `Println`; did you mean `println`?
+AXL100 app/Main.axl:17:12: error: unknown type `Itn`; did you mean `Int`?
+AXL100 app/Main.axl:18:12: error: unknown name `nul`; did you mean `null`?

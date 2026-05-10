@@ -1,9 +1,11 @@
 package org.axl.javac;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 /** Hints for unknown names: the Axolotl or Java name for a habit from Kotlin, an import, or a close spelling. */
 final class Names {
@@ -33,6 +35,11 @@ final class Names {
             "class", "new", "this", "null", "true", "false", "void", "else", "case", "default", "switch", "record",
             "interface", "enum", "import", "package", "while", "for", "if");
 
+    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "String", "Character",
+            "Object", "Result");
+
+    private static final List<String> WORDS = List.of("null", "true", "false", "this", "println");
+
     static final String NO_TYPE_PARAMETERS = "Axolotl functions and classes have no type parameters, so write the type itself";
 
     private static final Pattern WORD = Pattern.compile("(?<![\\w$.])[A-Za-z_]\\w*");
@@ -45,12 +52,38 @@ final class Names {
             case "Bool" -> "write `Boolean`";
             case "Char" -> "a character is a `Character`";
             case "Unit" -> "leave out the result type of a function that returns nothing";
+            case "string" -> "write `String`";
+            case "number" -> "write `Int` or `Double`";
             default -> symbol.matches("[A-Z]") ? NO_TYPE_PARAMETERS
                     : ARRAY_TYPES.contains(symbol) ? "Axolotl uses lists, such as `List<Int>`"
                     : JDK_TYPES.containsKey(symbol) ? "add `import " + JDK_TYPES.get(symbol) + "." + symbol + "`"
-                    : "check the spelling or add an import";
+                    : symbol.equalsIgnoreCase("println") ? "did you mean `println`?"
+                    : similarType(symbol);
         };
         return "unknown type `" + symbol + "`; " + hint;
+    }
+
+    private static String similarType(String symbol) {
+        return Stream.concat(BUILTIN_TYPES.stream(), JDK_TYPES.keySet().stream().sorted())
+                .filter(t -> distance(symbol, t) <= (symbol.length() > 4 ? 2 : 1)).findFirst()
+                .map(t -> "did you mean `" + t + "`?").orElse("check the spelling or add an import");
+    }
+
+    /** `None`, `undefined` and `nul`: what other languages, or a slip, write for Axolotl's own words. */
+    static String nameHint(String symbol) {
+        String foreign = switch (symbol) {
+            case "None", "undefined", "nil", "NULL" -> "write `null`";
+            case "True" -> "write `true`";
+            case "False" -> "write `false`";
+            case "self" -> "write `this`";
+            case "console" -> "print with `println(...)`";
+            default -> null;
+        };
+        if (foreign != null || symbol.length() < 3) {
+            return foreign;
+        }
+        return WORDS.stream().filter(w -> distance(symbol, w) == 1).findFirst().map(w -> "did you mean `" + w + "`?")
+                .orElse(null);
     }
 
     /** `Int.MAX_VALUE`: Axolotl's type names are not classes. */
@@ -64,20 +97,27 @@ final class Names {
     }
 
     static String functionHint(String name) {
-        return FUNCTIONS.get(name);
+        String hint = FUNCTIONS.get(name);
+        boolean println = !name.equals("println") && distance(name, "println") <= 2;
+        return hint == null && println ? "did you mean `println`?" : hint;
     }
 
-    /** A name of the generated file one or two letters away from the unknown one, or null. */
+    /**
+     * A name of the generated file one or two letters away from the unknown one, or null. A name that
+     * starts with a capital only matches one that differs in case.
+     */
     static String similar(String name, String[] javaLines) {
-        if (name.length() < 3 || Character.isUpperCase(name.charAt(0))) {
+        if (name.length() < 3) {
             return null;
         }
+        boolean capital = Character.isUpperCase(name.charAt(0));
         for (String line : javaLines) {
             Matcher word = WORD.matcher(line.replaceAll("\"[^\"\\\\]*+(\\\\.[^\"\\\\]*+)*+\"", "\"\""));
             while (word.find()) {
                 String candidate = word.group();
-                if (!candidate.equals(name) && !JAVA_WORDS.contains(candidate)
-                        && distance(name, candidate) <= (name.length() > 4 ? 2 : 1)) {
+                boolean close = capital ? candidate.equalsIgnoreCase(name)
+                        : distance(name, candidate) <= (name.length() > 4 ? 2 : 1);
+                if (!candidate.equals(name) && !JAVA_WORDS.contains(candidate) && close) {
                     return candidate;
                 }
             }

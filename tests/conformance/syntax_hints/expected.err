@@ -4,6 +4,7 @@ AXL001 app/IfWithoutElse.axl:3:29: error: an `if` that gives a value needs an `e
 AXL001 app/InterfaceFunction.axl:4:5: error: an interface lists values (`val name: Type`), not functions; write the function at the top level
 AXL001 app/IsTypeArguments.axl:6:18: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
 AXL001 app/MissingComma.axl:3:15: error: missing `,` before `b`
+AXL001 app/MisspelledFn.axl:3:1: error: unknown word `fnn`; did you mean `fn`?
 AXL001 app/MisspelledIf.axl:5:5: error: unknown word `iff`; did you mean `if`?
 AXL001 app/PlusOnNextLine.axl:5:14: error: missing `)` at the end of the line: a line that starts with `+` starts a new statement, so end this line with the `+` instead
 AXL001 app/ReturnInBody.axl:3:23: error: a body after `=` is the value itself; remove `return`

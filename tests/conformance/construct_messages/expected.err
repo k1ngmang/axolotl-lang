@@ -1,4 +1,4 @@
-AXL100 app/ClassParams.axl:3:25: error: unknown type `Strng`; check the spelling or add an import
+AXL100 app/ClassParams.axl:3:25: error: unknown type `Strng`; did you mean `String`?
 AXL100 app/ClassParams.axl:3:43: error: unknown type `Foo`; check the spelling or add an import
 AXL100 app/ExpressionBody.axl:3:30: error: type mismatch: expected `String`, found `Int`
 AXL100 app/LambdaArgument.axl:7:25: error: `Stream<String>` has no method `mapp({ ... })`

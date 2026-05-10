@@ -305,7 +305,7 @@ public final class SourceParser {
             return null;
         }
         String text = token.getText();
-        if (text.equals("fun") || text.equals("def") || text.equals("function")) {
+        if (Set.of("fun", "fnn", "func", "def", "function").contains(text)) {
             return "fn";
         }
         for (String keyword : KEYWORDS) {
