@@ -1,0 +1,13 @@
+package app
+
+import java.util.Comparator
+import java.util.function.Function
+
+fn main() {
+    val c: Comparator<String> = { a.compareTo(b) }
+    val r: Runnable = { println(it) }
+    val f: Function<String, Int> = { a, b -> a.length() }
+    println(c)
+    println(r)
+    println(f)
+}

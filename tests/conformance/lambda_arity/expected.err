@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:7:35: error: `Comparator` takes 2 parameters; name them, as in `{ a, b -> ... }`
+AXL100 app/Main.axl:8:33: error: `Runnable` takes no parameters, so `it` is not available here; write `{ -> ... }`
+AXL100 app/Main.axl:9:38: error: `Function` takes 1 parameter; name it, as in `{ x -> ... }`, or use `it`
