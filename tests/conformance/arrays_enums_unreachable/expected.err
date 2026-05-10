@@ -1,0 +1,5 @@
+AXL100 app/Main.axl:3:27: error: Axolotl uses Java's library, not Kotlin's; import Java's classes, such as `java.util.List`
+AXL100 app/Main.axl:7:43: error: this is a Java array of `String`, which has no method `size()`; read its `length`, or turn it into a list with `List.of(...)`
+AXL100 app/Main.axl:9:43: error: this is a Java array of `byte`, which has no field `size`; read its `length`
+AXL100 app/Main.axl:11:28: error: `Color` has no constant `BLUE`; its constants are `RED`, `GREEN`
+AXL100 app/Main.axl:15:5: error: this statement is never run: the code before it always returns, throws or loops forever; remove it

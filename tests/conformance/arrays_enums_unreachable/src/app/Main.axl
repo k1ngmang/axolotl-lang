@@ -1,0 +1,16 @@
+package app
+
+import kotlin.collections.List
+
+enum Color { RED, GREEN }
+
+fn parts(s: String) -> Int = s.split(",").size()
+
+fn bytes(s: String) -> Int = s.getBytes().size
+
+fn blue() -> Color = Color.BLUE
+
+fn early() -> Int {
+    return 1
+    println("x")
+}
