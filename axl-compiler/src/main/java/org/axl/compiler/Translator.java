@@ -1,6 +1,7 @@
 package org.axl.compiler;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -69,6 +70,11 @@ public final class Translator {
                             + directory.replace('.', '/') + "`; Java and the IDE look for the class in its package directory"));
         }
         Analysis analysis = Checker.check(file, diagnostics);
+        // A syntax error that leaves a valid tree, such as a line starting with `+`, explains what the checker finds there.
+        List<AxlDiagnostic> syntax = parsed.diagnostics().stream().filter(AxlDiagnostic::isError).toList();
+        diagnostics.removeIf(d -> !syntax.contains(d)
+                && syntax.stream().anyMatch(s -> s.line() == d.line() && s.column() == d.column()));
+        diagnostics.sort(Comparator.comparingInt(AxlDiagnostic::line).thenComparingInt(AxlDiagnostic::column));
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             return new Result(null, diagnostics);
         }

@@ -1,0 +1,7 @@
+package app
+
+fn f(a: Int, b: Int) -> Int {
+    val c = a
+        + b
+    return c
+}

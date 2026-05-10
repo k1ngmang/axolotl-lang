@@ -34,7 +34,7 @@ public final class SourceParser {
 
     private static final Pattern TEMPLATE = Pattern.compile("(?<!\\\\)\\$(\\{|[A-Za-z_]\\w*)");
 
-    /** file is null when the source has syntax errors. */
+    /** file is null when the source has syntax errors, except those that leave a valid tree. */
     public record Result(SourceFile file, List<AxlDiagnostic> diagnostics) {}
 
     private SourceParser() {}
@@ -159,20 +159,7 @@ public final class SourceParser {
 
     /** Statements end at the end of a line or at `;`; the grammar alone would take `f() g()` as two. */
     private static void sharedLines(String path, CommonTokenStream tokens, ParseTree node, List<AxlDiagnostic> diagnostics) {
-        List<? extends ParserRuleContext> statements = switch (node) {
-            case AxolotlParser.CompilationUnitContext unit -> {
-                List<ParserRuleContext> all = new ArrayList<>();
-                if (unit.packageDecl() != null) {
-                    all.add(unit.packageDecl());
-                }
-                all.addAll(unit.importDecl());
-                all.addAll(unit.topLevel());
-                yield all;
-            }
-            case AxolotlParser.BlockContext block -> block.statement();
-            case AxolotlParser.LambdaContext lambda -> lambda.statement();
-            default -> List.of();
-        };
+        List<? extends ParserRuleContext> statements = statements(node);
         int reportedLine = -1;
         for (int i = 1; i < statements.size(); i++) {
             Token end = statements.get(i - 1).getStop();
@@ -190,6 +177,50 @@ public final class SourceParser {
         for (int i = 0; i < node.getChildCount(); i++) {
             sharedLines(path, tokens, node.getChild(i), diagnostics);
         }
+    }
+
+    /**
+     * `val c = a` and `+ b` on the next line: a line that starts with a sign starts a statement of its
+     * own, which does nothing. The tree is still valid, and the translator drops the checker's error there.
+     */
+    private static void signedLines(String path, ParseTree node, List<AxlDiagnostic> diagnostics) {
+        List<? extends ParserRuleContext> statements = statements(node);
+        for (int i = 1; i < statements.size(); i++) {
+            Token start = statements.get(i).getStart();
+            boolean sign = start.getType() == AxolotlLexer.PLUS || start.getType() == AxolotlLexer.MINUS;
+            if (sign && givesValue(statements.get(i - 1)) && statements.get(i - 1).getStop().getLine() < start.getLine()) {
+                diagnostics.add(error(path, start, "a line that starts with `" + start.getText() + "` starts a new "
+                        + "statement; to go on with the line before, end it with `" + start.getText() + "` instead"));
+            }
+        }
+        for (int i = 0; i < node.getChildCount(); i++) {
+            signedLines(path, node.getChild(i), diagnostics);
+        }
+    }
+
+    /** A statement whose value the next line could be meant to go on with. */
+    private static boolean givesValue(ParserRuleContext statement) {
+        return statement instanceof AxolotlParser.ValStatementContext || statement instanceof AxolotlParser.VarStatementContext
+                || statement instanceof AxolotlParser.AssignStatementContext
+                || statement instanceof AxolotlParser.ReturnStatementContext;
+    }
+
+    /** The statements, declarations or imports directly in a node. */
+    private static List<? extends ParserRuleContext> statements(ParseTree node) {
+        return switch (node) {
+            case AxolotlParser.CompilationUnitContext unit -> {
+                List<ParserRuleContext> all = new ArrayList<>();
+                if (unit.packageDecl() != null) {
+                    all.add(unit.packageDecl());
+                }
+                all.addAll(unit.importDecl());
+                all.addAll(unit.topLevel());
+                yield all;
+            }
+            case AxolotlParser.BlockContext block -> block.statement();
+            case AxolotlParser.LambdaContext lambda -> lambda.statement();
+            default -> List.of();
+        };
     }
 
     private static final List<String> KEYWORDS = List.of("return", "while", "else", "when", "val", "var", "for", "if",
@@ -759,6 +790,7 @@ public final class SourceParser {
                                 + "join the parts with `+`: `\"value is \" + x`"));
             }
         }
+        signedLines(path, tree, diagnostics);
         try {
             return new Result(AstBuilder.build(path, className, tree), diagnostics);
         } catch (Rejected e) {

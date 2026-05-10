@@ -7,6 +7,7 @@ AXL001 app/MissingComma.axl:3:15: error: missing `,` before `b`
 AXL001 app/MisspelledFn.axl:3:1: error: unknown word `fnn`; did you mean `fn`?
 AXL001 app/MisspelledIf.axl:5:5: error: unknown word `iff`; did you mean `if`?
 AXL001 app/PlusOnNextLine.axl:5:14: error: missing `)` at the end of the line: a line that starts with `+` starts a new statement, so end this line with the `+` instead
+AXL001 app/PlusStartsLine.axl:5:9: error: a line that starts with `+` starts a new statement; to go on with the line before, end it with `+` instead
 AXL001 app/ReturnInBody.axl:3:23: error: a body after `=` is the value itself; remove `return`
 AXL001 app/UnclosedCall.axl:6:20: error: missing `)` at the end of the line
 AXL001 app/UnclosedInner.axl:10:1: error: unexpected end of file: the `{` at line 5 is not closed
