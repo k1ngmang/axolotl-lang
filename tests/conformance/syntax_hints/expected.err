@@ -1,14 +1,45 @@
+AXL001 app/Apply.axl:4:36: error: Axolotl has no `apply`; keep the object in a `val` and call its methods one by one
+AXL001 app/AssignInWhenBranch.axl:6:16: error: an assignment in a `when` branch goes in braces: `1 -> { s = "one" }`
 AXL001 app/AttemptWithoutElse.axl:4:5: error: `attempt` needs `else`: `attempt f() else e -> ...`
+AXL001 app/CallOpenAcrossLines.axl:5:13: error: missing `)` at the end of the line
+AXL001 app/ClassParameterWithoutVal.axl:3:11: error: a parameter of a class is a property; write `val v: Int`, or `var v: Int` if it changes
+AXL001 app/CollectionFunction.axl:4:14: error: unknown function `mutableListOf`; write `ArrayList<String>()`
+AXL001 app/ColonBlock.axl:3:20: error: a block goes in braces: `{ ... }`, not after `:`
+AXL001 app/ComparisonAtEnd.axl:3:30: error: `>` needs a value after it
+AXL001 app/ConditionInWhenBranch.axl:4:7: error: a `when` branch compares with a constant or tests a type with `is`; for other conditions, use `if` and `else if`
 AXL001 app/DataClassBody.axl:3:26: error: a data class has no body; write its functions at the top level, taking it as a parameter
+AXL001 app/EmptyCondition.axl:4:9: error: `if` needs a condition: `if (c) { ... }`
+AXL001 app/FunctionType.axl:3:13: error: Axolotl has no function types; use an interface such as `java.util.function.Function<Int, Int>`
+AXL001 app/IfValueNextLine.axl:4:13: error: an `if` that gives a value needs an `else`: `if (c) a else b`
 AXL001 app/IfWithoutElse.axl:3:29: error: an `if` that gives a value needs an `else`: `if (c) a else b`
+AXL001 app/ImportDot.axl:3:17: error: `.` needs a name after it
 AXL001 app/InterfaceFunction.axl:4:5: error: an interface lists values (`val name: Type`), not functions; write the function at the top level
+AXL001 app/InterfaceMethod.axl:4:5: error: an interface lists values (`val name: Type`), not functions; write the function at the top level
 AXL001 app/IsTypeArguments.axl:6:18: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
+AXL001 app/IsTypeArgumentsAtEnd.axl:5:39: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
+AXL001 app/LocalClass.axl:4:5: error: types are declared at the top level of the file
 AXL001 app/MissingComma.axl:3:15: error: missing `,` before `b`
+AXL001 app/MissingPlus.axl:5:18: error: missing `+` or `,` before `a`
+AXL001 app/MissingResultType.axl:3:8: error: missing the result type after `->`; leave out `->` for a function that returns nothing
+AXL001 app/MissingType.axl:4:12: error: missing a type after `:`
 AXL001 app/MisspelledFn.axl:3:1: error: unknown word `fnn`; did you mean `fn`?
 AXL001 app/MisspelledIf.axl:5:5: error: unknown word `iff`; did you mean `if`?
+AXL001 app/NestedFunction.axl:4:5: error: functions cannot be nested; declare `helper` at the top level, or keep a lambda in a `val`
 AXL001 app/PlusOnNextLine.axl:5:14: error: missing `)` at the end of the line: a line that starts with `+` starts a new statement, so end this line with the `+` instead
 AXL001 app/PlusStartsLine.axl:5:9: error: a line that starts with `+` starts a new statement; to go on with the line before, end it with `+` instead
+AXL001 app/PrimitiveTypeArgument.axl:6:14: error: a type argument cannot be `int`; write `Int`, as in `ArrayList<Int>()`
+AXL001 app/PrivateClassParameter.axl:3:9: error: class parameters cannot be `private`; give the class a `private val` property with the value instead
+AXL001 app/PropertyWithoutValue.axl:4:9: error: a property needs a value: `var count: Int = ...`
+AXL001 app/Repeat.axl:4:15: error: Axolotl has no `repeat`; count with a `while` loop
 AXL001 app/ReturnInBody.axl:3:23: error: a body after `=` is the value itself; remove `return`
+AXL001 app/ReturnInWhenBranch.axl:5:14: error: a `return` in a `when` branch goes in braces: `1 -> { return "a" }`
+AXL001 app/SignatureAtEnd.axl:3:14: error: the declaration is not finished at the end of this line
+AXL001 app/TopLevelStatement.axl:3:1: error: statements go inside a function, such as `fn main() { ... }`
+AXL001 app/TrailingComma.axl:6:18: error: `,` needs a value after it; remove it or add the value
+AXL001 app/TwoOperators.axl:3:25: error: `+` needs a value after it
+AXL001 app/UnclosedBeforeFunction.axl:6:1: error: the `{` at line 3 is not closed; add `}` before this `fn`
 AXL001 app/UnclosedCall.axl:6:20: error: missing `)` at the end of the line
 AXL001 app/UnclosedInner.axl:10:1: error: unexpected end of file: the `{` at line 5 is not closed
+AXL001 app/UnclosedParameters.axl:3:13: error: missing `)` before `->`
+AXL001 app/VarWithoutValue.axl:4:9: error: `var s` needs a first value: `var s: String = ...`; to choose it, compute it with `if`: `val s = if (c) a else b`
 AXL001 app/WhenWithoutSubject.axl:3:31: error: `when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`

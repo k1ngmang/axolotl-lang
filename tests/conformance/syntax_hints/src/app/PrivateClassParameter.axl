@@ -1,0 +1,3 @@
+package app
+
+class P(private val n: Int)

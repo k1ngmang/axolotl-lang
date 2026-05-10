@@ -1,0 +1,6 @@
+package app
+
+fn f(n: Int) -> String {
+    val s = if (n > 0) "a"
+    return s
+}

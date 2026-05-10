@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    if () {
+        println(1)
+    }
+}

@@ -1,0 +1,5 @@
+package app
+
+class Box(v: Int) {
+    fn get() -> Int = v
+}

@@ -312,11 +312,21 @@ public final class SourceParser {
         return null;
     }
 
+    private static final Map<String, String> KOTLIN_SCOPE = Map.of(
+            "repeat", "count with a `while` loop",
+            "apply", "keep the object in a `val` and call its methods one by one",
+            "also", "keep the object in a `val` and use it in the statements after",
+            "takeIf", "test the value with `if`");
+
     /** Kotlin's `xs.forEach { ... }` and `s?.let { ... }`. */
     private static String trailingLambda(CommonTokenStream tokens, Token name) {
         Token dot = previousToken(tokens, name);
         if (dot != null && dot.getType() == AxolotlLexer.SAFE_DOT && name.getText().equals("let")) {
             return "Axolotl has no `let`; check for null instead: `if (s != null) { ... }`";
+        }
+        String scope = KOTLIN_SCOPE.get(name.getText());
+        if (scope != null) {
+            return "Axolotl has no `" + name.getText() + "`; " + scope;
         }
         boolean member = dot != null && (dot.getType() == AxolotlLexer.DOT || dot.getType() == AxolotlLexer.SAFE_DOT);
         Token receiver = member ? previousToken(tokens, dot) : null;
@@ -509,8 +519,13 @@ public final class SourceParser {
     private static String parserMessage(String msg, Token at, CommonTokenStream tokens) {
         if (at != null && at.getType() == Token.EOF) {
             Token open = unclosedBrace(tokens);
-            return open != null ? "unexpected end of file: the `{` at line " + open.getLine() + " is not closed"
-                    : "unexpected end of file";
+            Token previous = previousToken(tokens, at);
+            if (open != null) {
+                return "unexpected end of file: the `{` at line " + open.getLine() + " is not closed";
+            }
+            boolean comparison = previous != null && (previous.getType() == AxolotlLexer.LT || previous.getType() == AxolotlLexer.GT);
+            return comparison ? "`" + previous.getText() + "` needs a value after it"
+                    : "the declaration is not finished at the end of this line";
         }
         if (at != null && at.getType() == AxolotlParser.BLOCK_START) {
             return "an `if` that gives a value takes expressions after `if (...)` and `else`, not braces: "
@@ -584,7 +599,7 @@ public final class SourceParser {
     }
 
     /** Whether the innermost `{` open at the token is the one of a `when`, not of an arm's block. */
-    private static boolean inWhenBraces(CommonTokenStream tokens, Token at) {
+    static boolean inWhenBraces(CommonTokenStream tokens, Token at) {
         int depth = 0;
         for (int i = at.getTokenIndex() - 1; i >= 0; i--) {
             int type = tokens.get(i).getType();
@@ -632,6 +647,16 @@ public final class SourceParser {
             }
         }
         return null;
+    }
+
+    /** The parentheses open before the token, which may be on earlier lines. */
+    private static int parenDepth(CommonTokenStream tokens, Token at) {
+        int depth = 0;
+        for (int i = 0; at != null && i < at.getTokenIndex(); i++) {
+            int type = tokens.get(i).getType();
+            depth += type == AxolotlLexer.LPAREN ? 1 : type == AxolotlLexer.RPAREN ? -1 : 0;
+        }
+        return depth;
     }
 
     private static int openParens(CommonTokenStream tokens, int line) {
@@ -709,6 +734,8 @@ public final class SourceParser {
         var parserErrors = new BaseErrorListener() {
             // After an unclosed `(`, the parser's recovery reports the lines after it too.
             boolean unclosedParen;
+            // A known mistake that leaves the rest of the parse meaningless.
+            boolean explained;
             // Prediction may look ahead over a whole `when` and fail at a later line first; the
             // recovery then parses the tokens before that point again and reports them too.
             int furthest = -1;
@@ -717,11 +744,11 @@ public final class SourceParser {
             public void syntaxError(Recognizer<?, ?> recognizer, Object offendingSymbol, int line,
                                     int charPositionInLine, String msg, RecognitionException e) {
                 Token at = offendingSymbol instanceof Token t ? t : null;
-                if (unclosedParen || at != null && at.getTokenIndex() < furthest) {
+                if (unclosedParen || explained || at != null && at.getTokenIndex() < furthest) {
                     return;
                 }
                 furthest = at == null ? furthest : at.getTokenIndex();
-                Mistakes.Placed known = at == null || at.getType() == Token.EOF ? null : Mistakes.find(tokens, at);
+                Mistakes.Placed known = at == null ? null : Mistakes.find(tokens, at);
                 if (known != null) {
                     report(known);
                     return;
@@ -746,7 +773,7 @@ public final class SourceParser {
                     report(Mistakes.unfinished(tokens, previous));
                     return;
                 }
-                unclosedParen = reportLine < line && openParens(tokens, reportLine) > 0;
+                unclosedParen = reportLine < line && (openParens(tokens, reportLine) > 0 || parenDepth(tokens, at) > 0);
                 String message = unclosedParen ? missingParen(at)
                         : notFinished ? "the declaration is not finished at the end of this line"
                         : previous != null && unfinished(previous) ? "`" + previous.getText() + "` needs "
@@ -765,6 +792,7 @@ public final class SourceParser {
             }
 
             private void report(Mistakes.Placed known) {
+                explained = known.last();
                 Token at = known.at();
                 if (diagnostics.stream().noneMatch(d -> d.line() == at.getLine())) {
                     diagnostics.add(AxlDiagnostic.error(path, at.getLine(), at.getCharPositionInLine() + 1,

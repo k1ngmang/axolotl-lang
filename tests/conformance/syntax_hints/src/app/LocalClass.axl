@@ -1,0 +1,5 @@
+package app
+
+fn main() {
+    data class P(val x: Int)
+}

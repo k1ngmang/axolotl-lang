@@ -1,0 +1,8 @@
+package app
+
+import java.util.ArrayList
+
+fn main() {
+    val xs = ArrayList<int>()
+    println(xs)
+}

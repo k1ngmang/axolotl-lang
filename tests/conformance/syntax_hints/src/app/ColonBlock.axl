@@ -1,0 +1,4 @@
+package app
+
+fn f(n: Int) -> Int:
+    return n

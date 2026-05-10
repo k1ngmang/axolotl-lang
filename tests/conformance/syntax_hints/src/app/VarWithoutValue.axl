@@ -1,0 +1,11 @@
+package app
+
+fn f(b: Boolean) -> String {
+    var s: String
+    if (b) {
+        s = "a"
+    } else {
+        s = "b"
+    }
+    return s
+}

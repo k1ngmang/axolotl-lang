@@ -1,0 +1,5 @@
+package app
+
+interface Greeter {
+    greet(name: String): String
+}

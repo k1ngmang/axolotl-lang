@@ -1,0 +1,3 @@
+package app
+
+fn apply(f: (Int) -> Int, x: Int) -> Int = f(x)

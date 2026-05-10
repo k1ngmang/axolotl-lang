@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+fn f(o: Object) -> Boolean = o is List<String>

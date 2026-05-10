@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val xs = mutableListOf<String>()
+    println(xs)
+}

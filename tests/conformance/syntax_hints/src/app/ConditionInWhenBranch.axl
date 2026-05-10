@@ -1,0 +1,6 @@
+package app
+
+fn f(n: Int) -> String = when (n) {
+    n > 0 -> "pos"
+    else -> "neg"
+}

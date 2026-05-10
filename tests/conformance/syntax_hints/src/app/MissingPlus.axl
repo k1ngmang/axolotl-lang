@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val a = "x"
+    println("a=" a)
+}

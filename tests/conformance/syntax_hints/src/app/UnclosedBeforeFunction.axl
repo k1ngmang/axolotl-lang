@@ -1,0 +1,6 @@
+package app
+
+fn f() -> Int {
+    return 1
+
+fn g() -> Int = 2

@@ -1,0 +1,5 @@
+package app
+
+fn main() {
+    repeat(3) { println("hi") }
+}

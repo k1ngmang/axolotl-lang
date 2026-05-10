@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    fn helper() -> Int = 1
+    println(helper())
+}
