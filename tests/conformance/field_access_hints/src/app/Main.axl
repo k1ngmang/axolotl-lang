@@ -1,0 +1,22 @@
+package app
+
+import app.Shapes.Point
+
+interface Named {
+    val name: String
+}
+
+fn parse(s: String) -> Result<Int, String> = Ok(1)
+
+fn x(p: Point) -> Int = p.x
+
+fn name(n: Named) -> String = n.name
+
+fn value() -> Int = parse("1").value
+
+fn size(s: String?) -> Int {
+    if (s == null) {
+        return 0
+    }
+    return s.length
+}

@@ -13,6 +13,9 @@ final class OtherFiles {
     private static final Pattern UNKNOWN_FUNCTION = Pattern.compile(
             "^(unknown function `(\\w+)\\(.*?\\)`); check the spelling or add `import fn`$");
 
+    private static final Pattern NO_FIELD = Pattern.compile("^(?:`\\w+` of type )?`(?:[\\w.]+\\.)?(\\w+)(?:<.*>)?` has no field `(\\w+)`$");
+    private static final Pattern PRIVATE_FIELD = Pattern.compile("^`(\\w+)` is private to `(?:[\\w.]+\\.)?(\\w+)` and can only be used in that file$");
+
     private final Collection<GeneratedSource> sources;
 
     OtherFiles(Collection<GeneratedSource> sources) {
@@ -20,6 +23,15 @@ final class OtherFiles {
     }
 
     String reword(String message) {
+        Matcher noField = NO_FIELD.matcher(message);
+        if (noField.find() && hasAccessor(noField.group(1), noField.group(2))) {
+            return message + "; `" + noField.group(2) + "` is a method: `" + noField.group(2) + "()`";
+        }
+        Matcher privateField = PRIVATE_FIELD.matcher(message);
+        if (privateField.find() && hasAccessor(privateField.group(2), privateField.group(1))) {
+            return "read the field `" + privateField.group(1) + "` of the data class `" + privateField.group(2)
+                    + "` with parentheses: `" + privateField.group(1) + "()`";
+        }
         Matcher noMember = NO_MEMBER.matcher(message);
         if (noMember.find() && isPrivate(noMember.group(1), noMember.group(2))) {
             return "`" + noMember.group(2) + "` is private to `" + noMember.group(1) + "` and can only be used in that file";
@@ -44,6 +56,26 @@ final class OtherFiles {
             }
         }
         return message;
+    }
+
+    /** Whether a type of the build has a method without parameters of this name, such as a field of a data class. */
+    private boolean hasAccessor(String type, String member) {
+        Pattern declaration = Pattern.compile("^    (?:public |private )?(?:static |sealed |final )*(?:record|class|interface) "
+                + Pattern.quote(type) + "\\b.*$", Pattern.MULTILINE);
+        Pattern accessor = Pattern.compile("\\b" + Pattern.quote(member) + "\\(\\)|[\\w>\\]] " + Pattern.quote(member) + "[,)]");
+        return sources.stream().map(s -> s.unit().javaSource()).anyMatch(java -> {
+            Matcher found = declaration.matcher(java);
+            return found.find() && accessor.matcher(typeBody(java, found)).find();
+        });
+    }
+
+    /** The declaration line of a nested type, and its body when it has one. */
+    private static String typeBody(String java, Matcher declaration) {
+        if (declaration.group().endsWith("{}")) {
+            return declaration.group();
+        }
+        int end = java.indexOf("\n    }", declaration.end());
+        return java.substring(declaration.start(), end < 0 ? java.length() : end);
     }
 
     /** A public function of a file of the build, given as the path of the file without extension. */

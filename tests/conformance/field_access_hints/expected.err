@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:11:27: error: read the field `x` of the data class `Point` with parentheses: `x()`
+AXL100 app/Main.axl:13:33: error: `n` of type `Named` has no field `name`; `name` is a method: `name()`
+AXL100 app/Main.axl:15:32: error: `Result<Int, String>` has no field `value`; a `Result` holds a value only when it is `Ok`: check it with `is Ok` first, or use `try`
+AXL100 app/Main.axl:21:14: error: `s` of type `String` has no field `length`; `length` is a method: `length()`
