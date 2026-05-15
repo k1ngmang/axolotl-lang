@@ -16,7 +16,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DocumentSymbol;
@@ -110,6 +112,7 @@ class WorkspaceTest {
     private final Workspace workspace = new Workspace();
     private final Map<String, List<Diagnostic>> published = new ConcurrentHashMap<>();
     private final List<String> logged = new CopyOnWriteArrayList<>();
+    private final AtomicInteger publications = new AtomicInteger();
 
     @BeforeEach
     void start() throws Exception {
@@ -450,6 +453,21 @@ class WorkspaceTest {
             Thread.sleep(20);
         }
         assertEquals(List.of(3), errorLines(uri));
+    }
+
+    @Test
+    void translatesOnlyTheNewestOfTheChangesWaiting() throws Exception {
+        String uri = open("Main.axl", "package app\n");
+        CountDownLatch busy = new CountDownLatch(1);
+        workspace.submit(() -> busy.await(10, TimeUnit.SECONDS));
+        publications.set(0);
+        workspace.changeLater(uri, "package app\n\nfn a() {}\n");
+        workspace.changeLater(uri, "package app\n\nfn b() {}\n");
+        busy.countDown();
+        workspace.submit(() -> null).get(10, TimeUnit.SECONDS);
+
+        assertEquals("package app\n\nfn b() {}\n", workspace.document(uri).text);
+        assertEquals(1, publications.get());
     }
 
     @Test
@@ -878,6 +896,7 @@ class WorkspaceTest {
         @Override
         public void publishDiagnostics(PublishDiagnosticsParams params) {
             published.put(params.getUri(), params.getDiagnostics());
+            publications.incrementAndGet();
         }
 
         @Override

@@ -50,11 +50,7 @@ final class AxlTextDocumentService implements TextDocumentService {
     /** Full synchronization: the last change holds the whole text. */
     @Override
     public void didChange(DidChangeTextDocumentParams params) {
-        String text = params.getContentChanges().getLast().getText();
-        workspace.submitLogged("Changing " + params.getTextDocument().getUri(), () -> {
-            workspace.update(params.getTextDocument().getUri(), text);
-            return null;
-        });
+        workspace.changeLater(params.getTextDocument().getUri(), params.getContentChanges().getLast().getText());
     }
 
     @Override

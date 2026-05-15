@@ -58,6 +58,8 @@ final class Workspace {
     private final ExecutorService compiles = Executors.newSingleThreadExecutor(r -> thread(r, "axl-lsp-compile"));
     // The number of compilations asked for by module, read by the compiling thread to skip outdated ones.
     private final Map<Module, Integer> compileRequests = new ConcurrentHashMap<>();
+    // The newest text of each document with changes waiting for the request thread.
+    private final Map<String, String> pendingText = new ConcurrentHashMap<>();
     private LanguageClient client;
     private ProjectModel project = ProjectModel.discover(List.of());
     private final Map<String, Document> open = new HashMap<>();
@@ -141,6 +143,21 @@ final class Workspace {
                 // A temporary directory left behind does no harm.
             }
         }
+    }
+
+    /**
+     * A change from the protocol thread. Of several changes of a document waiting for the request
+     * thread, only the newest text is translated, so that typing does not queue outdated work.
+     */
+    void changeLater(String uri, String text) {
+        pendingText.put(uri, text);
+        submitLogged("Changing " + uri, () -> {
+            String newest = pendingText.remove(uri);
+            if (newest != null) {
+                update(uri, newest);
+            }
+            return null;
+        });
     }
 
     void update(String uri, String text) {
