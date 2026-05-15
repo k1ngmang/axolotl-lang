@@ -13,7 +13,8 @@ public final class Main {
         LanguageClient client = launcher.getRemoteProxy();
         server.connect(client);
         launcher.startListening().get();
-        // The client closed the input without `exit`; lsp4j's idle threads would keep the JVM alive for a minute.
-        System.exit(1);
+        // The client closed the input without `exit`: clean up as `exit` does, and end the JVM, which
+        // lsp4j's idle threads would keep alive for a minute.
+        server.exit();
     }
 }
