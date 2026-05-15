@@ -39,13 +39,17 @@ class ProjectModelTest {
         Files.writeString(root.resolve("d/build/axl/axl.json"), "{\"sourceRoots\": \"src/main/axl\"}");
         Files.createDirectories(root.resolve("e"));
         Files.writeString(root.resolve("e/axl.json"), "null");
+        Files.createDirectories(root.resolve("f"));
+        Files.writeString(root.resolve("f/axl.json"), "{\"sourceRoots\": [null]}");
+        Files.createDirectories(root.resolve("g"));
+        Files.writeString(root.resolve("g/axl.json"), "{\"classpath\": [\"a\\u0000b\"]}");
         Files.createDirectories(root.resolve("good/src/main/axl"));
         Files.writeString(root.resolve("good/axl.json"), "{\"sourceRoots\": [\"src/main/axl\"]}");
 
         ProjectModel model = ProjectModel.discover(List.of(root));
 
         assertEquals(List.of(root.resolve("good/src/main/axl")), model.modules().stream().flatMap(m -> m.axlRoots().stream()).toList());
-        assertEquals(3, model.problems().size(), model.problems().toString());
+        assertEquals(5, model.problems().size(), model.problems().toString());
         assertTrue(model.problems().getFirst().contains("c" + File.separator + "axl.json"), model.problems().toString());
     }
 

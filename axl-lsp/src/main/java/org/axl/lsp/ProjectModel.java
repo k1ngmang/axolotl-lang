@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -48,7 +49,7 @@ final class ProjectModel {
                     if (path.getFileName().toString().equals("axl.json")) {
                         try {
                             modules.add(fromConfig(path));
-                        } catch (IOException | JsonParseException e) {
+                        } catch (IOException | JsonParseException | InvalidPathException e) {
                             problems.add("Ignored " + path + ": " + e.getMessage());
                         }
                     }
@@ -109,7 +110,13 @@ final class ProjectModel {
     }
 
     private static List<Path> resolve(Path root, List<String> paths) {
-        return paths == null ? List.of() : paths.stream().map(p -> root.resolve(p).normalize()).toList();
+        if (paths == null) {
+            return List.of();
+        }
+        if (paths.stream().anyMatch(p -> p == null)) {
+            throw new JsonParseException("a path is null");
+        }
+        return paths.stream().map(p -> root.resolve(p).normalize()).toList();
     }
 
     /**
