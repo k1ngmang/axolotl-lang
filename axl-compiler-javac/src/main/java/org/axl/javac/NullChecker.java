@@ -1918,8 +1918,8 @@ final class NullChecker implements TaskListener {
         private boolean reportValue(Tree at, ExpressionTree value, boolean nullAwayChecks, String problem, String fix) {
             Origin origin = origin(value);
             if (nullAwayChecks && origin == Origin.DECLARED && mayChange(value)) {
-                String fix = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
-                return report(at, origin, false, describe(value) + problem + "; " + fix);
+                String changing = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
+                return report(at, origin, false, describe(value) + problem + "; " + changing);
             }
             return report(at, origin, nullAwayChecks, describe(value) + problem + "; " + fix);
         }

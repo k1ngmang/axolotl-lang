@@ -52,6 +52,9 @@ final class ErrorProneMessages {
                     : "this calculation is too large for its type; use `Long`, with `L` after a number";
             case "EqualsHashCode" -> "a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal "
                     + "objects have equal hash codes";
+            case "NarrowingCompoundAssignment" -> "the result does not fit the type of the variable and would be cut, "
+                    + "as `i += 1.7` gives 6 for an `Int`; give the variable a type that holds the result, such as `Double` "
+                    + "or `Long`";
             case "OperatorPrecedence" -> "`&&` goes before `||`, and `*` before `+`; add parentheses to show which you mean, "
                     + "as in `(a && b) || c`";
             case "StringSplitter" -> "`split` takes a regular expression and drops empty strings at the end; check that "
