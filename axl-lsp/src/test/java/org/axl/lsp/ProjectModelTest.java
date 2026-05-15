@@ -65,6 +65,20 @@ class ProjectModelTest {
     }
 
     @Test
+    void skipsBuildOutputsAndHiddenDirectoriesButReadsTheDescriptionsInThem(@TempDir Path root) throws Exception {
+        Files.createDirectories(root.resolve("src/main/axl"));
+        Files.createDirectories(root.resolve("target/it/copy/src/main/axl"));
+        Files.createDirectories(root.resolve(".claude/worktrees/w/src/main/axl"));
+        Files.createDirectories(root.resolve("lib/build/axl"));
+        Files.writeString(root.resolve("lib/build/axl/axl.json"), "{\"sourceRoots\": [\"src/main/axl\"]}");
+
+        ProjectModel model = ProjectModel.discover(List.of(root));
+
+        assertEquals(List.of(root.resolve("lib/src/main/axl"), root.resolve("src/main/axl")),
+                model.modules().stream().flatMap(m -> m.axlRoots().stream()).sorted().toList());
+    }
+
+    @Test
     void letsOtherSourceSetsOfTheLayoutSeeTheMainOne(@TempDir Path root) throws Exception {
         Files.createDirectories(root.resolve("src/integrationTest/axl"));
         Files.createDirectories(root.resolve("src/main/axl"));

@@ -7,10 +7,13 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Stream;
+import java.util.Set;
 
 /**
  * Finds modules in the workspace. A module is described by `axl.json` in its directory, or by the
@@ -30,6 +33,8 @@ final class ProjectModel {
         boolean strictNull;
     }
 
+    private static final Set<String> OUTPUTS = Set.of("build", "target", "out");
+
     private final List<Module> modules;
     private final List<String> problems;
 
@@ -43,27 +48,67 @@ final class ProjectModel {
         List<Module> modules = new ArrayList<>();
         List<String> problems = new ArrayList<>();
         for (Path root : workspaceRoots) {
-            try (Stream<Path> files = Files.walk(root)) {
-                List<Path> found = files.filter(ProjectModel::isCandidate).sorted().toList();
-                for (Path path : found) {
-                    if (path.getFileName().toString().equals("axl.json")) {
-                        try {
-                            modules.add(fromConfig(path));
-                        } catch (IOException | JsonParseException | InvalidPathException e) {
-                            problems.add("Ignored " + path + ": " + e.getMessage());
-                        }
+            List<Path> found = candidates(root);
+            for (Path path : found) {
+                if (path.getFileName().toString().equals("axl.json")) {
+                    try {
+                        modules.add(fromConfig(path));
+                    } catch (IOException | JsonParseException | InvalidPathException e) {
+                        problems.add("Ignored " + path + ": " + e.getMessage());
                     }
                 }
-                List<Path> guessed = found.stream()
-                        .filter(p -> Files.isDirectory(p) && modules.stream().noneMatch(m -> m.axlRootOf(p) != null)).toList();
-                for (Path path : guessed) {
-                    modules.add(guessedModule(path, guessed));
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+            }
+            List<Path> guessed = found.stream()
+                    .filter(p -> Files.isDirectory(p) && modules.stream().noneMatch(m -> m.axlRootOf(p) != null)).toList();
+            for (Path path : guessed) {
+                modules.add(guessedModule(path, guessed));
             }
         }
         return new ProjectModel(modules, problems);
+    }
+
+    /**
+     * The descriptions and `src/NAME/axl` directories under a root. Build outputs, dependencies and
+     * hidden directories are skipped: they hold copies of sources, such as Maven's integration tests,
+     * and other worktrees. Only the descriptions the build plugins write are read from build outputs.
+     */
+    private static List<Path> candidates(Path root) {
+        List<Path> found = new ArrayList<>();
+        try {
+            Files.walkFileTree(root, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attributes) {
+                    String name = dir.equals(root) ? "" : dir.getFileName().toString();
+                    if (OUTPUTS.contains(name) && Files.isRegularFile(dir.resolve("axl/axl.json"))) {
+                        found.add(dir.resolve("axl/axl.json"));
+                    }
+                    if (name.startsWith(".") || OUTPUTS.contains(name) || name.equals("node_modules")) {
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+                    if (isSourceSet(dir)) {
+                        found.add(dir);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) {
+                    if (file.getFileName().toString().equals("axl.json")) {
+                        found.add(file);
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException e) {
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        found.sort(null);
+        return found;
     }
 
     /** `src/NAME/axl` with `src/NAME/java`; other source sets see `src/main` too, as tests do in Gradle and Maven. */
@@ -79,18 +124,11 @@ final class ProjectModel {
         return new Module(axl.getParent().getParent().getParent(), axlRoots, javaRoots, List.of(), false);
     }
 
-    private static boolean isCandidate(Path path) {
-        String text = path.toString().replace('\\', '/');
-        if (text.contains("/node_modules/") || text.contains("/.git/") || text.contains("/.gradle/")) {
-            return false;
-        }
-        if (path.getFileName() != null && path.getFileName().toString().equals("axl.json")) {
-            return true;
-        }
-        return Files.isDirectory(path) && path.getFileName() != null && path.getFileName().toString().equals("axl")
-                && path.getParent() != null && path.getParent().getParent() != null
-                && path.getParent().getParent().getFileName() != null
-                && path.getParent().getParent().getFileName().toString().equals("src");
+    /** A `src/NAME/axl` directory. */
+    private static boolean isSourceSet(Path dir) {
+        Path src = dir.getParent() == null ? null : dir.getParent().getParent();
+        return dir.getFileName() != null && dir.getFileName().toString().equals("axl")
+                && src != null && src.getFileName() != null && src.getFileName().toString().equals("src");
     }
 
     private static Module fromConfig(Path file) throws IOException {
