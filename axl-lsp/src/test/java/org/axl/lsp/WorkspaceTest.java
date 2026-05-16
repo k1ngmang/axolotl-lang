@@ -19,6 +19,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.axl.compiler.ast.Pos;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DocumentSymbol;
@@ -453,6 +454,15 @@ class WorkspaceTest {
             Thread.sleep(20);
         }
         assertEquals(List.of(3), errorLines(uri));
+    }
+
+    @Test
+    void findsTheFirstTokenFromAPosition() throws Exception {
+        Document document = workspace.document(open("Main.axl", "package app\n\nfn main() {}\n"));
+        assertEquals("package", document.tokens.get(document.firstTokenFrom(new Pos(1, 1))).getText());
+        assertEquals("app", document.tokens.get(document.firstTokenFrom(new Pos(1, 9))).getText());
+        assertEquals("main", document.tokens.get(document.firstTokenFrom(new Pos(3, 4))).getText());
+        assertEquals(document.tokens.size(), document.firstTokenFrom(new Pos(9, 1)));
     }
 
     @Test

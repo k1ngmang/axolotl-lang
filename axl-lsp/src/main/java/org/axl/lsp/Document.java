@@ -317,8 +317,8 @@ final class Document {
      * its `val`; the position itself when it does not.
      */
     Pos nameAfter(Pos from, String name) {
-        for (Token token : tokens) {
-            if (token.getType() == AxolotlLexer.IDENTIFIER && token.getText().equals(name) && Symbols.before(from, start(token))) {
+        for (Token token : tokens.subList(firstTokenFrom(from), tokens.size())) {
+            if (token.getType() == AxolotlLexer.IDENTIFIER && token.getText().equals(name)) {
                 return start(token);
             }
         }
@@ -329,17 +329,35 @@ final class Document {
     List<Pos> constantPositions(Decl.EnumDecl enumeration) {
         List<Pos> result = new ArrayList<>();
         boolean open = false;
-        for (Token token : tokens) {
-            if (token.getChannel() != Token.DEFAULT_CHANNEL || result.size() == enumeration.constants().size()) {
+        for (Token token : tokens.subList(firstTokenFrom(enumeration.namePos()), tokens.size())) {
+            if (result.size() == enumeration.constants().size()) {
+                break;
+            }
+            if (token.getChannel() != Token.DEFAULT_CHANNEL) {
                 continue;
             }
             if (!open) {
-                open = token.getType() == AxolotlLexer.LBRACE && Symbols.before(enumeration.namePos(), start(token));
+                open = token.getType() == AxolotlLexer.LBRACE;
             } else if (token.getType() == AxolotlLexer.IDENTIFIER) {
                 result.add(start(token));
             }
         }
         return result;
+    }
+
+    /** The index of the first token that starts at or after a position; the number of tokens if none does. */
+    int firstTokenFrom(Pos pos) {
+        int low = 0;
+        int high = tokens.size();
+        while (low < high) {
+            int middle = (low + high) >>> 1;
+            if (Symbols.before(pos, start(tokens.get(middle)))) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        return low;
     }
 
     /** The default-channel token after the given one, or null. */

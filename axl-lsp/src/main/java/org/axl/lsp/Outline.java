@@ -60,9 +60,9 @@ final class Outline {
     private static Position end(Document document, Pos start, Pos next) {
         Token last = null;
         int depth = 0;
-        for (Token token : document.tokens) {
+        for (Token token : document.tokens.subList(document.firstTokenFrom(start), document.tokens.size())) {
             Pos at = Document.start(token);
-            if (token.getChannel() != Token.DEFAULT_CHANNEL || !Symbols.before(start, at)) {
+            if (token.getChannel() != Token.DEFAULT_CHANNEL) {
                 continue;
             }
             int type = token.getType();
