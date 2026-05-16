@@ -315,6 +315,23 @@ class WorkspaceTest {
     }
 
     @Test
+    void compilesTheTestsAgainWhenAMainFileIsSaved() throws Exception {
+        Path test = Files.createDirectories(project.resolve("src/test/axl/app")).resolve("UtilTest.axl");
+        String text = "package app\n\nfn check() -> Int = Util.twice(2)\n";
+        Files.writeString(test, text);
+        workspace.open(List.of(project));
+        String util = open("Util.axl", "package app\n\nfn twice(x: Int) -> Int = x * 2\n");
+        String uri = test.toUri().toString();
+        workspace.update(uri, text);
+        workspace.saved(uri);
+        assertEquals(List.of(), published.get(uri));
+
+        workspace.update(util, "package app\n\nfn thrice(x: Int) -> Int = x * 3\n");
+        workspace.saved(util);
+        assertEquals(List.of(2), errorLines(uri));
+    }
+
+    @Test
     void hoverTellsLocalsOfTheSameNameApart() throws Exception {
         String uri = open("Main.axl", """
                 package app

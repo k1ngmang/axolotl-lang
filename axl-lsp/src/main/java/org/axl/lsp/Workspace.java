@@ -210,14 +210,24 @@ final class Workspace {
         }
     }
 
-    /** Compiles the module of a document and publishes the errors. */
+    /** Compiles the modules that see a document and publishes the errors. */
     void saved(String uri) throws IOException {
         Document document = open.get(uri);
         if (document == null || document.translation.hasErrors()) {
             return;
         }
-        List<Document> moduleDocuments = documentsOf(document.module);
-        compiled(document.module, moduleDocuments, compiler.compile(document.module, moduleDocuments, standIns(moduleDocuments)));
+        for (Module module : modulesSeeing(document)) {
+            List<Document> moduleDocuments = documentsOf(module);
+            compiled(module, moduleDocuments, compiler.compile(module, moduleDocuments, standIns(moduleDocuments)));
+        }
+    }
+
+    /** The module of a document, then the other modules whose sources include it, as tests include the main sources. */
+    private List<Module> modulesSeeing(Document document) {
+        List<Module> result = new ArrayList<>(List.of(document.module));
+        project.modules().stream().filter(m -> !m.equals(document.module) && m.axlRootOf(document.path) != null)
+                .forEach(result::add);
+        return result;
     }
 
     /**
@@ -239,15 +249,22 @@ final class Workspace {
 
     /**
      * Like {@link #saved}, but compiles on another thread, so that requests are answered meanwhile.
-     * Of several compilations of a module waiting, only the last runs. firstOnly: skipped when the
-     * module was compiled already, as for a document being opened.
+     * Of several compilations of a module waiting, only the last runs. firstOnly: only the module of
+     * the document, and skipped when it was compiled already, as for a document being opened.
      */
     void compileLater(String uri, boolean firstOnly) {
         Document document = open.get(uri);
-        if (document == null || document.translation.hasErrors() || firstOnly && compileRequests.containsKey(document.module)) {
+        if (document == null || document.translation.hasErrors()) {
             return;
         }
-        Module module = document.module;
+        if (!firstOnly) {
+            modulesSeeing(document).forEach(this::compileLater);
+        } else if (!compileRequests.containsKey(document.module)) {
+            compileLater(document.module);
+        }
+    }
+
+    private void compileLater(Module module) {
         List<Document> moduleDocuments = documentsOf(module);
         Map<String, GeneratedUnit> standIns = standIns(moduleDocuments);
         int request = compileRequests.merge(module, 1, Integer::sum);
