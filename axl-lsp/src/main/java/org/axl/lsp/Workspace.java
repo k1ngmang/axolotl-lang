@@ -442,7 +442,7 @@ final class Workspace {
                 }
             }
             List<Translator.Result> results = Translation.run(inputs, new Options(false), module.classpath(),
-                    module.javaRoots(), dir, module.strictNull());
+                    module.sourcepath(), dir, module.strictNull());
             Options options = Document.options(module, dir);
             for (int i = 0; i < results.size(); i++) {
                 Translator.Result result = results.get(i);
@@ -582,7 +582,7 @@ final class Workspace {
                     return axl;
                 }
             }
-            for (Path root : module.javaRoots()) {
+            for (Path root : module.sourcepath()) {
                 Path java = root.resolve(relative + ".java");
                 if (Files.exists(java)) {
                     return java;

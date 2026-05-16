@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,7 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -102,7 +100,7 @@ final class JavaModel {
         StandardJavaFileManager files = compiler.getStandardFileManager(ignored, Locale.ROOT, StandardCharsets.UTF_8);
         List<JavaFileObject> sources = new ArrayList<>();
         generatedUnits.forEach(u -> sources.add(new Source(u.javaPath(), u.javaSource())));
-        files.getJavaFileObjectsFromPaths(javaFiles(module)).forEach(sources::add);
+        files.getJavaFileObjectsFromPaths(JavaSources.of(module)).forEach(sources::add);
         if (sources.isEmpty()) {
             // javac refuses to run without sources, and the classpath is still needed.
             sources.add(new Source("package-info.java", ""));
@@ -119,21 +117,6 @@ final class JavaModel {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    private static List<Path> javaFiles(Module module) {
-        List<Path> result = new ArrayList<>();
-        for (Path root : module.javaRoots()) {
-            if (!Files.isDirectory(root)) {
-                continue;
-            }
-            try (Stream<Path> walk = Files.walk(root)) {
-                walk.filter(p -> p.toString().endsWith(".java")).sorted().forEach(result::add);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-        return result;
     }
 
     /** A type named in an .axl file: by import, declared in it, in the same package, in java.lang or axl.lang. */

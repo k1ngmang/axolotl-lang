@@ -653,6 +653,23 @@ class WorkspaceTest {
     }
 
     @Test
+    void seesJavaFilesNextToTheAxolotlFilesOfALooseModule(@TempDir Path loose) throws Exception {
+        Files.createDirectories(loose.resolve("app/old"));
+        Files.writeString(loose.resolve("app/Helper.java"), "package app;\n\npublic class Helper {\n    public static String hi() { return \"hi\"; }\n}\n");
+        Files.writeString(loose.resolve("app/old/Helper.java"), "package app;\n\npublic class Helper {}\n");
+        Path main = loose.resolve("app/Main.axl");
+        String text = "package app\n\nfn main() {\n    println(Helper.hi())\n}\n";
+        Files.writeString(main, text);
+        String uri = main.toUri().toString();
+        workspace.update(uri, text);
+        workspace.saved(uri);
+
+        assertEquals(List.of(), published.get(uri));
+        assertEquals(List.of(3), definitionLines(uri, 3, 20));
+        assertTrue(new Completions(workspace).complete(uri, 3, 19).stream().anyMatch(i -> i.getInsertText().equals("hi")));
+    }
+
+    @Test
     void goesToDefinitionsFromTheSegmentsOfAnImport() throws Exception {
         Path parse = project.resolve("src/main/axl/util/Parse.axl");
         Files.createDirectories(parse.getParent());

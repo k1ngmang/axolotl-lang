@@ -66,7 +66,7 @@ final class ModuleCompiler {
             GeneratedUnit unit = unitOf(document, standIns);
             generated.add(new GeneratedSource(unit, unit.writeTo(generatedDir), document.uri, document.lines));
         }
-        List<Path> sources = new ArrayList<>(javaFiles(module));
+        List<Path> sources = new ArrayList<>(JavaSources.of(module));
         sources.forEach(java -> result.put(uri(java), new ArrayList<>()));
         generated.forEach(g -> sources.add(g.javaFile()));
         if (sources.isEmpty()) {
@@ -123,17 +123,5 @@ final class ModuleCompiler {
                 }
             }
         }
-    }
-
-    private static List<Path> javaFiles(Module module) throws IOException {
-        List<Path> result = new ArrayList<>();
-        for (Path root : module.javaRoots()) {
-            if (Files.isDirectory(root)) {
-                try (Stream<Path> walk = Files.walk(root)) {
-                    walk.filter(p -> p.toString().endsWith(".java")).sorted().forEach(result::add);
-                }
-            }
-        }
-        return result;
     }
 }

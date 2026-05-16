@@ -37,7 +37,9 @@ shape is skipped with a warning. The search skips `build`, `target` and `out` di
 from the descriptions the plugins write there, and hidden directories such as `.git`. Without a description, every `src/NAME/axl`
 directory is a module with `src/NAME/java` as its Java sources and only the Axolotl runtime on the
 classpath. Every source set other than `main`, such as `src/test/axl`, also sees `src/main/axl`
-and `src/main/java`, as in Gradle and Maven.
+and `src/main/java`, as in Gradle and Maven. A file outside every module belongs to a module of
+its own source root, found from its package. In every module, `.java` files next to `.axl` files in
+the directory of their package are Java sources too, as `axl check` takes them.
 
 ## VS Code
 

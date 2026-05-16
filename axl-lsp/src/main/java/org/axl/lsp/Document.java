@@ -72,7 +72,7 @@ final class Document {
     /** Types of top-level values that depend on Java code or other files come from javac, only when needed. */
     static Options options(Module module, Path drafts) {
         List<Path> sourcepath = new ArrayList<>(List.of(drafts));
-        sourcepath.addAll(module.javaRoots());
+        sourcepath.addAll(module.sourcepath());
         return new Options(false).withJavaTypes(new JavacTypes(module.classpath(), sourcepath, module.strictNull()));
     }
 
