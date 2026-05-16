@@ -217,7 +217,24 @@ final class Workspace {
             return;
         }
         List<Document> moduleDocuments = documentsOf(document.module);
-        compiled(document.module, moduleDocuments, compiler.compile(document.module, moduleDocuments));
+        compiled(document.module, moduleDocuments, compiler.compile(document.module, moduleDocuments, standIns(moduleDocuments)));
+    }
+
+    /**
+     * The Java of the documents that do not translate: of the text without the lines with errors, or
+     * of the last version that parsed. Compiled in their place, it keeps the declarations their users
+     * see, as the drafts do while typing.
+     */
+    private Map<String, GeneratedUnit> standIns(List<Document> documents) {
+        Map<String, GeneratedUnit> result = new HashMap<>();
+        for (Document document : documents) {
+            Document parsed = document.ast != null ? document : lastParsed.get(document.uri);
+            GeneratedUnit unit = document.translation.unit() != null || parsed == null ? null : parsed.javaUnit();
+            if (unit != null) {
+                result.put(document.uri, unit);
+            }
+        }
+        return result;
     }
 
     /**
@@ -232,13 +249,14 @@ final class Workspace {
         }
         Module module = document.module;
         List<Document> moduleDocuments = documentsOf(module);
+        Map<String, GeneratedUnit> standIns = standIns(moduleDocuments);
         int request = compileRequests.merge(module, 1, Integer::sum);
         compiles.execute(() -> {
             if (compileRequests.get(module) != request) {
                 return;
             }
             try {
-                Map<String, List<AxlDiagnostic>> errors = compiler.compile(module, moduleDocuments);
+                Map<String, List<AxlDiagnostic>> errors = compiler.compile(module, moduleDocuments, standIns);
                 submit(() -> {
                     compiled(module, moduleDocuments, errors);
                     return null;

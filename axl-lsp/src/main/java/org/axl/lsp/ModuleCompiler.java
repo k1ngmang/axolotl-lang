@@ -33,8 +33,12 @@ final class ModuleCompiler {
         this.work = Files.createTempDirectory("axl-lsp");
     }
 
-    /** documents: every .axl file of the module, by URI, already translated. */
-    Map<String, List<AxlDiagnostic>> compile(Module module, List<Document> documents) throws IOException {
+    /**
+     * documents: every .axl file of the module, already translated. standIns: by URI, the Java
+     * compiled for documents that do not translate, whose own errors are the translator's.
+     */
+    Map<String, List<AxlDiagnostic>> compile(Module module, List<Document> documents, Map<String, GeneratedUnit> standIns)
+            throws IOException {
         Path generatedDir = clean(work.resolve("gen"));
         Path classes = clean(work.resolve("classes"));
         List<GeneratedSource> generated = new ArrayList<>();
@@ -42,7 +46,7 @@ final class ModuleCompiler {
         Map<String, List<Document>> byClass = new LinkedHashMap<>();
         for (Document document : documents) {
             result.put(document.uri, new ArrayList<>());
-            GeneratedUnit unit = document.translation.unit();
+            GeneratedUnit unit = unitOf(document, standIns);
             if (unit != null) {
                 byClass.computeIfAbsent(unit.qualifiedName(), k -> new ArrayList<>()).add(document);
             }
@@ -59,7 +63,7 @@ final class ModuleCompiler {
                 continue;
             }
             Document document = same.getFirst();
-            GeneratedUnit unit = document.translation.unit();
+            GeneratedUnit unit = unitOf(document, standIns);
             generated.add(new GeneratedSource(unit, unit.writeTo(generatedDir), document.uri, document.lines));
         }
         List<Path> sources = new ArrayList<>(javaFiles(module));
@@ -80,11 +84,16 @@ final class ModuleCompiler {
         var translator = new DiagnosticTranslator(generated, Path::toString);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
-            if (translated != null && result.containsKey(translated.file())) {
+            if (translated != null && result.containsKey(translated.file()) && !standIns.containsKey(translated.file())) {
                 result.get(translated.file()).add(translated);
             }
         }
         return result;
+    }
+
+    private static GeneratedUnit unitOf(Document document, Map<String, GeneratedUnit> standIns) {
+        GeneratedUnit unit = document.translation.unit();
+        return unit != null ? unit : standIns.get(document.uri);
     }
 
     /** Deletes the work directory. */

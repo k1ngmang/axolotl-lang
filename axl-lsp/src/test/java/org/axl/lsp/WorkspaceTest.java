@@ -442,6 +442,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void compilesAnEarlierVersionOfAnOpenFileThatDoesNotTranslate() throws Exception {
+        String lib = open("Lib.axl", "package app\n\nfn twice(x: Int) -> Int = x * 2\n");
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Lib.twice(3))\n}\n");
+        workspace.update(lib, "package app\n\nfn twice(x: Int) -> Int = x * \n");
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+
+        workspace.update(lib, "package app\n\nfn twice(x: Int) -> Int {\n    val x = 1\n    return x\n}\n");
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+    }
+
+    @Test
     void compilesOffTheRequestThread() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n");
         workspace.submit(() -> {
