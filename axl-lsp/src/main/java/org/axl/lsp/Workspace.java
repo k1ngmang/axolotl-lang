@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -12,6 +13,7 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -307,10 +309,17 @@ final class Workspace {
             if (open.containsKey(d.uri)) {
                 publish(open.get(d.uri));
             } else if (d.module.equals(module)) {
-                publishClosed(d);
+                publishClosed(d.uri, module, diagnostics(d));
             }
         }
-        clearDeleted(module, compiled.keySet());
+        Set<String> files = new HashSet<>(compiled.keySet());
+        for (var entry : errors.entrySet()) {
+            if (!compiled.containsKey(entry.getKey())) {
+                files.add(entry.getKey());
+                publishClosed(entry.getKey(), module, javaDiagnostics(entry.getKey(), entry.getValue()));
+            }
+        }
+        clearDeleted(module, files);
     }
 
     /** Clears the diagnostics of the files of a module that are gone. */
@@ -323,18 +332,38 @@ final class Workspace {
         }
     }
 
-    /** The errors of a file that is not open, as a build shows them; an empty list only to clear earlier ones. */
-    private void publishClosed(Document document) {
+    /**
+     * The errors of a file that is not open or of a Java source, as a build shows them; an empty list
+     * only to clear earlier ones.
+     */
+    private void publishClosed(String uri, Module module, List<Diagnostic> diagnostics) {
         if (client == null) {
             return;
         }
-        List<Diagnostic> diagnostics = diagnostics(document);
-        if (!diagnostics.isEmpty() || publishedClosed.remove(document.uri) != null) {
-            client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
+        if (!diagnostics.isEmpty() || publishedClosed.remove(uri) != null) {
+            client.publishDiagnostics(new PublishDiagnosticsParams(uri, diagnostics));
         }
         if (!diagnostics.isEmpty()) {
-            publishedClosed.put(document.uri, document.module);
+            publishedClosed.put(uri, module);
         }
+    }
+
+    /** javac's errors in a Java source, from the reported column to the end of the line. */
+    private static List<Diagnostic> javaDiagnostics(String uri, List<AxlDiagnostic> errors) {
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(Path.of(URI.create(uri)), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            lines = List.of();
+        }
+        List<Diagnostic> result = new ArrayList<>();
+        for (AxlDiagnostic d : errors) {
+            int line = Math.max(0, d.line() - 1);
+            int start = Math.max(0, d.column() - 1);
+            int end = line < lines.size() ? Math.max(start + 1, lines.get(line).length()) : start + 1;
+            result.add(diagnostic(new Range(new Position(line, start), new Position(line, end)), d));
+        }
+        return result;
     }
 
 
@@ -628,8 +657,11 @@ final class Workspace {
         int end = token != null && token.getCharPositionInLine() == column
                 ? document.utf16Column(line, column + token.getStopIndex() - token.getStartIndex() + 1)
                 : line < document.lines.size() ? Math.max(start + 1, document.lines.get(line).length()) : start + 1;
-        Diagnostic diagnostic = new Diagnostic(new Range(new Position(line, start), new Position(line, end)), d.message(),
-                d.isError() ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "axl");
+        return diagnostic(new Range(new Position(line, start), new Position(line, end)), d);
+    }
+
+    private static Diagnostic diagnostic(Range range, AxlDiagnostic d) {
+        Diagnostic diagnostic = new Diagnostic(range, d.message(), d.isError() ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "axl");
         diagnostic.setCode(Either.forLeft(d.code().id()));
         return diagnostic;
     }

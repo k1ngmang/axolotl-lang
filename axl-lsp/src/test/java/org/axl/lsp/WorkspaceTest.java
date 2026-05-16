@@ -345,6 +345,23 @@ class WorkspaceTest {
     }
 
     @Test
+    void publishesTheErrorsOfJavaSources() throws Exception {
+        Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Helper.java");
+        Files.writeString(java, "package app;\n\npublic class Helper {\n    int z = \"s\";\n}\n");
+        workspace.open(List.of(project));
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Helper())\n}\n");
+        workspace.saved(main);
+        String uri = java.toUri().toString();
+        assertEquals(List.of(), published.get(main));
+        assertEquals(List.of(new Range(new Position(3, 12), new Position(3, 16))),
+                published.get(uri).stream().map(Diagnostic::getRange).toList());
+
+        Files.writeString(java, "package app;\n\npublic class Helper {\n}\n");
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
     void hoverTellsLocalsOfTheSameNameApart() throws Exception {
         String uri = open("Main.axl", """
                 package app

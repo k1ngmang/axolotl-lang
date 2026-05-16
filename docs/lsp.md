@@ -8,7 +8,7 @@ platform's LSP support. Start it with the Error Prone JVM options (`axl-lsp` fro
 | Feature | Details |
 |---------|---------|
 | Diagnostics while typing | Syntax and the translator's rules (`try` placement, shadowing, `$` in names, missing `package`, ...). |
-| Diagnostics on save | The whole module is translated and compiled with javac, Error Prone and NullAway, and so are the modules that include the file, such as its tests; errors appear on the `.axl` lines, also of files that are not open. |
+| Diagnostics on save | The whole module is translated and compiled with javac, Error Prone and NullAway, and so are the modules that include the file, such as its tests; errors appear on the `.axl` lines, also of files that are not open, and errors in Java sources on their own lines. |
 | Highlighting | TextMate grammar `editors/vscode/syntaxes/axl.tmLanguage.json` plus semantic tokens. |
 | Completion | Keywords that fit the place, names visible at the cursor, `println`/`Ok`/`Err`, and after a dot the members of a type: static members of a class, instance members of a declared, inferred or narrowed type, of a constructor call and of `this`. |
 | Go to definition | Locals, parameters and functions in the file; functions of other `.axl` files through `import fn` or `Class.fn`; fields, methods and enum constants of Axolotl types and types nested in other files; Java classes and members in Java source roots. |

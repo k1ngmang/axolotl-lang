@@ -22,7 +22,7 @@ import org.axl.javac.RuntimeClasspath;
 
 /**
  * Compiles a whole module with javac, Error Prone and NullAway, as the build does, and returns the
- * errors of every .axl file. Runs when a file is saved.
+ * errors of every .axl file and Java source. Runs when a file is saved.
  */
 final class ModuleCompiler {
 
@@ -67,6 +67,7 @@ final class ModuleCompiler {
             generated.add(new GeneratedSource(unit, unit.writeTo(generatedDir), document.uri, document.lines));
         }
         List<Path> sources = new ArrayList<>(javaFiles(module));
+        sources.forEach(java -> result.put(uri(java), new ArrayList<>()));
         generated.forEach(g -> sources.add(g.javaFile()));
         if (sources.isEmpty()) {
             return result;
@@ -81,7 +82,7 @@ final class ModuleCompiler {
             nullChecks = false;
             outcome = JavaCompilation.compile(sources, classpath, classes, List.of(), false, module.strictNull());
         }
-        var translator = new DiagnosticTranslator(generated, Path::toString);
+        var translator = new DiagnosticTranslator(generated, ModuleCompiler::uri);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
             if (translated != null && result.containsKey(translated.file()) && !standIns.containsKey(translated.file())) {
@@ -89,6 +90,10 @@ final class ModuleCompiler {
             }
         }
         return result;
+    }
+
+    private static String uri(Path file) {
+        return file.toAbsolutePath().normalize().toUri().toString();
     }
 
     private static GeneratedUnit unitOf(Document document, Map<String, GeneratedUnit> standIns) {
