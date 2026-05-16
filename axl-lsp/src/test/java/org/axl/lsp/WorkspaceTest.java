@@ -332,6 +332,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void publishesTheErrorsOfFilesThatAreNotOpen() throws Exception {
+        Path user = Files.writeString(project.resolve("src/main/axl/app/User.axl"),
+                "package app\n\nfn check() -> Int = Util.twice(2)\n");
+        String util = open("Util.axl", "package app\n\nfn thrice(x: Int) -> Int = x * 3\n");
+        workspace.saved(util);
+        assertEquals(List.of(2), errorLines(user.toUri().toString()));
+
+        workspace.update(util, "package app\n\nfn twice(x: Int) -> Int = x * 2\n");
+        workspace.saved(util);
+        assertEquals(List.of(), published.get(user.toUri().toString()));
+    }
+
+    @Test
     void hoverTellsLocalsOfTheSameNameApart() throws Exception {
         String uri = open("Main.axl", """
                 package app

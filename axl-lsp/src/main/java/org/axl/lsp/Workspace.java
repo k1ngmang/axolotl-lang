@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,6 +68,8 @@ final class Workspace {
     private final Map<String, Document> lastParsed = new HashMap<>();
     // By module, then by document URI; replaced as a whole by each compilation of a module.
     private final Map<Module, Map<String, Compiled>> compileErrors = new HashMap<>();
+    // Files that are not open with diagnostics published, by URI, with their module.
+    private final Map<String, Module> publishedClosed = new HashMap<>();
     private final Map<Module, CachedModel> javaModels = new HashMap<>();
     // Files that are not open, by path, translated once for each text they have on disk.
     private final Map<Path, Document> closedDocuments = new HashMap<>();
@@ -303,9 +306,37 @@ final class Workspace {
         for (Document d : moduleDocuments) {
             if (open.containsKey(d.uri)) {
                 publish(open.get(d.uri));
+            } else if (d.module.equals(module)) {
+                publishClosed(d);
             }
         }
+        clearDeleted(module, compiled.keySet());
     }
+
+    /** Clears the diagnostics of the files of a module that are gone. */
+    private void clearDeleted(Module module, Set<String> files) {
+        List<String> gone = publishedClosed.entrySet().stream()
+                .filter(e -> e.getValue().equals(module) && !files.contains(e.getKey())).map(Map.Entry::getKey).toList();
+        for (String uri : gone) {
+            publishedClosed.remove(uri);
+            client.publishDiagnostics(new PublishDiagnosticsParams(uri, List.of()));
+        }
+    }
+
+    /** The errors of a file that is not open, as a build shows them; an empty list only to clear earlier ones. */
+    private void publishClosed(Document document) {
+        if (client == null) {
+            return;
+        }
+        List<Diagnostic> diagnostics = diagnostics(document);
+        if (!diagnostics.isEmpty() || publishedClosed.remove(document.uri) != null) {
+            client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
+        }
+        if (!diagnostics.isEmpty()) {
+            publishedClosed.put(document.uri, document.module);
+        }
+    }
+
 
     Document document(String uri) {
         return open.get(uri);
@@ -561,17 +592,19 @@ final class Workspace {
     }
 
     private void publish(Document document) {
-        if (client == null) {
-            return;
+        if (client != null) {
+            client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics(document)));
         }
+    }
+
+    private List<Diagnostic> diagnostics(Document document) {
         List<AxlDiagnostic> all = new ArrayList<>(translatorDiagnostics ? document.diagnostics() : List.of());
         Compiled compiled = compileErrors.getOrDefault(document.module, Map.of()).get(document.uri);
         if (!document.translation.hasErrors() && compiled != null) {
             all.addAll(movedTo(document, compiled));
         }
         // The translator may report the same problem twice, such as for both branches of one arm.
-        List<Diagnostic> diagnostics = all.stream().map(d -> toLsp(document, d)).distinct().toList();
-        client.publishDiagnostics(new PublishDiagnosticsParams(document.uri, diagnostics));
+        return all.stream().map(d -> toLsp(document, d)).distinct().toList();
     }
 
     /** Errors of the compiled version on the lines that are unchanged in the current text, moved to them. */
