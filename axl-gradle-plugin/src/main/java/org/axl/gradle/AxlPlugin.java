@@ -14,6 +14,7 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.SourceDirectorySet;
 import org.gradle.api.plugins.ExtensionAware;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
@@ -64,15 +65,15 @@ public class AxlPlugin implements Plugin<Project> {
         sourceSets.all(sourceSet -> configure(project, axl, sourceSet));
 
         project.getTasks().register("axlLspConfig", LspConfigTask.class, task -> {
-            task.setDescription("Writes build/axl/axl.json for the Axolotl language server.");
+            task.setDescription("Writes build/axl/axl.json, the modules of the Axolotl language server.");
             for (SourceSet sourceSet : sourceSets) {
-                SourceDirectorySet axlSources = (SourceDirectorySet) sourceSet.getExtensions().getByName("axl");
-                task.getSourceRoots().from(axlSources.getSourceDirectories());
-                task.getJavaSourceRoots().from(sourceSet.getJava().getSrcDirs().stream()
-                        .filter(dir -> !dir.toPath().startsWith(project.getLayout().getBuildDirectory().get().getAsFile().toPath()))
-                        .toList());
+                LspConfigTask.Module module = project.getObjects().newInstance(LspConfigTask.Module.class);
                 // Only the paths are written; depending on the classpath would compile code that may not compile while it is edited.
-                task.getClasspath().from(project.provider(() -> sourceSet.getCompileClasspath().getFiles()));
+                Provider<LspSources> sources = project.provider(() -> LspSources.of(project, sourceSet));
+                module.getSourceRoots().from(sources.map(s -> s.axl));
+                module.getJavaSourceRoots().from(sources.map(s -> s.java));
+                module.getClasspath().from(sources.map(s -> s.classpath));
+                task.getModules().add(module);
             }
             task.getStrictNull().set(axl.getStrictNull());
             task.getOutputFile().set(project.getLayout().getBuildDirectory().file("axl/axl.json"));

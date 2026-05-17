@@ -52,7 +52,11 @@ class AxlPluginFunctionalTest {
     }
 
     private static String jsonString(Path path) {
-        return "\"" + path.toString().replace("\\", "\\\\") + "\"";
+        return "\"" + jsonPath(path) + "\"";
+    }
+
+    private static String jsonPath(Path path) {
+        return path.toString().replace("\\", "\\\\");
     }
 
     private GradleRunner gradle(String... args) {
@@ -304,6 +308,22 @@ class AxlPluginFunctionalTest {
         assertTrue(json.contains(jsonString(project.resolve("core/src/main/java"))), json);
         assertTrue(json.contains("axl-runtime"), json);
         assertTrue(!json.contains("generated"), json);
+        String[] modules = json.split("\"sourceRoots\"");
+        assertEquals(3, modules.length, json);
+        assertTrue(!modules[1].contains("junit-jupiter") && !modules[1].contains(jsonPath(project.resolve("core/src/test"))), modules[1]);
+        assertTrue(modules[2].contains("junit-jupiter") && !modules[2].contains(jsonPath(project.resolve("core/build"))),
+                modules[2]);
+        assertTrue(modules[2].contains("[" + jsonString(project.resolve("core/src/test/axl")) + ", "
+                + jsonString(project.resolve("core/src/main/axl")) + "]"), modules[2]);
+    }
+
+    @Test
+    void writesLanguageServerConfigWithTheSourcesOfProjectDependencies() throws IOException {
+        gradle(":app:axlLspConfig").build();
+        String json = Files.readString(project.resolve("app/build/axl/axl.json"));
+        assertTrue(json.contains("[" + jsonString(project.resolve("app/src/main/axl")) + ", "
+                + jsonString(project.resolve("core/src/main/axl")) + "]"), json);
+        assertTrue(!json.contains(jsonPath(project.resolve("core/build"))), json);
     }
 
     @Test
