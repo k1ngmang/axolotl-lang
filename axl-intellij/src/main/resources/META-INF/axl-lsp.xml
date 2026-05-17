@@ -2,4 +2,7 @@
   <extensions defaultExtensionNs="com.intellij">
     <platform.lsp.serverSupportProvider implementation="org.axl.intellij.lsp.AxlLspServerSupportProvider"/>
   </extensions>
+  <projectListeners>
+    <listener class="org.axl.intellij.lsp.AxlModulesListener" topic="com.intellij.openapi.roots.ModuleRootListener"/>
+  </projectListeners>
 </idea-plugin>

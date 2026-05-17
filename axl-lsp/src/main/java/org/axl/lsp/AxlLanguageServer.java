@@ -1,5 +1,7 @@
 package org.axl.lsp;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -43,6 +45,8 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
     public static final String SHOW_GENERATED_JAVA = "axl.showGeneratedJava";
     /** Initialization option: false when the client reports the translator's errors itself, so only javac's are sent. */
     public static final String TRANSLATOR_DIAGNOSTICS = "translatorDiagnostics";
+    /** Initialization option: the modules of the project, which are then not looked for; see docs/lsp.md. */
+    public static final String MODULES = "modules";
 
     private static final List<String> WATCHED = List.of("**/*.axl", "**/*.java", "**/axl.json", "**/src/*/axl");
 
@@ -97,10 +101,11 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
         var workspaceCapabilities = params.getCapabilities() == null ? null : params.getCapabilities().getWorkspace();
         var watching = workspaceCapabilities == null ? null : workspaceCapabilities.getDidChangeWatchedFiles();
         watchesFiles = watching != null && Boolean.TRUE.equals(watching.getDynamicRegistration());
-        boolean translatorDiagnostics = !(params.getInitializationOptions() instanceof JsonObject options)
-                || !options.has(TRANSLATOR_DIAGNOSTICS) || options.get(TRANSLATOR_DIAGNOSTICS).getAsBoolean();
+        JsonObject options = params.getInitializationOptions() instanceof JsonObject o ? o : new JsonObject();
+        boolean translatorDiagnostics = !options.has(TRANSLATOR_DIAGNOSTICS) || options.get(TRANSLATOR_DIAGNOSTICS).getAsBoolean();
+        JsonElement modules = options.get(MODULES) instanceof JsonArray array ? array : null;
         return workspace.submit(() -> {
-            workspace.open(roots);
+            workspace.open(roots, modules);
             workspace.publishTranslatorDiagnostics(translatorDiagnostics);
             String version = AxlLanguageServer.class.getPackage().getImplementationVersion();
             ServerInfo info = version != null ? new ServerInfo("axl-lsp", version) : new ServerInfo("axl-lsp");

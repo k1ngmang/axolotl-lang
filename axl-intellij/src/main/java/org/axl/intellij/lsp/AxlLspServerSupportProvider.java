@@ -48,10 +48,13 @@ public final class AxlLspServerSupportProvider implements LspServerSupportProvid
             return getProject().getBasePath() == null ? command : command.withWorkDirectory(getProject().getBasePath());
         }
 
-        /** The annotator already reports the translator's errors while typing; the server adds javac's on save. */
+        /**
+         * The annotator already reports the translator's errors while typing; the server adds javac's
+         * on save, with the modules and classpath of the project, which it does not look for itself.
+         */
         @Override
         public Object createInitializationOptions() {
-            return Map.of("translatorDiagnostics", false);
+            return Map.of("translatorDiagnostics", false, "modules", AxlLspModules.of(getProject()));
         }
 
         @Override

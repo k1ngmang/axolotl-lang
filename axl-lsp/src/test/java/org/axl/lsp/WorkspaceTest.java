@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.google.gson.JsonParser;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -363,6 +364,19 @@ class WorkspaceTest {
         while (publications.get() == before && System.nanoTime() < deadline) {
             Thread.sleep(20);
         }
+        assertEquals(List.of(), published.get(main));
+    }
+
+    @Test
+    void takesTheModulesTheClientDescribes() throws Exception {
+        Path java = Files.createDirectories(project.resolve("lib/app")).resolve("Helper.java");
+        Files.writeString(java, "package app;\n\npublic class Helper {\n    public static int one() { return 1; }\n}\n");
+        String root = project.toString().replace("\\", "\\\\");
+        workspace.open(List.of(project), JsonParser.parseString("""
+                [{"root": "%s", "sourceRoots": ["src/main/axl"], "javaSourceRoots": ["lib"]}, {"sourceRoots": []}]
+                """.formatted(root)));
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Helper.one())\n}\n");
+        workspace.saved(main);
         assertEquals(List.of(), published.get(main));
     }
 

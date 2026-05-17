@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -29,6 +30,7 @@ import java.util.Set;
 final class ProjectModel {
 
     private static final class Config {
+        String root;
         List<String> sourceRoots = List.of();
         List<String> javaSourceRoots = List.of();
         List<String> classpath = List.of();
@@ -112,6 +114,27 @@ final class ProjectModel {
         }
         found.sort(null);
         return found;
+    }
+
+    /**
+     * The modules a client describes, as the IntelliJ plugin does from its project model: entries
+     * of a description's `"modules"` with absolute paths, and the module directory as `"root"`.
+     */
+    static ProjectModel of(JsonElement modules) {
+        List<Module> result = new ArrayList<>();
+        List<String> problems = new ArrayList<>();
+        for (JsonElement element : modules.getAsJsonArray()) {
+            try {
+                Config config = new Gson().fromJson(element, Config.class);
+                if (config == null || config.root == null) {
+                    throw new JsonParseException("a module without a root");
+                }
+                result.add(module(Path.of(config.root), config));
+            } catch (JsonParseException | InvalidPathException e) {
+                problems.add("Ignored the module " + element + ": " + e.getMessage());
+            }
+        }
+        return new ProjectModel(result, problems);
     }
 
     /** `src/NAME/axl` with `src/NAME/java`; other source sets see `src/main` too, as tests do in Gradle and Maven. */

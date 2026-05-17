@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
 import javax.lang.model.SourceVersion;
+import com.google.gson.JsonElement;
 import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.AxlDiagnostic;
@@ -65,6 +66,7 @@ final class Workspace {
     private final Map<String, String> pendingText = new ConcurrentHashMap<>();
     private LanguageClient client;
     private List<Path> roots = List.of();
+    private JsonElement configuredModules;
     private ProjectModel project = ProjectModel.discover(roots);
     private final Map<String, Document> open = new HashMap<>();
     // The last version that parsed, used while the user is typing an incomplete line.
@@ -113,17 +115,23 @@ final class Workspace {
     }
 
     void open(List<Path> roots) throws IOException {
+        open(roots, null);
+    }
+
+    /** modules: the modules the client describes, see {@link ProjectModel#of}; null to find them in the roots. */
+    void open(List<Path> roots, JsonElement modules) throws IOException {
         if (compiler != null) {
             compiler.close();
         }
         compiler = new ModuleCompiler();
         this.roots = roots;
+        this.configuredModules = modules;
         discover();
     }
 
     /** Finds the modules, and forgets everything derived from the ones found before. */
     private void discover() {
-        project = ProjectModel.discover(roots);
+        project = configuredModules != null ? ProjectModel.of(configuredModules) : ProjectModel.discover(roots);
         deleteDrafts();
         drafts.clear();
         draftFiles.clear();

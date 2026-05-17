@@ -58,6 +58,11 @@ and `src/main/java`, as in Gradle and Maven. A file outside every module belongs
 its own source root, found from its package. In every module, `.java` files next to `.axl` files in
 the directory of their package are Java sources too, as `axl check` takes them.
 
+A client that knows the modules can pass them as the initialization option `modules`, a list of
+module entries as in a description, with absolute paths and the module directory as `"root"`.
+The server then takes those modules and looks for no descriptions. The IntelliJ plugin does this
+with the source roots and libraries of the IntelliJ modules.
+
 ## VS Code
 
 `./gradlew :axl-lsp:vsix` (needs Node.js) copies the server into the extension and packages
