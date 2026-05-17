@@ -1,8 +1,8 @@
 package org.axl.intellij.annotate;
 
+import com.intellij.execution.ExecutionException;
 import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.execution.process.CapturingProcessHandler;
-import com.intellij.execution.process.ProcessOutput;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.ExternalAnnotator;
 import com.intellij.lang.annotation.HighlightSeverity;
@@ -14,8 +14,11 @@ import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.OrderEnumerator;
 import com.intellij.openapi.roots.ProjectFileIndex;
+import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.openapi.util.UserDataHolderEx;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.openapi.vfs.VirtualFileManager;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -23,7 +26,11 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.axl.intellij.psi.AxlFile;
@@ -37,9 +44,15 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnnotator.Request, List<AxlExternalAnnotator.Problem>> {
 
-    record Request(Module module, String filePath, List<String> command) {}
+    /** stamp: the modification count of the files when the request was made. */
+    record Request(Module module, String filePath, List<String> command, long stamp) {}
 
     record Problem(int line, int column, boolean error, String message) {}
+
+    /** The output of one run of `axl check`, which the files of a module share while no file changes. */
+    private record Check(long stamp, CompletableFuture<List<String>> output) {}
+
+    private static final Key<Map<List<String>, Check>> CHECKS = Key.create("axl.checks");
 
     private static final Pattern LINE = Pattern.compile("^(.*):(\\d+):(\\d+): (error|warning): (.*)$");
 
@@ -61,7 +74,7 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
             command.add("--classpath");
             command.add(classpath);
         }
-        return new Request(module, virtualFile.getPath(), command);
+        return new Request(module, virtualFile.getPath(), command, VirtualFileManager.getInstance().getModificationCount());
     }
 
     /**
@@ -86,19 +99,43 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
 
     @Override
     public @Nullable List<Problem> doAnnotate(Request request) {
-        try {
-            ProcessOutput output = new CapturingProcessHandler(new GeneralCommandLine(request.command()))
-                    .runProcess(120_000);
-            List<Problem> problems = new ArrayList<>();
-            for (String line : output.getStdoutLines()) {
-                Matcher m = LINE.matcher(line);
-                if (m.matches() && new File(m.group(1)).getPath().equals(new File(request.filePath()).getPath())) {
-                    problems.add(new Problem(Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)),
-                            m.group(4).equals("error"), m.group(5)));
-                }
+        List<Problem> problems = new ArrayList<>();
+        for (String line : output(request, AxlExternalAnnotator::run)) {
+            Matcher m = LINE.matcher(line);
+            if (m.matches() && new File(m.group(1)).getPath().equals(new File(request.filePath()).getPath())) {
+                problems.add(new Problem(Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)),
+                        m.group(4).equals("error"), m.group(5)));
             }
-            return problems;
-        } catch (com.intellij.execution.ExecutionException e) {
+        }
+        return problems;
+    }
+
+    /**
+     * The output of `axl check` for a request: of a run for the same command since the files last
+     * changed, or of a new run. Every highlighting pass of every open file of a module asks, and a
+     * run compiles the whole module in a new JVM.
+     */
+    static List<String> output(Request request, Function<List<String>, List<String>> runner) {
+        Map<List<String>, Check> checks = ((UserDataHolderEx) request.module().getProject())
+                .putUserDataIfAbsent(CHECKS, new ConcurrentHashMap<>());
+        CompletableFuture<List<String>> mine = new CompletableFuture<>();
+        Check check = checks.compute(request.command(),
+                (command, old) -> old != null && old.stamp() == request.stamp() ? old : new Check(request.stamp(), mine));
+        if (check.output() == mine) {
+            List<String> output = List.of();
+            try {
+                output = runner.apply(request.command());
+            } finally {
+                mine.complete(output);
+            }
+        }
+        return check.output().join();
+    }
+
+    private static List<String> run(List<String> command) {
+        try {
+            return new CapturingProcessHandler(new GeneralCommandLine(command)).runProcess(120_000).getStdoutLines();
+        } catch (ExecutionException e) {
             return List.of();
         }
     }
