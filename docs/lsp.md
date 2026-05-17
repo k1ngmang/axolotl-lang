@@ -25,10 +25,24 @@ The server looks for module descriptions in the workspace:
 
 ```json
 {
-  "sourceRoots": ["src/main/axl", "src/test/axl"],
+  "sourceRoots": ["src/main/axl"],
   "javaSourceRoots": ["src/main/java"],
   "classpath": ["/home/me/.m2/repository/com/example/lib/1.0/lib-1.0.jar"],
   "strictNull": false
+}
+```
+
+A description of several modules lists them under `"modules"`, each with the fields above. A
+module lists its own source roots first, then the ones it only sees, so that the tests use the
+main sources while the main sources do not see the tests or their libraries:
+
+```json
+{
+  "modules": [
+    {"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["lib/a.jar"]},
+    {"sourceRoots": ["src/test/axl", "src/main/axl"], "javaSourceRoots": ["src/test/java", "src/main/java"],
+     "classpath": ["lib/a.jar", "lib/junit.jar"]}
+  ]
 }
 ```
 
@@ -36,9 +50,10 @@ Relative paths are relative to the module directory. A description that is not v
 shape is skipped with a warning. The search skips `build`, `target` and `out` directories, apart
 from the descriptions the plugins write there, and hidden directories such as `.git`. When a
 description changes or a `src/NAME/axl` directory appears, the server finds the modules again, so
-running `axlLspConfig` or `axl:lsp-config` needs no restart of the editor. Without a description, every `src/NAME/axl`
-directory is a module with `src/NAME/java` as its Java sources and only the Axolotl runtime on the
-classpath. Every source set other than `main`, such as `src/test/axl`, also sees `src/main/axl`
+running `axlLspConfig` or `axl:lsp-config` needs no restart of the editor.
+
+Without a description, every `src/NAME/axl` directory is a module with `src/NAME/java` as its
+Java sources and only the Axolotl runtime on the classpath. Every source set other than `main`, such as `src/test/axl`, also sees `src/main/axl`
 and `src/main/java`, as in Gradle and Maven. A file outside every module belongs to a module of
 its own source root, found from its package. In every module, `.java` files next to `.axl` files in
 the directory of their package are Java sources too, as `axl check` takes them.

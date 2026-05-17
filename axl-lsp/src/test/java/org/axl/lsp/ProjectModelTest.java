@@ -32,6 +32,25 @@ class ProjectModelTest {
     }
 
     @Test
+    void readsSeveralModulesFromOneDescription(@TempDir Path root) throws Exception {
+        Files.createDirectories(root.resolve("build/axl"));
+        Files.writeString(root.resolve("build/axl/axl.json"), """
+                {"modules": [
+                  {"sourceRoots": ["src/main/axl"], "classpath": ["lib/main.jar"]},
+                  {"sourceRoots": ["src/test/axl", "src/main/axl"], "classpath": ["lib/main.jar", "lib/junit.jar"]}
+                ]}
+                """);
+        ProjectModel model = ProjectModel.discover(List.of(root));
+
+        Module main = model.moduleOf(root.resolve("src/main/axl/app/A.axl"), "app");
+        Module test = model.moduleOf(root.resolve("src/test/axl/app/ATest.axl"), "app");
+
+        assertEquals(List.of(root.resolve("lib/main.jar")), main.classpath());
+        assertEquals(List.of(root.resolve("src/test/axl"), root.resolve("src/main/axl")), test.axlRoots());
+        assertEquals(2, test.classpath().size());
+    }
+
+    @Test
     void skipsDescriptionsThatCannotBeRead(@TempDir Path root) throws Exception {
         Files.createDirectories(root.resolve("c"));
         Files.writeString(root.resolve("c/axl.json"), "{\"sourceRoots\": [");

@@ -21,7 +21,9 @@ import java.util.Set;
  *
  * <pre>{"sourceRoots": ["src/main/axl"], "javaSourceRoots": ["src/main/java"], "classpath": ["lib/a.jar"], "strictNull": false}</pre>
  *
- * Relative paths are relative to the module directory. Without a description every `src/NAME/axl`
+ * A description of several modules, such as the main and test sources, lists them under
+ * `"modules"`; each lists its own source roots first, then the ones it only sees, as tests see the
+ * main sources. Relative paths are relative to the module directory. Without a description every `src/NAME/axl`
  * directory is a module of its own, next to `src/NAME/java`.
  */
 final class ProjectModel {
@@ -31,6 +33,7 @@ final class ProjectModel {
         List<String> javaSourceRoots = List.of();
         List<String> classpath = List.of();
         boolean strictNull;
+        List<Config> modules;
     }
 
     private static final Set<String> OUTPUTS = Set.of("build", "target", "out");
@@ -52,7 +55,7 @@ final class ProjectModel {
             for (Path path : found) {
                 if (path.getFileName().toString().equals("axl.json")) {
                     try {
-                        modules.add(fromConfig(path));
+                        modules.addAll(fromConfig(path));
                     } catch (IOException | JsonParseException | InvalidPathException e) {
                         problems.add("Ignored " + path + ": " + e.getMessage());
                     }
@@ -131,7 +134,7 @@ final class ProjectModel {
                 && src != null && src.getFileName() != null && src.getFileName().toString().equals("src");
     }
 
-    private static Module fromConfig(Path file) throws IOException {
+    private static List<Module> fromConfig(Path file) throws IOException {
         Config config = new Gson().fromJson(Files.readString(file, StandardCharsets.UTF_8), Config.class);
         if (config == null) {
             throw new JsonParseException("no JSON object");
@@ -143,6 +146,16 @@ final class ProjectModel {
             dir = dir.getParent().getParent();
         }
         Path root = dir;
+        if (config.modules == null) {
+            return List.of(module(root, config));
+        }
+        if (config.modules.stream().anyMatch(m -> m == null)) {
+            throw new JsonParseException("a module is null");
+        }
+        return config.modules.stream().map(m -> module(root, m)).toList();
+    }
+
+    private static Module module(Path root, Config config) {
         return new Module(root, resolve(root, config.sourceRoots), resolve(root, config.javaSourceRoots),
                 resolve(root, config.classpath), config.strictNull);
     }
