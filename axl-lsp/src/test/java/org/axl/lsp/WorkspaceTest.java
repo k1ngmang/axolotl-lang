@@ -354,11 +354,15 @@ class WorkspaceTest {
 
         Path description = Files.writeString(project.resolve("axl.json"),
                 "{\"sourceRoots\": [\"src/main/axl\"], \"javaSourceRoots\": [\"lib\"]}");
-        workspace.submit(() -> {
+        int before = workspace.submit(() -> {
             workspace.filesChanged(List.of(description));
-            workspace.saved(main);
-            return null;
+            return publications.get();
         }).get(60, TimeUnit.SECONDS);
+        // The compilation runs on its own thread and publishes when it is done.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while (publications.get() == before && System.nanoTime() < deadline) {
+            Thread.sleep(20);
+        }
         assertEquals(List.of(), published.get(main));
     }
 
