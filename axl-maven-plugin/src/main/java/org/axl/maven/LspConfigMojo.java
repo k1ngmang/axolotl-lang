@@ -18,7 +18,11 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 
-/** Writes `target/axl/axl.json`, from which the language server takes the source roots and classpath. */
+/**
+ * Writes `target/axl/axl.json`, from which the language server takes its modules: the main sources,
+ * and the test sources, which see the main ones. The project's own class directories are left out
+ * of the classpaths, since the sources stand for them.
+ */
 @Mojo(name = "lsp-config", requiresDependencyResolution = ResolutionScope.TEST, threadSafe = true)
 public class LspConfigMojo extends AbstractMojo {
 
@@ -40,18 +44,13 @@ public class LspConfigMojo extends AbstractMojo {
     @Override
     public void execute() throws MojoExecutionException {
         try {
-            Map<String, Object> config = new LinkedHashMap<>();
-            config.put("sourceRoots", List.of(sourceDirectory.getAbsolutePath(), testSourceDirectory.getAbsolutePath()));
-            List<String> javaRoots = new ArrayList<>();
-            String build = project.getBuild().getDirectory();
-            for (String root : concat(project.getCompileSourceRoots(), project.getTestCompileSourceRoots())) {
-                if (!root.startsWith(build)) {
-                    javaRoots.add(root);
-                }
-            }
-            config.put("javaSourceRoots", javaRoots);
-            config.put("classpath", project.getTestClasspathElements());
-            config.put("strictNull", strictNull);
+            List<String> mainJava = handWritten(project.getCompileSourceRoots());
+            List<String> testJava = concat(handWritten(project.getTestCompileSourceRoots()), mainJava);
+            Map<String, Object> main = module(List.of(sourceDirectory.getAbsolutePath()), mainJava,
+                    project.getCompileClasspathElements());
+            Map<String, Object> test = module(List.of(testSourceDirectory.getAbsolutePath(), sourceDirectory.getAbsolutePath()),
+                    testJava, project.getTestClasspathElements());
+            Map<String, Object> config = Map.of("modules", List.of(main, test));
             Path output = outputFile.toPath();
             Files.createDirectories(output.getParent());
             Files.writeString(output, new GsonBuilder().setPrettyPrinting().create().toJson(config) + "\n",
@@ -60,6 +59,22 @@ public class LspConfigMojo extends AbstractMojo {
         } catch (IOException | DependencyResolutionRequiredException e) {
             throw new MojoExecutionException("Writing axl.json failed", e);
         }
+    }
+
+    private Map<String, Object> module(List<String> sourceRoots, List<String> javaRoots, List<String> classpath) {
+        List<String> classes = List.of(project.getBuild().getOutputDirectory(), project.getBuild().getTestOutputDirectory());
+        Map<String, Object> module = new LinkedHashMap<>();
+        module.put("sourceRoots", sourceRoots);
+        module.put("javaSourceRoots", javaRoots);
+        module.put("classpath", classpath.stream().filter(entry -> !classes.contains(entry)).toList());
+        module.put("strictNull", strictNull);
+        return module;
+    }
+
+    /** Without the roots of generated sources, such as the Java that `axl:generate` writes. */
+    private List<String> handWritten(List<String> roots) {
+        String build = project.getBuild().getDirectory();
+        return roots.stream().filter(root -> !root.startsWith(build)).toList();
     }
 
     private static List<String> concat(List<String> a, List<String> b) {
