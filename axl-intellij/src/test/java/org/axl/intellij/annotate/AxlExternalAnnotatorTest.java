@@ -8,6 +8,19 @@ import java.util.List;
 
 public class AxlExternalAnnotatorTest extends LightJavaCodeInsightFixtureTestCase {
 
+    public void testLeavesTheErrorsToTheLanguageServerOnlyWhileItRuns() {
+        myFixture.configureByText("Main.axl", "package app\n");
+        assertFalse(AxlServer.languageServerRuns(getProject()));
+        try {
+            AxlServer.useLanguageServer(getProject(), () -> false);
+            assertFalse(AxlServer.languageServerRuns(getProject()));
+            AxlServer.useLanguageServer(getProject(), () -> true);
+            assertTrue(AxlServer.languageServerRuns(getProject()));
+        } finally {
+            AxlServer.useLanguageServer(getProject(), null);
+        }
+    }
+
     public void testChecksATestWithTheTestAndProductionRoots() throws IOException {
         VirtualFile main = myFixture.addFileToProject("app/Main.axl", "package app\n").getVirtualFile();
         VirtualFile tests = myFixture.getTempDirFixture().findOrCreateDir("tests");

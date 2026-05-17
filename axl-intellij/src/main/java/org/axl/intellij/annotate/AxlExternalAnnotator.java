@@ -47,8 +47,8 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
     public @Nullable Request collectInformation(@NotNull PsiFile file, @NotNull Editor editor, boolean hasErrors) {
         VirtualFile virtualFile = file.getVirtualFile();
         Module module = ModuleUtilCore.findModuleForFile(file);
-        // When the language server runs (Ultimate), it reports these errors.
-        if (hasErrors || !(file instanceof AxlFile) || virtualFile == null || module == null || AxlServer.languageServerStarted(file.getProject())
+        // When the language server runs (Ultimate), it reports these errors; until it does, and if it fails, the check does.
+        if (hasErrors || !(file instanceof AxlFile) || virtualFile == null || module == null || AxlServer.languageServerRuns(file.getProject())
                 || FileDocumentManager.getInstance().isFileModified(virtualFile)) {
             return null;
         }

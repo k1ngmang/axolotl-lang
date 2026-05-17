@@ -13,6 +13,7 @@ import java.io.File;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 
 /**
  * The command-line tools bundled with the plugin (`server/lib`): the compiler with Error Prone and
@@ -23,16 +24,18 @@ public final class AxlServer {
     private static final List<String> COMPILER_PACKAGES = List.of("api", "code", "comp", "file", "main", "model",
             "parser", "processing", "tree", "util");
 
-    private static final Key<Boolean> LANGUAGE_SERVER_STARTED = Key.create("axl.languageServerStarted");
+    private static final Key<BooleanSupplier> LANGUAGE_SERVER = Key.create("axl.languageServer");
 
     private AxlServer() {}
 
-    public static void markLanguageServerStarted(Project project) {
-        project.putUserData(LANGUAGE_SERVER_STARTED, true);
+    /** In Ultimate: running tells whether the language server runs, which then reports the module's errors. */
+    public static void useLanguageServer(Project project, BooleanSupplier running) {
+        project.putUserData(LANGUAGE_SERVER, running);
     }
 
-    public static boolean languageServerStarted(Project project) {
-        return Boolean.TRUE.equals(project.getUserData(LANGUAGE_SERVER_STARTED));
+    public static boolean languageServerRuns(Project project) {
+        BooleanSupplier running = project.getUserData(LANGUAGE_SERVER);
+        return running != null && running.getAsBoolean();
     }
 
     /** `java ... -cp server/lib/* mainClass`, with the module's JDK when it is one. */

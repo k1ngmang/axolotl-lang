@@ -4,6 +4,8 @@ import com.intellij.execution.configurations.GeneralCommandLine;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.intellij.platform.lsp.api.LspServerManager;
+import com.intellij.platform.lsp.api.LspServerState;
 import com.intellij.platform.lsp.api.LspServerSupportProvider;
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor;
 import com.intellij.platform.lsp.api.customization.LspCompletionSupport;
@@ -27,8 +29,13 @@ public final class AxlLspServerSupportProvider implements LspServerSupportProvid
         // A server process in a test keeps the project directory open, which Windows then cannot delete.
         if (!ApplicationManager.getApplication().isUnitTestMode()) {
             starter.ensureServerStarted(new Descriptor(project));
+            AxlServer.useLanguageServer(project, () -> runs(project));
         }
-        AxlServer.markLanguageServerStarted(project);
+    }
+
+    private static boolean runs(Project project) {
+        return LspServerManager.getInstance(project).getServersForProvider(AxlLspServerSupportProvider.class).stream()
+                .anyMatch(server -> server.getState() == LspServerState.Running);
     }
 
     private static final class Descriptor extends ProjectWideLspServerDescriptor {
