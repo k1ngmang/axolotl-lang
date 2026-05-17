@@ -36,7 +36,9 @@ public class AxlParserTest extends BasePlatformTestCase {
         for (String body : List.of("fn f(a: Int, b: Int) -> Int = a + b\n", "fn f() = g(1, 2)\n",
                 "fn f() = { a, b -> a }\n", "fn f(x: Boolean) = !!x\n", "fn f() {\n    a.b = 1\n    c = 2\n}\n",
                 "fn f(s: Shape) -> String = when (s) { is Circle -> \"c\" is app.Square -> \"s\" }\n",
-                "fn f(s: Shape) -> Boolean = when (s) { is Circle -> s is Circle else -> false }\n")) {
+                "fn f(s: Shape) -> Boolean = when (s) { is Circle -> s is Circle else -> false }\n",
+                "fn f() = java.util.HashMap<String, Int>()\n", "fn f() = java.util.ArrayList<String>()\n",
+                "fn f(a: A, c: Int) = a.b < c\n")) {
             PsiFile file = myFixture.configureByText("Ok.axl", "package app\n\n" + body);
             assertNull(body, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
         }
@@ -73,6 +75,8 @@ public class AxlParserTest extends BasePlatformTestCase {
         PsiFile file = myFixture.configureByText("Cmp.axl", "package app\n\nfn f(v: Int) = g(LOW < v, v > (1))\n");
         assertEquals(0, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
         file = myFixture.configureByText("New.axl", "package app\n\nfn f() = Box<java.util.List<String>>(1)\n");
+        assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
+        file = myFixture.configureByText("Qualified.axl", "package app\n\nfn f() = java.util.HashMap<String, Int>()\n");
         assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
     }
 

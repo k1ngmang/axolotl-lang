@@ -620,8 +620,7 @@ public final class AxlParser implements PsiParser {
             return m;
         }
         if (at(IDENTIFIER)) {
-            if (Character.isUpperCase(b.getTokenText().charAt(0)) && b.lookAhead(1) == AxlTokenTypes.of(LT)
-                    && typeArgumentsAhead()) {
+            if ((b.lookAhead(1) == AxlTokenTypes.of(LT) || b.lookAhead(1) == AxlTokenTypes.of(DOT)) && genericConstructorAhead()) {
                 PsiBuilder.Marker generic = genericNew();
                 if (generic != null) {
                     return generic;
@@ -770,11 +769,19 @@ public final class AxlParser implements PsiParser {
         }
     }
 
-    /** `Name<T>(args)`; rolls back when the `<` turns out to be a comparison. */
-    /** As in the grammar: `LOW < v, v > (1)` compares, because `v` does not look like a type. */
-    private boolean typeArgumentsAhead() {
+    /**
+     * As the grammar's `genericConstructor()`: `Name<T>(args)`, maybe with the package before the
+     * name, `java.util.HashMap<String, Int>()`. `LOW < v, v > (1)` compares, because `v` does not
+     * look like a type.
+     */
+    private boolean genericConstructorAhead() {
         PsiBuilder.Marker probe = b.mark();
         try {
+            skipQualifier();
+            String last = b.getTokenText();
+            if (!at(IDENTIFIER) || last == null || !Character.isUpperCase(last.charAt(0)) || b.lookAhead(1) != AxlTokenTypes.of(LT)) {
+                return false;
+            }
             b.advanceLexer();
             b.advanceLexer();
             int depth = 1;
@@ -804,8 +811,17 @@ public final class AxlParser implements PsiParser {
         }
     }
 
+    /** The `a.b.` before the last name of a qualified name. */
+    private void skipQualifier() {
+        while (at(IDENTIFIER) && b.lookAhead(1) == AxlTokenTypes.of(DOT)) {
+            b.advanceLexer();
+            b.advanceLexer();
+        }
+    }
+
     private PsiBuilder.Marker genericNew() {
         PsiBuilder.Marker m = b.mark();
+        skipQualifier();
         b.advanceLexer();
         PsiBuilder.Marker args = b.mark();
         b.advanceLexer();
