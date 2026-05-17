@@ -64,7 +64,8 @@ final class Workspace {
     // The newest text of each document with changes waiting for the request thread.
     private final Map<String, String> pendingText = new ConcurrentHashMap<>();
     private LanguageClient client;
-    private ProjectModel project = ProjectModel.discover(List.of());
+    private List<Path> roots = List.of();
+    private ProjectModel project = ProjectModel.discover(roots);
     private final Map<String, Document> open = new HashMap<>();
     // The last version that parsed, used while the user is typing an incomplete line.
     private final Map<String, Document> lastParsed = new HashMap<>();
@@ -112,12 +113,23 @@ final class Workspace {
     }
 
     void open(List<Path> roots) throws IOException {
-        project = ProjectModel.discover(roots);
-        deleteTemporaryFiles();
+        if (compiler != null) {
+            compiler.close();
+        }
         compiler = new ModuleCompiler();
+        this.roots = roots;
+        discover();
+    }
+
+    /** Finds the modules, and forgets everything derived from the ones found before. */
+    private void discover() {
+        project = ProjectModel.discover(roots);
+        deleteDrafts();
         drafts.clear();
         draftFiles.clear();
         closedDocuments.clear();
+        javaModels.clear();
+        compileErrors.clear();
         if (client != null) {
             project.problems().forEach(p -> client.showMessage(new MessageParams(MessageType.Warning, p)));
         }
@@ -141,6 +153,10 @@ final class Workspace {
         if (compiler != null) {
             compiler.close();
         }
+        deleteDrafts();
+    }
+
+    private void deleteDrafts() {
         for (Path dir : drafts.values()) {
             try {
                 ModuleCompiler.delete(dir);
@@ -192,15 +208,30 @@ final class Workspace {
      * are translated again against the new drafts and Java sources.
      */
     void filesChanged(List<Path> files) {
+        boolean modulesChanged = files.stream().anyMatch(Workspace::describesModules);
+        if (modulesChanged) {
+            discover();
+        }
         for (Path file : files) {
-            if (file.toString().endsWith(".axl") && findOpen(file) == null) {
+            if (!modulesChanged && file.toString().endsWith(".axl") && findOpen(file) == null) {
                 refreshDraft(file);
             }
         }
         javaModels.clear();
         for (Document document : List.copyOf(open.values())) {
             update(document.uri, document.text);
+            if (modulesChanged) {
+                compileLater(document.uri, true);
+            }
         }
+    }
+
+    /** A module description, or a source set directory of the layout that guesses modules. */
+    private static boolean describesModules(Path file) {
+        String name = file.getFileName() == null ? "" : file.getFileName().toString();
+        Path src = file.getParent() == null ? null : file.getParent().getParent();
+        return name.equals("axl.json") || name.equals("axl") && src != null && src.getFileName() != null
+                && src.getFileName().toString().equals("src");
     }
 
     /** Writes the draft of a closed file from disk, or deletes it when the file is gone. */

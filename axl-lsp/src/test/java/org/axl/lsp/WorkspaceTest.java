@@ -345,6 +345,24 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsAModuleDescriptionWrittenWhileOpen() throws Exception {
+        Path java = Files.createDirectories(project.resolve("lib/app")).resolve("Helper.java");
+        Files.writeString(java, "package app;\n\npublic class Helper {\n    public static int one() { return 1; }\n}\n");
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Helper.one())\n}\n");
+        workspace.saved(main);
+        assertEquals(List.of(3), errorLines(main));
+
+        Path description = Files.writeString(project.resolve("axl.json"),
+                "{\"sourceRoots\": [\"src/main/axl\"], \"javaSourceRoots\": [\"lib\"]}");
+        workspace.submit(() -> {
+            workspace.filesChanged(List.of(description));
+            workspace.saved(main);
+            return null;
+        }).get(60, TimeUnit.SECONDS);
+        assertEquals(List.of(), published.get(main));
+    }
+
+    @Test
     void publishesTheErrorsOfJavaSources() throws Exception {
         Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Helper.java");
         Files.writeString(java, "package app;\n\npublic class Helper {\n    int z = \"s\";\n}\n");

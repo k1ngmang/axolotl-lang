@@ -44,6 +44,8 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
     /** Initialization option: false when the client reports the translator's errors itself, so only javac's are sent. */
     public static final String TRANSLATOR_DIAGNOSTICS = "translatorDiagnostics";
 
+    private static final List<String> WATCHED = List.of("**/*.axl", "**/*.java", "**/axl.json", "**/src/*/axl");
+
     private final Workspace workspace = new Workspace();
     private final AxlTextDocumentService documents = new AxlTextDocumentService(workspace);
     private final AxlWorkspaceService workspaceService = new AxlWorkspaceService(workspace);
@@ -122,13 +124,16 @@ public final class AxlLanguageServer implements LanguageServer, LanguageClientAw
         return capabilities;
     }
 
-    /** Files changed outside the editor change the types other files infer from them. */
+    /**
+     * Files changed outside the editor change the types other files infer from them; module
+     * descriptions written by a build plugin and new source sets change the modules.
+     */
     @Override
     public void initialized(InitializedParams params) {
         if (!watchesFiles || client == null) {
             return;
         }
-        var watchers = List.of(new FileSystemWatcher(Either.forLeft("**/*.axl")), new FileSystemWatcher(Either.forLeft("**/*.java")));
+        var watchers = WATCHED.stream().map(glob -> new FileSystemWatcher(Either.forLeft(glob))).toList();
         client.registerCapability(new RegistrationParams(List.of(new Registration("axl-watched-files",
                 "workspace/didChangeWatchedFiles", new DidChangeWatchedFilesRegistrationOptions(watchers)))));
     }
