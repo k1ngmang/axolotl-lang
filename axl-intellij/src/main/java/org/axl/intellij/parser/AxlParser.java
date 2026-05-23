@@ -745,7 +745,7 @@ public final class AxlParser implements PsiParser {
             } while (consume(COMMA));
         }
         if (expect(ARROW, "`->` expected")) {
-            if (at(LBRACE)) {
+            if (at(LBRACE) && !lambdaAhead()) {
                 block();
             } else {
                 expression();
@@ -753,6 +753,37 @@ public final class AxlParser implements PsiParser {
         }
         consume(SEMI);
         m.done(AxlElementTypes.WHEN_ARM);
+    }
+
+    /** Whether the brace ahead starts a lambda with an arrow, `{ s: String -> ... }`, which no block can be. */
+    private boolean lambdaAhead() {
+        int i = 1;
+        while (b.lookAhead(i) == AxlTokenTypes.IDENTIFIER) {
+            i++;
+            if (b.lookAhead(i) == AxlTokenTypes.of(COLON)) {
+                i = afterType(i + 1);
+            }
+            if (b.lookAhead(i) != AxlTokenTypes.of(COMMA)) {
+                break;
+            }
+            i++;
+        }
+        return b.lookAhead(i) == AxlTokenTypes.of(ARROW);
+    }
+
+    /** The offset ahead after a type that starts at an offset, or where the tokens stop looking like one. */
+    private int afterType(int i) {
+        int depth = 0;
+        for (IElementType t = b.lookAhead(i); ; t = b.lookAhead(++i)) {
+            if (t == AxlTokenTypes.of(LT)) {
+                depth++;
+            } else if (t == AxlTokenTypes.of(GT) && depth > 0) {
+                depth--;
+            } else if (t != AxlTokenTypes.IDENTIFIER && t != AxlTokenTypes.of(DOT) && t != AxlTokenTypes.of(QUESTION)
+                    && !(t == AxlTokenTypes.of(COMMA) && depth > 0)) {
+                return i;
+            }
+        }
     }
 
     private void whenCondition() {
