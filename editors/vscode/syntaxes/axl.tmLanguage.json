@@ -129,7 +129,8 @@
     },
     "types": {
       "patterns": [
-        { "name": "variable.other.constant.axl", "match": "(?<=\\.)\\p{Lu}[\\p{Lu}\\p{N}_]*\\b(?!\\s*[(.<])" },
+        { "name": "variable.other.constant.axl", "match": "(?<=\\.)\\p{Lu}[\\p{Lu}\\p{N}_]*\\b(?!\\s*[(<])" },
+        { "name": "variable.other.constant.axl", "match": "\\b\\p{Lu}[\\p{Lu}\\p{N}_]+\\b(?!\\s*[(<])" },
         { "name": "entity.name.type.axl", "match": "\\b\\p{Lu}[\\p{L}\\p{N}_$]*(\\?(?![.:]))?" }
       ]
     },

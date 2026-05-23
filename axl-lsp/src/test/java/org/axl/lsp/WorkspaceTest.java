@@ -873,7 +873,22 @@ class WorkspaceTest {
         List<String> tokens = semanticTokens(workspace.document(uri));
         assertTrue(tokens.containsAll(List.of("0:8:3:namespace", "0:12:4:namespace", "1:7:4:namespace", "1:17:4:type",
                 "2:10:4:namespace", "2:15:5:namespace", "2:21:5:function", "4:9:4:namespace", "4:19:4:type",
-                "4:33:3:type", "5:24:1:variable", "6:21:4:type", "6:26:2:function")), tokens.toString());
+                "4:33:3:type", "5:24:1:parameter", "6:11:4:namespace", "6:16:4:namespace", "6:21:4:type",
+                "6:26:2:function", "4:5:2:parameter")), tokens.toString());
+    }
+
+    @Test
+    void classifiesConstantsAndParametersOfFunctions() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                val MAX_SIZE = 10
+
+                fn f(count: Int, p: String) -> Int = count + MAX_SIZE + p.length()
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("2:4:8:variable", "4:5:5:parameter", "4:17:1:parameter", "4:37:5:parameter",
+                "4:45:8:variable", "4:56:1:parameter", "4:58:6:function")), tokens.toString());
     }
 
     @Test
@@ -912,7 +927,7 @@ class WorkspaceTest {
         List<String> tokens = semanticTokens(workspace.document(uri));
         assertTrue(tokens.containsAll(List.of("2:0:6:keyword", "2:7:9:keyword", "3:0:4:keyword", "3:5:5:keyword",
                 "6:4:3:keyword", "6:9:1:variable", "6:11:2:keyword", "7:18:2:keyword", "9:11:4:keyword",
-                "10:8:2:keyword", "10:21:4:variable", "10:28:2:variable")), tokens.toString());
+                "10:8:2:keyword", "10:21:4:parameter", "10:28:2:parameter")), tokens.toString());
     }
 
     @Test

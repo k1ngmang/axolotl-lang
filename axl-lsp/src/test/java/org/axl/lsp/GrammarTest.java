@@ -46,6 +46,9 @@ class GrammarTest {
         assertEquals("variable.other.constant.axl", scope("types", "Color.RED", 6));
         assertEquals("entity.name.type.axl", scope("types", "Color.RED", 0));
         assertEquals("entity.name.type.axl", scope("types", "Thread.State.NEW", 7));
+        assertEquals("variable.other.constant.axl", scope("types", "Color.RED.ordinal()", 6));
+        assertEquals("variable.other.constant.axl", scope("types", "MAX_SIZE + 1", 0));
+        assertEquals("entity.name.type.axl", scope("types", "Color.RED.ordinal()", 0));
     }
 
     @Test

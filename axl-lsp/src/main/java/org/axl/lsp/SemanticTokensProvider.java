@@ -59,17 +59,37 @@ final class SemanticTokensProvider {
         }
     }
 
+    /** The parameter tokens of a file, and the names it declares for values, which are not packages. */
+    private record Names(Set<Integer> parameters, Set<String> declared) {
+
+        static Names of(List<? extends Token> tokens) {
+            Set<Integer> parameters = ParameterTokens.of(tokens);
+            Set<String> declared = new HashSet<>();
+            parameters.forEach(i -> declared.add(tokens.get(i).getText()));
+            for (int i = 0; i < tokens.size(); i++) {
+                int previous = type(tokens, previousIndex(tokens, i));
+                boolean named = previous == AxolotlLexer.VAL || previous == AxolotlLexer.VAR || previous == AxolotlLexer.FN
+                        || previous == AxolotlLexer.LPAREN && type(tokens, previousIndex(tokens, previousIndex(tokens, i))) == AxolotlLexer.FOR;
+                if (tokens.get(i).getType() == AxolotlLexer.IDENTIFIER && named) {
+                    declared.add(tokens.get(i).getText());
+                }
+            }
+            return new Names(parameters, declared);
+        }
+    }
+
     private SemanticTokensProvider() {}
 
     static SemanticTokens tokens(Document document) {
         List<Integer> data = new ArrayList<>();
         List<? extends Token> tokens = document.tokens;
         Enums enums = Enums.of(document);
+        Names names = Names.of(tokens);
         int lastLine = 0;
         int lastStart = 0;
         for (int i = 0; i < tokens.size(); i++) {
             Token token = tokens.get(i);
-            int type = classify(tokens, i, enums);
+            int type = classify(tokens, i, enums, names);
             if (type < 0) {
                 continue;
             }
@@ -93,7 +113,7 @@ final class SemanticTokensProvider {
         return new SemanticTokens(data);
     }
 
-    private static int classify(List<? extends Token> tokens, int index, Enums enums) {
+    private static int classify(List<? extends Token> tokens, int index, Enums enums, Names names) {
         Token token = tokens.get(index);
         int kind = token.getType();
         if (KEYWORDS.contains(kind)) {
@@ -106,12 +126,12 @@ final class SemanticTokensProvider {
             case AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL -> TYPES.indexOf("string");
             case AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL -> TYPES.indexOf("number");
             case AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT -> TYPES.indexOf("comment");
-            case AxolotlLexer.IDENTIFIER -> TYPES.indexOf(name(tokens, index, enums));
+            case AxolotlLexer.IDENTIFIER -> TYPES.indexOf(name(tokens, index, enums, names));
             default -> -1;
         };
     }
 
-    private static String name(List<? extends Token> tokens, int index, Enums enums) {
+    private static String name(List<? extends Token> tokens, int index, Enums enums, Names names) {
         Token next = neighbour(tokens, index, 1);
         Token previous = neighbour(tokens, index, -1);
         if (isContextualKeyword(tokens, index, next, previous)) {
@@ -120,7 +140,13 @@ final class SemanticTokensProvider {
         if (enums.isConstant(tokens, index, previous)) {
             return "enumMember";
         }
-        boolean upperCase = Character.isUpperCase(tokens.get(index).getText().charAt(0));
+        if (names.parameters().contains(index)) {
+            return "parameter";
+        }
+        String text = tokens.get(index).getText();
+        boolean upperCase = Character.isUpperCase(text.charAt(0));
+        // A name in capitals, such as `MAX_SIZE`, is a constant and not a type.
+        boolean type = upperCase && !text.matches("\\p{Lu}[\\p{Lu}\\p{N}_]+");
         String qualified = inDeclaredName(tokens, index, next);
         if (qualified != null) {
             return qualified;
@@ -134,10 +160,39 @@ final class SemanticTokensProvider {
         if (previous != null && previous.getType() == AxolotlLexer.ELSE && next != null && next.getType() == AxolotlLexer.ARROW) {
             return "parameter";
         }
-        if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
-            return upperCase && next != null && next.getType() == AxolotlLexer.DOT ? "type" : "property";
+        if (!upperCase && isPackageSegment(tokens, index, names.declared())) {
+            return "namespace";
         }
-        return upperCase ? "type" : "variable";
+        if (previous != null && (previous.getType() == AxolotlLexer.DOT || previous.getType() == AxolotlLexer.SAFE_DOT)) {
+            return type && next != null && next.getType() == AxolotlLexer.DOT ? "type" : "property";
+        }
+        return type ? "type" : "variable";
+    }
+
+    /**
+     * A segment before the class of a qualified name in an expression, as `java` and `util` in
+     * `java.util.List.of(1)`: of lower-case segments that a capitalized one follows, the first not a
+     * name the file declares.
+     */
+    private static boolean isPackageSegment(List<? extends Token> tokens, int index, Set<String> declared) {
+        int first = index;
+        while (type(tokens, previousIndex(tokens, first)) == AxolotlLexer.DOT
+                && type(tokens, previousIndex(tokens, previousIndex(tokens, first))) == AxolotlLexer.IDENTIFIER) {
+            first = previousIndex(tokens, previousIndex(tokens, first));
+        }
+        if (declared.contains(tokens.get(first).getText())) {
+            return false;
+        }
+        for (int i = first; type(tokens, i) == AxolotlLexer.IDENTIFIER; i = nextIndex(tokens, nextIndex(tokens, i))) {
+            boolean lower = Character.isLowerCase(tokens.get(i).getText().charAt(0));
+            if (i > index && !lower) {
+                return true;
+            }
+            if (!lower || type(tokens, nextIndex(tokens, i)) != AxolotlLexer.DOT) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /** `data` before `class`, and `in` in `for (x in xs)`; both are ordinary names elsewhere. */
@@ -188,6 +243,16 @@ final class SemanticTokensProvider {
             }
         }
         return null;
+    }
+
+    /** The index of the default-channel token after an index, or -1. */
+    private static int nextIndex(List<? extends Token> tokens, int index) {
+        for (int i = index + 1; index >= 0 && i < tokens.size(); i++) {
+            if (tokens.get(i).getChannel() == Token.DEFAULT_CHANNEL) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     /** The index of the default-channel token before an index, or -1. */
