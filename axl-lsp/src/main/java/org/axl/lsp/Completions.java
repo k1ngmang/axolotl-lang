@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -21,6 +22,8 @@ final class Completions {
     static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
     private static final Pattern PIPE_STAGE = Pattern.compile("\\|>\\s*\\w*$");
+    // An import being typed, with the qualifier before the last segment as group 1.
+    private static final Pattern IMPORT = Pattern.compile("^\\s*import\\s+(?:(?:fn|val)\\s+)?((?:\\w+\\.)*)\\w*$");
 
     private final Workspace workspace;
 
@@ -42,6 +45,10 @@ final class Completions {
                 item.setKind(CompletionItemKind.Method);
                 return item;
             }).toList();
+        }
+        Matcher imported = IMPORT.matcher(prefix);
+        if (imported.matches()) {
+            return imported(current, imported.group(1).isEmpty() ? "" : imported.group(1).substring(0, imported.group(1).length() - 1));
         }
         Token dot = memberDot(current, line, character);
         if (dot != null) {
@@ -155,9 +162,34 @@ final class Completions {
         if (element == null) {
             return List.of();
         }
-        List<CompletionItem> items = new ArrayList<>();
         String pkg = document.ast.packageName() == null ? "" : document.ast.packageName();
-        for (Element member : java.members(element, type.statics(), pkg)) {
+        return items(java.members(element, type.statics(), pkg));
+    }
+
+    /**
+     * In an import, after the qualifier typed so far: the packages and classes of a package, or the
+     * nested classes and static members of a class.
+     */
+    private List<CompletionItem> imported(Document document, String qualifier) {
+        JavaModel java = workspace.javaModel(document.module);
+        String pkg = Workspace.packageName(document.text);
+        TypeElement type = qualifier.isEmpty() ? null : java.type(qualifier);
+        if (type != null) {
+            return items(java.members(type, true, pkg));
+        }
+        List<CompletionItem> items = new ArrayList<>();
+        for (String name : java.subpackages(qualifier)) {
+            CompletionItem item = new CompletionItem(name);
+            item.setKind(CompletionItemKind.Module);
+            items.add(item);
+        }
+        items.addAll(items(new ArrayList<>(java.classesOf(qualifier, pkg))));
+        return items;
+    }
+
+    private static List<CompletionItem> items(List<Element> members) {
+        List<CompletionItem> items = new ArrayList<>();
+        for (Element member : members) {
             CompletionItem item = new CompletionItem(member.getSimpleName().toString());
             item.setKind(member.getKind() == ElementKind.METHOD ? CompletionItemKind.Method
                     : member instanceof TypeElement ? CompletionItemKind.Class : CompletionItemKind.Field);

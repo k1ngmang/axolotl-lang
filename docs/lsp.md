@@ -10,7 +10,7 @@ platform's LSP support. Start it with the Error Prone JVM options (`axl-lsp` fro
 | Diagnostics while typing | Syntax and the translator's rules (`try` placement, shadowing, `$` in names, missing `package`, ...). |
 | Diagnostics on save | The whole module is translated and compiled with javac, Error Prone and NullAway, and so are the modules that include the file, such as its tests; errors appear on the `.axl` lines, also of files that are not open, and errors in Java sources on their own lines. |
 | Highlighting | TextMate grammar `editors/vscode/syntaxes/axl.tmLanguage.json` plus semantic tokens. |
-| Completion | Keywords that fit the place, names visible at the cursor, `println`/`Ok`/`Err`, and after a dot the members of a type: static members of a class, instance members of a declared, inferred or narrowed type, of a constructor call and of `this`. |
+| Completion | Keywords that fit the place, names visible at the cursor, `println`/`Ok`/`Err`, and after a dot the members of a type: static members of a class, instance members of a declared, inferred or narrowed type, of a constructor call and of `this`; in imports the packages, classes and static members. |
 | Go to definition | Locals, parameters and functions in the file; functions of other `.axl` files through `import fn` or `Class.fn`; fields, methods and enum constants of Axolotl types and types nested in other files; Java classes and members in Java source roots. |
 | Hover | Declared, inferred or narrowed type of a name in Axolotl's names, members of Axolotl types, and the Java generated from the line. |
 | Command `axl.showGeneratedJava` | Returns the Java translation of a document. |

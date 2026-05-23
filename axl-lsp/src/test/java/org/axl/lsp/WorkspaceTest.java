@@ -946,6 +946,25 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesPackagesClassesAndStaticMembersInImports() throws Exception {
+        Files.writeString(project.resolve("src/main/axl/app/Lib.axl"), "package app\n\nfn twice(x: Int) -> Int = x * 2\n");
+        String uri = open("Main.axl", "package app\n\nfn main() {\n}\n");
+        List<String> javaUtil = importCompletions(uri, "import java.util.");
+        assertTrue(javaUtil.containsAll(List.of("function", "List", "HashMap")), javaUtil.toString());
+        List<String> java = importCompletions(uri, "import ja");
+        assertTrue(java.contains("java") && java.contains("javax"), java.toString());
+        assertTrue(importCompletions(uri, "import app.").contains("Lib"));
+        List<String> members = importCompletions(uri, "import fn app.Lib.");
+        assertTrue(members.contains("twice"), members.toString());
+    }
+
+    private List<String> importCompletions(String uri, String line) {
+        workspace.update(uri, "package app\n\n" + line + "\n\nfn main() {\n}\n");
+        return new Completions(workspace).complete(uri, 2, line.length()).stream()
+                .map(i -> i.getInsertText() != null ? i.getInsertText() : i.getLabel()).toList();
+    }
+
+    @Test
     void completesTheMembersOfJavaClassesOfTheSamePackageThatAreNotPublic() throws Exception {
         Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Tool.java");
         Files.writeString(java, "package app;\n\npublic class Tool {\n    static int report(int n) { return n; }\n"

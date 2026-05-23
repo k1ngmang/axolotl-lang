@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -30,6 +31,8 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.element.ModuleElement;
+import javax.lang.model.element.PackageElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
@@ -45,6 +48,7 @@ import javax.tools.DiagnosticCollector;
 import javax.tools.JavaCompiler;
 import javax.tools.JavaFileObject;
 import javax.tools.SimpleJavaFileObject;
+import javax.tools.StandardLocation;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 import org.axl.compiler.GeneratedUnit;
@@ -88,12 +92,20 @@ final class JavaModel {
     private final Trees trees;
     private final Map<String, CompilationUnitTree> generated = new LinkedHashMap<>();
     private final Map<String, GeneratedUnit> translations = new LinkedHashMap<>();
+    private final StandardJavaFileManager files;
+    private final List<String> sourcePackages = new ArrayList<>();
+    private Set<String> packages;
 
-    private JavaModel(JavacTask task, Iterable<? extends CompilationUnitTree> units, List<GeneratedUnit> generatedUnits) {
+    private JavaModel(JavacTask task, StandardJavaFileManager files, Iterable<? extends CompilationUnitTree> units,
+                      List<GeneratedUnit> generatedUnits) {
+        this.files = files;
         this.elements = task.getElements();
         this.types = task.getTypes();
         this.trees = Trees.instance(task);
         for (CompilationUnitTree unit : units) {
+            if (unit.getPackageName() != null) {
+                sourcePackages.add(unit.getPackageName().toString());
+            }
             for (GeneratedUnit g : generatedUnits) {
                 if (unit.getSourceFile().toUri().getPath().endsWith("/" + g.javaPath())) {
                     generated.put(g.qualifiedName(), unit);
@@ -122,7 +134,7 @@ final class JavaModel {
         try {
             Iterable<? extends CompilationUnitTree> units = task.parse();
             task.analyze();
-            return new JavaModel(task, units, generatedUnits);
+            return new JavaModel(task, files, units, generatedUnits);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -344,6 +356,42 @@ final class JavaModel {
             }
         }
         return best;
+    }
+
+    /** The next segment of the names of the packages below a package, such as `util` and `io` below `java`. */
+    List<String> subpackages(String pkg) {
+        String prefix = pkg.isEmpty() ? "" : pkg + ".";
+        return packages().stream().filter(p -> p.startsWith(prefix) && p.length() > prefix.length())
+                .map(p -> p.substring(prefix.length()).split("\\.")[0]).distinct().toList();
+    }
+
+    /** The classes of a package that code in a package can use. */
+    List<TypeElement> classesOf(String pkg, String fromPackage) {
+        PackageElement element = elements.getPackageElement(pkg);
+        return element == null ? List.of()
+                : ElementFilter.typesIn(element.getEnclosedElements()).stream().filter(t -> isAccessible(t, fromPackage)).toList();
+    }
+
+    /** The packages of the JDK, the classpath and the sources; found once, when an import is completed. */
+    private Set<String> packages() {
+        if (packages != null) {
+            return packages;
+        }
+        packages = new TreeSet<>(sourcePackages);
+        for (ModuleElement module : elements.getAllModuleElements()) {
+            ElementFilter.packagesIn(module.getEnclosedElements()).forEach(p -> packages.add(p.getQualifiedName().toString()));
+        }
+        try {
+            for (JavaFileObject file : files.list(StandardLocation.CLASS_PATH, "", Set.of(JavaFileObject.Kind.CLASS), true)) {
+                String name = files.inferBinaryName(StandardLocation.CLASS_PATH, file);
+                if (name != null && name.lastIndexOf('.') > 0) {
+                    packages.add(name.substring(0, name.lastIndexOf('.')));
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return packages;
     }
 
     /** A class by its canonical name, such as `app.Tool.Inner`; null if unknown. */
