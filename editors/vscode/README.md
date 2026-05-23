@@ -11,8 +11,8 @@ Language support for `.axl` files:
 - **Axolotl: Show Generated Java** opens the Java translation of the current file.
 
 The language server needs a JDK 21 or newer (`axl.java.home`, `JAVA_HOME` or `java` on the PATH).
-The classpath of a module comes from `axl.json`, or from `build/axl/axl.json` / `target/axl/axl.json`
-written by the Gradle task `axlLspConfig` and the Maven goal `axl:lsp-config`.
+The modules and their classpath come from `axl.json`, or from `build/axl/axl.json` / `target/axl/axl.json`
+written by the Gradle task `axlLspConfig` and the Maven goal `axl:lsp-config`; see docs/lsp.md.
 
 Build the extension with `./gradlew :axl-lsp:vsix`; the result is `editors/vscode/axolotl-0.1.0.vsix`.
 

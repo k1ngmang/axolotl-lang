@@ -63,6 +63,16 @@ module entries as in a description, with absolute paths and the module directory
 The server then takes those modules and looks for no descriptions. The IntelliJ plugin does this
 with the source roots and libraries of the IntelliJ modules.
 
+### Multi-project builds
+
+In a build of several projects, such as `samples/multi-module-gradle` where `app` depends on
+`core`, the directory layout does not tell which project uses which, so without descriptions
+`app` gets false errors for everything it takes from `core`. Run `axlLspConfig`: the description
+of `app` then lists the source roots of `core` after its own and leaves `core`'s classes and jar
+out of the classpath, so edits to `core` are seen in `app` before a build. `axl:lsp-config` writes
+the classpath as Maven resolves it, so a sibling Maven module is seen through its compiled classes
+or its installed jar, which only a build updates.
+
 ## VS Code
 
 `./gradlew :axl-lsp:vsix` (needs Node.js) copies the server into the extension and packages
