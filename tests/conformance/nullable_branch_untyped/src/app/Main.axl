@@ -14,6 +14,11 @@ fn chosen(c: Int, n: Int?, k: Int) {
     println(r)
 }
 
+fn nestedUntyped(c: Boolean, d: Boolean, s: String?) {
+    val v = if (c) (if (d) 42 else 3) else s?.length()
+    println(v)
+}
+
 fn main() {
     println(next(true, null, 1))
     println(next(false, null, 1))
@@ -22,4 +27,6 @@ fn main() {
     println(nested(true, null))
     chosen(1, null, 1)
     chosen(2, null, 1)
+    nestedUntyped(false, true, null)
+    nestedUntyped(true, false, null)
 }

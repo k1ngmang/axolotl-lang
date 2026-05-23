@@ -1688,7 +1688,14 @@ import org.axl.compiler.check.Whens;
         em.line(line, ((stored == null ? "var" : stored)) + " " + temp + " = " + left + ";");
         em.line(line, "if (java.util.Objects.isNull(" + temp + ")) {");
         em.indent();
-        em.line(line, temp + " = " + lifted(line, right).code() + ";");
+        final var value = lifted(line, right).code();
+        if (stored == null) {
+            final var fallback = newTemp();
+            em.line(line, "final var " + fallback + " = " + value + ";");
+            em.line(line, temp + " = " + fallback + ";");
+        } else {
+            em.line(line, temp + " = " + value + ";");
+        }
         em.dedent();
         em.line(line, "}");
         return new Lifted(temp, true);

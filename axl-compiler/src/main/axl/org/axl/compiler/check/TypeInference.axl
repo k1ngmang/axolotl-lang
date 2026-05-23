@@ -47,7 +47,16 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
         is Expr.Call -> if (expr.target() == null) call(expr) else null
         is Expr.GenericNew -> if (expr.typeArgs().isEmpty()) null else TypeRef(expr.pos(), expr.type(), expr.typeArgs(), false)
         is Expr.NotNull -> nonNull(of(expr.target()))
+        is Expr.Conditional -> common(of(expr.then()), of(expr.otherwise()))
         else -> null
+    }
+
+    /** The type of two branches when they have the same simple type, such as `Int` and `Int?`. */
+    private fn common(a: TypeRef?, b: TypeRef?) -> TypeRef? {
+        if (a == null || b == null || !a.name().equals(b.name()) || !a.args().isEmpty() || !b.args().isEmpty()) {
+            return null
+        }
+        return TypeRef(a.pos(), a.name(), a.args(), a.nullable() || b.nullable())
     }
 
     private fn literal(l: Expr.Literal) -> TypeRef? {

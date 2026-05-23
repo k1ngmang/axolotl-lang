@@ -15,7 +15,8 @@ import org.jspecify.annotations.*;
         var $t1 = s;
         if (java.util.Objects.isNull($t1)) {
             final var $t2 = Nulls.map(t, $n1 -> $n1.trim());
-            $t1 = show($t2, count);
+            final var $t3 = show($t2, count);
+            $t1 = $t3;
         }
         final var g = $t1;
         System.out.println(g);

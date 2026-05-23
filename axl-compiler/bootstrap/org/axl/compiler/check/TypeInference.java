@@ -68,10 +68,19 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.NotNull expr$10 -> {
                 return nonNull(of(expr$10.target()));
             }
+            case Expr.Conditional expr$11 -> {
+                return common(of(expr$11.then()), of(expr$11.otherwise()));
+            }
             default -> {
                 return null;
             }
         }
+    }
+    private @Nullable TypeRef common(@Nullable TypeRef a, @Nullable TypeRef b) {
+        if (a == null || b == null || !a.name().equals(b.name()) || !a.args().isEmpty() || !b.args().isEmpty()) {
+            return null;
+        }
+        return new TypeRef(a.pos(), a.name(), a.args(), a.nullable() || b.nullable());
     }
     private @Nullable TypeRef literal(Expr.Literal l) {
         final var text = l.text();

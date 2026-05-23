@@ -1,0 +1,17 @@
+package app
+
+import java.util.List
+
+fn checked(v: Int) -> Result<Int, String> = Ok(v)
+
+fn none() -> Int? = null
+
+fn pick(xs: List<Int>) -> Result<Int, String> {
+    val x = (xs |> first) ?: (none() ?: try checked(6))
+    return Ok(x)
+}
+
+fn main() {
+    println(pick(List.of()))
+    println(pick(List.of(2)))
+}

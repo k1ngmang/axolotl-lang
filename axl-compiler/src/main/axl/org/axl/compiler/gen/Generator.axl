@@ -1859,7 +1859,15 @@ class Generator(
         // Objects.isNull also compiles when the left side is a primitive.
         em.line(line, "if (java.util.Objects.isNull(" + temp + ")) {")
         em.indent()
-        em.line(line, temp + " = " + lifted(line, right).code() + ";")
+        val value = lifted(line, right).code()
+        if (stored == null) {
+            // Through a final first: NullAway's type of a conditional assigned to an inferred `var` can recurse forever.
+            val fallback = newTemp()
+            em.line(line, "final var " + fallback + " = " + value + ";")
+            em.line(line, temp + " = " + fallback + ";")
+        } else {
+            em.line(line, temp + " = " + value + ";")
+        }
         em.dedent()
         em.line(line, "}")
         return Lifted(temp, true)
