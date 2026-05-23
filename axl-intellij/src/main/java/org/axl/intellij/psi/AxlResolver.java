@@ -1,10 +1,8 @@
 package org.axl.intellij.psi;
 
-import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
-import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiMember;
@@ -342,55 +340,9 @@ public final class AxlResolver {
         return navigation instanceof AxlNamedElement ? navigation : member;
     }
 
-    /** The class of an expression's value, when it can be told without type inference. */
+    /** The class of an expression's value, when it can be told without full type inference. */
     static @Nullable PsiClass typeOf(PsiElement expression) {
-        if (expression.getNode().getElementType() == AxlElementTypes.PARENTHESIZED) {
-            PsiElement inner = expression.getFirstChild().getNextSibling();
-            return inner == null ? null : typeOf(inner);
-        }
-        if (expression.getNode().getElementType() == AxlElementTypes.NOT_NULL) {
-            return typeOf(expression.getFirstChild());
-        }
-        if (expression.getNode().getElementType() == AxlElementTypes.LITERAL && expression.getText().startsWith("\"")) {
-            return findClass(expression, "java.lang.String");
-        }
-        PsiElement target = null;
-        if (expression instanceof AxlReferenceExpression ref && ref.getReference() != null) {
-            target = ref.getReference().resolve();
-        } else if (expression.getNode().getElementType() == AxlElementTypes.CALL
-                && expression.getFirstChild() instanceof AxlReferenceExpression callee && callee.getReference() != null) {
-            target = callee.getReference().resolve();
-            PsiClass constructed = asClass(target);
-            if (constructed != null) {
-                return constructed;
-            }
-        }
-        return switch (target) {
-            case AxlVariable variable -> variableType(expression, variable);
-            case AxlFunction function -> function.returnType() == null ? null : classOf(function.returnType());
-            case PsiField field -> classOf(field.getType());
-            case PsiMethod method -> classOf(method.getReturnType());
-            case null, default -> null;
-        };
-    }
-
-    /** An enum constant has its enum's type; a narrowed value the type it was tested for; others the written or inferred one. */
-    private static @Nullable PsiClass variableType(PsiElement place, AxlVariable variable) {
-        if (variable.getParent() instanceof AxlTypeDeclaration declaration && declaration.isEnum()) {
-            return asClass(declaration);
-        }
-        AxlType narrowed = AxlNarrowing.typeAt(place, variable);
-        if (narrowed != null) {
-            return classOf(narrowed);
-        }
-        return variable.type() != null ? classOf(variable.type()) : initializerType(variable);
-    }
-
-    /** The class of a value without a written type, from its initializer; `val a = a` refers to itself. */
-    private static @Nullable PsiClass initializerType(AxlVariable variable) {
-        PsiElement initializer = variable.initializer();
-        return initializer == null ? null
-                : RecursionManager.doPreventingRecursion(variable, false, () -> typeOf(initializer));
+        return PsiUtil.resolveClassInType(AxlExpressionTypes.typeOf(expression));
     }
 
     static @Nullable PsiClass classOf(AxlType type) {
@@ -401,10 +353,6 @@ public final class AxlResolver {
         AxlReferenceExpression reference = type.reference();
         PsiElement target = reference == null || reference.getReference() == null ? null : reference.getReference().resolve();
         return asClass(target);
-    }
-
-    private static @Nullable PsiClass classOf(@Nullable PsiType type) {
-        return type instanceof PsiClassType classType ? classType.resolve() : null;
     }
 
     /** Locals, parameters, top-level declarations and imports visible at a place, innermost first. */

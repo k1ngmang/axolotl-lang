@@ -280,6 +280,30 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         }
     }
 
+    public void testCompletesMembersOfLambdaParametersLoopVariablesAndGenericResults() {
+        String main = """
+                package app
+
+                import java.util.List
+
+                data class Person(val name: String, val age: Int)
+
+                fn main() {
+                    val xs = List.of("a", "b")
+                    val p = Person("a", 1)
+                    %s
+                }
+                """;
+        for (String line : List.of("xs |> map { it.<caret> }", "xs |> map { s -> s.<caret> }",
+                "xs |> filter { it.isEmpty() } |> forEach { it.<caret> }", "for (e in xs) { println(e.<caret>) }",
+                "println(xs.get(0).<caret>)")) {
+            List<String> found = complete(main.formatted(line));
+            assertTrue(line + found, found.contains("length"));
+        }
+        assertTrue(complete(main.formatted("println(List.of(p).get(0).<caret>)")).contains("age"));
+        assertTrue(complete(main.formatted("attempt Integer.parseInt(\"1\") else e -> e.<caret>")).contains("getMessage"));
+    }
+
     public void testOffersOnlyTypesWhereADeclarationNamesOne() {
         for (String type : List.of("    val z: <caret>\n    val color = Color.RED", "fn g(a: <caret>) = 1\nfn main() {",
                 "fn h() -> <caret> = 1\nfn main() {")) {
