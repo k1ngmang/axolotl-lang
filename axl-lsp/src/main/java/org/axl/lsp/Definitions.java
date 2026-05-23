@@ -1,15 +1,9 @@
 package org.axl.lsp;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import javax.lang.model.element.TypeElement;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Import;
@@ -130,16 +124,18 @@ final class Definitions {
             Position position = type.decl() == null ? new Position(0, 0) : type.document().position(type.decl().namePos());
             return List.of(location(type.document().path, position));
         }
+        JavaModel java = workspace.javaModel(module);
+        Location found = java.declaration(java.type(qualifiedName));
+        if (found != null) {
+            return List.of(found);
+        }
         Path source = workspace.sourceOf(module, qualifiedName);
-        return source == null ? List.of() : List.of(location(source, javaClass(source, qualifiedName)));
+        return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
     private List<Location> member(Module module, String className, String name, Supplier<List<String>> argumentTypes) {
         Path source = workspace.sourceOf(module, className);
-        if (source == null) {
-            return List.of();
-        }
-        if (source.toString().endsWith(".axl")) {
+        if (source != null && source.toString().endsWith(".axl")) {
             Document other = workspace.load(source);
             if (other.ast != null) {
                 Decl decl = Symbols.topLevel(other.ast, name, argumentTypes);
@@ -149,36 +145,13 @@ final class Definitions {
             }
             return List.of(location(source, new Position(0, 0)));
         }
-        return List.of(location(source, javaMember(source, name)));
-    }
-
-    /** The first declaration of a method or field with that name in a Java file. */
-    private static Position javaMember(Path file, String name) {
-        Pattern declaration = Pattern.compile("\\b[\\w<>\\[\\],.? ]+\\s+(" + Pattern.quote(name) + ")\\s*[(=;]");
-        return firstMatch(file, declaration, line -> !line.strip().startsWith("return"));
-    }
-
-    /** The declaration of a class in a Java file. */
-    private static Position javaClass(Path file, String qualifiedName) {
-        String name = qualifiedName.substring(qualifiedName.lastIndexOf('.') + 1);
-        Pattern declaration = Pattern.compile("\\b(?:class|interface|enum|record)\\s+(" + Pattern.quote(name) + ")\\b");
-        return firstMatch(file, declaration, line -> true);
-    }
-
-    /** Where group 1 of a pattern first matches on a line that passes a test; the start of the file if nowhere. */
-    private static Position firstMatch(Path file, Pattern pattern, Predicate<String> lineTest) {
-        try {
-            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
-            for (int i = 0; i < lines.size(); i++) {
-                Matcher m = pattern.matcher(lines.get(i));
-                if (m.find() && lineTest.test(lines.get(i))) {
-                    return new Position(i, m.start(1));
-                }
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        JavaModel java = workspace.javaModel(module);
+        TypeElement type = java.type(className);
+        Location found = type == null ? null : java.declaration(java.member(type, name, argumentTypes.get()));
+        if (found != null) {
+            return List.of(found);
         }
-        return new Position(0, 0);
+        return source == null ? List.of() : List.of(location(source, new Position(0, 0)));
     }
 
     private static Location location(Path file, Position position) {

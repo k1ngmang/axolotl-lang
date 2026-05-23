@@ -895,6 +895,54 @@ class WorkspaceTest {
     }
 
     @Test
+    void goesToTheDeclarationsOfJavaMembersAndNestedClasses() throws Exception {
+        Path java = Files.createDirectories(project.resolve("src/main/java/app"));
+        Files.writeString(java.resolve("Base.java"), "package app;\n\npublic class Base {\n    public String inherited() { return \"b\"; }\n}\n");
+        Files.writeString(java.resolve("Tool.java"), """
+                package app;
+
+                /** Call greet(name) to say hello. */
+                public class Tool extends Base {
+                    public int size = 2;
+
+                    public int count() {
+                        if (size > 1) report(size);
+                        else report(0);
+                        return size;
+                    }
+
+                    static void report(int n) {}
+
+                    public static String greet(String name) { return name; }
+
+                    public static String greet(String name, int times) { return name; }
+
+                    public static final class Inner {
+                        public static int depth() { return 1; }
+                    }
+                }
+                """);
+        workspace.open(List.of(project));
+        String uri = open("Main.axl", """
+                package app
+
+                import app.Tool.Inner
+
+                fn main() {
+                    val t = Tool()
+                    println(Tool.greet("a") + Tool.greet("a", 2) + t.inherited())
+                    println(t.size + t.count() + Inner.depth())
+                    Tool.report(1)
+                }
+                """);
+        assertEquals(List.of(14), definitionLines(uri, 6, 18));
+        assertEquals(List.of(16), definitionLines(uri, 6, 35));
+        assertEquals(List.of(19), definitionLines(uri, 7, 42));
+        assertEquals(List.of(18), definitionLines(uri, 2, 17));
+        assertEquals(List.of(12), definitionLines(uri, 8, 10));
+    }
+
+    @Test
     void completesTheMembersOfJavaClassesOfTheSamePackageThatAreNotPublic() throws Exception {
         Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Tool.java");
         Files.writeString(java, "package app;\n\npublic class Tool {\n    static int report(int n) { return n; }\n"

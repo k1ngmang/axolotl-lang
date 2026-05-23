@@ -1,9 +1,13 @@
 package org.axl.lsp;
 
+import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.ModifiersTree;
+import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.JavacTask;
+import com.sun.source.util.SourcePositions;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
@@ -19,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -47,6 +53,9 @@ import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.javac.RuntimeClasspath;
+import org.eclipse.lsp4j.Location;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.Range;
 
 /**
  * javac's view of a module: Java types from the classpath and the Java sources, and the types javac
@@ -303,9 +312,19 @@ final class JavaModel {
      */
     TypeMirror memberType(TypeMirror receiver, String name, List<String> arguments) {
         TypeElement type = elementOf(receiver);
-        if (type == null) {
+        Element member = type == null ? null : member(type, name, arguments);
+        if (member == null) {
             return null;
         }
+        TypeMirror memberType = asMemberOf(receiver, member);
+        return member.getKind().isField() ? memberType : ((ExecutableType) memberType).getReturnType();
+    }
+
+    /**
+     * The field (arguments null) or of the methods with a name, declared or inherited, the one that
+     * fits the arguments best; null if none. arguments: see {@link Document#argumentTypes}.
+     */
+    Element member(TypeElement type, String name, List<String> arguments) {
         ExecutableElement best = null;
         int bestScore = -1;
         for (Element member : elements.getAllMembers(type)) {
@@ -313,7 +332,7 @@ final class JavaModel {
                 continue;
             }
             if (arguments == null && member.getKind().isField()) {
-                return asMemberOf(receiver, member);
+                return member;
             }
             if (arguments != null && member instanceof ExecutableElement method && method.getKind() == ElementKind.METHOD
                     && method.getParameters().size() == arguments.size()) {
@@ -324,7 +343,47 @@ final class JavaModel {
                 }
             }
         }
-        return best == null ? null : ((ExecutableType) asMemberOf(receiver, best)).getReturnType();
+        return best;
+    }
+
+    /** A class by its canonical name, such as `app.Tool.Inner`; null if unknown. */
+    TypeElement type(String qualifiedName) {
+        return elements.getTypeElement(qualifiedName);
+    }
+
+    /**
+     * Where the name of a class or member of a Java source of the module is declared; null for one
+     * from the classpath or from an .axl file.
+     */
+    Location declaration(Element element) {
+        TreePath path = element == null ? null : trees.getPath(element);
+        if (path == null || generated.containsValue(path.getCompilationUnit())) {
+            return null;
+        }
+        CompilationUnitTree unit = path.getCompilationUnit();
+        try {
+            String text = unit.getSourceFile().getCharContent(true).toString();
+            long offset = nameOffset(text, unit, path.getLeaf(), element.getSimpleName().toString());
+            Position position = new Position((int) unit.getLineMap().getLineNumber(offset) - 1,
+                    (int) unit.getLineMap().getColumnNumber(offset) - 1);
+            return new Location(unit.getSourceFile().toUri().toString(), new Range(position, position));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /** The name comes after the modifiers and annotations, and for a method after its result type. */
+    private long nameOffset(String text, CompilationUnitTree unit, Tree declaration, String name) {
+        ModifiersTree modifiers = switch (declaration) {
+            case ClassTree c -> c.getModifiers();
+            case MethodTree m -> m.getModifiers();
+            case VariableTree v -> v.getModifiers();
+            default -> null;
+        };
+        SourcePositions positions = trees.getSourcePositions();
+        long from = Math.max(positions.getStartPosition(unit, declaration), modifiers == null ? -1 : positions.getEndPosition(unit, modifiers));
+        Matcher m = Pattern.compile("\\b" + Pattern.quote(name) + "\\b").matcher(text);
+        return from >= 0 && m.find((int) from) ? m.start() : Math.max(0, positions.getStartPosition(unit, declaration));
     }
 
     /** A public class declared in another, such as `State` in `Thread`; null if none. */
