@@ -280,6 +280,15 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         }
     }
 
+    public void testOffersOnlyTypesWhereADeclarationNamesOne() {
+        for (String type : List.of("    val z: <caret>\n    val color = Color.RED", "fn g(a: <caret>) = 1\nfn main() {",
+                "fn h() -> <caret> = 1\nfn main() {")) {
+            String text = type.startsWith(" ") ? SHAPES.replace("    val color = Color.RED", type) : SHAPES.replace("fn main() {", type);
+            List<String> found = complete(text);
+            assertTrue(type + found, found.contains("Circle") && found.stream().noneMatch(List.of("main", "if", "println", "color")::contains));
+        }
+    }
+
     private List<String> complete(String text) {
         myFixture.configureByText("Keywords.axl", text);
         myFixture.completeBasic();

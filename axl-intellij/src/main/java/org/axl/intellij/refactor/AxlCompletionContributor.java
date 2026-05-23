@@ -12,6 +12,7 @@ import com.intellij.util.ProcessingContext;
 import java.util.List;
 import org.axl.intellij.AxlLanguage;
 import org.axl.intellij.parser.AxlElementTypes;
+import org.axl.intellij.psi.AxlReference;
 import org.axl.intellij.psi.AxlReferenceExpression;
 import org.jetbrains.annotations.NotNull;
 
@@ -32,7 +33,8 @@ public final class AxlCompletionContributor extends CompletionContributor {
                     PIPE_STAGES.forEach(stage -> result.addElement(LookupElementBuilder.create(stage)));
                     return;
                 }
-                if (position.getParent() instanceof AxlReferenceExpression ref && ref.qualifier() != null) {
+                if (position.getParent() instanceof AxlReferenceExpression ref && ref.qualifier() != null
+                        || AxlReference.isInType(position)) {
                     return;
                 }
                 AxlKeywords.at(position).forEach(k -> result.addElement(LookupElementBuilder.create(k).bold()));

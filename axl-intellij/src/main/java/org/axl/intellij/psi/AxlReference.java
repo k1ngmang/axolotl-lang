@@ -14,6 +14,7 @@ import com.intellij.psi.PsiPackage;
 import com.intellij.psi.PsiPolyVariantReferenceBase;
 import com.intellij.psi.ResolveResult;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.IncorrectOperationException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -63,7 +64,11 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         PsiElement qualifier = ref.qualifier();
         Map<String, LookupElement> variants = new LinkedHashMap<>();
         if (qualifier == null) {
+            boolean typeOnly = isInType(ref);
             for (PsiElement visible : AxlResolver.visibleDeclarations(ref)) {
+                if (typeOnly && !isType(visible)) {
+                    continue;
+                }
                 if (visible instanceof AxlNamedElement named && named.getName() != null) {
                     variants.putIfAbsent(named.getName(), LookupElementBuilder.create(named).withIcon(icon(named)));
                 } else if (visible instanceof AxlImport imp) {
@@ -97,6 +102,15 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             }
         }
         return members.toArray();
+    }
+
+    /** In a written type, such as after `:` or `->` in a declaration, or after `is`. */
+    public static boolean isInType(PsiElement element) {
+        return PsiTreeUtil.getParentOfType(element, AxlType.class) != null;
+    }
+
+    private static boolean isType(PsiElement declaration) {
+        return declaration instanceof AxlTypeDeclaration || declaration instanceof AxlImport imp && imp.kind() == AxlImport.Kind.TYPE;
     }
 
     /** `this` stands for the enclosing class's instance, whose private members are visible too. */

@@ -930,6 +930,18 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesOnlyTypesWhereADeclarationNamesOne() throws Exception {
+        for (String line : List.of("    val z: ", "fn g(a: ", "fn h() -> ")) {
+            boolean local = line.startsWith(" ");
+            String text = local ? SHAPES.replace("    val total = when", line + "\n    val total = when") : SHAPES + line;
+            String uri = open("Shapes.axl", SHAPES);
+            workspace.update(uri, text);
+            int row = text.lines().toList().indexOf(line);
+            assertEquals(List.of("Shape", "Circle", "Square"), labels(new Completions(workspace).complete(uri, row, line.length())), line);
+        }
+    }
+
+    @Test
     void completesOnlyValInAnInterface() throws Exception {
         String uri = open("Shape.axl", "package app\n\nsealed interface Shape {\n    \n}\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 4).stream().map(CompletionItem::getLabel).toList();

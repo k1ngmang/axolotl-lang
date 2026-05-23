@@ -53,10 +53,28 @@ final class Keywords {
         };
     }
 
-    /** Whether a type is wanted at a 0-based position, as after `is`. */
+    /** Whether a type is wanted at a 0-based position: after `is`, after `:` and after the `->` of a function header. */
     static boolean typeExpected(Document document, int line, int character) {
         List<Token> before = tokensBefore(document, line, document.codePointColumn(line, character));
-        return !before.isEmpty() && before.getLast().getType() == AxolotlLexer.IS;
+        int previous = before.isEmpty() ? Token.INVALID_TYPE : before.getLast().getType();
+        return previous == AxolotlLexer.IS || previous == AxolotlLexer.COLON || previous == AxolotlLexer.ARROW && afterParameters(before);
+    }
+
+    /** Whether the token before the last one closes the parameters of a function: `fn f(a: Int) ->`. */
+    private static boolean afterParameters(List<Token> before) {
+        int depth = 0;
+        for (int i = before.size() - 2; i >= 0; i--) {
+            int type = before.get(i).getType();
+            if (type == AxolotlLexer.RPAREN) {
+                depth++;
+            } else if (type == AxolotlLexer.LPAREN) {
+                depth--;
+            }
+            if (depth <= 0) {
+                return depth == 0 && i >= 2 && type == AxolotlLexer.LPAREN && before.get(i - 2).getType() == AxolotlLexer.FN;
+            }
+        }
+        return false;
     }
 
     /** After `in` in `for (x in `, where the iterable follows. */
