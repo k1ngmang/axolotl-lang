@@ -58,6 +58,31 @@ final class Outline {
      * declaration, or before the brace that closes the class around it. The AST keeps only starts.
      */
     private static Position end(Document document, Pos start, Pos next) {
+        Token last = lastToken(document, start, next);
+        return document.position(last == null ? start : end(last));
+    }
+
+    /**
+     * Whether a position is in the text of a top-level declaration: after its start and up to its
+     * last token, but not after its closing brace.
+     */
+    static boolean inDeclaration(Document document, Pos pos) {
+        List<Decl> decls = document.ast.decls();
+        for (int i = 0; i < decls.size() && Symbols.before(decls.get(i).pos(), pos); i++) {
+            Token last = lastToken(document, decls.get(i).pos(), i + 1 < decls.size() ? decls.get(i + 1).pos() : null);
+            boolean afterBrace = last != null && last.getType() == AxolotlLexer.RBRACE && pos.equals(end(last));
+            if (!pos.equals(decls.get(i).pos()) && last != null && Symbols.before(pos, end(last)) && !afterBrace) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static Pos end(Token token) {
+        return new Pos(token.getLine(), token.getCharPositionInLine() + 1 + token.getStopIndex() - token.getStartIndex() + 1);
+    }
+
+    private static Token lastToken(Document document, Pos start, Pos next) {
         Token last = null;
         int depth = 0;
         for (Token token : document.tokens.subList(document.firstTokenFrom(start), document.tokens.size())) {
@@ -77,11 +102,7 @@ final class Outline {
             }
             last = token;
         }
-        if (last == null) {
-            return document.position(start);
-        }
-        int length = last.getStopIndex() - last.getStartIndex() + 1;
-        return document.position(new Pos(last.getLine(), last.getCharPositionInLine() + 1 + length));
+        return last;
     }
 
     private static List<DocumentSymbol> members(Document document, Decl.ClassDecl classDecl) {

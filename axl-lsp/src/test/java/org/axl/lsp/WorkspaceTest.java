@@ -885,6 +885,24 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesOnlyTopLevelNamesBetweenDeclarations() throws Exception {
+        String uri = open("Counter.axl", COUNTER);
+        workspace.update(uri, COUNTER + "\nf");
+        List<String> labels = labels(new Completions(workspace).complete(uri, (int) COUNTER.lines().count() + 1, 1));
+        assertTrue(labels.containsAll(List.of("main", "pick", "Counter", "fn")), labels.toString());
+        assertTrue(labels.stream().noneMatch(List.of("c", "println", "return")::contains), labels.toString());
+
+        workspace.update(uri, COUNTER);
+        int main = COUNTER.lines().toList().indexOf("fn main() {");
+        labels = labels(new Completions(workspace).complete(uri, main, 0));
+        assertTrue(labels.stream().noneMatch(List.of("n", "count", "step", "next")::contains), labels.toString());
+    }
+
+    private static List<String> labels(List<CompletionItem> items) {
+        return items.stream().map(CompletionItem::getLabel).toList();
+    }
+
+    @Test
     void completesOnlyExpressionKeywordsWhereAValueFollows() throws Exception {
         for (String line : List.of("val a = if (true) 1 else ", "q *= ", "val b = try ", "for (e in ", "val c = !!")) {
             String uri = open("Main.axl", "package app\n\nfn main() {\n    " + line + "\n}\n");

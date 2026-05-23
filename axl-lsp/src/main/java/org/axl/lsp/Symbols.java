@@ -36,6 +36,30 @@ final class Symbols {
 
     /** Visible symbols at pos, inner declarations last, so that later entries win a name lookup. */
     static List<Symbol> visibleAt(SourceFile file, Pos pos) {
+        List<Symbol> result = topLevelSymbols(file);
+        Decl enclosing = enclosingDecl(file, pos);
+        if (enclosing instanceof Decl.ClassDecl classDecl) {
+            classScope(classDecl, result);
+            enclosing = enclosingMethod(classDecl, pos);
+        }
+        if (enclosing instanceof Decl.Function fn) {
+            for (Expr.Param p : fn.params()) {
+                result.add(new Symbol(p.name(), Kind.PARAMETER, p.pos(), p.type(), fn, null));
+            }
+            if (fn.body() != null) {
+                statements(fn.body().statements(), pos, fn, result);
+            } else {
+                expr(fn.exprBody(), pos, fn, result);
+            }
+        } else if (enclosing instanceof Decl.Value value) {
+            // Lambda parameters in the initializer.
+            expr(value.init(), pos, null, result);
+        }
+        return result;
+    }
+
+    /** The imports and the top-level declarations of a file, visible everywhere in it. */
+    static List<Symbol> topLevelSymbols(SourceFile file) {
         List<Symbol> result = new ArrayList<>();
         for (Import imp : file.imports()) {
             Kind kind = switch (imp.kind()) {
@@ -54,24 +78,6 @@ final class Symbols {
                 case Decl.DataClass data -> result.add(new Symbol(data.name(), Kind.DECLARED_TYPE, data.namePos(), null, null, null));
                 case Decl.Interface iface -> result.add(new Symbol(iface.name(), Kind.DECLARED_TYPE, iface.namePos(), null, null, null));
             }
-        }
-        Decl enclosing = enclosingDecl(file, pos);
-        if (enclosing instanceof Decl.ClassDecl classDecl) {
-            classScope(classDecl, result);
-            enclosing = enclosingMethod(classDecl, pos);
-        }
-        if (enclosing instanceof Decl.Function fn) {
-            for (Expr.Param p : fn.params()) {
-                result.add(new Symbol(p.name(), Kind.PARAMETER, p.pos(), p.type(), fn, null));
-            }
-            if (fn.body() != null) {
-                statements(fn.body().statements(), pos, fn, result);
-            } else {
-                expr(fn.exprBody(), pos, fn, result);
-            }
-        } else if (enclosing instanceof Decl.Value value) {
-            // Lambda parameters in the initializer.
-            expr(value.init(), pos, null, result);
         }
         return result;
     }

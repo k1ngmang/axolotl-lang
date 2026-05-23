@@ -52,8 +52,9 @@ final class Completions {
         List<CompletionItem> items = new ArrayList<>();
         if (parsed != null) {
             Map<String, Symbols.Symbol> names = new LinkedHashMap<>();
-            Symbols.visibleAt(parsed.ast, pos).stream().filter(s -> !typeOnly || isType(s))
-                    .forEach(s -> names.put(s.name(), s));
+            List<Symbols.Symbol> visible = Outline.inDeclaration(parsed, pos) ? Symbols.visibleAt(parsed.ast, pos)
+                    : Symbols.topLevelSymbols(parsed.ast);
+            visible.stream().filter(s -> !typeOnly || isType(s)).forEach(s -> names.put(s.name(), s));
             for (Symbols.Symbol symbol : names.values()) {
                 CompletionItem item = new CompletionItem(symbol.name());
                 item.setKind(kind(symbol.kind()));
@@ -66,12 +67,14 @@ final class Completions {
         if (typeOnly) {
             return items;
         }
-        for (String name : PRELUDE) {
+        List<String> keywords = Keywords.at(current, line, character);
+        // The prelude's functions are values, which only fit where an expression does.
+        for (String name : keywords.contains("null") ? PRELUDE : List.<String>of()) {
             CompletionItem item = new CompletionItem(name);
             item.setKind(CompletionItemKind.Function);
             items.add(item);
         }
-        for (String keyword : Keywords.at(current, line, character)) {
+        for (String keyword : keywords) {
             CompletionItem item = new CompletionItem(keyword);
             item.setKind(CompletionItemKind.Keyword);
             items.add(item);
