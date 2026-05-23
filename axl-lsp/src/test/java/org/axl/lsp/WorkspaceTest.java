@@ -591,6 +591,16 @@ class WorkspaceTest {
         assertTrue(created.stream().noneMatch(Files::exists), created.toString());
     }
 
+    @Test
+    void deletesTheDirectoryOfACompilationThatOutlivesTheServer() throws Exception {
+        Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+        List<Path> before = temporaryDirectories(tmp);
+        ModuleCompiler compiler = new ModuleCompiler();
+        compiler.close();
+        compiler.compile(new Module(project, List.of(), List.of(), List.of(), false), List.of(), Map.of());
+        assertEquals(List.of(), temporaryDirectories(tmp).stream().filter(p -> !before.contains(p)).toList());
+    }
+
     private static List<Path> temporaryDirectories(Path tmp) throws Exception {
         try (var files = Files.list(tmp)) {
             return files.filter(p -> p.getFileName().toString().startsWith("axl-lsp")).toList();

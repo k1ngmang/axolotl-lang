@@ -28,6 +28,7 @@ final class ModuleCompiler {
 
     private final Path work;
     private boolean nullChecks = true;
+    private volatile boolean closed;
 
     ModuleCompiler() throws IOException {
         this.work = Files.createTempDirectory("axl-lsp");
@@ -39,6 +40,18 @@ final class ModuleCompiler {
      */
     Map<String, List<AxlDiagnostic>> compile(Module module, List<Document> documents, Map<String, GeneratedUnit> standIns)
             throws IOException {
+        try {
+            return compileIn(module, documents, standIns);
+        } finally {
+            if (closed) {
+                // The compilation outlived the server and wrote the directory again.
+                close();
+            }
+        }
+    }
+
+    private Map<String, List<AxlDiagnostic>> compileIn(Module module, List<Document> documents,
+                                                      Map<String, GeneratedUnit> standIns) throws IOException {
         Path generatedDir = clean(work.resolve("gen"));
         Path classes = clean(work.resolve("classes"));
         List<GeneratedSource> generated = new ArrayList<>();
@@ -103,6 +116,7 @@ final class ModuleCompiler {
 
     /** Deletes the work directory. */
     void close() {
+        closed = true;
         try {
             delete(work);
         } catch (IOException | UncheckedIOException e) {
