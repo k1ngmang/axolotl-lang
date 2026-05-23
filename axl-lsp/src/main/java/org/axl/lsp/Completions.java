@@ -156,7 +156,8 @@ final class Completions {
             return List.of();
         }
         List<CompletionItem> items = new ArrayList<>();
-        for (Element member : java.members(element, type.statics())) {
+        String pkg = document.ast.packageName() == null ? "" : document.ast.packageName();
+        for (Element member : java.members(element, type.statics(), pkg)) {
             CompletionItem item = new CompletionItem(member.getSimpleName().toString());
             item.setKind(member.getKind() == ElementKind.METHOD ? CompletionItemKind.Method
                     : member instanceof TypeElement ? CompletionItemKind.Class : CompletionItemKind.Field);

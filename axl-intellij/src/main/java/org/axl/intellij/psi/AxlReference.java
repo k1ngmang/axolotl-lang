@@ -15,6 +15,7 @@ import com.intellij.psi.PsiPolyVariantReferenceBase;
 import com.intellij.psi.ResolveResult;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.psi.util.PsiUtil;
 import com.intellij.util.IncorrectOperationException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -90,14 +91,14 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         }
         List<LookupElement> members = new ArrayList<>();
         for (PsiMethod method : cls.getAllMethods()) {
-            if (visible(method, self) && !method.isConstructor() && statics == method.hasModifierProperty(PsiModifier.STATIC)) {
+            if (visible(method, cls, self) && !method.isConstructor() && statics == method.hasModifierProperty(PsiModifier.STATIC)) {
                 members.add(LookupElementBuilder.create(method, method.getName())
                         .withTailText(method.getParameterList().getText(), true)
                         .withTypeText(method.getReturnType() == null ? "" : method.getReturnType().getPresentableText()));
             }
         }
         for (PsiField field : cls.getAllFields()) {
-            if (visible(field, self) && statics == field.hasModifierProperty(PsiModifier.STATIC)) {
+            if (visible(field, cls, self) && statics == field.hasModifierProperty(PsiModifier.STATIC)) {
                 members.add(LookupElementBuilder.create(field, field.getName()).withTypeText(field.getType().getPresentableText()));
             }
         }
@@ -118,8 +119,17 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         return element instanceof AxlReferenceExpression ref && ref.qualifier() == null && ref.referenceName().equals("this");
     }
 
-    private static boolean visible(PsiMember member, boolean self) {
-        return member.hasModifierProperty(PsiModifier.PUBLIC) || self && member.hasModifierProperty(PsiModifier.PRIVATE);
+    /** Public members, the others that are not private of a class of the file's package, and for `this` the class's own private ones. */
+    private boolean visible(PsiMember member, PsiClass cls, boolean self) {
+        PsiClass owner = member.getContainingClass();
+        if (member.hasModifierProperty(PsiModifier.PUBLIC)) {
+            return true;
+        }
+        if (member.hasModifierProperty(PsiModifier.PRIVATE)) {
+            return self && getElement().getManager().areElementsEquivalent(owner, cls);
+        }
+        return owner != null && getElement().getContainingFile() instanceof AxlFile file
+                && file.packageName().equals(PsiUtil.getPackageName(owner));
     }
 
     /** Subpackages and classes after a package, as in `import java.util.Li`. */

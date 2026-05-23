@@ -480,7 +480,27 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         myFixture.completeBasic();
         List<String> names = myFixture.getLookupElementStrings();
         assertNotNull(names);
-        assertTrue(names.toString(), names.containsAll(List.of("count", "inc", "twice")));
+        assertTrue(names.toString(), names.containsAll(List.of("count", "inc", "twice")) && !names.contains("wait0"));
+    }
+
+    public void testCompletesTheMembersOfJavaClassesOfTheSamePackageThatAreNotPublic() {
+        myFixture.addFileToProject("app/Tool.java", """
+                package app;
+                public class Tool {
+                    static int report(int n) { return n; }
+                    protected static int prot() { return 1; }
+                    private static int hidden() { return 2; }
+                    public static int greet() { return 3; }
+                }
+                """);
+        myFixture.configureByText("Main.axl", "package app\n\nfn main() {\n    println(Tool.<caret>)\n}\n");
+        myFixture.completeBasic();
+        List<String> names = myFixture.getLookupElementStrings();
+        assertNotNull(names);
+        assertTrue(names.toString(), names.containsAll(List.of("report", "prot", "greet")) && !names.contains("hidden"));
+        myFixture.configureByText("Other.axl", "package other\n\nimport app.Tool\n\nfn main() {\n    println(Tool.<caret>)\n}\n");
+        myFixture.completeBasic();
+        assertEquals(List.of("greet"), myFixture.getLookupElementStrings());
     }
 
     private static final String SHAPES = """

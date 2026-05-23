@@ -895,6 +895,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesTheMembersOfJavaClassesOfTheSamePackageThatAreNotPublic() throws Exception {
+        Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Tool.java");
+        Files.writeString(java, "package app;\n\npublic class Tool {\n    static int report(int n) { return n; }\n"
+                + "    protected static int prot() { return 1; }\n    private static int hidden() { return 2; }\n"
+                + "    public static int greet() { return 3; }\n}\n");
+        workspace.open(List.of(project));
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    println(Tool.greet())\n}\n");
+        workspace.update(uri, "package app\n\nfn main() {\n    println(Tool.)\n}\n");
+        List<String> members = new Completions(workspace).complete(uri, 3, 17).stream().map(CompletionItem::getInsertText).toList();
+        assertTrue(members.containsAll(List.of("report", "prot", "greet")) && !members.contains("hidden"), members.toString());
+    }
+
+    @Test
     void completesOnlyTopLevelNamesBetweenDeclarations() throws Exception {
         String uri = open("Counter.axl", COUNTER);
         workspace.update(uri, COUNTER + "\nf");
