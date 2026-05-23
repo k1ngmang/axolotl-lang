@@ -83,7 +83,8 @@ final class Definitions {
 
     /** A member of a Java class after a dot: of the type of what stands before the dot, or inherited by it. */
     private List<Location> javaMember(Document document, Token name, Supplier<List<String>> argumentTypes) {
-        List<Receivers.Step> steps = Receivers.steps(document, document.previous(name));
+        List<Receivers.Step> steps = Receivers.steps(document, document.previous(name),
+                t -> workspace.typeName(document, Document.start(t), t.getText()));
         if (steps == null || steps.isEmpty()) {
             return List.of();
         }

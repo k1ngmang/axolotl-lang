@@ -18,6 +18,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -323,13 +324,50 @@ final class JavaModel {
      * arguments: see {@link Document#argumentTypes}.
      */
     TypeMirror memberType(TypeMirror receiver, String name, List<String> arguments) {
+        return memberType(null, receiver, name, arguments);
+    }
+
+    /**
+     * Like {@link #memberType(TypeMirror, String, List)}, and with the file whose names the
+     * arguments' types are, a method's type variables are inferred from the arguments that are
+     * their parameters: `List.of(p)` gives a `List<Person>`.
+     */
+    TypeMirror memberType(SourceFile file, TypeMirror receiver, String name, List<String> arguments) {
         TypeElement type = elementOf(receiver);
         Element member = type == null ? null : member(type, name, arguments);
         if (member == null) {
             return null;
         }
         TypeMirror memberType = asMemberOf(receiver, member);
-        return member.getKind().isField() ? memberType : ((ExecutableType) memberType).getReturnType();
+        if (member.getKind().isField()) {
+            return memberType;
+        }
+        TypeMirror result = ((ExecutableType) memberType).getReturnType();
+        return file == null ? result : inferred(file, (ExecutableElement) member, arguments, result);
+    }
+
+    /** A result type with the method's type variables that parameters have as their type replaced by the arguments' types. */
+    private TypeMirror inferred(SourceFile file, ExecutableElement method, List<String> arguments, TypeMirror result) {
+        Map<Element, TypeMirror> found = new HashMap<>();
+        for (int i = 0; i < arguments.size(); i++) {
+            TypeMirror parameter = method.getParameters().get(i).asType();
+            TypeElement argument = arguments.get(i) == null ? null : resolveType(file, PRIMITIVES.getOrDefault(arguments.get(i), arguments.get(i)));
+            if (parameter instanceof TypeVariable variable && method.getTypeParameters().contains(variable.asElement()) && argument != null) {
+                found.putIfAbsent(variable.asElement(), argument.asType());
+            }
+        }
+        return substitute(result, found);
+    }
+
+    private TypeMirror substitute(TypeMirror type, Map<Element, TypeMirror> found) {
+        if (type instanceof TypeVariable variable) {
+            return found.getOrDefault(variable.asElement(), type);
+        }
+        if (!(type instanceof DeclaredType declared) || declared.getTypeArguments().isEmpty() || found.isEmpty()) {
+            return type;
+        }
+        TypeMirror[] arguments = declared.getTypeArguments().stream().map(a -> substitute(a, found)).toArray(TypeMirror[]::new);
+        return types.getDeclaredType((TypeElement) declared.asElement(), arguments);
     }
 
     /**

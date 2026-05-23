@@ -209,6 +209,36 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesMembersOfLiteralsMethodReferencesInferredResultsAndInsideNames() throws Exception {
+        String uri = open("Counter.axl", COUNTER + """
+
+                data class Person(val name: String, val age: Int)
+
+                fn more() {
+                    val p = Person("a", 1)
+                    val a = "x".length()
+                    val b = java.util.List.of(p).get(0).age
+                    val c = Color.RED
+                    val f = Counter::next
+                }
+                """);
+        int start = (int) COUNTER.lines().count() + 4;
+        assertTrue(memberNames(uri, start + 1, 16).contains("length"), memberNames(uri, start + 1, 16).toString());
+        assertTrue(memberNames(uri, start + 2, 40).contains("age"), memberNames(uri, start + 2, 40).toString());
+        assertTrue(memberNames(uri, start + 3, 19).contains("RED"), memberNames(uri, start + 3, 19).toString());
+        List<String> methods = memberNames(uri, start + 4, 21);
+        assertTrue(methods.containsAll(List.of("next", "label")) && !methods.contains("count"), methods.toString());
+    }
+
+    @Test
+    void completesNothingInStringsAndComments() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    println(\"abc.\") // look at p.\n}\n");
+        assertEquals(List.of(), new Completions(workspace).complete(uri, 3, 16));
+        assertEquals(List.of(), new Completions(workspace).complete(uri, 3, 33));
+        assertFalse(new Completions(workspace).complete(uri, 3, 19).isEmpty());
+    }
+
+    @Test
     void completesNestedClassesAndTheirMembers() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val s = Thread.State.N\n    val t = Thread.S\n}\n");
         assertTrue(memberNames(uri, 3, 26).contains("NEW"), memberNames(uri, 3, 26).toString());

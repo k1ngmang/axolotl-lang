@@ -250,6 +250,16 @@ final class Document {
         return ast != null && ast.decls().stream().anyMatch(d -> d instanceof Decl.Value value && value.type() == null);
     }
 
+    /** The compiler position just after a token. */
+    static Pos end(Token token) {
+        String text = token.getText();
+        int lastBreak = text.lastIndexOf('\n');
+        int lines = (int) text.chars().filter(c -> c == '\n').count();
+        int length = text.codePointCount(lastBreak + 1, text.length());
+        return lastBreak < 0 ? new Pos(token.getLine(), token.getCharPositionInLine() + 1 + length)
+                : new Pos(token.getLine() + lines, length + 1);
+    }
+
     /** The compiler position where a token starts. */
     static Pos start(Token token) {
         return new Pos(token.getLine(), token.getCharPositionInLine() + 1);

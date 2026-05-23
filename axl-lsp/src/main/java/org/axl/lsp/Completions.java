@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.lang.model.element.Element;
@@ -21,6 +22,9 @@ final class Completions {
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
     static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
+    private static final Set<Integer> DOTS = Set.of(AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT, AxolotlLexer.COLONCOLON);
+    private static final Set<Integer> QUIET = Set.of(AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL,
+            AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT);
     private static final Pattern PIPE_STAGE = Pattern.compile("\\|>\\s*\\w*$");
     // An import being typed, with the qualifier before the last segment as group 1.
     private static final Pattern IMPORT = Pattern.compile("^\\s*import\\s+(?:(?:fn|val)\\s+)?((?:\\w+\\.)*)\\w*$");
@@ -35,6 +39,9 @@ final class Completions {
         Document current = workspace.document(uri);
         Document parsed = workspace.parsed(uri);
         if (current == null || line < 0 || character < 0 || line >= current.lines.size()) {
+            return List.of();
+        }
+        if (inLiteralOrComment(current, line, character)) {
             return List.of();
         }
         String prefix = current.lines.get(line).substring(0, Math.min(character, current.lines.get(line).length()));
@@ -52,8 +59,10 @@ final class Completions {
         }
         Token dot = memberDot(current, line, character);
         if (dot != null) {
-            List<Receivers.Step> receiver = Receivers.steps(current, dot);
-            return parsed == null || receiver == null ? List.of() : members(parsed, pos, receiver);
+            List<Receivers.Step> receiver = Receivers.steps(current, dot,
+                    t -> parsed == null ? null : workspace.typeName(parsed, pos, t.getText()));
+            boolean methodReference = dot.getType() == AxolotlLexer.COLONCOLON;
+            return parsed == null || receiver == null ? List.of() : members(parsed, pos, receiver, methodReference);
         }
         boolean typeOnly = Keywords.typeExpected(current, line, character);
         List<CompletionItem> items = new ArrayList<>();
@@ -130,8 +139,9 @@ final class Completions {
     }
 
     /**
-     * The `.` or `?.` before the member being typed, or null. The member's name ends at the cursor
-     * and may start a line after the dot; without a name, the dot is on the cursor's line.
+     * The `.`, `?.` or `::` before the member being typed, or null. The cursor is in or after the
+     * member's name, which may start a line after the dot; without a name, the dot is on the
+     * cursor's line.
      */
     private static Token memberDot(Document document, int line, int character) {
         int column = document.codePointColumn(line, character);
@@ -147,15 +157,33 @@ final class Completions {
         }
         if (last != null && last.getType() == AxolotlLexer.IDENTIFIER) {
             boolean typed = last.getLine() - 1 == line
-                    && last.getCharPositionInLine() + last.getStopIndex() - last.getStartIndex() + 1 == column;
+                    && last.getCharPositionInLine() + last.getStopIndex() - last.getStartIndex() + 1 >= column;
             last = typed ? document.previous(last) : null;
         } else if (last != null && last.getLine() - 1 != line) {
             return null;
         }
-        return last != null && (last.getType() == AxolotlLexer.DOT || last.getType() == AxolotlLexer.SAFE_DOT) ? last : null;
+        return last != null && DOTS.contains(last.getType()) ? last : null;
     }
 
-    private List<CompletionItem> members(Document document, Pos pos, List<Receivers.Step> receiver) {
+    /** Inside a string, a character or a comment, where nothing is completed. */
+    private static boolean inLiteralOrComment(Document document, int line, int character) {
+        Pos cursor = new Pos(line + 1, document.codePointColumn(line, character) + 1);
+        for (Token token : document.tokens) {
+            Pos start = Document.start(token);
+            if (!Symbols.before(start, cursor) || start.equals(cursor)) {
+                break;
+            }
+            boolean inside = token.getType() == AxolotlLexer.LINE_COMMENT ? start.line() == cursor.line()
+                    : !Symbols.before(Document.end(token), cursor);
+            if (QUIET.contains(token.getType()) && inside) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** methodReference: after `::`, where a class takes its static and instance methods. */
+    private List<CompletionItem> members(Document document, Pos pos, List<Receivers.Step> receiver, boolean methodReference) {
         JavaModel java = workspace.javaModel(document.module);
         Receivers.Receiver type = Receivers.typeOf(java, document.ast, pos, receiver);
         TypeElement element = JavaModel.elementOf(type.type());
@@ -163,7 +191,14 @@ final class Completions {
             return List.of();
         }
         String pkg = document.ast.packageName() == null ? "" : document.ast.packageName();
-        return items(java.members(element, type.statics(), pkg));
+        List<Element> members = new ArrayList<>(java.members(element, type.statics(), pkg));
+        if (methodReference) {
+            if (type.statics()) {
+                members.addAll(java.members(element, false, pkg));
+            }
+            members.removeIf(m -> m.getKind() != ElementKind.METHOD);
+        }
+        return items(members);
     }
 
     /**

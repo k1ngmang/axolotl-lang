@@ -59,7 +59,7 @@ final class Outline {
      */
     private static Position end(Document document, Pos start, Pos next) {
         Token last = lastToken(document, start, next);
-        return document.position(last == null ? start : end(last));
+        return document.position(last == null ? start : Document.end(last));
     }
 
     /**
@@ -70,16 +70,12 @@ final class Outline {
         List<Decl> decls = document.ast.decls();
         for (int i = 0; i < decls.size() && Symbols.before(decls.get(i).pos(), pos); i++) {
             Token last = lastToken(document, decls.get(i).pos(), i + 1 < decls.size() ? decls.get(i + 1).pos() : null);
-            boolean afterBrace = last != null && last.getType() == AxolotlLexer.RBRACE && pos.equals(end(last));
-            if (!pos.equals(decls.get(i).pos()) && last != null && Symbols.before(pos, end(last)) && !afterBrace) {
+            boolean afterBrace = last != null && last.getType() == AxolotlLexer.RBRACE && pos.equals(Document.end(last));
+            if (!pos.equals(decls.get(i).pos()) && last != null && Symbols.before(pos, Document.end(last)) && !afterBrace) {
                 return true;
             }
         }
         return false;
-    }
-
-    private static Pos end(Token token) {
-        return new Pos(token.getLine(), token.getCharPositionInLine() + 1 + token.getStopIndex() - token.getStartIndex() + 1);
     }
 
     private static Token lastToken(Document document, Pos start, Pos next) {

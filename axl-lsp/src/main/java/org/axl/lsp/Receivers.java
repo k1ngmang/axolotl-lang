@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
@@ -21,12 +22,23 @@ final class Receivers {
 
     private Receivers() {}
 
-    /** The names and calls before a dot, first to last; null when it is another expression. */
-    static List<Step> steps(Document document, Token dot) {
+    /** The step of a string literal, which has no name. */
+    static final String STRING = "\"\"";
+
+    /**
+     * The names and calls before a dot or a `::`, first to last; null when it is another expression.
+     * nameType: the type of a name that is an argument, or null; see {@link Document#argumentTypes}.
+     */
+    static List<Step> steps(Document document, Token dot, Function<Token, String> nameType) {
         List<Step> steps = new ArrayList<>();
         Token token = dot;
-        while (token != null && (token.getType() == AxolotlLexer.DOT || token.getType() == AxolotlLexer.SAFE_DOT)) {
+        while (token != null && (token.getType() == AxolotlLexer.DOT || token.getType() == AxolotlLexer.SAFE_DOT
+                || token == dot && token.getType() == AxolotlLexer.COLONCOLON)) {
             token = document.previous(token);
+            if (token != null && token.getType() == AxolotlLexer.STRING_LITERAL) {
+                steps.addFirst(new Step(STRING, null));
+                return steps;
+            }
             if (token != null && token.getType() == AxolotlLexer.BANGBANG) {
                 token = document.previous(token);
             }
@@ -34,7 +46,7 @@ final class Receivers {
             if (token != null && token.getType() == AxolotlLexer.RPAREN) {
                 Token open = openingParenthesis(document, token);
                 token = open == null ? null : document.previous(open);
-                arguments = token == null ? null : document.argumentTypes(token);
+                arguments = token == null ? null : document.argumentTypes(token, nameType);
                 if (arguments == null) {
                     return null;
                 }
@@ -81,7 +93,7 @@ final class Receivers {
                 type = nested.asType();
                 continue;
             }
-            type = java.memberType(type, step.name(), step.arguments());
+            type = java.memberType(ast, type, step.name(), step.arguments());
             statics = false;
         }
         return new Receiver(type, statics);
@@ -93,6 +105,9 @@ final class Receivers {
      */
     private static Receiver first(JavaModel java, SourceFile ast, Pos pos, List<Step> receiver) {
         Step first = receiver.getFirst();
+        if (first.name().equals(STRING)) {
+            return new Receiver(java.type("java.lang.String").asType(), false);
+        }
         Symbols.Symbol symbol = Symbols.lookup(ast, pos, first.name());
         if (symbol != null && symbol.kind() != Symbols.Kind.TYPE && symbol.kind() != Symbols.Kind.DECLARED_TYPE) {
             boolean value = symbol.kind() == Symbols.Kind.VALUE || symbol.kind() == Symbols.Kind.IMPORTED_VALUE;
@@ -146,6 +161,6 @@ final class Receivers {
             owner = symbol.imported().name().substring(0, symbol.imported().name().lastIndexOf('.'));
         }
         TypeElement type = java.resolveType(ast, owner);
-        return type == null ? null : java.memberType(type.asType(), step.name(), step.arguments());
+        return type == null ? null : java.memberType(ast, type.asType(), step.name(), step.arguments());
     }
 }

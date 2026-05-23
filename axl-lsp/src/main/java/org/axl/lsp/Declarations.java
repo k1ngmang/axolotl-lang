@@ -32,7 +32,8 @@ final class Declarations {
     /** The declaration of the member named by a token after a dot; null when none is in an .axl file. */
     Found member(Document document, Token name, Supplier<List<String>> argumentTypes) {
         Token dot = document.previous(name);
-        List<Receivers.Step> steps = dot == null ? null : Receivers.steps(document, dot);
+        List<Receivers.Step> steps = dot == null ? null : Receivers.steps(document, dot,
+                t -> workspace.typeName(document, Document.start(t), t.getText()));
         if (steps == null || steps.isEmpty()) {
             return null;
         }

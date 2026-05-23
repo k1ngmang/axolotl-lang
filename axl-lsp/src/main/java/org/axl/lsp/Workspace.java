@@ -32,6 +32,7 @@ import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.compiler.ast.Pos;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.javac.Translation;
 import org.eclipse.lsp4j.Diagnostic;
@@ -431,13 +432,16 @@ final class Workspace {
 
     /** The arguments of a call for choosing an overload, with the types of names that are known. */
     List<String> argumentTypes(Document document, Token name) {
-        return document.argumentTypes(name, argument -> {
-            Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(argument), argument.getText());
-            if (symbol == null || symbol.type() != null) {
-                return symbol == null ? null : symbol.type().name();
-            }
-            return JavaModel.axlName(javaModel(document.module).typeOf(document.ast, symbol));
-        });
+        return document.argumentTypes(name, argument -> typeName(document, Document.start(argument), argument.getText()));
+    }
+
+    /** The type of a name visible at a position, as Axolotl writes it without type arguments; null if unknown. */
+    String typeName(Document document, Pos pos, String name) {
+        Symbols.Symbol symbol = Symbols.lookup(document.ast, pos, name);
+        if (symbol == null || symbol.type() != null) {
+            return symbol == null ? null : symbol.type().name();
+        }
+        return JavaModel.axlName(javaModel(document.module).typeOf(document.ast, symbol));
     }
 
     /** Every .axl file of a module, open ones with their unsaved text. */
