@@ -54,6 +54,10 @@ final class Definitions {
                 return found.document() == document ? local(current, document, found.pos())
                         : List.of(location(found.document().path, found.document().position(found.pos())));
             }
+            List<Location> javaMember = javaMember(document, token, argumentTypes);
+            if (!javaMember.isEmpty()) {
+                return javaMember;
+            }
             Token receiver = document.previous(previous);
             if (receiver == null || receiver.getType() != AxolotlLexer.IDENTIFIER) {
                 return List.of();
@@ -75,6 +79,18 @@ final class Definitions {
             case TYPE -> classLocation(document.module, symbol.imported().name());
             default -> local(current, document, symbol.pos());
         };
+    }
+
+    /** A member of a Java class after a dot: of the type of what stands before the dot, or inherited by it. */
+    private List<Location> javaMember(Document document, Token name, Supplier<List<String>> argumentTypes) {
+        List<Receivers.Step> steps = Receivers.steps(document, document.previous(name));
+        if (steps == null || steps.isEmpty()) {
+            return List.of();
+        }
+        JavaModel java = workspace.javaModel(document.module);
+        TypeElement owner = JavaModel.elementOf(Receivers.typeOf(java, document.ast, Document.start(name), steps).type());
+        Location found = owner == null ? null : java.declaration(java.member(owner, name.getText(), argumentTypes.get()));
+        return found == null ? List.of() : List.of(found);
     }
 
     /** A segment of an import: the imported class or member for the last one, a class for the others. */

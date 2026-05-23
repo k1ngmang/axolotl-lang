@@ -937,6 +937,9 @@ class WorkspaceTest {
                 """);
         assertEquals(List.of(14), definitionLines(uri, 6, 18));
         assertEquals(List.of(16), definitionLines(uri, 6, 35));
+        assertEquals(List.of(3), definitionLines(uri, 6, 54));
+        assertEquals(List.of(4), definitionLines(uri, 7, 15));
+        assertEquals(List.of(6), definitionLines(uri, 7, 24));
         assertEquals(List.of(19), definitionLines(uri, 7, 42));
         assertEquals(List.of(18), definitionLines(uri, 2, 17));
         assertEquals(List.of(12), definitionLines(uri, 8, 10));
