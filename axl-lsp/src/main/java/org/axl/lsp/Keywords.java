@@ -23,7 +23,8 @@ final class Keywords {
             AxolotlLexer.ARROW, AxolotlLexer.RETURN, AxolotlLexer.THROW, AxolotlLexer.PLUS, AxolotlLexer.MINUS,
             AxolotlLexer.STAR, AxolotlLexer.SLASH, AxolotlLexer.PERCENT, AxolotlLexer.ANDAND, AxolotlLexer.OROR,
             AxolotlLexer.EQ, AxolotlLexer.NEQ, AxolotlLexer.LT, AxolotlLexer.LE, AxolotlLexer.GT, AxolotlLexer.GE,
-            AxolotlLexer.ELVIS, AxolotlLexer.BANG, AxolotlLexer.PLUS_ASSIGN, AxolotlLexer.MINUS_ASSIGN);
+            AxolotlLexer.ELVIS, AxolotlLexer.BANG, AxolotlLexer.BANGBANG, AxolotlLexer.PLUS_ASSIGN, AxolotlLexer.MINUS_ASSIGN,
+            AxolotlLexer.STAR_ASSIGN, AxolotlLexer.SLASH_ASSIGN, AxolotlLexer.PERCENT_ASSIGN, AxolotlLexer.ELSE, AxolotlLexer.TRY);
 
     /** Keywords in a header that tell what kind of braces follow. */
     private static final Set<Integer> HEADS = Set.of(AxolotlLexer.CLASS, AxolotlLexer.INTERFACE, AxolotlLexer.ENUM,
@@ -36,7 +37,7 @@ final class Keywords {
     static List<String> at(Document document, int line, int character) {
         List<Token> before = tokensBefore(document, line, document.codePointColumn(line, character));
         Token previous = before.isEmpty() ? null : before.getLast();
-        if (previous != null && BEFORE_EXPRESSION.contains(previous.getType())) {
+        if (previous != null && BEFORE_EXPRESSION.contains(previous.getType()) || afterLoopIn(before)) {
             return EXPRESSION;
         }
         int brace = innermostOpenBrace(before);
@@ -56,6 +57,14 @@ final class Keywords {
     static boolean typeExpected(Document document, int line, int character) {
         List<Token> before = tokensBefore(document, line, document.codePointColumn(line, character));
         return !before.isEmpty() && before.getLast().getType() == AxolotlLexer.IS;
+    }
+
+    /** After `in` in `for (x in `, where the iterable follows. */
+    private static boolean afterLoopIn(List<Token> before) {
+        int n = before.size();
+        return n >= 4 && before.get(n - 1).getText().equals("in") && before.get(n - 1).getType() == AxolotlLexer.IDENTIFIER
+                && before.get(n - 2).getType() == AxolotlLexer.IDENTIFIER && before.get(n - 3).getType() == AxolotlLexer.LPAREN
+                && before.get(n - 4).getType() == AxolotlLexer.FOR;
     }
 
     private static List<String> withElse() {

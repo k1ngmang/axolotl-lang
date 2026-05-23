@@ -31,13 +31,14 @@ final class AxlKeywords {
             of(AxolotlLexer.THROW), of(AxolotlLexer.PLUS), of(AxolotlLexer.MINUS), of(AxolotlLexer.STAR),
             of(AxolotlLexer.SLASH), of(AxolotlLexer.PERCENT), of(AxolotlLexer.ANDAND), of(AxolotlLexer.OROR),
             of(AxolotlLexer.EQ), of(AxolotlLexer.NEQ), of(AxolotlLexer.LT), of(AxolotlLexer.LE), of(AxolotlLexer.GT),
-            of(AxolotlLexer.GE), of(AxolotlLexer.ELVIS), of(AxolotlLexer.BANG)));
+            of(AxolotlLexer.GE), of(AxolotlLexer.ELVIS), of(AxolotlLexer.BANG), of(AxolotlLexer.BANGBANG),
+            of(AxolotlLexer.ELSE), of(AxolotlLexer.TRY)));
 
     private AxlKeywords() {}
 
     static List<String> at(PsiElement position) {
         PsiElement previous = PsiTreeUtil.prevCodeLeaf(position);
-        if (previous != null && BEFORE_EXPRESSION.contains(previous.getNode().getElementType())) {
+        if (previous != null && (BEFORE_EXPRESSION.contains(previous.getNode().getElementType()) || isLoopIn(previous))) {
             return EXPRESSION;
         }
         for (PsiElement parent = position.getParent(); parent != null && !(parent instanceof AxlFile); parent = parent.getParent()) {
@@ -53,6 +54,11 @@ final class AxlKeywords {
             }
         }
         return TOP_LEVEL;
+    }
+
+    /** `in` in `for (x in `, where the iterable follows. */
+    private static boolean isLoopIn(PsiElement previous) {
+        return previous.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD && previous.getText().equals("in");
     }
 
     private static List<String> withElse() {

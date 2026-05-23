@@ -885,6 +885,15 @@ class WorkspaceTest {
     }
 
     @Test
+    void completesOnlyExpressionKeywordsWhereAValueFollows() throws Exception {
+        for (String line : List.of("val a = if (true) 1 else ", "q *= ", "val b = try ", "for (e in ", "val c = !!")) {
+            String uri = open("Main.axl", "package app\n\nfn main() {\n    " + line + "\n}\n");
+            List<String> keywords = Keywords.at(workspace.document(uri), 3, 4 + line.length());
+            assertTrue(keywords.contains("if") && !keywords.contains("val") && !keywords.contains("while"), line + keywords);
+        }
+    }
+
+    @Test
     void completesOnlyTypesAfterIs() throws Exception {
         String uri = open("Shapes.axl", SHAPES);
         workspace.update(uri, SHAPES.replace("is Square -> {", "is Sq -> {"));

@@ -274,6 +274,10 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertFalse(topLevel.toString(), topLevel.stream().anyMatch(List.of("return", "while", "else")::contains));
         List<String> statement = complete(SHAPES.replace("    val color = Color.RED", "    <caret>\n    val color = Color.RED"));
         assertTrue(statement.toString(), statement.containsAll(List.of("val", "return", "for")) && !statement.contains("package"));
+        for (String value : List.of("val v = if (true) 1 else <caret>", "val v = try <caret>", "for (e in <caret>) {}")) {
+            List<String> found = complete(SHAPES.replace("    val color = Color.RED", "    " + value + "\n    val color = Color.RED"));
+            assertTrue(value + found, found.contains("if") && !found.contains("val") && !found.contains("while"));
+        }
     }
 
     private List<String> complete(String text) {
