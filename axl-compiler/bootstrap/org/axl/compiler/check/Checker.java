@@ -347,6 +347,9 @@ import org.axl.compiler.ast.TypeRef;
                     "`: `Name(...)` creates an object");
         } else if (name.equals(file.className()) && decl.isPrivate()) {
             error(decl.namePos(), ErrorCode.SYNTAX, "`" + name + "` is the type of this file and cannot be private");
+        } else if (SHADOWED_TYPES.contains(name)) {
+            error(decl.namePos(), ErrorCode.RESERVED_NAME, "a type named `" + name + "` would hide the `" + name +
+                    "` that every Axolotl file uses; choose another name");
         } else if (!typeNames.add(name)) {
             error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "the type `" + name + "` is already declared in this file");
         }
@@ -1169,6 +1172,10 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> OBJECT_METHOD_NAMES = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
             "notify", "notifyAll", "wait");
     private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
+    private static final Set<String> SHADOWED_TYPES = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
+            "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",
+            "RuntimeException", "Throwable", "Error", "Iterable", "Comparable", "Runnable", "CharSequence", "StringBuilder",
+            "Override", "Record", "Enum", "Class", "Thread");
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
     private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Double", "Boolean", "String", "Char");

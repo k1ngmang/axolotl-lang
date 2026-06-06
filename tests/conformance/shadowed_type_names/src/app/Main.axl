@@ -1,0 +1,7 @@
+package app
+
+data class Ok(val v: Int)
+
+class String(val s: Int)
+
+enum Error { A }
