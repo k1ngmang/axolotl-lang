@@ -18,5 +18,10 @@ import org.jspecify.annotations.*;
         final var $t1 = Nulls.map(none, $n3 -> $n3.length());
         System.out.println(Integer.valueOf(Nulls.or($t1, 3)));
         System.out.println(length(null, 4));
+        computed(null, null);
+    }
+    public static void computed(@Nullable String s, @Nullable String t) {
+        System.out.println(Math.max(0, Nulls.present(Nulls.or(Nulls.map(s, $n1 -> $n1.length()), () -> "ab".length())).value()));
+        System.out.println(shout(Nulls.present(Nulls.or(Nulls.map(s, $n2 -> $n2.trim()), () -> Nulls.or(Nulls.map(t, $n3 -> $n3.trim()), () -> "q"))).value()));
     }
 }

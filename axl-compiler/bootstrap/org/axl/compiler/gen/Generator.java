@@ -1125,6 +1125,16 @@ import org.axl.compiler.check.Whens;
     private boolean becomesCallSomewhere(Expr e) {
         return becomesCall(e) || (e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1));
     }
+    private boolean fallbackGivesValue(Expr e) {
+        final var inner = withoutParens(e);
+        if (inner instanceof Expr.Elvis inner$1) {
+            return fallbackGivesValue(inner$1.right());
+        }
+        if (inner instanceof Expr.Conditional inner$2) {
+            return fallbackGivesValue(inner$2.then()) && fallbackGivesValue(inner$2.otherwise());
+        }
+        return !isNullLiteral(inner) && !Chains.hasSafeStep(inner) && !typedNullable(inner);
+    }
     private boolean givesValue(Expr e) {
         final var inner = withoutParens(e);
         if (inner instanceof Expr.Elvis inner$1) {
@@ -1369,7 +1379,7 @@ import org.axl.compiler.check.Whens;
         if (arg instanceof Expr.NotNull arg$2) {
             return "java.util.Objects.requireNonNull(" + argument(arg$2.target(), inLambda) + ")";
         }
-        if (arg instanceof Expr.Elvis arg$3 && hasSafeElvis(arg$3) && !mayBeNull(arg$3.right())) {
+        if (arg instanceof Expr.Elvis arg$3 && hasSafeElvis(arg$3) && fallbackGivesValue(arg$3.right())) {
             return "Nulls.present(" + exprIn(arg$3, inLambda) + ").value()";
         }
         if (arg instanceof Expr.Conditional arg$4 && branchBecomesCall(arg$4)) {

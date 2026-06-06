@@ -1249,6 +1249,21 @@ class Generator(
 
     private fn becomesCallSomewhere(e: Expr) -> Boolean = becomesCall(e) || (e is Expr.Conditional && branchBecomesCall(e))
 
+    /**
+     * Whether the fallback of a `?:` gives a value: everything but null, a `?.` chain and a nullable
+     * type. A Java call counts, as NullAway takes its result as not null too.
+     */
+    private fn fallbackGivesValue(e: Expr) -> Boolean {
+        val inner = withoutParens(e)
+        if (inner is Expr.Elvis) {
+            return fallbackGivesValue(inner.right())
+        }
+        if (inner is Expr.Conditional) {
+            return fallbackGivesValue(inner.then()) && fallbackGivesValue(inner.otherwise())
+        }
+        return !isNullLiteral(inner) && !Chains.hasSafeStep(inner) && !typedNullable(inner)
+    }
+
     /** Whether an expression gives a value that is not null, as far as the code tells. */
     private fn givesValue(e: Expr) -> Boolean {
         val inner = withoutParens(e)
@@ -1546,7 +1561,7 @@ class Generator(
         }
         // As the receiver of `.value()`, the expansion gets its type without the overloads of the call.
         // A `?:` gives a value when its right side does, which Nulls.present keeps.
-        if (arg is Expr.Elvis && hasSafeElvis(arg) && !mayBeNull(arg.right())) {
+        if (arg is Expr.Elvis && hasSafeElvis(arg) && fallbackGivesValue(arg.right())) {
             return "Nulls.present(" + exprIn(arg, inLambda) + ").value()"
         }
         // An `if` with a `?:` branch is typed by the overloads it is passed to, and may fit several.

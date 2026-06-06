@@ -11,4 +11,10 @@ fn main() {
     println(shout(none?.trim() ?: "none"))
     println(Integer.valueOf(none?.length() ?: 3))
     println(length(null, 4))
+    computed(null, null)
+}
+
+fn computed(s: String?, t: String?) {
+    println(Math.max(0, s?.length() ?: "ab".length()))
+    println(shout(s?.trim() ?: (t?.trim() ?: "q")))
 }
