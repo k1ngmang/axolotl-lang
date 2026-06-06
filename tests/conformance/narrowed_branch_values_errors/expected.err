@@ -1,0 +1,3 @@
+AXL102 app/Main.axl:6:74: error: `v` may be null, but the parameter does not accept null: use `?:` or check `if (v != null)`
+AXL102 app/Main.axl:9:18: error: a type argument of the value has `?`, but the result type has none there; add `?` to the type argument of the result type or drop the nulls first
+AXL102 app/Main.axl:9:21: error: `s` may be null, but `of` does not take null; use `?.`, `?:`, a null check or `!!`

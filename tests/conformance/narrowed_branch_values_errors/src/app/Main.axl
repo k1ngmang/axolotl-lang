@@ -1,0 +1,11 @@
+package app
+
+import java.util.List
+
+// The branch where the check fails still has the nullable value.
+fn wrongBranch(v: String?) -> Result<String, String> = if (v == null) Ok(v) else Err("set")
+
+fn wrongArm(s: String?) -> List<String> = when (s) {
+    null -> List.of(s)
+    else -> List.of()
+}

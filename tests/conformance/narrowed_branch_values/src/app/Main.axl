@@ -1,0 +1,40 @@
+package app
+
+import java.util.List
+import java.util.Optional
+
+// A null check narrows the value in the branches of an `if` or `when` value, also inside `Ok`,
+// `List.of` and `Optional.of`.
+fn found(v: String?) -> Result<String, String> = if (v == null) Err("none") else Ok(v)
+
+fn present(v: String?) -> Result<String, String> = if (v != null) Ok(v) else Err("none")
+
+fn listed(s: String?) -> List<String> = if (s != null) List.of(s) else List.of()
+
+fn both(s: String?, c: Boolean) -> List<String> = if (s != null && c) List.of(s) else List.of()
+
+fn optional(s: String?) -> Optional<String> = if (s == null) Optional.empty() else Optional.of(s)
+
+fn flag(b: Boolean?) -> Result<Boolean, String> = if (b == null) Err("none") else Ok(b)
+
+fn number(n: Int?) -> Result<Int, String> = if (n == null) Err("none") else Ok(n)
+
+fn arms(s: String?) -> List<String> = when (s) {
+    null -> List.of()
+    else -> List.of(s)
+}
+
+fn main() {
+    println(found("a"))
+    println(found(null))
+    println(present("b"))
+    println(listed("c"))
+    println(both("d", true))
+    println(optional("e"))
+    println(flag(true))
+    println(number(3))
+    val r: Result<String, String> = if (System.nanoTime() > 0) found("f") else Err("never")
+    println(r)
+    println(arms("g"))
+    println(arms(null))
+}

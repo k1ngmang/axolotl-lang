@@ -53,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
@@ -606,8 +607,13 @@ final class NullChecker implements TaskListener {
             Map<Element, Origin> entry = new HashMap<>(state);
             boolean hasDefault = cases.stream().anyMatch(c -> c.getLabels().stream().anyMatch(l -> l instanceof DefaultCaseLabelTree));
             Map<Element, Origin> result = hasDefault ? null : entry;
+            Element subject = narrowable(selector);
             for (CaseTree branch : cases) {
                 state = new HashMap<>(entry);
+                if (subject != null && !takesNull(List.of(branch))) {
+                    // Null goes to the `case null` branch, or the switch throws before any branch.
+                    state.put(subject, Origin.NONE);
+                }
                 scan(branch, null);
                 if (promoted) {
                     yielded(branch).forEach(this::checkPromotedBranch);
@@ -1566,13 +1572,8 @@ final class NullChecker implements TaskListener {
                 return Origin.DECLARED;
             }
             if (e instanceof ConditionalExpressionTree c) {
-                Map<Element, Origin> before = new HashMap<>(state);
-                narrow(c.getCondition(), true);
-                Origin whenTrue = origin(c.getTrueExpression());
-                state = new HashMap<>(before);
-                narrow(c.getCondition(), false);
-                Origin whenFalse = origin(c.getFalseExpression());
-                state = before;
+                Origin whenTrue = inBranch(c.getCondition(), true, () -> origin(c.getTrueExpression()));
+                Origin whenFalse = inBranch(c.getCondition(), false, () -> origin(c.getFalseExpression()));
                 return whenTrue.compareTo(whenFalse) >= 0 ? whenTrue : whenFalse;
             }
             if (e instanceof AssignmentTree assignment) {
@@ -1600,6 +1601,18 @@ final class NullChecker implements TaskListener {
                 return Origin.PLATFORM;
             }
             return declared == Origin.NONE && (nullableAnnotated(typeOf(e)) || shape(e).nullable()) ? Origin.HIDDEN : declared;
+        }
+
+        /** A value computed with what the condition says in one branch of `c ? a : b`. */
+        private <T> T inBranch(ExpressionTree condition, boolean when, Supplier<T> value) {
+            Map<Element, Origin> before = state;
+            state = new HashMap<>(before);
+            narrow(condition, when);
+            try {
+                return value.get();
+            } finally {
+                state = before;
+            }
         }
 
         private Origin callOrigin(MethodInvocationTree call, ExecutableElement method) {
@@ -1667,7 +1680,8 @@ final class NullChecker implements TaskListener {
             Shape known = shapeOf(typeOf(e), Map.of());
             Element element = element(e);
             if (e instanceof ConditionalExpressionTree c) {
-                return known.or(shape(c.getTrueExpression())).or(shape(c.getFalseExpression()));
+                return known.or(inBranch(c.getCondition(), true, () -> shape(c.getTrueExpression())))
+                        .or(inBranch(c.getCondition(), false, () -> shape(c.getFalseExpression())));
             }
             if (e instanceof AssignmentTree assignment) {
                 return known.or(shape(assignment.getExpression()));
