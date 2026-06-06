@@ -11,7 +11,7 @@ download Error Prone, NullAway and their other dependencies from Maven Central.
 |--------|------|-----|
 | Windows | `axolotl-<version>-windows-x64-setup.exe` | Run it. It is not signed, so SmartScreen may stop it: choose *More info*, then *Run anyway*. Open a new terminal afterwards so that it sees the new `PATH`. |
 | macOS (Apple silicon) | `axolotl-<version>-macos-arm64.pkg` | Open it. The package is not signed: if macOS refuses, open *System Settings > Privacy & Security* and choose *Open Anyway*, or run `xattr -d com.apple.quarantine axolotl-<version>-macos-arm64.pkg` first. |
-| Debian, Ubuntu | `axolotl-<version>-linux-amd64.deb` | `sudo apt install ./axolotl-<version>-linux-amd64.deb` |
+| Debian 12+, Ubuntu 22.04+ | `axolotl-<version>-linux-amd64.deb` | `sudo apt install ./axolotl-<version>-linux-amd64.deb` |
 | Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root, or into the directory `AXL_HOME` names. |
 
 Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another

@@ -1,3 +1,5 @@
+import javax.inject.Inject
+
 plugins {
     application
 }
@@ -212,6 +214,22 @@ val appImage = tasks.register<Exec>("appImage") {
     })
 }
 
+interface InjectedExec {
+    @get:Inject
+    val exec: ExecOperations
+}
+
+// jpackage names in Depends the packages that hold the libraries on the build machine. Since the 64-bit
+// time_t transition (Ubuntu 24.04, Debian 13) several of them end in t64, which older releases lack; their
+// old names are what those releases have, and the t64 packages provide them.
+val debAlternatives = """
+    rm -rf "$2"
+    dpkg-deb -R "$1" "$2"
+    sed -i '/^Depends:/s/\([a-z0-9][a-z0-9.+-]*\)t64\(,\|$\)/\1t64 | \1\2/g' "$2/DEBIAN/control"
+    dpkg-deb -b "$2" "$1"
+    rm -rf "$2"
+""".trimIndent()
+
 // -PinstallerType=deb on Linux, pkg on macOS; Windows uses Inno Setup on the app image (installers/windows).
 tasks.register<Exec>("nativeInstaller") {
     description = "Builds a native installer from the app image."
@@ -242,6 +260,15 @@ tasks.register<Exec>("nativeInstaller") {
             else -> listOf("--vendor", "Axolotl")
         }
     })
+    val exec = objects.newInstance<InjectedExec>().exec
+    val script = debAlternatives
+    doLast {
+        if (type.get() == "deb") {
+            val deb = dest.get().asFile.listFiles { file -> file.extension == "deb" }!!.single()
+            // One fakeroot session, so that the files keep the root owner they had in the package.
+            exec.exec { commandLine("fakeroot", "sh", "-ec", script, "sh", deb.path, temporaryDir.resolve("deb").path) }
+        }
+    }
 }
 
 // For Linux distributions without dpkg: the app image with a script that installs it for the user.

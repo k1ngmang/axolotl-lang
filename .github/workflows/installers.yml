@@ -98,6 +98,20 @@ jobs:
           grep -q "Hello, Axolotl" out.txt
           grep -q fooBar out.txt
           test -d ~/.m2/repository/org/axl/axl-maven-plugin
+      # The runner has the newest Ubuntu LTS, whose library packages older releases may not have.
+      - name: Install the .deb on Debian 12 and Ubuntu 22.04
+        if: matrix.system == 'linux'
+        run: |
+          dpkg-deb -f axl-cli/build/installers/axolotl-*-linux-amd64.deb Depends
+          for image in debian:12 ubuntu:22.04; do
+            docker run --rm -e DEBIAN_FRONTEND=noninteractive \
+              -v "$PWD/axl-cli/build/installers:/installers:ro" -v "$RUNNER_TEMP/smoke:/smoke:ro" "$image" sh -ec '
+                apt-get update -q
+                apt-get install -y -q /installers/axolotl-*-linux-amd64.deb
+                axl run /smoke/Hello.axl | tee /tmp/out.txt
+                grep -q "Hello, Axolotl" /tmp/out.txt
+                grep -q fooBar /tmp/out.txt'
+          done
       - name: Install the tarball with install.sh and run axl
         if: matrix.system == 'linux'
         run: |
