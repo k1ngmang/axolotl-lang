@@ -1,0 +1,23 @@
+package app
+
+import java.util.Arrays
+import java.util.Collections
+import java.util.List
+
+data class Names(val xs: List<String>)
+
+fn second(xs: List<String>) -> Int = xs.get(1).length()
+
+fn count(xs: List<String?>) -> Int = xs.size()
+
+fn main() {
+    val s: String? = null
+    println(second(Arrays.asList("a", null)))
+    println(second(Arrays.asList("a", s)))
+    println(second(Collections.singletonList(null)))
+    println(Names(Arrays.asList("a", null)))
+
+    println(second(Arrays.asList("a", "b")))
+    println(count(Arrays.asList("a", null)))
+    println(Names(Collections.singletonList("c")))
+}

@@ -385,7 +385,7 @@ final class NullChecker implements TaskListener {
                 shapes.put(element, shape(init).nonNull());
             } else if (element.getKind() == ElementKind.LOCAL_VARIABLE) {
                 store(init, element, variable.getType());
-                checkTypeArguments(init, element.asType(), "`" + element.getSimpleName() + "`");
+                checkTypeArguments(init, element.asType(), Map.of(), "`" + element.getSimpleName() + "`");
             } else if (element.getKind() == ElementKind.FIELD) {
                 checkValue(init, element.asType(), element, true, "`" + element.getSimpleName() + "` is not nullable");
             }
@@ -553,7 +553,7 @@ final class NullChecker implements TaskListener {
                 }
                 if (p.getLeaf() instanceof MethodTree && trees.getElement(p) instanceof ExecutableElement method) {
                     checkValue(ret.getExpression(), method.getReturnType(), method, true, "the function does not return null");
-                    checkTypeArguments(ret.getExpression(), method.getReturnType(), "the result type");
+                    checkTypeArguments(ret.getExpression(), method.getReturnType(), Map.of(), "the result type");
                     return null;
                 }
             }
@@ -1166,11 +1166,23 @@ final class NullChecker implements TaskListener {
             }
             List<? extends VariableElement> params = method.getParameters();
             int checkedCount = method.isVarArgs() ? params.size() - 1 : params.size();
+            Map<Element, Shape> open = openTypeVariables(method);
             for (int i = 0; i < Math.min(checkedCount, args.size()); i++) {
                 VariableElement param = params.get(i);
                 checkValue(args.get(i), param.asType(), param, true, "the parameter `" + param.getSimpleName() + "` does not accept null");
-                checkJavaTypeArguments(args.get(i), param.asType(), "the parameter `" + param.getSimpleName() + "`");
+                // javac infers `Arrays.asList("a", null)` from the parameter, which drops the `?` NullAway would see.
+                checkTypeArguments(args.get(i), param.asType(), open, "the parameter `" + param.getSimpleName() + "`");
             }
+        }
+
+        /** The type variables of a method and of the classes around it, which may stand for types with `?`. */
+        private static Map<Element, Shape> openTypeVariables(ExecutableElement method) {
+            Map<Element, Shape> open = new HashMap<>();
+            method.getTypeParameters().forEach(v -> open.put(v, Shape.ANY));
+            for (Element e = method.getEnclosingElement(); e instanceof TypeElement type; e = type.getEnclosingElement()) {
+                type.getTypeParameters().forEach(v -> open.put(v, Shape.ANY));
+            }
+            return open;
         }
 
         /** A pipe's `sorted` without a comparator passes Comparator.naturalOrder(). */
@@ -1359,7 +1371,8 @@ final class NullChecker implements TaskListener {
         }
 
         /** `val ys: List<String> = xs` where the elements of `xs` may be null. */
-        private void checkTypeArguments(ExpressionTree value, TypeMirror declared, String target) {
+        private void checkTypeArguments(ExpressionTree value, TypeMirror declared, Map<Element, Shape> bindings,
+                                        String target) {
             if (!(declared instanceof DeclaredType type) || !(type.asElement() instanceof TypeElement element)) {
                 return;
             }
@@ -1367,7 +1380,7 @@ final class NullChecker implements TaskListener {
             if (element(value) != null && isRuntime(element(value))) {
                 return;
             }
-            Shape wanted = shapeOf(declared, Map.of());
+            Shape wanted = shapeOf(declared, bindings);
             TypeMirror valueType = typeOf(value);
             // NullAway compares the types javac knows itself.
             if (shapeAs(shapeOf(valueType, Map.of()), valueType, element).losesQuestionMark(wanted)) {
@@ -1377,14 +1390,15 @@ final class NullChecker implements TaskListener {
                 report(value, Origin.HIDDEN, false, "a type argument of the value has `?`, but " + target
                         + " has none there; add `?` to the type argument of " + target + " or drop the nulls first");
             } else {
-                checkJavaTypeArguments(value, declared, target);
+                checkJavaTypeArguments(value, declared, bindings, target);
             }
         }
 
         /** Strict mode: `val l: List<String> = J.list()!!` would make the elements that Java gives trusted. */
-        private void checkJavaTypeArguments(ExpressionTree value, TypeMirror declared, String target) {
+        private void checkJavaTypeArguments(ExpressionTree value, TypeMirror declared, Map<Element, Shape> bindings,
+                                            String target) {
             if (declared instanceof DeclaredType type && type.asElement() instanceof TypeElement element
-                    && shapeAs(shape(value), typeOf(value), element).losesJavaArgument(shapeOf(declared, Map.of()))) {
+                    && shapeAs(shape(value), typeOf(value), element).losesJavaArgument(shapeOf(declared, bindings))) {
                 report(value, Origin.PLATFORM, false, FROM_JAVA + target + " has no `?` there; add `?` to the type argument of "
                         + target + " or " + DROP_NULLS);
             }

@@ -1,0 +1,4 @@
+AXL102 app/Main.axl:15:27: error: a type argument of the value has `?`, but the parameter `xs` has none there; add `?` to the type argument of the parameter `xs` or drop the nulls first
+AXL102 app/Main.axl:16:27: error: a type argument of the value has `?`, but the parameter `xs` has none there; add `?` to the type argument of the parameter `xs` or drop the nulls first
+AXL102 app/Main.axl:17:32: error: a type argument of the value has `?`, but the parameter `xs` has none there; add `?` to the type argument of the parameter `xs` or drop the nulls first
+AXL102 app/Main.axl:18:26: error: a type argument of the value has `?`, but the parameter `xs` has none there; add `?` to the type argument of the parameter `xs` or drop the nulls first
