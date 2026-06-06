@@ -142,8 +142,9 @@ final class NullChecker implements TaskListener {
      * Why a value may be null, ordered so that merging two paths keeps the larger one. NullAway sees
      * {@code DECLARED} values itself, so where it checks a use, only the other kinds are reported here.
      * {@code ABSENT} is the result of a JDK method that returns null when it has no value, such as `Queue.poll`.
+     * {@code UNANNOTATED} is a value from Java code without nullness annotations in a local written with `?`.
      */
-    private enum Origin { NONE, HIDDEN, ABSENT, PLATFORM, DECLARED }
+    private enum Origin { NONE, HIDDEN, UNANNOTATED, ABSENT, PLATFORM, DECLARED }
 
     /**
      * Which parts of a value may be null: the value itself and, by position, its type arguments. javac
@@ -324,6 +325,8 @@ final class NullChecker implements TaskListener {
         private boolean reporting = true;
         // Locals that are not `final` and assigned after their declaration.
         private final Set<Element> reassigned = new HashSet<>();
+        // Locals whose written type has `?`; javac drops it from their element.
+        private final Set<Element> nullableLocals = new HashSet<>();
         // The origins and shapes of trees, valid while `state` and `shapes` hold what they held when
         // computed. Each nesting level asks for those of the levels below again, which takes
         // exponential time without them.
@@ -373,6 +376,9 @@ final class NullChecker implements TaskListener {
             super.visitVariable(variable, unused);
             Element element = trees.getElement(getCurrentPath());
             ExpressionTree init = variable.getInitializer();
+            if (element != null && element.getKind() == ElementKind.LOCAL_VARIABLE && annotatedNullable(variable.getType())) {
+                nullableLocals.add(element);
+            }
             if (element == null || init == null) {
                 return null;
             }
@@ -384,7 +390,7 @@ final class NullChecker implements TaskListener {
                 }
                 shapes.put(element, shape(init).nonNull());
             } else if (element.getKind() == ElementKind.LOCAL_VARIABLE) {
-                store(init, element, variable.getType());
+                store(init, element);
                 checkTypeArguments(init, element.asType(), Map.of(), "`" + element.getSimpleName() + "`");
             } else if (element.getKind() == ElementKind.FIELD) {
                 checkValue(init, element.asType(), element, true, "`" + element.getSimpleName() + "` is not nullable");
@@ -407,7 +413,7 @@ final class NullChecker implements TaskListener {
                 state.put(target, origin(assignment.getExpression()));
                 shapes.merge(target, shape(assignment.getExpression()).nonNull(), Shape::or);
             } else if (target.getKind() == ElementKind.LOCAL_VARIABLE) {
-                store(assignment.getExpression(), target, null);
+                store(assignment.getExpression(), target);
             } else if (isAxolotlCode(target)) {
                 checkValue(assignment.getExpression(), target.asType(), target, true, "`" + target.getSimpleName() + "` is not nullable");
             } else if (assignment.getVariable() instanceof MemberSelectTree select) {
@@ -426,9 +432,9 @@ final class NullChecker implements TaskListener {
         }
 
         /** NullAway ignores the declared types of locals, so a store into a local without `?` is checked here. */
-        private void store(ExpressionTree value, Element local, Tree typeTree) {
+        private void store(ExpressionTree value, Element local) {
             TypeMirror type = local.asType();
-            boolean nullable = PlatformValues.isNullable(local, type) || typeTree != null && annotatedNullable(typeTree);
+            boolean nullable = PlatformValues.isNullable(local, type) || nullableLocals.contains(local);
             if (type.getKind().isPrimitive()) {
                 // NullAway checks unboxing, unlike stores.
                 checkUnboxing(value, true);
@@ -436,8 +442,18 @@ final class NullChecker implements TaskListener {
                     describe(value) + ", but `" + local.getSimpleName() + "` is not nullable; " + FIX)) {
                 state.put(local, Origin.NONE);
             } else {
-                state.put(local, nullable ? origin(value) : Origin.NONE);
+                state.put(local, nullable ? storedOrigin(value) : Origin.NONE);
             }
+        }
+
+        /** NullAway takes a value from Java code without nullness annotations as not null, also in a local written with `?`. */
+        private Origin storedOrigin(ExpressionTree value) {
+            Origin origin = origin(value);
+            ExpressionTree e = unwrap(value);
+            Element element = element(e);
+            boolean returnsWritten = e instanceof MethodInvocationTree call && element instanceof ExecutableElement method
+                    && returnsWrittenTypeArgument(call, method);
+            return origin == Origin.NONE && PlatformValues.isPlatform(element) && !returnsWritten ? Origin.UNANNOTATED : origin;
         }
 
         @Override
@@ -1761,7 +1777,8 @@ final class NullChecker implements TaskListener {
         private Shape valueShape(ExpressionTree expression) {
             Origin origin = origin(expression);
             Shape shape = shape(expression);
-            boolean nullable = origin == Origin.HIDDEN || origin == Origin.ABSENT || origin == Origin.DECLARED;
+            boolean nullable = origin == Origin.HIDDEN || origin == Origin.UNANNOTATED || origin == Origin.ABSENT
+                    || origin == Origin.DECLARED;
             return nullable ? new Shape(true, shape.args()) : shape.nonNull();
         }
 
@@ -1950,7 +1967,7 @@ final class NullChecker implements TaskListener {
                 String plain = identifier.getName().toString().replaceAll("\\$e?\\d+$", "");
                 String name = plain.isEmpty() ? "the subject of this `when` may be null" : "`" + plain + "` may be null";
                 return switch (origin) {
-                    case PLATFORM -> name + ": it holds a value from Java code without nullness annotations";
+                    case PLATFORM, UNANNOTATED -> name + ": it holds a value from Java code without nullness annotations";
                     case HIDDEN -> name + ": it holds a value of a type argument written with `?`";
                     case ABSENT -> name + ": it holds the result of a JDK method that returns null when there is no value";
                     default -> name;

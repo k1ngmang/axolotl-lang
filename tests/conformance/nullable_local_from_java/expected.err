@@ -1,0 +1,6 @@
+AXL102 app/Main.axl:11:15: error: `a` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:12:18: error: `a` may be null: it holds a value from Java code without nullness annotations, but the parameter `s` does not accept null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:14:13: error: `n` may be null: it holds a value from Java code without nullness annotations, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:18:15: error: `b` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:20:35: error: `c` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:12: error: `a` may be null: it holds a value from Java code without nullness annotations, but the function does not return null; use `?.`, `?:`, a null check or `!!`

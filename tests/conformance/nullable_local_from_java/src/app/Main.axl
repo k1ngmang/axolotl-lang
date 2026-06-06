@@ -1,0 +1,32 @@
+package app
+
+import java.util.function.Supplier
+
+fn size(s: String) -> Int = s.length()
+
+// A local written with `?` may hold null, also when its value comes from Java code without
+// nullness annotations, which is otherwise trusted.
+fn property() -> String {
+    val a: String? = System.getProperty("axl.missing")
+    println(a.length())
+    println(size(a))
+    val n: Int? = Integer.getInteger("axl.missing")
+    println(n + 1)
+    var b: String? = "x"
+    println(b)
+    b = System.getProperty("axl.missing")
+    println(b.length())
+    val c: String? = System.getenv("AXL_MISSING")
+    val f: Supplier<Int> = { -> c.length() }
+    println(f.get())
+    return a
+}
+
+fn checked() -> Int {
+    val a: String? = System.getProperty("axl.missing")
+    if (a != null) {
+        println(a.length())
+    }
+    val b: String? = System.getProperty("axl.missing")
+    return (b ?: "none").length()
+}
