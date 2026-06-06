@@ -17,7 +17,7 @@ import org.jspecify.annotations.*;
         k = !k;
         final @Nullable Boolean flag = null;
         final var $c1 = k;
-        if (Nulls.or(flag, () -> $c1)) {
+        if (Nulls.<Boolean>or(flag, () -> $c1)) {
             System.out.println("yes");
         }
         final @Nullable String name = null;

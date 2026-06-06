@@ -20,7 +20,7 @@ import static util.Strings.shout;
     public static final String loud = shout("hi");
     public static final String exclaimed = util.Strings.suffix + "?";
     public static final @Nullable String missing = null;
-    public static final String fallback = Nulls.or(missing, () -> "none");
+    public static final String fallback = Nulls.<String>or(missing, () -> "none");
     public static int twice(int n) {
         return n * 2;
     }

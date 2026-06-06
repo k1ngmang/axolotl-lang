@@ -43,7 +43,7 @@ import org.jspecify.annotations.*;
         switch (k) {
             case 1 -> {
                 final var $c1 = count;
-                return Nulls.or(s, () -> "count=" + $c1);
+                return Nulls.<String>or(s, () -> "count=" + $c1);
             }
             default -> {
                 return "other";

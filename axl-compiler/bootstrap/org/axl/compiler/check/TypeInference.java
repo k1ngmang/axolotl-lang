@@ -71,10 +71,19 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.Conditional expr$11 -> {
                 return common(of(expr$11.then()), of(expr$11.otherwise()));
             }
+            case Expr.Try expr$12 -> {
+                return okType(of(expr$12.inner()));
+            }
             default -> {
                 return null;
             }
         }
+    }
+    private @Nullable TypeRef okType(@Nullable TypeRef result) {
+        if (result == null || !(result.name().equals("Result") || result.name().equals("axl.lang.Result")) || result.args().size() != 2) {
+            return null;
+        }
+        return result.args().getFirst();
     }
     private @Nullable TypeRef common(@Nullable TypeRef a, @Nullable TypeRef b) {
         if (a == null || b == null || !a.name().equals(b.name()) || !a.args().isEmpty() || !b.args().isEmpty()) {

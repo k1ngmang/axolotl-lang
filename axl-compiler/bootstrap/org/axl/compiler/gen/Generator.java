@@ -178,7 +178,7 @@ import org.axl.compiler.check.Whens;
         return "$p" + listCount;
     }
     private String patternVariable(@Nullable String narrowed) {
-        return Nulls.or(narrowed, () -> "") + "$" + ((narrowed == null ? "s" : "")) + newPattern();
+        return Nulls.<String>or(narrowed, () -> "") + "$" + ((narrowed == null ? "s" : "")) + newPattern();
     }
     private int newPattern() {
         patternCount += 1;
@@ -896,6 +896,16 @@ import org.axl.compiler.check.Whens;
         if (inner instanceof Expr.Name inner$1 && localTypes.containsKey(inner$1.name())) {
             return localTypes.get(inner$1.name());
         }
+        if (inner instanceof Expr.Elvis inner$2) {
+            final var left = typeOf(inner$2.left());
+            final var right = typeOf(inner$2.right());
+            return (left == null || right == null || !left.name().equals(right.name()) ? null :
+                    new TypeRef(left.pos(), left.name(), left.args(), right.nullable()));
+        }
+        if (inner instanceof Expr.NotNull inner$3) {
+            final var target = typeOf(inner$3.target());
+            return (target == null ? null : new TypeRef(target.pos(), target.name(), target.args(), false));
+        }
         return TypeInference.typeOf(file, inner);
     }
     private String elvisCode(Expr.Elvis elvis, String left) {
@@ -905,7 +915,16 @@ import org.axl.compiler.check.Whens;
         final var number = isNumber && widens(right, leftType) && (!Chains.hasSafeStep(elvis.left()) || left.matches("\\$t\\d+"));
         final @Nullable String narrow = (isNumber ? NARROW_NUMBERS.get(nameOf(leftType)) : null);
         final var fallback = (number ? expr(right) : lambdaFallback(right, narrow));
-        return joined("Nulls.or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")";
+        final var witness = (number || narrow != null ? "" : elvisWitness(leftType, right));
+        return joined("Nulls." + witness + "or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")";
+    }
+    private String elvisWitness(@Nullable TypeRef leftType, Expr right) {
+        final var rightType = typeOf(right);
+        if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
+            return "";
+        }
+        final var sameType = (leftType == null ? Boolean.valueOf(withoutParens(right) instanceof Expr.NotNull) : rightType.name().equals(leftType.name()));
+        return (sameType ? "<" + boxedType(rightType) + ">" : "");
     }
     private String lambdaFallback(Expr right, @Nullable String narrow) {
         if (narrow != null) {
@@ -1059,9 +1078,18 @@ import org.axl.compiler.check.Whens;
         return callCode(c, argsCode(c.args(), inLambda, c.pos().line()));
     }
     private String binaryCode(Expr.Binary b, boolean inLambda) {
-        final var left = exprIn(b.left(), inLambda);
-        final var right = narrowedValue(rightNarrowing(b), () -> exprIn(b.right(), inLambda));
+        final var left = compared(b, b.left(), exprIn(b.left(), inLambda));
+        final var right = compared(b, b.right(), narrowedValue(rightNarrowing(b), () -> exprIn(b.right(), inLambda)));
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()));
+    }
+    private String compared(Expr.Binary b, Expr operand, String code) {
+        final var inner = withoutParens(operand);
+        if ((!b.op().equals("==") && !b.op().equals("!=")) || (!(inner instanceof Expr.Try inner$1) && !(inner instanceof Expr.Elvis inner$2))) {
+            return code;
+        }
+        final var type = typeOf(operand);
+        final var primitive = (type == null || type.nullable() ? null : PRIMITIVE_NAMES.get(type.name()));
+        return (primitive == null ? code : "((" + primitive + ") " + code + ")");
     }
     private String withNullTests(String code, Expr condition) {
         final var tests = new ArrayList<String>();
@@ -1507,7 +1535,8 @@ import org.axl.compiler.check.Whens;
             return shortCircuit(line, b);
         }
         final var ops = operands(line, List.of(b.left(), b.right()));
-        final var code = joined(ops.get(0).code(), " " + b.op() + " ", ops.get(1).code(), startLine(b.left()), startLine(b.right()));
+        final var left = compared(b, b.left(), ops.get(0).code());
+        final var code = joined(left, " " + b.op() + " ", compared(b, b.right(), ops.get(1).code()), startLine(b.left()), startLine(b.right()));
         return new Lifted(code, false);
     }
     private Lifted liftedElvis(int line, Expr.Elvis el) {

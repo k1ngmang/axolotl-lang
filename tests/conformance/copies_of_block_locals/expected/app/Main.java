@@ -11,7 +11,7 @@ import java.util.List;
             var n = it;
             n += 10;
             final var $c1 = n;
-            System.out.println(Nulls.or(s, () -> "n=" + $c1));
+            System.out.println(Nulls.<String>or(s, () -> "n=" + $c1));
         });
         System.out.println(lengths());
     }

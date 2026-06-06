@@ -15,6 +15,6 @@ import org.jspecify.annotations.*;
         return 0.0;
     }
     public static String describe(@Nullable String label) {
-        return Nulls.or(label, () -> "none");
+        return Nulls.<String>or(label, () -> "none");
     }
 }

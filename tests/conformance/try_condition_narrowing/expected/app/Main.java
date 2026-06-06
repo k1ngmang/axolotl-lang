@@ -34,7 +34,7 @@ import org.jspecify.annotations.*;
             if (!(Result.unwrap($t1))) break;
             s = s + "x";
         }
-        return new Ok<>(Nulls.or(s, () -> "none"));
+        return new Ok<>(Nulls.<String>or(s, () -> "none"));
     }
     public static Result<Integer, String> guard(@Nullable String s) {
         if (s == null) {

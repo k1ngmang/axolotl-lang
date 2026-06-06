@@ -1020,6 +1020,17 @@ class Generator(
         if (inner is Expr.Name && localTypes.containsKey(inner.name())) {
             return localTypes.get(inner.name())
         }
+        // The parts may be locals, whose types the file-wide inference does not see.
+        if (inner is Expr.Elvis) {
+            val left = typeOf(inner.left())
+            val right = typeOf(inner.right())
+            return if (left == null || right == null || !left.name().equals(right.name())) null
+                else TypeRef(left.pos(), left.name(), left.args(), right.nullable())
+        }
+        if (inner is Expr.NotNull) {
+            val target = typeOf(inner.target())
+            return if (target == null) null else TypeRef(target.pos(), target.name(), target.args(), false)
+        }
         return TypeInference.typeOf(file, inner)
     }
 
@@ -1034,7 +1045,22 @@ class Generator(
         val number = isNumber && widens(right, leftType) && (!Chains.hasSafeStep(elvis.left()) || left.matches("\\$t\\d+"))
         val narrow: String? = if (isNumber) NARROW_NUMBERS.get(nameOf(leftType)) else null
         val fallback = if (number) expr(right) else lambdaFallback(right, narrow)
-        return joined("Nulls.or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")"
+        val witness = if (number || narrow != null) "" else elvisWitness(leftType, right)
+        return joined("Nulls." + witness + "or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")"
+    }
+
+    /**
+     * `Nulls.<String>or(...)`: NullAway infers the type of nested fallbacks again at every level, which
+     * takes exponential time, and infers `requireNonNull` in a fallback as nullable.
+     */
+    private fn elvisWitness(leftType: TypeRef?, right: Expr) -> String {
+        val rightType = typeOf(right)
+        if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
+            return ""
+        }
+        // `|> first ?: n()!!`: the left side has no known type, but `!!` says what the value is.
+        val sameType = if (leftType == null) withoutParens(right) is Expr.NotNull else rightType.name().equals(leftType.name())
+        return if (sameType) "<" + boxedType(rightType) + ">" else ""
     }
 
     private fn lambdaFallback(right: Expr, narrow: String?) -> String {
@@ -1166,9 +1192,23 @@ class Generator(
     }
 
     private fn binaryCode(b: Expr.Binary, inLambda: Boolean) -> String {
-        val left = exprIn(b.left(), inLambda)
-        val right = narrowedValue(rightNarrowing(b), { -> exprIn(b.right(), inLambda) })
+        val left = compared(b, b.left(), exprIn(b.left(), inLambda))
+        val right = compared(b, b.right(), narrowedValue(rightNarrowing(b), { -> exprIn(b.right(), inLambda) }))
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()))
+    }
+
+    /**
+     * `try a() == try b()` compares what Result.unwrap and Nulls.or give, which are boxed: a cast to
+     * the primitive compares the numbers, not the objects.
+     */
+    private fn compared(b: Expr.Binary, operand: Expr, code: String) -> String {
+        val inner = withoutParens(operand)
+        if ((!b.op().equals("==") && !b.op().equals("!=")) || (inner !is Expr.Try && inner !is Expr.Elvis)) {
+            return code
+        }
+        val type = typeOf(operand)
+        val primitive = if (type == null || type.nullable()) null else PRIMITIVE_NAMES.get(type.name())
+        return if (primitive == null) code else "((" + primitive + ") " + code + ")"
     }
 
     /**
@@ -1675,7 +1715,8 @@ class Generator(
             return shortCircuit(line, b)
         }
         val ops = operands(line, List.of(b.left(), b.right()))
-        val code = joined(ops.get(0).code(), " " + b.op() + " ", ops.get(1).code(), startLine(b.left()), startLine(b.right()))
+        val left = compared(b, b.left(), ops.get(0).code())
+        val code = joined(left, " " + b.op() + " ", compared(b, b.right(), ops.get(1).code()), startLine(b.left()), startLine(b.right()))
         return Lifted(code, false)
     }
 

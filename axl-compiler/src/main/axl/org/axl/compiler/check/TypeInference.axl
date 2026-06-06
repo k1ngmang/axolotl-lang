@@ -48,7 +48,16 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
         is Expr.GenericNew -> if (expr.typeArgs().isEmpty()) null else TypeRef(expr.pos(), expr.type(), expr.typeArgs(), false)
         is Expr.NotNull -> nonNull(of(expr.target()))
         is Expr.Conditional -> common(of(expr.then()), of(expr.otherwise()))
+        is Expr.Try -> okType(of(expr.inner()))
         else -> null
+    }
+
+    /** The value type of a `Result<T, E>`. */
+    private fn okType(result: TypeRef?) -> TypeRef? {
+        if (result == null || !(result.name().equals("Result") || result.name().equals("axl.lang.Result")) || result.args().size() != 2) {
+            return null
+        }
+        return result.args().getFirst()
     }
 
     /** The type of two branches when they have the same simple type, such as `Int` and `Int?`. */

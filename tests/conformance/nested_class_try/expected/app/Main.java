@@ -12,7 +12,7 @@ import org.jspecify.annotations.*;
         if ($t1.isErr()) return Result.propagate($t1);
         final var st = Thread.State.valueOf(Result.unwrap($t1));
         final @Nullable String s = "RUNNABLE";
-        final var st2 = Thread.State.valueOf(Nulls.or(s, () -> "NEW"));
+        final var st2 = Thread.State.valueOf(Nulls.<String>or(s, () -> "NEW"));
         System.out.println(Thread.State.valueOf(java.util.Objects.requireNonNull(s)));
         return new Ok<>(st.toString() + st2);
     }

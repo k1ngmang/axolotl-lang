@@ -22,7 +22,7 @@ import org.jspecify.annotations.*;
         System.out.println(count + 1);
         final var $t2 = Nulls.map(text(), $n3 -> $n3.length());
         System.out.println(Nulls.or($t2, -1));
-        final String s = Nulls.or(text(), () -> "none");
+        final String s = Nulls.<String>or(text(), () -> "none");
         System.out.println(s);
     }
 }

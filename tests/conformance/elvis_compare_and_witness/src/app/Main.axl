@@ -1,0 +1,24 @@
+package app
+
+import java.util.List
+
+fn number(v: Int) -> Int = v
+
+fn maybe() -> Int? = 3
+
+fn checked(v: Int) -> Result<Int, String> = Ok(v)
+
+fn same(a: Int?, b: Int?) -> Boolean = (a ?: number(1000)) == (b ?: number(1000))
+
+fn tried() -> Result<Boolean, String> = Ok(try checked(1000) == try checked(1000))
+
+fn main() {
+    println(same(null, null))
+    println(same(1, 2))
+    println(tried())
+    val xs = List.of(5)
+    val v = (xs |> filter { it > 100 } |> first) ?: maybe()!!
+    println(v + 1)
+    val s: String? = null
+    println(s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: "deep")
+}
