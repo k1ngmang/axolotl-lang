@@ -810,8 +810,11 @@ final class Messages {
         Matcher missingMethod = MISSING_METHOD.matcher(message);
         if (missingMethod.find()) {
             String parameters = missingMethod.group(3).isEmpty() ? "" : "...";
-            return "`" + missingMethod.group(1) + "` must give `fn " + missingMethod.group(2) + "(" + parameters
+            String required = "`" + missingMethod.group(1) + "` must give `fn " + missingMethod.group(2) + "(" + parameters
                     + ")`, which `" + simpleNames(axlType(missingMethod.group(4))) + "` requires";
+            String property = parameters.isEmpty() ? propertyType(javaLines, missingMethod.group(1), missingMethod.group(2)) : null;
+            return property == null ? required : required + "; a property gives a value only to an interface of the same "
+                    + "file, so add `fn " + missingMethod.group(2) + "() -> " + property + " = " + missingMethod.group(2) + "`";
         }
         Matcher abstractType = ABSTRACT.matcher(message);
         if (abstractType.find()) {
@@ -989,6 +992,25 @@ final class Messages {
             Matcher record = RECORD.matcher(line);
             if (record.find() && component.matcher(record.group(2)).find()) {
                 return record.group(1);
+            }
+        }
+        return null;
+    }
+
+    /** The Axolotl type of a property of a class of the file, or null when the class has no such property. */
+    private static String propertyType(String[] javaLines, String className, String property) {
+        Pattern start = Pattern.compile("^(\\s*)(?:public |private |static |final )*class " + Pattern.quote(className) + "\\b");
+        Pattern field = Pattern.compile("^\\s+(?:public |private )?(?:final )?([\\w.<>?, @]+) " + Pattern.quote(property) + ";$");
+        String end = null;
+        for (String line : javaLines) {
+            Matcher declaration = start.matcher(line);
+            Matcher found = field.matcher(line);
+            if (end == null && declaration.find()) {
+                end = declaration.group(1) + "}";
+            } else if (end != null && line.equals(end)) {
+                return null;
+            } else if (end != null && found.find()) {
+                return simpleNames(axlType(found.group(1)));
             }
         }
         return null;

@@ -1,0 +1,10 @@
+package app
+
+// A property gives the value of an interface of the same file only.
+class Box(val size: Int) : Sized
+
+class Crate(val count: Int) : Sized {
+    fn size() -> Int = count
+}
+
+data class Bag(val size: Int) : Sized
