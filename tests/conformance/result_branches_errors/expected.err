@@ -1,0 +1,2 @@
+AXL009 app/Main.axl:6:5: error: `val r` needs a type when it is initialized with branches that build an `Ok` or an `Err`: `val r: Type = ...`
+AXL009 app/Main.axl:10:46: error: `try` needs the type of these `Ok` and `Err` branches: compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`

@@ -168,7 +168,10 @@ Constants are literals, negative numbers or names of constants such as `Color.RE
 `Boolean` subject is compared branch by branch. A subject that may be null goes to `else`, or to a
 `null ->` branch, which may also stand next to `is` branches. A `when` stands as a statement, after `return` or as
 the body of a function, or gives a value (`val x = when ...`); only the last form cannot contain `try` or
-`return`, and none of them can be the single expression of a lambda or of a top-level value.
+`return`, and none of them can be the single expression of a lambda or of a top-level value. A `when`
+that gives a value cannot be the value of a class property, an argument after `?.` or part of a top-level
+value; compute it in a function instead. A lambda written as a branch of an `if` value needs
+parentheses: `if (c) ({ -> 1 }) else other`.
 
 ## Null safety
 
@@ -262,6 +265,9 @@ fn doubled(s: String) -> Result<Int, String> {
   right side only when they need it.
 - `try` is not allowed inside a lambda or `attempt` (it would return from the lambda), after `?.`
   and in `return try e` (write `return e`).
+- An `if` or `when` whose branches are `Ok(...)` and `Err(...)` takes its type from where it goes, a
+  result or a `val` with a type: `val r: Result<Int, String> = if (c) Ok(1) else Err("x")`. Java cannot
+  find the type of `val r = if (c) Ok(1) else Err("x")`, which is therefore an error.
 
 ## Pipes
 

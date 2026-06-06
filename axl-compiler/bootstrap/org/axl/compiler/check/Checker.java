@@ -473,9 +473,9 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void local(Stmt.Local stmt) {
         final var init = unparenthesized(stmt.init());
-        if ((init instanceof Expr.Lambda init$1 || isNull(init)) && stmt.type() == null) {
+        if ((init instanceof Expr.Lambda init$1 || isNull(init) || buildsResult(init)) && stmt.type() == null) {
             final var keyword = (stmt.mutable() ? "var" : "val");
-            final var what = (init instanceof Expr.Lambda init$2 ? "a lambda" : "`null`");
+            final var what = (init instanceof Expr.Lambda init$2 ? "a lambda" : (isNull(init) ? "`null`" : "branches that build an `Ok` or an `Err`"));
             error(stmt.pos(), ErrorCode.TYPE_REQUIRED, "`" + keyword + " " + stmt.name() +
                     "` needs a type when it is initialized with " +
                     what +
@@ -702,6 +702,10 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Expr.Try e$16 -> {
                 checkTryPlace(e$16.pos(), "`try`");
+                if (buildsResult(e$16.inner())) {
+                    error(e$16.pos(), ErrorCode.TYPE_REQUIRED, "`try` needs the type of these `Ok` and `Err` branches: " +
+                            "compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`");
+                }
                 expr(e$16.inner());
             }
             case Expr.Attempt e$17 -> {
@@ -1213,6 +1217,24 @@ import org.axl.compiler.ast.TypeRef;
     private static boolean isNullConstant(Expr.Cond c) {
         final var constant = c.constant();
         return constant != null && constant.text().equals("null");
+    }
+    private static boolean buildsResult(Expr e) {
+        final var inner = unparenthesized(e);
+        if (inner instanceof Expr.Conditional inner$1) {
+            return isResultCall(inner$1.then()) || isResultCall(inner$1.otherwise());
+        }
+        if (inner instanceof Expr.When inner$2) {
+            return inner$2.arms().stream().anyMatch(a -> armBuildsResult(a));
+        }
+        return false;
+    }
+    private static boolean armBuildsResult(Expr.Arm arm) {
+        final var last = (arm.body().isEmpty() ? null : arm.body().getLast());
+        return last instanceof Stmt.ExprStmt last$1 && isResultCall(last$1.expr());
+    }
+    private static boolean isResultCall(Expr e) {
+        final var inner = unparenthesized(e);
+        return inner instanceof Expr.Call inner$1 && inner$1.target() == null && (inner$1.name().equals("Ok") || inner$1.name().equals("Err"));
     }
     private static boolean isTypeDecl(Decl decl) {
         return decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.Interface decl$2 || decl instanceof Decl.ClassDecl decl$3 || decl instanceof Decl.EnumDecl decl$4;

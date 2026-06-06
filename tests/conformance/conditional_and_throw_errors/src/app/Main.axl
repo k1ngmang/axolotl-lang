@@ -5,6 +5,6 @@ fn load() -> Result<Int, String> = Ok(1)
 fn nested(n: Int) -> Int = 1 + throw IllegalStateException("x")
 
 fn tries(n: Int) -> Result<Int, String> {
-    val x = if (n > 0) try load() else Ok(0)
-    return x
+    val x = if (n > 0) try load() else 0
+    return Ok(x)
 }

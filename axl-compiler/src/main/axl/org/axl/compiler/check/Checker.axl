@@ -516,9 +516,9 @@ class Checker(val file: SourceFile) {
 
     private fn local(stmt: Stmt.Local) {
         val init = unparenthesized(stmt.init())
-        if ((init is Expr.Lambda || isNull(init)) && stmt.type() == null) {
+        if ((init is Expr.Lambda || isNull(init) || buildsResult(init)) && stmt.type() == null) {
             val keyword = if (stmt.mutable()) "var" else "val"
-            val what = if (init is Expr.Lambda) "a lambda" else "`null`"
+            val what = if (init is Expr.Lambda) "a lambda" else if (isNull(init)) "`null`" else "branches that build an `Ok` or an `Err`"
             error(stmt.pos(), ErrorCode.TYPE_REQUIRED, "`" + keyword + " " + stmt.name() +
                 "` needs a type when it is initialized with " + what + ": `" + keyword + " " + stmt.name() + ": Type = ...`")
         }
@@ -735,6 +735,10 @@ class Checker(val file: SourceFile) {
             is Expr.Paren -> expr(e.inner())
             is Expr.Try -> {
                 checkTryPlace(e.pos(), "`try`")
+                if (buildsResult(e.inner())) {
+                    error(e.pos(), ErrorCode.TYPE_REQUIRED, "`try` needs the type of these `Ok` and `Err` branches: " +
+                        "compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`")
+                }
                 expr(e.inner())
             }
             is Expr.Attempt -> attemptExpr(e)
@@ -1220,6 +1224,28 @@ fn check(file: SourceFile, diagnostics: List<AxlDiagnostic>) -> Analysis {
 private fn isNullConstant(c: Expr.Cond) -> Boolean {
     val constant = c.constant()
     return constant != null && constant.text().equals("null")
+}
+
+/** An `if` or `when` with a branch `Ok(...)` or `Err(...)`, which Java cannot type on its own. */
+private fn buildsResult(e: Expr) -> Boolean {
+    val inner = unparenthesized(e)
+    if (inner is Expr.Conditional) {
+        return isResultCall(inner.then()) || isResultCall(inner.otherwise())
+    }
+    if (inner is Expr.When) {
+        return inner.arms() |> anyMatch { a -> armBuildsResult(a) }
+    }
+    return false
+}
+
+private fn armBuildsResult(arm: Expr.Arm) -> Boolean {
+    val last = if (arm.body().isEmpty()) null else arm.body().getLast()
+    return last is Stmt.ExprStmt && isResultCall(last.expr())
+}
+
+private fn isResultCall(e: Expr) -> Boolean {
+    val inner = unparenthesized(e)
+    return inner is Expr.Call && inner.target() == null && (inner.name().equals("Ok") || inner.name().equals("Err"))
 }
 
 private fn isTypeDecl(decl: Decl) -> Boolean =

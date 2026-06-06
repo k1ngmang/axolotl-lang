@@ -1,0 +1,10 @@
+package app
+
+fn a() -> Result<Int, String> = Ok(1)
+
+fn pick(c: Boolean) -> Result<Int, String> {
+    val r = if (c) Ok(1) else Err("x")
+    return r
+}
+
+fn tried(n: Int) -> Result<Int, String> = Ok(try when (n) { 1 -> a(); else -> Err("x") })

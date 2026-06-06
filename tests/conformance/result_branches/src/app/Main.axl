@@ -1,0 +1,17 @@
+package app
+
+fn pick(c: Boolean) -> Result<Int, String> {
+    val r: Result<Int, String> = if (c) Ok(1) else Err("x")
+    return r
+}
+
+fn direct(n: Int) -> Result<Int, String> = when (n) {
+    1 -> Ok(1)
+    else -> Err("x")
+}
+
+fn main() {
+    println(pick(true))
+    println(pick(false))
+    println(direct(2))
+}
