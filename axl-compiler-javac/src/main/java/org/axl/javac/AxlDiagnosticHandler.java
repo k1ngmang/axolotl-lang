@@ -153,6 +153,10 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
         String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
+        if (rawType(diagnostic) && javaText.contains(" instanceof ")) {
+            // `is List` is tested raw on purpose; Java keeps no type arguments to test.
+            return null;
+        }
         int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic),
                 axlText, Messages.placement(translated, javaText));
         JCDiagnostic moved = factory.create(type, new DiagnosticSource(axl, log),

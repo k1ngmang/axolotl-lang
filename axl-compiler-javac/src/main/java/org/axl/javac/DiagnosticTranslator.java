@@ -55,7 +55,10 @@ public final class DiagnosticTranslator {
             return null;
         }
         if (diagnostic.getCode().endsWith("raw.class.use")) {
-            // A raw `ArrayList()` in generated code lets values of any type in.
+            // A raw `ArrayList()` in generated code lets values of any type in; `is List` is tested raw on purpose.
+            if (javaText.contains(" instanceof ")) {
+                return null;
+            }
             severity = AxlDiagnostic.Severity.ERROR;
         }
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);

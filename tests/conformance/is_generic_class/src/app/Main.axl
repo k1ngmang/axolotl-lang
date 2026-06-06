@@ -1,0 +1,9 @@
+package app
+
+fn describe(o: Object) -> String = if (o is java.util.List) "list" else if (o is java.util.Map) "map" else "other"
+
+fn main() {
+    println(describe(java.util.List.of(1)))
+    println(describe(java.util.Map.of()))
+    println(describe("x"))
+}
