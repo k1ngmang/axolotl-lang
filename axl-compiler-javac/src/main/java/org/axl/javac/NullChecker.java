@@ -53,6 +53,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -323,6 +324,14 @@ final class NullChecker implements TaskListener {
         private boolean reporting = true;
         // Locals that are not `final` and assigned after their declaration.
         private final Set<Element> reassigned = new HashSet<>();
+        // The origins and shapes of trees, valid while `state` and `shapes` hold what they held when
+        // computed. Each nesting level asks for those of the levels below again, which takes
+        // exponential time without them.
+        private final Map<ExpressionTree, Origin> knownOrigins = new HashMap<>();
+        private final Map<ExpressionTree, Shape> knownShapes = new HashMap<>();
+        private Map<Element, Origin> knownForState = Map.of();
+        private Map<Element, Shape> knownForShapes = Map.of();
+        private int computing;
 
         Scanner(CompilationUnitTree unit) {
             this.unit = unit;
@@ -1567,6 +1576,34 @@ final class NullChecker implements TaskListener {
         }
 
         private Origin origin(ExpressionTree expression) {
+            return known(knownOrigins, expression, this::computeOrigin);
+        }
+
+        /**
+         * A computed value of a tree. While one is computed, `state` changes only for the branches of
+         * a conditional, whose trees are always computed with that change.
+         */
+        private <T> T known(Map<ExpressionTree, T> known, ExpressionTree expression, Function<ExpressionTree, T> compute) {
+            if (computing == 0 && (!state.equals(knownForState) || !shapes.equals(knownForShapes))) {
+                knownOrigins.clear();
+                knownShapes.clear();
+                knownForState = new HashMap<>(state);
+                knownForShapes = new HashMap<>(shapes);
+            }
+            T value = known.get(expression);
+            if (value == null) {
+                computing++;
+                try {
+                    value = compute.apply(expression);
+                } finally {
+                    computing--;
+                }
+                known.put(expression, value);
+            }
+            return value;
+        }
+
+        private Origin computeOrigin(ExpressionTree expression) {
             ExpressionTree e = unwrap(expression);
             if (e.getKind() == Tree.Kind.NULL_LITERAL) {
                 return Origin.DECLARED;
@@ -1676,6 +1713,10 @@ final class NullChecker implements TaskListener {
 
         /** What may be null in the type arguments of a value, and in the value itself where a type argument makes it so. */
         private Shape shape(ExpressionTree expression) {
+            return known(knownShapes, expression, this::computeShape);
+        }
+
+        private Shape computeShape(ExpressionTree expression) {
             ExpressionTree e = unwrap(expression);
             Shape known = shapeOf(typeOf(e), Map.of());
             Element element = element(e);

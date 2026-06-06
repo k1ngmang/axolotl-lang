@@ -1,8 +1,11 @@
 package org.axl.javac;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.nio.file.Files;
+import java.time.Duration;
 import java.nio.file.Path;
 import java.util.List;
 import org.axl.compiler.AxlDiagnostic;
@@ -266,6 +269,23 @@ class AxlBuildTest {
         List<String> errors = result.diagnostics().stream().filter(AxlDiagnostic::isError)
                 .map(d -> d.line() + ":" + d.column() + " " + d.message().substring(0, 32)).toList();
         assertEquals(List.of("4:13 this string is too long for Java"), errors);
+    }
+
+    @Test
+    void checksDeeplyNestedCallsInLinearTime(@TempDir Path tmp) throws Exception {
+        String ids = "id(".repeat(30) + "1" + ")".repeat(30);
+        String lists = "List.of(".repeat(30) + "1" + ")".repeat(30);
+        String max = "x";
+        for (int i = 0; i < 30; i++) {
+            max = "Math.max(" + i + ", " + max + ")";
+        }
+        Path src = tmp.resolve("src");
+        Files.createDirectories(src.resolve("app"));
+        Files.writeString(src.resolve("app/Main.axl"), "package app\n\nimport java.util.List\n\nfn id(x: Int) -> Int = x\n\n"
+                + "fn main() {\n    val x = 1\n    println(" + ids + ")\n    println(" + lists + ")\n    println(" + max + ")\n}\n");
+        AxlBuild.Result result = assertTimeoutPreemptively(Duration.ofSeconds(20),
+                () -> new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).run());
+        assertTrue(result.success());
     }
 
     private static List<String> warnings(Path tmp, String source) throws Exception {
