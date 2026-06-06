@@ -12,5 +12,6 @@ import org.jspecify.annotations.*;
         final var c = System.nanoTime() > 0;
         System.out.println(Nulls.present((c ? Nulls.or(Nulls.map(s, $n1 -> $n1.length()), () -> 1000) : Integer.valueOf((false ? 42 : 7)))).value());
         System.out.println(shout(Nulls.present((c ? Nulls.or(Nulls.map(s, $n2 -> $n2.trim()), () -> "none") : "other")).value()));
+        System.out.println(Nulls.typed(((c ? Nulls.or(Nulls.map(s, $n3 -> $n3.length()), () -> 5) : "ab".length()))).value());
     }
 }

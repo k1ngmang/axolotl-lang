@@ -1569,8 +1569,11 @@ import org.axl.compiler.check.Whens;
                 final var temp = newTemp();
                 em.line(at, "final var " + temp + " = " + operand.code() + ";");
                 operand = new Lifted(temp, true);
-            } else if (e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1)) {
-                operand = new Lifted(typedConditional(e$1, operand.code()), operand.pure());
+            } else {
+                final var conditional = withoutParens(e);
+                if (conditional instanceof Expr.Conditional conditional$1 && branchBecomesCall(conditional$1)) {
+                    operand = new Lifted(typedConditional(conditional$1, operand.code()), operand.pure());
+                }
             }
             result.add(operand);
             k += 1;

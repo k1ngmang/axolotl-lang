@@ -7,4 +7,5 @@ fn main() {
     val c = System.nanoTime() > 0
     println(if (c) (s?.length() ?: 1000) else if (false) 42 else 7)
     println(shout(if (c) (s?.trim() ?: "none") else "other"))
+    println((if (c) (s?.length() ?: 5) else "ab".length()))
 }

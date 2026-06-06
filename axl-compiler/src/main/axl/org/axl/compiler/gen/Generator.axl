@@ -1745,8 +1745,11 @@ class Generator(
                 val temp = newTemp()
                 em.line(at, "final var " + temp + " = " + operand.code() + ";")
                 operand = Lifted(temp, true)
-            } else if (e is Expr.Conditional && branchBecomesCall(e)) {
-                operand = Lifted(typedConditional(e, operand.code()), operand.pure())
+            } else {
+                val conditional = withoutParens(e)
+                if (conditional is Expr.Conditional && branchBecomesCall(conditional)) {
+                    operand = Lifted(typedConditional(conditional, operand.code()), operand.pure())
+                }
             }
             result.add(operand)
             k += 1
