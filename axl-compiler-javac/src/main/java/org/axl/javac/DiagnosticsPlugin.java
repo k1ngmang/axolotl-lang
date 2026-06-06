@@ -65,7 +65,10 @@ public final class DiagnosticsPlugin implements Plugin {
         InitCycles initCycles = new InitCycles(task);
         task.addTaskListener(nullChecker);
         task.addTaskListener(initCycles);
+        RawTypes rawTypes = new RawTypes(task);
+        task.addTaskListener(rawTypes);
         task.addTaskListener(new AnalysisEnd(task, () -> {
+            rawTypes.report();
             initCycles.report();
             nullChecker.report();
         }));

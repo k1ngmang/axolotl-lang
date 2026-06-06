@@ -38,7 +38,6 @@ final class Messages {
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
     private static final Pattern NO_INSTANCE = Pattern.compile(
             "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+)$");
-    private static final Pattern RAW_TYPE = Pattern.compile("^found raw type: ([\\w.$]+)");
     private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile(
             "^incompatible types: (?:bad type in conditional expression; )?(.+) cannot be converted to (.+?)(?: \\(.+ is a subtype of .+\\))?$");
@@ -339,6 +338,9 @@ final class Messages {
         if (message.startsWith(NullChecker.STRICT_PREFIX)) {
             return new Translated(ErrorCode.STRICT_NULL, message.substring(NullChecker.STRICT_PREFIX.length()));
         }
+        if (message.startsWith(RawTypes.PREFIX)) {
+            return new Translated(ErrorCode.JAVAC, message.substring(RawTypes.PREFIX.length()));
+        }
         if (message.startsWith(InitCycles.PREFIX)) {
             return new Translated(ErrorCode.INIT_ORDER, message.substring(InitCycles.PREFIX.length()));
         }
@@ -569,12 +571,6 @@ final class Messages {
             return found.equals("Result") && text.contains("Result.attempt(")
                     ? "`attempt` gives a `Result`, but `" + expected + "` is expected"
                     : "type mismatch: expected `" + expected + "`, found `" + found + "`";
-        }
-        Matcher raw = RAW_TYPE.matcher(message);
-        if (raw.find()) {
-            String type = simpleNames(axlType(raw.group(1)));
-            return "`" + type + "` needs its type arguments, such as `" + type + "<String>`, or any value could go in; "
-                    + "a new object written `" + type + "<>()` takes them from the type it is stored as";
         }
         Matcher lossy = LOSSY.matcher(message);
         if (lossy.find()) {

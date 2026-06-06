@@ -63,8 +63,6 @@ public final class JavaCompilation {
                     "--release", "21",
                     "-encoding", "UTF-8",
                     "-proc:none",
-                    // Reported as errors in generated code: a raw `ArrayList()` lets any element in.
-                    "-Xlint:rawtypes",
                     "-d", classesDir.toString(),
                     "-classpath", classpath.stream().map(Path::toString).collect(Collectors.joining(java.io.File.pathSeparator))));
             if (nullChecks) {

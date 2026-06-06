@@ -137,7 +137,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     }
 
     private JCDiagnostic move(JCDiagnostic diagnostic) {
-        DiagnosticType type = rawType(diagnostic) ? DiagnosticType.ERROR : diagnostic.getType();
+        DiagnosticType type = diagnostic.getType();
         if (type != DiagnosticType.ERROR && type != DiagnosticType.WARNING || diagnostic.getSource() == null
                 || !"file".equals(diagnostic.getSource().toUri().getScheme())) {
             return null;
@@ -153,10 +153,6 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
         String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
-        if (rawType(diagnostic) && javaText.contains(" instanceof ")) {
-            // `is List` is tested raw on purpose; Java keeps no type arguments to test.
-            return null;
-        }
         int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic),
                 axlText, Messages.placement(translated, javaText));
         JCDiagnostic moved = factory.create(type, new DiagnosticSource(axl, log),
@@ -174,9 +170,6 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         return Messages.ignored(DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT)), javaText, mapping.axl().text);
     }
 
-    private static boolean rawType(JCDiagnostic diagnostic) {
-        return diagnostic.getType() == DiagnosticType.WARNING && diagnostic.getCode().endsWith("raw.class.use");
-    }
 
     private Mapping mapping(Path javaFile) {
         return mappings.computeIfAbsent(javaFile, this::load);

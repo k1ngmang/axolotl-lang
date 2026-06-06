@@ -54,13 +54,6 @@ public final class DiagnosticTranslator {
         if (Messages.ignored(message, javaText, String.join("\n", source.axlLines()))) {
             return null;
         }
-        if (diagnostic.getCode().endsWith("raw.class.use")) {
-            // A raw `ArrayList()` in generated code lets values of any type in; `is List` is tested raw on purpose.
-            if (javaText.contains(" instanceof ")) {
-                return null;
-            }
-            severity = AxlDiagnostic.Severity.ERROR;
-        }
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
         Messages.Translated translated = Messages.translate(message, javaLines, javaLine);
         int line = Math.max(axlLine, 1);
