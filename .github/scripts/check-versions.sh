@@ -1,16 +1,21 @@
 #!/bin/sh
-# Usage: check-versions.sh <tag>
+# Usage: check-versions.sh [tag]
 # Fails unless the tag, without its v, is the version of the Gradle build and of every file that
-# repeats it outside Gradle, the release notes for the tag exist, and the POMs use the library
-# versions of gradle/libs.versions.toml.
+# repeats it outside Gradle, the release notes for the tag exist, the tag is new or names the
+# commit being checked, and the POMs use the library versions of gradle/libs.versions.toml.
+# Without a tag, it only checks that the files agree with the version of the Gradle build.
 set -e
 
-expected="${1#v}"
+gradle_version=$(./gradlew -q properties --property version | tr -d '\r' | sed -n 's/^version: //p')
+expected="${1:-$gradle_version}"
+expected="${expected#v}"
+against=${1:+the tag says}
+against=${against:-the Gradle build has}
 status=0
 
 check() {
     if [ "$2" != "$expected" ]; then
-        echo "$1 has version '$2', the tag says $expected" >&2
+        echo "$1 has version '$2', $against $expected" >&2
         status=1
     fi
 }
@@ -20,7 +25,7 @@ pom_version() {
     sed -n 's#^  <version>\(.*\)</version>$#\1#p' "$1" | head -1
 }
 
-check "the Gradle build" "$(./gradlew -q properties --property version | sed -n 's/^version: //p')"
+check "the Gradle build" "$gradle_version"
 check axl-maven-plugin/pom.xml "$(pom_version axl-maven-plugin/pom.xml)"
 check axl-maven-plugin/axl-archetype-quickstart/pom.xml "$(pom_version axl-maven-plugin/axl-archetype-quickstart/pom.xml)"
 metadata=axl-maven-plugin/axl-archetype-quickstart/src/main/resources/META-INF/maven/archetype-metadata.xml
@@ -42,10 +47,26 @@ for file in README.md docs/*.md editors/vscode/README.md samples/maven-app/pom.x
     done
 done
 
-notes=".github/release/$1.md"
-if [ ! -f "$notes" ]; then
-    echo "$notes is missing; the release takes its notes from there" >&2
-    status=1
+if [ -n "$1" ]; then
+    notes=".github/release/$1.md"
+    if [ ! -f "$notes" ]; then
+        echo "$notes is missing; the release takes its notes from there" >&2
+        status=1
+    fi
+    # A release started again for an old tag would attach the builds of this commit to it.
+    if ! remote=$(git ls-remote --tags origin "refs/tags/$1" "refs/tags/$1^{}"); then
+        echo "cannot list the tags of origin to check that $1 is new" >&2
+        status=1
+    fi
+    # The peeled line of an annotated tag sorts last and names its commit.
+    tagged=$(echo "$remote" | sort -k2 | tail -1 | cut -f1)
+    if [ -z "$tagged" ]; then
+        tagged=$(git rev-parse -q --verify "refs/tags/$1^{commit}" || true)
+    fi
+    if [ -n "$tagged" ] && [ "$tagged" != "$(git rev-parse HEAD)" ]; then
+        echo "the tag $1 already exists, on commit $tagged; release a new version instead" >&2
+        status=1
+    fi
 fi
 
 catalog() {
