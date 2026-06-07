@@ -725,6 +725,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void deletesTheDraftsOfATranslationThatOutlivesTheServer() throws Exception {
+        Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
+        Workspace other = new Workspace();
+        other.open(List.of(project));
+        List<Path> before = temporaryDirectories(tmp);
+        other.close();
+        Path file = Files.writeString(project.resolve("src/main/axl/app/Main.axl"), "package app\n");
+        other.update(file.toUri().toString(), "package app\n");
+        List<Path> left = temporaryDirectories(tmp).stream().filter(p -> !before.contains(p)).toList();
+        assertEquals(List.of(), left);
+    }
+
+    @Test
     void deletesTheDirectoryOfACompilationThatOutlivesTheServer() throws Exception {
         Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
         List<Path> before = temporaryDirectories(tmp);

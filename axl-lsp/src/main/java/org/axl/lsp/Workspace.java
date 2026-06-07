@@ -82,12 +82,14 @@ final class Workspace {
     private final JavaStubs javaStubs = new JavaStubs();
     // Files that are not open, by path, translated once for each text they have on disk.
     private final Map<Path, Document> closedDocuments = new HashMap<>();
-    private final Map<Module, Path> drafts = new HashMap<>();
+    // Read by close() on the protocol thread too.
+    private final Map<Module, Path> drafts = new ConcurrentHashMap<>();
     // The Java file in the drafts directory of each .axl file, deleted when its class or package changes.
     private final Map<Path, Path> draftFiles = new HashMap<>();
     private ModuleCompiler compiler;
     // Off for a client that shows the translator's diagnostics itself, as the IntelliJ plugin does.
     private boolean translatorDiagnostics = true;
+    private volatile boolean shutDown;
 
     private static Thread thread(Runnable work, String name) {
         Thread thread = new Thread(null, work, name, STACK_SIZE);
@@ -162,6 +164,7 @@ final class Workspace {
      * in the JVM. The threads are daemons and end with it.
      */
     void close() {
+        shutDown = true;
         compiles.shutdown();
         executor.shutdown();
         deleteTemporaryFiles();
@@ -175,12 +178,14 @@ final class Workspace {
     }
 
     private void deleteDrafts() {
-        for (Path dir : drafts.values()) {
-            try {
-                ModuleCompiler.delete(dir);
-            } catch (IOException | UncheckedIOException e) {
-                // A temporary directory left behind does no harm.
-            }
+        drafts.values().forEach(Workspace::deleteQuietly);
+    }
+
+    private static void deleteQuietly(Path dir) {
+        try {
+            ModuleCompiler.delete(dir);
+        } catch (IOException | UncheckedIOException e) {
+            // A temporary directory left behind does no harm.
         }
     }
 
@@ -557,6 +562,26 @@ final class Workspace {
         }
         try {
             dir = Files.createTempDirectory("axl-lsp-drafts");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        // Registered before the translation, which may take long, so that closing meanwhile deletes it.
+        drafts.put(module, dir);
+        boolean written = false;
+        try {
+            writeDrafts(module, dir);
+            written = true;
+        } finally {
+            if (!written || shutDown) {
+                drafts.remove(module);
+                deleteQuietly(dir);
+            }
+        }
+        return dir;
+    }
+
+    private void writeDrafts(Module module, Path dir) {
+        try {
             List<Translation.Input> inputs = new ArrayList<>();
             List<Path> files = new ArrayList<>();
             for (Path root : module.axlRoots()) {
@@ -583,17 +608,16 @@ final class Workspace {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        drafts.put(module, dir);
-        return dir;
     }
 
     private static boolean isDuplicate(Translator.Result result) {
         return result.diagnostics().stream().anyMatch(d -> d.code() == ErrorCode.DUPLICATE_CLASS);
     }
 
+    /** Not after closing, which would write the deleted drafts directory again. */
     private void writeDraft(Document document) {
         GeneratedUnit unit = document.javaUnit();
-        if (unit == null) {
+        if (unit == null || shutDown) {
             return;
         }
         try {
