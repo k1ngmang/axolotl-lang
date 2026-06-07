@@ -69,7 +69,9 @@ In a build of several projects, such as `samples/multi-module-gradle` where `app
 `core`, the directory layout does not tell which project uses which, so without descriptions
 `app` gets false errors for everything it takes from `core`. Run `axlLspConfig`: the description
 of `app` then lists the source roots of `core` after its own and leaves `core`'s classes and jar
-out of the classpath, so edits to `core` are seen in `app` before a build. `axl:lsp-config` writes
+out of the classpath, so edits to `core` are seen in `app` before a build. The libraries stay those
+`app` compiles against: one that `core` takes with `implementation` is not offered in `app`, since
+`compileJava` would not find it there either. `axl:lsp-config` writes
 the classpath as Maven resolves it, so a sibling Maven module is seen through its compiled classes
 or its installed jar, which only a build updates.
 

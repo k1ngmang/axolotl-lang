@@ -327,6 +327,22 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void writesLanguageServerConfigWithoutTheImplementationLibrariesOfProjectDependencies() throws IOException {
+        Path build = project.resolve("core/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + """
+                dependencies {
+                    api(files("libs/shared.jar"))
+                    implementation(files("libs/internal.jar"))
+                }
+                """);
+        gradle(":core:axlLspConfig", ":app:axlLspConfig").build();
+        String core = Files.readString(project.resolve("core/build/axl/axl.json"));
+        assertTrue(core.contains("shared.jar") && core.contains("internal.jar"), core);
+        String app = Files.readString(project.resolve("app/build/axl/axl.json"));
+        assertTrue(app.contains("shared.jar") && !app.contains("internal.jar"), app);
+    }
+
+    @Test
     void writesLanguageServerConfigWithoutCompiling() throws IOException {
         Path titles = project.resolve("core/src/main/axl/core/Titles.axl");
         Files.writeString(titles, Files.readString(titles) + "\nfn broken() -> Int = \"x\"\n");

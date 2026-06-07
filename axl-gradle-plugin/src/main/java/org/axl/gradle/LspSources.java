@@ -14,9 +14,10 @@ import org.gradle.api.tasks.SourceSetContainer;
 
 /**
  * What the language server needs of a source set: its sources, then the sources of the source
- * sets and projects it compiles against, and the libraries. The language server reads the
+ * sets and projects it compiles against, and its libraries. The language server reads the
  * sources of those, so that their edits are seen without a build and their old class files are
- * not, and takes their libraries too.
+ * not. Their own libraries stay out: the source set's files may only use what it compiles
+ * against, and the `implementation` libraries of another project are not on that classpath.
  */
 final class LspSources {
 
@@ -29,6 +30,7 @@ final class LspSources {
 
     static LspSources of(Project project, SourceSet sourceSet) {
         LspSources sources = new LspSources();
+        sources.classpath.addAll(sourceSet.getCompileClasspath().getFiles());
         sources.add(project, sourceSet);
         return sources;
     }
@@ -42,10 +44,10 @@ final class LspSources {
         }
         File buildDir = project.getLayout().getBuildDirectory().get().getAsFile();
         sourceSet.getJava().getSrcDirs().stream().filter(dir -> !dir.toPath().startsWith(buildDir.toPath())).forEach(java::add);
-        Set<File> libraries = new LinkedHashSet<>(sourceSet.getCompileClasspath().getFiles());
         SourceSet main = mainOf(project);
-        if (main != null && main != sourceSet && libraries.containsAll(main.getOutput().getClassesDirs().getFiles())) {
-            libraries.removeAll(main.getOutput().getFiles());
+        if (main != null && main != sourceSet
+                && sourceSet.getCompileClasspath().getFiles().containsAll(main.getOutput().getClassesDirs().getFiles())) {
+            classpath.removeAll(main.getOutput().getFiles());
             add(project, main);
         }
         Configuration configuration = project.getConfigurations().getByName(sourceSet.getCompileClasspathConfigurationName());
@@ -54,11 +56,10 @@ final class LspSources {
                     ? project.findProject(id.getProjectPath()) : null;
             SourceSet otherMain = other == null ? null : mainOf(other);
             if (otherMain != null) {
-                libraries.remove(artifact.getFile());
+                classpath.remove(artifact.getFile());
                 add(other, otherMain);
             }
         }
-        classpath.addAll(libraries);
     }
 
     private static SourceSet mainOf(Project project) {
