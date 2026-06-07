@@ -130,7 +130,10 @@ final class Workspace {
         discover();
     }
 
-    /** Finds the modules, and forgets everything derived from the ones found before. */
+    /**
+     * Finds the modules, and forgets everything derived from the ones found before, except the
+     * compile errors of the modules that are described as before, which stay until they are compiled again.
+     */
     private void discover() {
         project = configuredModules != null ? ProjectModel.of(configuredModules) : ProjectModel.discover(roots);
         deleteDrafts();
@@ -138,7 +141,10 @@ final class Workspace {
         draftFiles.clear();
         closedDocuments.clear();
         javaModels.clear();
-        compileErrors.clear();
+        compileErrors.keySet().retainAll(project.modules());
+        List<String> stale = publishedClosed.entrySet().stream().filter(e -> !project.modules().contains(e.getValue()))
+                .map(Map.Entry::getKey).toList();
+        stale.forEach(uri -> publishClosed(uri, publishedClosed.get(uri), List.of()));
         if (client != null) {
             project.problems().forEach(p -> client.showMessage(new MessageParams(MessageType.Warning, p)));
         }
@@ -229,9 +235,9 @@ final class Workspace {
         javaModels.clear();
         for (Document document : List.copyOf(open.values())) {
             update(document.uri, document.text);
-            if (modulesChanged) {
-                compileLater(document.uri, true);
-            }
+        }
+        if (modulesChanged) {
+            open.values().stream().map(d -> d.module).distinct().forEach(this::compileLater);
         }
     }
 

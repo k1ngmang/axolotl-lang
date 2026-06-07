@@ -398,6 +398,20 @@ class WorkspaceTest {
     }
 
     @Test
+    void keepsTheErrorsOfModulesThatAreFoundAgainUnchanged() throws Exception {
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Lib.thrice(3))\n}\n");
+        workspace.saved(main);
+        assertEquals(List.of(3), errorLines(main));
+
+        Path other = Files.createDirectories(project.resolve("src/other/axl"));
+        workspace.filesChanged(List.of(other));
+        assertEquals(List.of(3), errorLines(main));
+        Path description = Files.writeString(project.resolve("axl.json"), "{\"sourceRoots\": [\"src/main/axl\"]}");
+        workspace.filesChanged(List.of(description));
+        assertEquals(List.of(3), errorLines(main));
+    }
+
+    @Test
     void takesTheModulesTheClientDescribes() throws Exception {
         Path java = Files.createDirectories(project.resolve("lib/app")).resolve("Helper.java");
         Files.writeString(java, "package app;\n\npublic class Helper {\n    public static int one() { return 1; }\n}\n");
