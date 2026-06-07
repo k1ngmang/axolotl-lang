@@ -1,0 +1,20 @@
+package app
+import java.util.function.Supplier
+
+class Counter(val text: String) {
+    val size: Supplier<Int> = this::count
+    val later: String = text + "!"
+    fn count() -> Int = later.length()
+}
+
+class Box {
+    fn size() -> Int = early.length()
+}
+
+val early: String = "ab".trim()
+val sizes: Int = Box().size() + java.util.List.of(Box()).get(0).size()
+
+fn main() {
+    println(Counter("a").size.get())
+    println(sizes)
+}

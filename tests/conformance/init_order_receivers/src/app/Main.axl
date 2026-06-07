@@ -1,0 +1,35 @@
+package app
+import java.util.List
+import java.util.function.Supplier
+
+class Box {
+    fn size() -> Int = late.length()
+    fn toString() -> String = late
+}
+
+fn local() -> Int {
+    val box = Box()
+    return box.size()
+}
+
+fn loop(boxes: List<Box>) -> Int {
+    var total = 0
+    for (box in boxes) {
+        total += box.size()
+    }
+    return total
+}
+
+val boxes: List<Box> = List.of(Box())
+val viaLocal: Int = local()
+val viaLoop: Int = loop(boxes)
+val viaElement: Int = boxes.get(0).size()
+val viaPipe: List<Int> = List.of(Box()) |> map { it.size() }
+val ref: Supplier<Int> = Box()::size
+val viaRef: Int = ref.get()
+val viaText: String = "x" + Box()
+val late: String = "late".trim()
+
+fn main() {
+    println(viaLocal)
+}

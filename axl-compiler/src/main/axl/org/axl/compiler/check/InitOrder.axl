@@ -10,6 +10,7 @@ import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.Stmt
+import org.axl.compiler.ast.TypeRef
 
 /**
  * Top-level values are static fields set in declaration order, so a value that reads a later one,
@@ -24,8 +25,10 @@ class InitOrder(val file: SourceFile) {
     // The class whose code is being followed: its methods are called by their names alone.
     var owner: Decl.ClassDecl? = null
 
-    // The written types of the parameters of the function being followed.
-    var paramTypes: Map<String, String> = HashMap<String, String>()
+    // The type names of the parameters and locals in scope in the code being followed, and the type
+    // names of the elements of those that are collections.
+    var classes: Map<String, String> = HashMap<String, String>()
+    var elements: Map<String, String> = HashMap<String, String>()
 
     fn problems() -> List<Problem> {
         val values = ArrayList<Decl.Value>()
@@ -117,10 +120,9 @@ class InitOrder(val file: SourceFile) {
                 }
             }
             is Expr.GenericNew -> arguments(expr.args(), hidden, out)
+            // Taking a reference runs nothing; storing, passing or calling it is followed where it happens.
             is Expr.MethodRef -> {
-                if (isThis(expr.target())) {
-                    function(expr.name(), out)
-                } else {
+                if (!isThis(expr.target())) {
                     names(expr.target(), hidden, out)
                 }
             }
@@ -129,6 +131,11 @@ class InitOrder(val file: SourceFile) {
             is Expr.Binary -> {
                 names(expr.left(), hidden, out)
                 names(expr.right(), hidden, out)
+                if (expr.op().equals("+")) {
+                    // `"x" + box` calls the toString of the box.
+                    toStringOf(expr.left(), hidden, out)
+                    toStringOf(expr.right(), hidden, out)
+                }
             }
             is Expr.Elvis -> {
                 names(expr.left(), hidden, out)
@@ -174,15 +181,22 @@ class InitOrder(val file: SourceFile) {
             // `make().get()` calls the lambda that `make` returns.
             val returned = returnedLambda(target)
             if (returned != null) {
-                lambdaBody(returned, Set.of(), out)
+                lambdaBody(returned, Set.of(), out, null)
             }
         }
         arguments(call.args(), hidden, out)
     }
 
+    private fn toStringOf(e: Expr, hidden: Set<String>, out: Set<String>) {
+        val c = classOf(e, hidden)
+        if (c != null) {
+            method(c, "toString", out)
+        }
+    }
+
     /**
-     * The class of this file an expression has: an object it creates, a parameter, a top-level value
-     * or a function result of that class.
+     * The class of this file an expression has: an object it creates, a parameter, local or top-level
+     * value, an element of a collection or a function result of that class.
      */
     private fn classOf(e: Expr, hidden: Set<String>) -> Decl.ClassDecl? {
         val created = constructed(e)
@@ -191,18 +205,28 @@ class InitOrder(val file: SourceFile) {
         }
         val inner = unparenthesized(e)
         if (inner is Expr.Name) {
-            val param = paramTypes.get(inner.name())
-            if (param != null) {
-                return classNamed(param)
+            val local = classes.get(inner.name())
+            if (local != null) {
+                return classNamed(local)
             }
             return if (hidden.contains(inner.name())) null else valueClass(inner.name())
         }
-        if (inner is Expr.Call && inner.target() == null) {
-            for (decl in file.decls()) {
-                val result = if (decl is Decl.Function && decl.name().equals(inner.name())) decl.returnType() else null
-                if (result != null) {
-                    return classNamed(result.name())
-                }
+        if (inner is Expr.Call) {
+            val target = inner.target()
+            if (target == null) {
+                return resultClass(inner.name())
+            }
+            val element = if (ELEMENT_GETTERS.contains(inner.name())) elementOf(target, hidden) else null
+            return if (element == null) null else classNamed(element)
+        }
+        return null
+    }
+
+    private fn resultClass(function: String) -> Decl.ClassDecl? {
+        for (decl in file.decls()) {
+            val result = if (decl is Decl.Function && decl.name().equals(function)) decl.returnType() else null
+            if (result != null) {
+                return classNamed(result.name())
             }
         }
         return null
@@ -216,6 +240,49 @@ class InitOrder(val file: SourceFile) {
             }
         }
         return null
+    }
+
+    /** The type name of the elements of a collection: a parameter, local or value, or `List.of(a, ...)`. */
+    private fn elementOf(e: Expr, hidden: Set<String>) -> String? {
+        val inner = unparenthesized(e)
+        if (inner is Expr.Name) {
+            val local = elements.get(inner.name())
+            if (local != null || hidden.contains(inner.name())) {
+                return local
+            }
+            return valueElement(inner.name())
+        }
+        if (inner is Expr.Call && inner.target() != null && inner.name().equals("of") && !inner.args().isEmpty()) {
+            val first = classOf(inner.args().get(0), hidden)
+            return if (first == null) null else first.name()
+        }
+        return null
+    }
+
+    private fn valueElement(name: String) -> String? {
+        for (decl in file.decls()) {
+            if (decl is Decl.Value && decl.name().equals(name)) {
+                val type = decl.type()
+                // `val a = b` with `val b = a` would never end.
+                val init = decl.init()
+                return if (type != null) elementName(type) else if (unparenthesized(init) is Expr.Name) null else elementOf(init, Set.of())
+            }
+        }
+        return null
+    }
+
+    /** Remembers or forgets what a parameter or local holds, as a later one of the same name hides it. */
+    private fn track(name: String, type: String?, element: String?) {
+        if (type == null) {
+            classes.remove(name)
+        } else {
+            classes.put(name, type)
+        }
+        if (element == null) {
+            elements.remove(name)
+        } else {
+            elements.put(name, element)
+        }
     }
 
     /** The class of this file that an expression creates an object of, if it is a constructor call. */
@@ -298,13 +365,17 @@ class InitOrder(val file: SourceFile) {
 
     private fn pipeNames(pipe: Expr.Pipe, hidden: Set<String>, out: Set<String>) {
         names(pipe.source(), hidden, out)
+        var element = elementOf(pipe.source(), hidden)
         for (stage in pipe.stages()) {
             for (arg in stage.args()) {
                 names(arg, hidden, out)
             }
             val lambda = stage.lambda()
             if (lambda != null) {
-                lambdaBody(lambda, hidden, out)
+                lambdaBody(lambda, hidden, out, element)
+            }
+            if (!SAME_ELEMENTS.contains(stage.name())) {
+                element = null
             }
         }
     }
@@ -314,12 +385,25 @@ class InitOrder(val file: SourceFile) {
         for (arg in args) {
             val inner = unparenthesized(arg)
             if (inner is Expr.Lambda) {
-                lambdaBody(inner, hidden, out)
-            } else if (inner is Expr.MethodRef && (isThisClass(inner.target()) || isThis(inner.target()))) {
-                function(inner.name(), out)
+                lambdaBody(inner, hidden, out, null)
             } else {
                 names(arg, hidden, out)
+                if (inner is Expr.MethodRef) {
+                    calledRef(inner, hidden, out)
+                }
             }
+        }
+    }
+
+    /** What calling `this::m`, `Main::m` or `box::m` runs, where the box has a class of this file. */
+    private fn calledRef(ref: Expr.MethodRef, hidden: Set<String>, out: Set<String>) {
+        if (isThisClass(ref.target()) || isThis(ref.target())) {
+            function(ref.name(), out)
+            return
+        }
+        val c = classOf(ref.target(), hidden)
+        if (c != null) {
+            method(c, ref.name(), out)
         }
     }
 
@@ -345,23 +429,40 @@ class InitOrder(val file: SourceFile) {
         }
     }
 
+    /** A value or property initializer, which sees none of the locals of the code that reads it. */
     private fn calledValue(init: Expr, out: Set<String>) {
+        val outerClasses = classes
+        val outerElements = elements
+        classes = HashMap<String, String>()
+        elements = HashMap<String, String>()
         if (init is Expr.Lambda) {
-            lambdaBody(init, Set.of(), out)
-        } else if (init is Expr.MethodRef && (isThisClass(init.target()) || isThis(init.target()))) {
-            function(init.name(), out)
+            lambdaBody(init, Set.of(), out, null)
+        } else if (init is Expr.MethodRef) {
+            calledRef(init, Set.of(), out)
         }
+        classes = outerClasses
+        elements = outerElements
     }
 
-    private fn lambdaBody(lambda: Expr.Lambda, hidden: Set<String>, out: Set<String>) {
+    /** element: the type name of the single parameter, as in a stage of a pipe over a collection. */
+    private fn lambdaBody(lambda: Expr.Lambda, hidden: Set<String>, out: Set<String>, element: String?) {
+        val outerClasses = classes
+        val outerElements = elements
+        classes = HashMap<String, String>(classes)
+        elements = HashMap<String, String>(elements)
         val scope = HashSet<String>(hidden)
         for (param in lambda.params()) {
             scope.add(param.name())
+            val type = param.type()
+            track(param.name(), if (type == null) element else type.name(), if (type == null) null else elementName(type))
         }
         if (lambda.params().isEmpty()) {
             scope.add("it")
+            track("it", element, null)
         }
         statements(lambda.body(), scope, out)
+        classes = outerClasses
+        elements = outerElements
     }
 
     private fn function(name: String, out: Set<String>) {
@@ -390,17 +491,18 @@ class InitOrder(val file: SourceFile) {
     }
 
     private fn body(f: Decl.Function, out: Set<String>) {
+        val outerClasses = classes
+        val outerElements = elements
+        classes = HashMap<String, String>()
+        elements = HashMap<String, String>()
         val scope = HashSet<String>()
-        val types = HashMap<String, String>()
         for (param in f.params()) {
             scope.add(param.name())
             val type = param.type()
             if (type != null) {
-                types.put(param.name(), type.name())
+                track(param.name(), type.name(), elementName(type))
             }
         }
-        val outerTypes = paramTypes
-        paramTypes = types
         val exprBody = f.exprBody()
         val block = f.body()
         if (exprBody != null) {
@@ -408,7 +510,8 @@ class InitOrder(val file: SourceFile) {
         } else if (block != null) {
             statements(block.statements(), scope, out)
         }
-        paramTypes = outerTypes
+        classes = outerClasses
+        elements = outerElements
     }
 
     /** `Main.names` and `app.Main.names` name a value of this file too. */
@@ -437,11 +540,21 @@ class InitOrder(val file: SourceFile) {
         when (stmt) {
             is Stmt.Local -> {
                 val init = unparenthesized(stmt.init())
-                // A lambda kept in a local is there to be called.
+                // A lambda or a function reference kept in a local is there to be called.
                 if (init is Expr.Lambda) {
-                    lambdaBody(init, hidden, out)
+                    lambdaBody(init, hidden, out, null)
                 } else {
                     names(stmt.init(), hidden, out)
+                    if (init is Expr.MethodRef) {
+                        calledRef(init, hidden, out)
+                    }
+                }
+                val type = stmt.type()
+                if (type != null) {
+                    track(stmt.name(), type.name(), elementName(type))
+                } else {
+                    val c = classOf(init, hidden)
+                    track(stmt.name(), if (c == null) null else c.name(), elementOf(init, hidden))
                 }
             }
             is Stmt.Assign -> {
@@ -468,6 +581,7 @@ class InitOrder(val file: SourceFile) {
             }
             is Stmt.For -> {
                 names(stmt.iterable(), hidden, out)
+                track(stmt.name(), elementOf(stmt.iterable(), hidden), null)
                 statement(stmt.body(), with(hidden, Set.of(stmt.name())), out)
             }
             is Stmt.ExprStmt -> names(stmt.expr(), hidden, out)
@@ -485,6 +599,15 @@ data class PropertyProblem(val property: Decl.Property, val later: String)
 fn check(file: SourceFile) -> List<Problem> = InitOrder(file).problems()
 
 fn checkProperties(file: SourceFile) -> List<PropertyProblem> = InitOrder(file).propertyProblems()
+
+// Calls that give an element of the collection they are called on.
+private val ELEMENT_GETTERS: Set<String> = Set.of("get", "getFirst", "getLast", "first", "last")
+
+// Pipe stages whose output holds the elements of their input.
+private val SAME_ELEMENTS: Set<String> = Set.of("filter", "sorted", "distinct", "peek", "limit", "skip", "takeWhile", "dropWhile")
+
+/** The last type argument, which is the element of a list or set and the value of a map. */
+private fn elementName(type: TypeRef) -> String? = if (type.args().isEmpty()) null else type.args().get(type.args().size() - 1).name()
 
 private fn hasMethod(c: Decl.ClassDecl, name: String) -> Boolean = c.methods() |> anyMatch { m -> m.name().equals(name) }
 

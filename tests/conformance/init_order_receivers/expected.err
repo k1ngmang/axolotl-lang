@@ -1,0 +1,6 @@
+AXL016 app/Main.axl:24:5: error: `viaLocal` is computed from `late`, which is declared later; top-level values are set in order, so declare `late` first
+AXL016 app/Main.axl:25:5: error: `viaLoop` is computed from `late`, which is declared later; top-level values are set in order, so declare `late` first
+AXL016 app/Main.axl:26:5: error: `viaElement` is computed from `late`, which is declared later; top-level values are set in order, so declare `late` first
+AXL016 app/Main.axl:27:5: error: `viaPipe` is computed from `late`, which is declared later; top-level values are set in order, so declare `late` first
+AXL016 app/Main.axl:29:5: error: `viaRef` is computed from `late`, which is declared later; top-level values are set in order, so declare `late` first
+AXL016 app/Main.axl:30:5: error: `viaText` is computed from `late`, which is declared later; top-level values are set in order, so declare `late` first
