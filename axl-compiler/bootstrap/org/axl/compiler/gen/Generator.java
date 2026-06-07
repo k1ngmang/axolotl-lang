@@ -923,12 +923,15 @@ import org.axl.compiler.check.Whens;
         if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
             return "";
         }
-        final var sameType = (leftType == null ? Boolean.valueOf(withoutParens(right) instanceof Expr.NotNull) : rightType.name().equals(leftType.name()));
-        return (sameType ? "<" + boxedType(rightType) + ">" : "");
+        return (leftType != null && rightType.name().equals(leftType.name()) ? "<" + boxedType(rightType) + ">" : "");
     }
     private String lambdaFallback(Expr right, @Nullable String narrow) {
         if (narrow != null) {
             return "() -> " + converted(expr(right), narrow);
+        }
+        final var inner = withoutParens(right);
+        if (inner instanceof Expr.NotNull inner$1) {
+            return "() -> Nulls.sure(" + exprIn(inner$1.target(), true) + ")";
         }
         return "() -> " + exprIn(right, true);
     }

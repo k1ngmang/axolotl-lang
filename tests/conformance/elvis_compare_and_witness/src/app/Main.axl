@@ -21,4 +21,7 @@ fn main() {
     println(v + 1)
     val s: String? = null
     println(s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: s ?: "deep")
+    val objects = java.util.HashMap<String, Object>()
+    val t: String? = "x"
+    println(objects.get("a") ?: t!!)
 }

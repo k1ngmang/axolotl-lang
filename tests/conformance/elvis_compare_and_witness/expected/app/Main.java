@@ -29,9 +29,12 @@ import java.util.List;
         System.out.println(same(1, 2));
         System.out.println(tried());
         final var xs = List.of(5);
-        final var v = Nulls.<Integer>or((Nulls.first(xs.stream().filter(it -> it > 100).iterator())), () -> java.util.Objects.requireNonNull(maybe()));
+        final var v = Nulls.or((Nulls.first(xs.stream().filter(it -> it > 100).iterator())), () -> Nulls.sure(maybe()));
         System.out.println(v + 1);
         final @Nullable String s = null;
         System.out.println(Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> Nulls.<String>or(s, () -> "deep")))))))))))))))))));
+        final var objects = new java.util.HashMap<String, Object>();
+        final @Nullable String t = "x";
+        System.out.println(Nulls.or(objects.get("a"), () -> Nulls.sure(t)));
     }
 }

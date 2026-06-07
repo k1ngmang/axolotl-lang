@@ -1058,14 +1058,17 @@ class Generator(
         if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
             return ""
         }
-        // `|> first ?: n()!!`: the left side has no known type, but `!!` says what the value is.
-        val sameType = if (leftType == null) withoutParens(right) is Expr.NotNull else rightType.name().equals(leftType.name())
-        return if (sameType) "<" + boxedType(rightType) + ">" else ""
+        return if (leftType != null && rightType.name().equals(leftType.name())) "<" + boxedType(rightType) + ">" else ""
     }
 
     private fn lambdaFallback(right: Expr, narrow: String?) -> String {
         if (narrow != null) {
             return "() -> " + converted(expr(right), narrow)
+        }
+        // NullAway infers requireNonNull of a nullable value as nullable inside a fallback.
+        val inner = withoutParens(right)
+        if (inner is Expr.NotNull) {
+            return "() -> Nulls.sure(" + exprIn(inner.target(), true) + ")"
         }
         return "() -> " + exprIn(right, true)
     }
