@@ -456,7 +456,10 @@ final class Workspace {
         }
     }
 
-    /** javac's errors in a Java source, from the reported column to the end of the line. */
+    /**
+     * javac's errors in a Java source, from the reported column to the end of the line, without the
+     * code of an Axolotl rule.
+     */
     private static List<Diagnostic> javaDiagnostics(String uri, List<AxlDiagnostic> errors) {
         List<String> lines;
         try {
@@ -467,11 +470,24 @@ final class Workspace {
         List<Diagnostic> result = new ArrayList<>();
         for (AxlDiagnostic d : errors) {
             int line = Math.max(0, d.line() - 1);
-            int start = Math.max(0, d.column() - 1);
-            int end = line < lines.size() ? Math.max(start + 1, lines.get(line).length()) : start + 1;
-            result.add(diagnostic(new Range(new Position(line, start), new Position(line, end)), d));
+            String text = line < lines.size() ? lines.get(line) : "";
+            int start = withoutTabStops(text, Math.max(0, d.column() - 1));
+            Range range = new Range(new Position(line, start), new Position(line, Math.max(start + 1, text.length())));
+            result.add(new Diagnostic(range, d.message(), d.isError() ? DiagnosticSeverity.Error : DiagnosticSeverity.Warning, "javac"));
         }
         return result;
+    }
+
+    /** The index in a line of a column of javac, which counts a tab up to the next multiple of 8. */
+    static int withoutTabStops(String line, int column) {
+        int expanded = 0;
+        for (int i = 0; i < line.length(); i++) {
+            if (expanded >= column) {
+                return i;
+            }
+            expanded = line.charAt(i) == '\t' ? (expanded / 8 + 1) * 8 : expanded + 1;
+        }
+        return line.length() + column - expanded;
     }
 
 

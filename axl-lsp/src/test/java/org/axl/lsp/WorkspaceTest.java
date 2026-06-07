@@ -443,6 +443,18 @@ class WorkspaceTest {
     }
 
     @Test
+    void placesJavaErrorsOnTabIndentedLinesWithoutAnAxolotlCode() throws Exception {
+        Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Helper.java");
+        Files.writeString(java, "package app;\n\npublic class Helper {\n\tint z = \"s\";\n}\n");
+        workspace.open(List.of(project));
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Helper())\n}\n");
+        workspace.saved(main);
+        Diagnostic error = published.get(java.toUri().toString()).getFirst();
+        assertEquals(new Range(new Position(3, 9), new Position(3, 13)), error.getRange());
+        assertNull(error.getCode());
+    }
+
+    @Test
     void compilesAgainWhenAJavaSourceChangesOnDisk() throws Exception {
         Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Helper.java");
         Files.writeString(java, "package app;\n\npublic class Helper {\n}\n");
