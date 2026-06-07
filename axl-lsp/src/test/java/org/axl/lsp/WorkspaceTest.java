@@ -621,6 +621,22 @@ class WorkspaceTest {
     }
 
     @Test
+    void keepsTheNewestChangeThatParsesOfTheChangesWaiting() throws Exception {
+        String text = "package app\n\nfn main() {\n    val xs = java.util.List.of(\"a\")\n}\n";
+        String uri = open("Main.axl", text);
+        CountDownLatch busy = new CountDownLatch(1);
+        workspace.submit(() -> busy.await(10, TimeUnit.SECONDS));
+        String lambda = text.replace("of(\"a\")", "of(\"a\") |> map { it }");
+        workspace.changeLater(uri, lambda);
+        workspace.changeLater(uri, lambda.replace("{ it }", "{ it. }"));
+        busy.countDown();
+        workspace.submit(() -> null).get(10, TimeUnit.SECONDS);
+
+        List<String> names = memberNames(uri, 3, 48);
+        assertTrue(names.contains("length"), names.toString());
+    }
+
+    @Test
     void deletesItsTemporaryDirectoriesOnClose() throws Exception {
         Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
         List<Path> before = temporaryDirectories(tmp);

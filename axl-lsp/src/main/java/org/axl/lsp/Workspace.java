@@ -34,6 +34,7 @@ import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.parse.AxolotlLexer;
+import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.Translation;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
@@ -63,8 +64,8 @@ final class Workspace {
     private final ExecutorService compiles = Executors.newSingleThreadExecutor(r -> thread(r, "axl-lsp-compile"));
     // The number of compilations asked for by module, read by the compiling thread to skip outdated ones.
     private final Map<Module, Integer> compileRequests = new ConcurrentHashMap<>();
-    // The newest text of each document with changes waiting for the request thread.
-    private final Map<String, String> pendingText = new ConcurrentHashMap<>();
+    // The texts of each document with changes waiting for the request thread, oldest first.
+    private final Map<String, List<String>> pendingTexts = new ConcurrentHashMap<>();
     private LanguageClient client;
     private List<Path> roots = List.of();
     private JsonElement configuredModules;
@@ -183,27 +184,46 @@ final class Workspace {
 
     /**
      * A change from the protocol thread. Of several changes of a document waiting for the request
-     * thread, only the newest text is translated, so that typing does not queue outdated work.
+     * thread, only the newest text is translated, so that typing does not queue outdated work, and
+     * the newest that parses when that one does not: completion takes the names it declares.
      */
     void changeLater(String uri, String text) {
-        pendingText.put(uri, text);
+        pendingTexts.merge(uri, List.of(text), (waiting, added) -> Stream.concat(waiting.stream(), added.stream()).toList());
         submitLogged("Changing " + uri, () -> {
-            String newest = pendingText.remove(uri);
-            if (newest != null) {
-                update(uri, newest);
+            List<String> texts = pendingTexts.remove(uri);
+            if (texts != null) {
+                updateWith(uri, texts);
             }
             return null;
         });
     }
 
+    private void updateWith(String uri, List<String> texts) {
+        String newest = texts.getLast();
+        if (!parses(uri, newest)) {
+            texts.reversed().stream().skip(1).filter(text -> parses(uri, text)).findFirst()
+                    .ifPresent(text -> rememberParsed(new Document(uri, text, project, this::draftsOf)));
+        }
+        update(uri, newest);
+    }
+
+    private static boolean parses(String uri, String text) {
+        String className = Translator.className(Path.of(URI.create(uri)).getFileName().toString());
+        return SourceParser.parse(uri, className, text).file() != null;
+    }
+
     void update(String uri, String text) {
         Document document = new Document(uri, text, project, this::draftsOf);
         open.put(uri, document);
+        rememberParsed(document);
+        publish(document);
+    }
+
+    private void rememberParsed(Document document) {
         writeDraft(document);
         if (document.ast != null) {
-            lastParsed.put(uri, document);
+            lastParsed.put(document.uri, document);
         }
-        publish(document);
     }
 
     /** The draft goes back to the text on disk, which may differ when the document was not saved. */
