@@ -12,6 +12,12 @@ fn ratio(n: Int, a: Int?) {
     println(r)
 }
 
+fn known(c: Boolean, n: Int?, s: String) {
+    val a = if (c) 0L else s.length()
+    val b = if (n != null) n else 0L
+    println(a + b)
+}
+
 fn main() {
     val a: Int? = null
     println(pick(true, a, 5L))
@@ -24,6 +30,7 @@ fn main() {
     ratio(2, null)
     unknown(true, null)
     unknown(false, "ab")
+    known(false, 3, "ab")
 }
 
 fn unknown(c: Boolean, s: String?) {

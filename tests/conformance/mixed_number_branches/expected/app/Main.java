@@ -17,6 +17,11 @@ import org.jspecify.annotations.*;
         };
         System.out.println(r);
     }
+    public static void known(boolean c, @Nullable Integer n, String s) {
+        final var a = (c ? Long.valueOf(0L) : Nulls.toLong(s.length()));
+        final var b = (n != null ? Nulls.toLong(n) : Long.valueOf(0L));
+        System.out.println(a + b);
+    }
     public static void main(String[] args) {
         final @Nullable Integer a = null;
         System.out.println(pick(true, a, 5L));
@@ -29,6 +34,7 @@ import org.jspecify.annotations.*;
         ratio(2, null);
         unknown(true, null);
         unknown(false, "ab");
+        known(false, 3, "ab");
     }
     public static void unknown(boolean c, @Nullable String s) {
         final var r = (c ? Nulls.toLong(Nulls.map(s, $n1 -> $n1.length())) : Long.valueOf(5L));

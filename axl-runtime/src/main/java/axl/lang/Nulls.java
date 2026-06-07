@@ -22,7 +22,9 @@ import org.jspecify.annotations.Nullable;
     // `a ?: 0` with a Number or Object `a`, which none of the above takes.
     public static <T extends @Nullable Object> T or(@Nullable T a, T b) { return a != null ? a : b; }
     // `c ? a : b` with an Integer `a` and a Long `b` unboxes both; converting `a` first keeps a null.
+    @Contract("!null -> !null")
     public static @Nullable Long toLong(@Nullable Number a) { return a == null ? null : a.longValue(); }
+    @Contract("!null -> !null")
     public static @Nullable Double toDouble(@Nullable Number a) { return a == null ? null : a.doubleValue(); }
     // A `when` subject of a type the translator does not know: an int becomes an Integer, which a
     // switch with `case null` takes.
