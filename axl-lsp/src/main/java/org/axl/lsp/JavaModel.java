@@ -116,13 +116,14 @@ final class JavaModel {
         }
     }
 
-    static JavaModel build(Module module, List<GeneratedUnit> generatedUnits) {
+    /** stubs: the module's Java sources are read from them, so that only the generated code is attributed. */
+    static JavaModel build(Module module, List<GeneratedUnit> generatedUnits, JavaStubs stubs) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         var ignored = new DiagnosticCollector<JavaFileObject>();
         StandardJavaFileManager files = compiler.getStandardFileManager(ignored, Locale.ROOT, StandardCharsets.UTF_8);
         List<JavaFileObject> sources = new ArrayList<>();
         generatedUnits.forEach(u -> sources.add(new Source(u.javaPath(), u.javaSource())));
-        files.getJavaFileObjectsFromPaths(JavaSources.of(module)).forEach(sources::add);
+        sources.addAll(stubs.of(JavaSources.of(module)));
         if (sources.isEmpty()) {
             // javac refuses to run without sources, and the classpath is still needed.
             sources.add(new Source("package-info.java", ""));

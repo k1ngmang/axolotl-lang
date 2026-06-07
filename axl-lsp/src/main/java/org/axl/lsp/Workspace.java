@@ -78,6 +78,7 @@ final class Workspace {
     // Files that are not open with diagnostics published, by URI, with their module.
     private final Map<String, Module> publishedClosed = new HashMap<>();
     private final Map<Module, CachedModel> javaModels = new HashMap<>();
+    private final JavaStubs javaStubs = new JavaStubs();
     // Files that are not open, by path, translated once for each text they have on disk.
     private final Map<Path, Document> closedDocuments = new HashMap<>();
     private final Map<Module, Path> drafts = new HashMap<>();
@@ -451,7 +452,7 @@ final class Workspace {
         List<String> sources = units.stream().map(GeneratedUnit::javaSource).toList();
         CachedModel cached = javaModels.get(module);
         if (cached == null || !cached.sources().equals(sources)) {
-            cached = new CachedModel(sources, JavaModel.build(module, units));
+            cached = new CachedModel(sources, JavaModel.build(module, units, javaStubs));
             javaModels.put(module, cached);
         }
         return cached.model();
