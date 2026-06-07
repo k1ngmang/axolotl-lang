@@ -582,6 +582,21 @@ class WorkspaceTest {
     }
 
     @Test
+    void compilesTheRestOfAFileThatNeverParsed() throws Exception {
+        String broken = "package app\n\nfn twice(x: Int) -> Int = x * \n\nclass Box(val size: Int) {\n"
+                + "    fn grow() -> Box = Box(size + 1)\n}\n";
+        String text = "package app\n\nimport app.Lib.Box\n\nfn main() {\n    println(Box(1).grow().size)\n}\n";
+        open("Lib.axl", broken);
+        String main = open("Main.axl", text);
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+
+        workspace.closeDocument(project.resolve("src/main/axl/app/Lib.axl").toUri().toString());
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+    }
+
+    @Test
     void compilesOffTheRequestThread() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n");
         workspace.submit(() -> {

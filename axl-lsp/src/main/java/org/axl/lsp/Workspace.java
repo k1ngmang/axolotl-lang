@@ -303,14 +303,15 @@ final class Workspace {
 
     /**
      * The Java of the documents that do not translate: of the text without the lines with errors, or
-     * of the last version that parsed. Compiled in their place, it keeps the declarations their users
-     * see, as the drafts do while typing.
+     * while it does not parse, of the last version that did, if any. Compiled in their place, it keeps
+     * the declarations their users see, as the drafts do while typing.
      */
     private Map<String, GeneratedUnit> standIns(List<Document> documents) {
         Map<String, GeneratedUnit> result = new HashMap<>();
         for (Document document : documents) {
-            Document parsed = document.ast != null ? document : lastParsed.get(document.uri);
-            GeneratedUnit unit = document.translation.unit() != null || parsed == null ? null : parsed.javaUnit();
+            Document parsed = lastParsed.get(document.uri);
+            GeneratedUnit unit = document.translation.unit() != null ? null
+                    : document.ast == null && parsed != null ? parsed.javaUnit() : document.standIn();
             if (unit != null) {
                 result.put(document.uri, unit);
             }

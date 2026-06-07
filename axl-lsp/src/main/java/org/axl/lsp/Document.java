@@ -11,6 +11,7 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.WritableToken;
 import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
@@ -90,12 +91,30 @@ final class Document {
         return partial;
     }
 
-    /** The lines with errors become empty, so that the other lines keep their positions. */
+    /**
+     * The Java compiled in place of this file while it does not translate: {@link #javaUnit}, and for
+     * a text with syntax errors too, the translation of the text without the lines that have them.
+     */
+    GeneratedUnit standIn() {
+        if (ast != null) {
+            return javaUnit();
+        }
+        if (partial == null) {
+            partial = partialUnit(sourcePath, uri, text, options, translation.diagnostics());
+        }
+        return partial;
+    }
+
+    /**
+     * The lines with errors become empty, so that the other lines keep their positions. Of syntax
+     * errors only the first counts: the parser's later ones may be about lines it misread after it.
+     */
     static GeneratedUnit partialUnit(String sourcePath, String displayPath, String text, Options options,
                                      List<AxlDiagnostic> diagnostics) {
         List<String> lines = new ArrayList<>(lines(text));
         for (int attempt = 0; attempt < 3; attempt++) {
-            for (AxlDiagnostic d : diagnostics) {
+            List<AxlDiagnostic> syntax = diagnostics.stream().filter(d -> d.code() == ErrorCode.SYNTAX).limit(1).toList();
+            for (AxlDiagnostic d : syntax.isEmpty() ? diagnostics : syntax) {
                 if (d.isError() && d.line() >= 1 && d.line() <= lines.size()) {
                     lines.set(d.line() - 1, "");
                 }
