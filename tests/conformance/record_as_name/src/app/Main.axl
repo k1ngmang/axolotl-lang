@@ -1,0 +1,10 @@
+package app
+
+fn next(record: Int) -> Int {
+    val permits = record + 1
+    return permits
+}
+
+fn main() {
+    println(next(1))
+}

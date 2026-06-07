@@ -1,7 +1,14 @@
 package app
 
-fn letters() {
-    val s: String = 'a'
-    val c: Char = 'b'
-    val r = "x".replace(1, 2)
+fn positive(n: int) -> boolean = n > 0
+
+fn twice(n: Integer) -> Int = n * 2
+
+fn greet() -> void {
+    println("hi")
+}
+
+fn main() {
+    val c: char = 'a'
+    println(positive(1))
 }

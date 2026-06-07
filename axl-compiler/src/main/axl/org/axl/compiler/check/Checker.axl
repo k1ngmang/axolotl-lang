@@ -43,8 +43,11 @@ private val RESERVED: Set<String> = Set.of(
     "goto", "implements", "instanceof", "int", "interface", "long", "native", "new", "protected",
     "public", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw",
     "throws", "transient", "void", "volatile", "_",
-    "var", "yield", "record", "sealed", "permits", "true", "false", "null",
+    "var", "yield", "sealed", "true", "false", "null",
     "package", "import", "if", "else", "while", "return", "try")
+
+// Java allows these as names of values and functions, not of classes, which a file becomes.
+private val CLASS_RESERVED: Set<String> = Set.of("record", "permits")
 
 // Classes the generated code names: a file of the same name would hide them.
 private val GENERATED_CODE_CLASSES: Set<String> = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable",
@@ -57,6 +60,10 @@ private val OBJECT_METHODS: Set<String> = Set.of("toString/0", "hashCode/0", "eq
 // Methods that a record or an interface member cannot be named after.
 private val OBJECT_METHOD_NAMES: Set<String> = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
     "notify", "notifyAll", "wait")
+
+// Java's names for primitive types, which Axolotl writes as classes.
+private val JAVA_PRIMITIVES: Map<String, String> = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
+    "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float")
 
 // Where the classes above come from; importing them from there changes nothing.
 private val GENERATED_CODE_PACKAGES: Set<String> = Set.of("axl.lang", "java.lang", "org.jspecify.annotations")
@@ -176,7 +183,7 @@ class Checker(val file: SourceFile) {
             digits += 1
         }
         val result = sb.substring(digits) + sb.substring(0, digits)
-        return if (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result)) null else result
+        return if (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result) || CLASS_RESERVED.contains(result)) null else result
     }
 
     /** `fn main() -> Int` compiles, but `axl run` and Java look for a main that gives nothing. */
@@ -190,7 +197,7 @@ class Checker(val file: SourceFile) {
 
     private fn checkFileName() {
         val name = file.className()
-        if (!isJavaIdentifier(name) || RESERVED.contains(name)) {
+        if (!isJavaIdentifier(name) || RESERVED.contains(name) || CLASS_RESERVED.contains(name)) {
             val suggestion = classNameLike(name)
             val hint = if (suggestion == null) "" else "; rename it to `" + suggestion + ".axl`"
             error(Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` is not a valid class name" + hint)
@@ -246,6 +253,7 @@ class Checker(val file: SourceFile) {
                         "`" + decl.name() + "` is already declared at line " + existing.pos().line())
                 }
                 scope.names.put(decl.name(), Symbol(Kind.TOP_LEVEL, decl.pos(), decl.type()))
+                writtenType(decl.type(), false)
             } else if (isTypeDecl(decl)) {
                 checkTypeName(decl)
             } else {
@@ -412,6 +420,7 @@ class Checker(val file: SourceFile) {
             } else {
                 checkReserved(member.pos(), member.name())
             }
+            writtenType(member.type(), false)
         }
     }
 
@@ -438,6 +447,7 @@ class Checker(val file: SourceFile) {
 
     private fn function(f: Decl.Function) {
         current = f
+        writtenType(f.returnType(), true)
         scope = Scope(scope, false)
         for (p in f.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type())
@@ -1145,6 +1155,7 @@ class Checker(val file: SourceFile) {
 
     private fn declare(pos: Pos, name: String, kind: Kind, type: TypeRef?) {
         checkReserved(pos, name)
+        writtenType(type, false)
         var s: Scope? = scope
         while (s != null && !s.fileScope) {
             val existing = s.names.get(name)
@@ -1205,6 +1216,25 @@ class Checker(val file: SourceFile) {
         if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
                 "`" + target.name() + "` has the type `" + written.name() + "`, which is never null; " + fix))
+        }
+    }
+
+    /** `int`, `void` and `Integer` are Java's names, which Java accepts in the generated code too. */
+    private fn writtenType(type: TypeRef?, isResult: Boolean) {
+        if (type == null) {
+            return
+        }
+        val name = type.name()
+        val own = JAVA_PRIMITIVES.get(name)
+        if (own != null) {
+            error(type.pos(), ErrorCode.SYNTAX, "`" + name + "` is Java's name for this type; write `" + own + "`")
+        } else if (isResult && name.equals("void")) {
+            error(type.pos(), ErrorCode.SYNTAX, "a function that returns nothing has no result type; remove `-> " + name + "`")
+        } else if (name.equals("void")) {
+            error(type.pos(), ErrorCode.SYNTAX, "`void` is not the type of a value; only Java functions return it")
+        } else if (name.equals("Integer")) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), type.pos().line(), type.pos().column(), ErrorCode.SYNTAX,
+                "write `Int` instead of `Integer`; they are the same type, and `Int?` allows null"))
         }
     }
 

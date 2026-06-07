@@ -121,7 +121,7 @@ import org.axl.compiler.ast.TypeRef;
             digits += 1;
         }
         final var result = sb.substring(digits) + sb.substring(0, digits);
-        return (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result) ? null : result);
+        return (result.isEmpty() || !Character.isLetter(result.charAt(0)) || RESERVED.contains(result) || CLASS_RESERVED.contains(result) ? null : result);
     }
     private void checkMainSignature(Decl.Function f) {
         final var result = f.returnType();
@@ -132,7 +132,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void checkFileName() {
         final var name = file.className();
-        if (!isJavaIdentifier(name) || RESERVED.contains(name)) {
+        if (!isJavaIdentifier(name) || RESERVED.contains(name) || CLASS_RESERVED.contains(name)) {
             final var suggestion = classNameLike(name);
             final var hint = (suggestion == null ? "" : "; rename it to `" + suggestion + ".axl`");
             error(new Pos(1, 1), ErrorCode.INVALID_FILE_NAME, "file name `" + name + "` is not a valid class name" + hint);
@@ -190,6 +190,7 @@ import org.axl.compiler.ast.TypeRef;
                             "`" + decl$1.name() + "` is already declared at line " + existing.pos().line());
                 }
                 scope.names.put(decl$1.name(), new Symbol(Kind.TOP_LEVEL, decl$1.pos(), decl$1.type()));
+                writtenType(decl$1.type(), false);
             } else if (isTypeDecl(decl)) {
                 checkTypeName(decl);
             } else {
@@ -367,6 +368,7 @@ import org.axl.compiler.ast.TypeRef;
             } else {
                 checkReserved(member.pos(), member.name());
             }
+            writtenType(member.type(), false);
         }
     }
     private void enumConstants(Decl.EnumDecl e) {
@@ -390,6 +392,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void function(Decl.Function f) {
         current = f;
+        writtenType(f.returnType(), true);
         scope = new Scope(scope, false);
         for (final var p : f.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type());
@@ -1088,6 +1091,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void declare(Pos pos, String name, Kind kind, @Nullable TypeRef type) {
         checkReserved(pos, name);
+        writtenType(type, false);
         @Nullable Scope s = scope;
         while (s != null && !s.fileScope) {
             final var existing = s.names.get(name);
@@ -1145,6 +1149,23 @@ import org.axl.compiler.ast.TypeRef;
                     "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
         }
     }
+    private void writtenType(@Nullable TypeRef type, boolean isResult) {
+        if (type == null) {
+            return;
+        }
+        final var name = type.name();
+        final var own = JAVA_PRIMITIVES.get(name);
+        if (own != null) {
+            error(type.pos(), ErrorCode.SYNTAX, "`" + name + "` is Java's name for this type; write `" + own + "`");
+        } else if (isResult && name.equals("void")) {
+            error(type.pos(), ErrorCode.SYNTAX, "a function that returns nothing has no result type; remove `-> " + name + "`");
+        } else if (name.equals("void")) {
+            error(type.pos(), ErrorCode.SYNTAX, "`void` is not the type of a value; only Java functions return it");
+        } else if (name.equals("Integer")) {
+            diagnostics.add(AxlDiagnostic.warning(file.path(), type.pos().line(), type.pos().column(), ErrorCode.SYNTAX,
+                    "write `Int` instead of `Integer`; they are the same type, and `Int?` allows null"));
+        }
+    }
     private void error(Pos pos, ErrorCode code, String message) {
         diagnostics.add(AxlDiagnostic.error(file.path(), pos.line(), pos.column(), code, message));
     }
@@ -1167,14 +1188,17 @@ import org.axl.compiler.ast.TypeRef;
             "goto", "implements", "instanceof", "int", "interface", "long", "native", "new", "protected",
             "public", "short", "static", "strictfp", "super", "switch", "synchronized", "this", "throw",
             "throws", "transient", "void", "volatile", "_",
-            "var", "yield", "record", "sealed", "permits", "true", "false", "null",
+            "var", "yield", "sealed", "true", "false", "null",
             "package", "import", "if", "else", "while", "return", "try");
+    private static final Set<String> CLASS_RESERVED = Set.of("record", "permits");
     private static final Set<String> GENERATED_CODE_CLASSES = Set.of("Nulls", "Result", "Ok", "Err", "System", "Nullable",
             "NullMarked", "String", "Integer", "Long", "Double", "Boolean", "Object", "Exception");
     private static final Set<String> OBJECT_METHODS = Set.of("toString/0", "hashCode/0", "equals/1", "getClass/0",
             "notify/0", "notifyAll/0", "wait/0", "wait/1", "wait/2", "clone/0", "finalize/0");
     private static final Set<String> OBJECT_METHOD_NAMES = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
             "notify", "notifyAll", "wait");
+    private static final Map<String, String> JAVA_PRIMITIVES = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
+            "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float");
     private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
     private static final Set<String> SHADOWED_TYPES = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
             "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",

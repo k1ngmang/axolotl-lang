@@ -93,6 +93,20 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutIntegerWrittenForInt(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn twice(n: Integer) -> Int = n * 2
+
+                fn main() {
+                    println(twice(2))
+                }
+                """);
+        assertEquals(List.of("3:13 write `Int` instead of `Integer`; they are the same type, and `Int?` allows null"), warnings);
+    }
+
+    @Test
     void warnsAboutAMainWithAResultType(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

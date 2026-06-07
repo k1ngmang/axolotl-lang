@@ -1,3 +1,4 @@
-AXL100 app/Main.axl:4:21: error: type mismatch: expected `String`, found `Character`
-AXL100 app/Main.axl:5:12: error: unknown type `Char`; a character is a `Character`
-AXL100 app/Main.axl:6:17: error: wrong arguments for `replace`: got (Int, Int); it takes (Character, Character), (CharSequence, CharSequence)
+AXL001 app/Main.axl:3:16: error: `int` is Java's name for this type; write `Int`
+AXL001 app/Main.axl:3:24: error: `boolean` is Java's name for this type; write `Boolean`
+AXL001 app/Main.axl:7:15: error: a function that returns nothing has no result type; remove `-> void`
+AXL001 app/Main.axl:12:12: error: `char` is Java's name for this type; write `Character`
