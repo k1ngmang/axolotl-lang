@@ -241,7 +241,8 @@ final class Workspace {
 
     /**
      * Files changed outside the editor, such as by a checkout. Open documents keep their text, but
-     * are translated again against the new drafts and Java sources.
+     * are translated again against the new drafts and Java sources, and the modules with the files
+     * are compiled again.
      */
     void filesChanged(List<Path> files) {
         boolean modulesChanged = files.stream().anyMatch(Workspace::describesModules);
@@ -259,7 +260,20 @@ final class Workspace {
         }
         if (modulesChanged) {
             open.values().stream().map(d -> d.module).distinct().forEach(this::compileLater);
+        } else {
+            compiledModulesWith(files).forEach(this::compileLater);
         }
+    }
+
+    /**
+     * The modules whose errors are shown, of open documents or compiled before, that have one of the
+     * files. Open documents are left out: their saves are compiled already.
+     */
+    private List<Module> compiledModulesWith(List<Path> files) {
+        Set<Module> shown = new HashSet<>(compileErrors.keySet());
+        open.values().forEach(d -> shown.add(d.module));
+        List<Path> changed = files.stream().filter(f -> findOpen(f) == null).toList();
+        return shown.stream().filter(m -> changed.stream().anyMatch(f -> m.sourcepath().stream().anyMatch(f::startsWith))).toList();
     }
 
     /** A module description, or a source set directory of the layout that guesses modules. */

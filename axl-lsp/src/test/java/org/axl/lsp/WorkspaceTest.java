@@ -20,6 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import org.axl.compiler.ast.Pos;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Diagnostic;
@@ -439,6 +440,40 @@ class WorkspaceTest {
         Files.writeString(java, "package app;\n\npublic class Helper {\n}\n");
         workspace.saved(main);
         assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
+    void compilesAgainWhenAJavaSourceChangesOnDisk() throws Exception {
+        Path java = Files.createDirectories(project.resolve("src/main/java/app")).resolve("Helper.java");
+        Files.writeString(java, "package app;\n\npublic class Helper {\n}\n");
+        workspace.open(List.of(project));
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Helper())\n}\n");
+        workspace.saved(main);
+        String uri = java.toUri().toString();
+        assertNull(published.get(uri));
+
+        Files.writeString(java, "package app;\n\npublic class Helper {\n    int z = \"s\";\n}\n");
+        workspace.submit(() -> {
+            workspace.filesChanged(List.of(java));
+            return null;
+        }).get(60, TimeUnit.SECONDS);
+        awaitPublished(uri, diagnostics -> diagnostics.size() == 1);
+
+        Files.writeString(java, "package app;\n\npublic class Helper {\n}\n");
+        workspace.submit(() -> {
+            workspace.filesChanged(List.of(java));
+            return null;
+        }).get(60, TimeUnit.SECONDS);
+        awaitPublished(uri, List::isEmpty);
+    }
+
+    /** Waits for diagnostics published by a compilation on its own thread. */
+    private void awaitPublished(String uri, Predicate<List<Diagnostic>> expected) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);
+        while ((published.get(uri) == null || !expected.test(published.get(uri))) && System.nanoTime() < deadline) {
+            Thread.sleep(20);
+        }
+        assertTrue(published.get(uri) != null && expected.test(published.get(uri)), String.valueOf(published.get(uri)));
     }
 
     @Test
