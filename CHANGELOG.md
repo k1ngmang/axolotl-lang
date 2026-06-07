@@ -159,11 +159,13 @@ A fourth audit checked the new language features, the self-hosted compiler, the 
 
 Left as they are: mixing `Int?` and `Long?` branches in one value, `Int? ?: 0L`, and `var x = when` with lambdas in the branches (the message asks for the type).
 
-## Unreleased
+## Unreleased (0.1.1)
+
+Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and the VS Code and IntelliJ plugins.
 
 - Installers that bring their own Java runtime and put `axl` on the `PATH`: a setup program for Windows, a `.pkg` for macOS, a `.deb` for Debian and Ubuntu and a tarball with `install.sh` for other Linux systems. The runtime has every module of Java SE, so code that uses `java.awt` or `java.beans` compiles and runs, and the `.deb` depends on the X11, ALSA and font libraries; `/usr/bin/axl` is registered with `update-alternatives`. See `docs/install.md`.
 - `axl setup` copies the libraries and the Maven and Gradle plugins that come with `axl` into the local Maven repository, the one named by `-Dmaven.repo.local` or `~/.m2/settings.xml` if set. The installers run it, and the `axl` zip carries the repository too.
-- `axl --version` and the language server take their version from the build.
+- Version 0.1.1 in the build, the POMs, the samples and the documentation. `axl --version` and the language server take their version from the build.
 - On a non-UTF-8 locale, a missing file in a directory with non-ASCII characters is reported with the same locale hint as an invalid path.
 - Windows: `.axl` paths of javac errors are printed as file paths, IntelliJ starts the language server, and the Gradle and Maven plugin tests accept long and URI-style paths.
 - The project builds with Gradle 9.8.1 and IntelliJ Platform Gradle Plugin 2.19.0; the published Gradle plugin still supports Gradle 8.5.

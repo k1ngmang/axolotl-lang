@@ -2,7 +2,7 @@
   "name": "axolotl",
   "displayName": "Axolotl",
   "description": "Axolotl language support: highlighting, diagnostics with NullAway, completion, navigation and generated Java.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "axl",
   "license": "SEE LICENSE IN README.md",
   "repository": {

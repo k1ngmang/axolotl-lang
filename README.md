@@ -27,10 +27,11 @@ other way round. Errors, stack traces and breakpoints point to `.axl` lines.
 
 ## Installing
 
-Download the installer for your system from the
-[releases](https://github.com/succubus-uwu/axolotl/releases): a `setup.exe` for Windows, a `.pkg` for
-macOS, a `.deb` or a `.tar.gz` for Linux. It brings its own Java runtime, puts `axl` on the `PATH` and
-sets up the libraries for Maven and Gradle; see [installation](docs/install.md).
+Installers come with the next release, 0.1.1: a `setup.exe` for Windows, a `.pkg` for macOS, a
+`.deb` or a `.tar.gz` for Linux. Each brings its own Java runtime, puts `axl` on the `PATH` and sets
+up the libraries for Maven and Gradle. The current [release](https://github.com/succubus-uwu/axolotl/releases),
+0.1.0, has the `axl` zip, which needs Java 21, and the VS Code and IntelliJ plugins; its Gradle and
+Maven plugins are built from source. See [installation](docs/install.md).
 
 ## Documentation
 

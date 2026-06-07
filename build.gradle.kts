@@ -1,6 +1,6 @@
 allprojects {
     group = "org.axl"
-    version = "0.1.0"
+    version = "0.1.1"
 }
 
 // Error Prone runs inside javac in the same JVM and needs access to the compiler internals.
