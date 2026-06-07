@@ -23,6 +23,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 import javax.lang.model.SourceVersion;
 import com.google.gson.JsonElement;
 import org.antlr.v4.runtime.CharStreams;
@@ -244,7 +245,11 @@ final class Workspace {
      * are translated again against the new drafts and Java sources, and the modules with the files
      * are compiled again.
      */
-    void filesChanged(List<Path> files) {
+    void filesChanged(List<Path> changed) {
+        List<Path> files = changed.stream().filter(f -> describesModules(f) || !inSkippedDirectory(f)).toList();
+        if (files.isEmpty()) {
+            return;
+        }
         boolean modulesChanged = files.stream().anyMatch(Workspace::describesModules);
         if (modulesChanged) {
             discover();
@@ -274,6 +279,13 @@ final class Workspace {
         open.values().forEach(d -> shown.add(d.module));
         List<Path> changed = files.stream().filter(f -> findOpen(f) == null).toList();
         return shown.stream().filter(m -> changed.stream().anyMatch(f -> m.sourcepath().stream().anyMatch(f::startsWith))).toList();
+    }
+
+    /** In a build output or another directory that discovery skips, whose Java is generated, not a source. */
+    private boolean inSkippedDirectory(Path file) {
+        Path root = roots.stream().filter(file::startsWith).findFirst().orElse(null);
+        Path dir = root == null ? null : root.relativize(file).getParent();
+        return dir != null && StreamSupport.stream(dir.spliterator(), false).anyMatch(name -> ProjectModel.isSkipped(name.toString()));
     }
 
     /** A module description, or a source set directory of the layout that guesses modules. */

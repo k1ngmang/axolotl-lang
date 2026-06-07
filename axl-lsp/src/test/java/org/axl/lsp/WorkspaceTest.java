@@ -467,6 +467,17 @@ class WorkspaceTest {
         awaitPublished(uri, List::isEmpty);
     }
 
+    @Test
+    void ignoresTheJavaThatTheBuildWrites() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {}\n");
+        Module module = workspace.document(uri).module;
+        JavaModel model = workspace.javaModel(module);
+        Path generated = Files.createDirectories(project.resolve("build/generated/axl/app")).resolve("Main.java");
+        Files.writeString(generated, "package app;\n\nclass Main {}\n");
+        workspace.filesChanged(List.of(generated));
+        assertSame(model, workspace.javaModel(module));
+    }
+
     /** Waits for diagnostics published by a compilation on its own thread. */
     private void awaitPublished(String uri, Predicate<List<Diagnostic>> expected) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(60);

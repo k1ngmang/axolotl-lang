@@ -87,7 +87,7 @@ final class ProjectModel {
                     if (OUTPUTS.contains(name) && Files.isRegularFile(dir.resolve("axl/axl.json"))) {
                         found.add(dir.resolve("axl/axl.json"));
                     }
-                    if (name.startsWith(".") || OUTPUTS.contains(name) || name.equals("node_modules")) {
+                    if (isSkipped(name)) {
                         return FileVisitResult.SKIP_SUBTREE;
                     }
                     if (isSourceSet(dir)) {
@@ -114,6 +114,11 @@ final class ProjectModel {
         }
         found.sort(null);
         return found;
+    }
+
+    /** Build outputs, dependencies and hidden directories, which discovery skips. */
+    static boolean isSkipped(String directory) {
+        return directory.startsWith(".") || OUTPUTS.contains(directory) || directory.equals("node_modules");
     }
 
     /**
