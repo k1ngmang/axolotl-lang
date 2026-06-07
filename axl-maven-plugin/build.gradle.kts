@@ -6,16 +6,18 @@ plugins {
 val testRepo = rootProject.layout.buildDirectory.dir("test-repo").get().asFile.toURI().toString()
 val mavenRepo = rootProject.layout.buildDirectory.dir("maven-repo").get().asFile.absolutePath
 val mvnw = if (System.getProperty("os.name").startsWith("Windows")) "mvnw.cmd" else "./mvnw"
+val quiet = gradle.startParameter.logLevel == LogLevel.QUIET
+
 // Gradle shows the output of Exec tasks even with -q; the tests of the plugin print to it too.
-val quiet = if (gradle.startParameter.logLevel == LogLevel.QUIET) {
-    listOf("-q", "-Dmaven.test.redirectTestOutputToFile=true")
-} else {
-    listOf()
+// Internal, so that a run with -q does not count as a change and rebuild the plugin.
+class QuietMaven(@get:Internal val quiet: Boolean) : CommandLineArgumentProvider {
+    override fun asArguments() = if (quiet) listOf("-q", "-Dmaven.test.redirectTestOutputToFile=true") else listOf()
 }
 
 fun Exec.maven(dir: File, vararg goals: String) {
     workingDir(dir)
-    commandLine(listOf(file(mvnw).absolutePath, "-B", "-ntp", "-Daxl.testRepo=$testRepo", "-Dmaven.repo.local=$mavenRepo") + quiet + goals)
+    commandLine(listOf(file(mvnw).absolutePath, "-B", "-ntp", "-Daxl.testRepo=$testRepo", "-Dmaven.repo.local=$mavenRepo") + goals)
+    argumentProviders.add(QuietMaven(quiet))
     environment("AXL_TEST_REPO", testRepo)
 }
 
