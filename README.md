@@ -42,7 +42,9 @@ The documentation lives in [`docs`](docs/index.md) and is built with MkDocs
 
 JDK 21 is required. `./gradlew check` builds and tests everything, including the Maven plugin
 (through the Maven wrapper) and the Gradle plugin functional tests. `./gradlew publishToMavenLocal`
-installs the artifacts into `~/.m2/repository`.
+installs the runtime, the compiler and the Gradle plugin into `~/.m2/repository`; the Maven plugin
+and the archetype are Maven projects, installed with `./mvnw install` as
+[installation](docs/install.md#maven) shows.
 
 | Directory | Contents |
 |-----------|----------|
