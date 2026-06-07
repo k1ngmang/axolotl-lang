@@ -2,9 +2,13 @@ name: Installers
 
 # Builds the native installers on each system and checks each by installing it and running a program.
 # The installers carry everything that axl setup installs, so the paths are those of all of it.
+# Pushes to main build only the Linux packages: on a private repository macOS runners cost ten times as
+# much as Linux ones, and Windows twice. Pull requests, the weekly run, releases and runs by hand build all three.
 on:
   workflow_dispatch:
   workflow_call:
+  schedule:
+    - cron: '23 4 * * 1'
   push:
     branches: [main]
     paths:
@@ -40,19 +44,20 @@ on:
 permissions:
   contents: read
 
+# A newer push replaces a running build; with the event in the group, it does not cancel a release
+# started by hand from main.
+concurrency:
+  group: installers-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   installer:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            system: linux
-          - os: macos-latest
-            system: macos
-          - os: windows-latest
-            system: windows
-    runs-on: ${{ matrix.os }}
+        # A release calls this workflow from its tag push, whose ref is the tag.
+        system: ${{ fromJSON(github.event_name == 'push' && github.ref == 'refs/heads/main' && '["linux"]' || '["linux", "macos", "windows"]') }}
+    runs-on: ${{ matrix.system == 'linux' && 'ubuntu-latest' || matrix.system == 'macos' && 'macos-latest' || 'windows-latest' }}
     defaults:
       run:
         shell: bash
@@ -171,9 +176,11 @@ jobs:
           if (-not ($path -like '*C:\Program Files\Axolotl*')) { throw 'axl is not on the PATH' }
           if (-not (Test-Path "$HOME\.m2\repository\org\axl\axl-maven-plugin")) { throw 'axl setup did not run' }
 
+      # The release takes them from its own run; nothing needs them for long.
       - uses: actions/upload-artifact@v7
         with:
           name: installer-${{ matrix.system }}
+          retention-days: 5
           path: |
             axl-cli/build/installers/*.deb
             axl-cli/build/installers/*.tar.gz
