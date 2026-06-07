@@ -950,6 +950,15 @@ class WorkspaceTest {
     }
 
     @Test
+    void keepsTheCompileErrorsOfAClosedDocument() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n    val n: Int = \"s\"\n}\n");
+        workspace.saved(uri);
+        assertEquals(List.of(3), errorLines(uri));
+        workspace.closeDocument(uri);
+        assertEquals(List.of(3), errorLines(uri));
+    }
+
+    @Test
     void classifiesQualifiedNamesAndLambdaParameters() throws Exception {
         String uri = open("Main.axl", """
                 package app.util

@@ -228,16 +228,30 @@ final class Workspace {
         }
     }
 
-    /** The draft goes back to the text on disk, which may differ when the document was not saved. */
+    /**
+     * The draft goes back to the text on disk, which may differ when the document was not saved. The
+     * compile errors stay, as for the other files that are not open.
+     */
     void closeDocument(String uri) {
         Document closed = open.remove(uri);
         lastParsed.remove(uri);
-        if (client != null) {
+        List<Diagnostic> errors = closed == null ? List.of() : closedErrors(closed);
+        if (!errors.isEmpty()) {
+            publishClosed(uri, closed.module, errors);
+        } else if (client != null) {
             client.publishDiagnostics(new PublishDiagnosticsParams(uri, List.of()));
         }
         if (closed != null) {
             refreshDraft(closed.path);
         }
+    }
+
+    /** The errors the last compilation of its module found in a document just closed, in its text on disk. */
+    private List<Diagnostic> closedErrors(Document closed) {
+        if (!compileErrors.getOrDefault(closed.module, Map.of()).containsKey(closed.uri) || !Files.exists(closed.path)) {
+            return List.of();
+        }
+        return diagnostics(load(closed.path));
     }
 
     /**
