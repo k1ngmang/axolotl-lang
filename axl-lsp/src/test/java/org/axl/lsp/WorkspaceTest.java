@@ -311,6 +311,17 @@ class WorkspaceTest {
     }
 
     @Test
+    void tellsTheParametersOfTwoLambdasOnOneLineApart() throws Exception {
+        String text = "package app\n\nfn main() {\n    val xs = java.util.List.of(\"a\")\n"
+                + "    val q = xs |> map { it.length() } |> map { it }\n}\n";
+        String uri = open("Main.axl", text);
+        workspace.update(uri, text.replace("map { it }", "map { it. }"));
+        int character = workspace.document(uri).lines.get(4).lastIndexOf("it.") + 3;
+        List<String> names = memberNames(uri, 4, character);
+        assertTrue(names.contains("intValue") && !names.contains("isEmpty"), names.toString());
+    }
+
+    @Test
     void completesInTheScopeOfTheCursorWhenTwoPlacesAreEdited() throws Exception {
         String text = """
                 package app

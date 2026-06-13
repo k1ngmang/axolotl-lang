@@ -197,8 +197,9 @@ final class JavaModel {
     /**
      * The declaration javac sees for a local or lambda parameter in the generated method of a
      * function, or with function null, in the initializers of top-level values. Of several with the
-     * name, the one generated from the declaration's line wins. A `when` binding has a generated
-     * name, the binding's name followed by `$e`.
+     * name, the one generated from the declaration's line wins, and of several on that line, the one
+     * in the same place among them, as for the `it`s of two lambdas. A `when` binding has a
+     * generated name, the binding's name followed by `$e`.
      */
     private TreePath localPath(SourceFile file, String function, int paramCount, Symbols.Symbol local) {
         String qualified = file.packageName() == null || file.packageName().isEmpty()
@@ -211,10 +212,11 @@ final class JavaModel {
         boolean main = "main".equals(function) && paramCount == 0;
         boolean binding = local.origin() == Symbols.Origin.WHEN_BINDING;
         int axlLine = local.pos().line();
+        int earlier = local.kind() == Symbols.Kind.PARAMETER ? Symbols.earlierOnItsLine(file, local) : 0;
         var scanner = new TreePathScanner<Void, Void>() {
             private boolean inFunction = function == null;
             private TreePath first;
-            private TreePath onLine;
+            private final List<TreePath> onLine = new ArrayList<>();
 
             @Override
             public Void visitMethod(MethodTree method, Void unused) {
@@ -231,8 +233,8 @@ final class JavaModel {
                 if (inFunction && (binding ? name.startsWith(local.name() + "$e") : name.equals(local.name()))) {
                     TreePath path = new TreePath(getCurrentPath(), variable);
                     long start = trees.getSourcePositions().getStartPosition(unit, variable);
-                    if (onLine == null && translation.lineMap().axlLine((int) unit.getLineMap().getLineNumber(start)) == axlLine) {
-                        onLine = path;
+                    if (translation.lineMap().axlLine((int) unit.getLineMap().getLineNumber(start)) == axlLine) {
+                        onLine.add(path);
                     }
                     if (first == null && !binding) {
                         first = path;
@@ -242,7 +244,7 @@ final class JavaModel {
             }
         };
         scanner.scan(unit, null);
-        return scanner.onLine != null ? scanner.onLine : scanner.first;
+        return scanner.onLine.isEmpty() ? scanner.first : scanner.onLine.get(Math.min(earlier, scanner.onLine.size() - 1));
     }
 
     /** The type javac gives a value, parameter or local whose type is not written; null if unknown. */

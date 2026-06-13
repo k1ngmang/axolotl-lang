@@ -1,7 +1,9 @@
 package org.axl.lsp;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
@@ -56,6 +58,21 @@ final class Symbols {
             expr(value.init(), pos, null, result);
         }
         return result;
+    }
+
+    /**
+     * How many other declarations of a symbol's name start before it on its line, such as the `it`
+     * of an earlier lambda. Each is visible from somewhere between the start of the line and the symbol.
+     */
+    static int earlierOnItsLine(SourceFile file, Symbol symbol) {
+        Pos at = symbol.pos();
+        Set<Pos> found = new HashSet<>();
+        for (int column = 1; column < at.column(); column++) {
+            visibleAt(file, new Pos(at.line(), column)).stream()
+                    .filter(s -> s.name().equals(symbol.name()) && s.pos().line() == at.line() && s.pos().column() < at.column())
+                    .forEach(s -> found.add(s.pos()));
+        }
+        return found.size();
     }
 
     /** The imports and the top-level declarations of a file, visible everywhere in it. */
