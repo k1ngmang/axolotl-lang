@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:9:9: error: this `List` has no type arguments, so nothing checks that it holds what `List<String>` promises; keep it as `Object` and test its elements with `is`
+AXL100 app/Main.axl:15:45: error: this `List` has no type arguments, so nothing checks that it holds what `List<String>` promises; keep it as `Object` and test its elements with `is`
