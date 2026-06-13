@@ -33,6 +33,7 @@ final class ProjectModel {
         String root;
         List<String> sourceRoots = List.of();
         List<String> javaSourceRoots = List.of();
+        List<String> javaSourcepath = List.of();
         List<String> classpath = List.of();
         boolean strictNull;
         List<Config> modules;
@@ -152,7 +153,7 @@ final class ProjectModel {
             javaRoots.add(main.resolveSibling("java"));
         }
         javaRoots.removeIf(java -> !Files.isDirectory(java));
-        return new Module(axl.getParent().getParent().getParent(), axlRoots, javaRoots, List.of(), false);
+        return new Module(axl.getParent().getParent().getParent(), axlRoots, javaRoots, List.of(), List.of(), false);
     }
 
     /** A `src/NAME/axl` directory. */
@@ -185,7 +186,7 @@ final class ProjectModel {
 
     private static Module module(Path root, Config config) {
         return new Module(root, resolve(root, config.sourceRoots), resolve(root, config.javaSourceRoots),
-                resolve(root, config.classpath), config.strictNull);
+                resolve(root, config.javaSourcepath), resolve(root, config.classpath), config.strictNull);
     }
 
     private static List<Path> resolve(Path root, List<String> paths) {
@@ -221,7 +222,7 @@ final class ProjectModel {
                 root = root.getParent();
             }
         }
-        return new Module(root, List.of(root), List.of(), List.of(), false);
+        return new Module(root, List.of(root), List.of(), List.of(), List.of(), false);
     }
 
     List<Module> modules() {

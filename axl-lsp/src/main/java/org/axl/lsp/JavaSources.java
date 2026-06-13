@@ -28,7 +28,7 @@ final class JavaSources {
             result.addAll(javaFiles(root));
         }
         for (Path root : module.axlRoots()) {
-            if (module.javaRoots().stream().noneMatch(root::startsWith)) {
+            if (Stream.concat(module.javaRoots().stream(), module.javaSourcepath().stream()).noneMatch(root::startsWith)) {
                 javaFiles(root).stream().filter(file -> inPackageDirectory(root, file) && !result.contains(file))
                         .forEach(result::add);
             }

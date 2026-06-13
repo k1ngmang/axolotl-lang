@@ -46,6 +46,10 @@ main sources while the main sources do not see the tests or their libraries:
 }
 ```
 
+`"javaSourcepath"` lists Java source roots that a module reads but does not compile, such as those
+of the projects it depends on, whose class files are on its classpath: javac takes a class from
+there when its source is newer than its class file, and errors in those sources are not shown.
+
 Relative paths are relative to the module directory. A description that is not valid JSON of this
 shape is skipped with a warning. The search skips `build`, `target` and `out` directories, apart
 from the descriptions the plugins write there, and hidden directories such as `.git`. When a

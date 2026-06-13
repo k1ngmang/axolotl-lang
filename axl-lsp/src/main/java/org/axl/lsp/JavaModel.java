@@ -130,8 +130,9 @@ final class JavaModel {
         }
         List<Path> classpath = new ArrayList<>(RuntimeClasspath.entries());
         classpath.addAll(module.classpath());
-        List<String> options = List.of("-proc:none", "-classpath",
-                classpath.stream().map(Path::toString).collect(Collectors.joining(File.pathSeparator)));
+        List<String> options = new ArrayList<>(List.of("-proc:none", "-classpath",
+                classpath.stream().map(Path::toString).collect(Collectors.joining(File.pathSeparator))));
+        options.addAll(module.javaSourcepathOptions());
         JavacTask task = (JavacTask) compiler.getTask(null, files, ignored, options, null, sources);
         try {
             Iterable<? extends CompilationUnitTree> units = task.parse();

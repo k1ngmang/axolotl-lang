@@ -89,11 +89,11 @@ final class ModuleCompiler {
         classpath.addAll(module.classpath());
         JavaCompilation.Outcome outcome;
         try {
-            outcome = JavaCompilation.compile(sources, classpath, classes, List.of(), nullChecks, module.strictNull());
+            outcome = JavaCompilation.compile(sources, classpath, classes, module.javaSourcepathOptions(), nullChecks, module.strictNull());
         } catch (IllegalStateException e) {
             // Started without the JVM options Error Prone needs: plain javac still finds type errors.
             nullChecks = false;
-            outcome = JavaCompilation.compile(sources, classpath, classes, List.of(), false, module.strictNull());
+            outcome = JavaCompilation.compile(sources, classpath, classes, module.javaSourcepathOptions(), false, module.strictNull());
         }
         var translator = new DiagnosticTranslator(generated, ModuleCompiler::uri);
         for (var d : outcome.diagnostics()) {

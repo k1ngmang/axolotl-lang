@@ -425,6 +425,18 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsTheJavaSourcepathWithoutCompilingIt() throws Exception {
+        Path java = Files.createDirectories(project.resolve("lib/app")).resolve("Helper.java");
+        Files.writeString(java, "package app;\n\npublic class Helper {\n    public static int one() { return Missing.ONE; }\n}\n");
+        Files.writeString(project.resolve("axl.json"), "{\"sourceRoots\": [\"src/main/axl\"], \"javaSourcepath\": [\"lib\"]}");
+        workspace.open(List.of(project));
+        String main = open("Main.axl", "package app\n\nfn main() {\n    println(Helper.one())\n}\n");
+        workspace.saved(main);
+        assertEquals(List.of(), published.get(main));
+        assertNull(published.get(java.toUri().toString()));
+    }
+
+    @Test
     void takesTheModulesTheClientDescribes() throws Exception {
         Path java = Files.createDirectories(project.resolve("lib/app")).resolve("Helper.java");
         Files.writeString(java, "package app;\n\npublic class Helper {\n    public static int one() { return 1; }\n}\n");
@@ -755,7 +767,7 @@ class WorkspaceTest {
         List<Path> before = temporaryDirectories(tmp);
         ModuleCompiler compiler = new ModuleCompiler();
         compiler.close();
-        compiler.compile(new Module(project, List.of(), List.of(), List.of(), false), List.of(), Map.of());
+        compiler.compile(new Module(project, List.of(), List.of(), List.of(), List.of(), false), List.of(), Map.of());
         assertEquals(List.of(), temporaryDirectories(tmp).stream().filter(p -> !before.contains(p)).toList());
     }
 
