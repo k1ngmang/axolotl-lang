@@ -21,7 +21,9 @@ import java.util.stream.Stream;
 /**
  * The modules of a project as the language server's `modules` option describes them: for each
  * IntelliJ module its production sources and its test sources, each with the source roots of the
- * modules it depends on and its libraries, as `axl check` gets them in Community.
+ * modules it depends on and its libraries, as `axl check` gets them in Community. Only its own Java
+ * is compiled: the Java of the modules it depends on is read from their sources where newer than
+ * their output, which is on the classpath, since it may need their own libraries or other compilers.
  */
 final class AxlLspModules {
 
@@ -59,23 +61,33 @@ final class AxlLspModules {
         List<VirtualFile> production = Arrays.asList(roots.getSourceRoots(false));
         List<VirtualFile> own = test ? Arrays.stream(roots.getSourceRoots(true)).filter(r -> !production.contains(r)).toList()
                 : production;
-        Set<String> sources = new LinkedHashSet<>(paths(module, own.stream()));
-        if (sources.isEmpty()) {
+        List<String> ownPaths = paths(module, own.stream());
+        if (ownPaths.isEmpty()) {
             return;
         }
-        if (test) {
-            sources.addAll(paths(module, production.stream()));
-        }
-        sources.addAll(paths(module, Arrays.stream(OrderEnumerator.orderEntries(module).withoutSdk().withoutLibraries()
+        Set<String> dependencies = new LinkedHashSet<>(test ? paths(module, production.stream()) : List.of());
+        dependencies.addAll(paths(module, Arrays.stream(OrderEnumerator.orderEntries(module).withoutSdk().withoutLibraries()
                 .withoutModuleSourceEntries().productionOnly().recursively().sources().getRoots())));
-        OrderEnumerator libraries = OrderEnumerator.orderEntries(module).withoutSdk().librariesOnly().recursively();
+        dependencies.removeAll(ownPaths);
+        Set<String> sources = new LinkedHashSet<>(ownPaths);
+        sources.addAll(dependencies);
         VirtualFile[] content = roots.getContentRoots();
         Map<String, Object> entry = new LinkedHashMap<>();
-        entry.put("root", content.length > 0 ? content[0].getPath() : sources.iterator().next());
+        entry.put("root", content.length > 0 ? content[0].getPath() : ownPaths.getFirst());
         entry.put("sourceRoots", List.copyOf(sources));
-        entry.put("javaSourceRoots", List.copyOf(sources));
-        entry.put("classpath", (test ? libraries : libraries.productionOnly()).getPathsList().getPathList());
+        entry.put("javaSourceRoots", ownPaths);
+        entry.put("javaSourcepath", List.copyOf(dependencies));
+        entry.put("classpath", classpath(module, test));
         result.add(entry);
+    }
+
+    /** The libraries, and the output of the modules depended on; for the tests, the module's production output too. */
+    private static List<String> classpath(Module module, boolean test) {
+        OrderEnumerator libraries = OrderEnumerator.orderEntries(module).withoutSdk().librariesOnly().recursively();
+        OrderEnumerator outputs = OrderEnumerator.orderEntries(module).withoutSdk().withoutLibraries().productionOnly().recursively();
+        List<String> result = new ArrayList<>((test ? libraries : libraries.productionOnly()).getPathsList().getPathList());
+        result.addAll((test ? outputs : outputs.withoutModuleSourceEntries()).classes().getPathsList().getPathList());
+        return result;
     }
 
     /** Without excluded roots, such as the Java the build generates from .axl files, which would clash with them. */

@@ -20,6 +20,8 @@ public class AxlLspModulesTest extends LightJavaCodeInsightFixtureTestCase {
             assertEquals(2, modules.size());
             assertEquals(List.of(production), modules.get(0).get("sourceRoots"));
             assertEquals(List.of(tests.getPath(), production), modules.get(1).get("sourceRoots"));
+            assertEquals(List.of(tests.getPath()), modules.get(1).get("javaSourceRoots"));
+            assertEquals(List.of(production), modules.get(1).get("javaSourcepath"));
             assertNotNull(modules.get(0).get("root"));
         } finally {
             PsiTestUtil.removeSourceRoot(getModule(), tests);
