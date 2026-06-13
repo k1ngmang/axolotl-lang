@@ -1,6 +1,7 @@
 package org.axl.intellij.java;
 
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
@@ -30,6 +31,8 @@ import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
+import org.axl.compiler.AxlDiagnostic;
+import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
@@ -52,6 +55,8 @@ public final class AxlLightClasses {
     private static final List<String> MODIFIERS = List.of(PsiModifier.PUBLIC, PsiModifier.PROTECTED, PsiModifier.PRIVATE,
             PsiModifier.STATIC, PsiModifier.ABSTRACT, PsiModifier.FINAL);
 
+    private static final Key<GeneratedUnit> LAST_UNIT = Key.create("axl.lastGeneratedUnit");
+
     private AxlLightClasses() {}
 
     public static @Nullable PsiClass classOf(AxlFile file) {
@@ -72,13 +77,21 @@ public final class AxlLightClasses {
         return outer.findInnerClassByName(declaration.getName(), false);
     }
 
+    /**
+     * While the file has errors, its classes come from the translation of the other lines, or failing
+     * that, from the last translation that worked, so that its types keep their members.
+     */
     private static @Nullable PsiClass build(AxlFile file) {
-        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(),
-                new Options(false).withJavaTypes(new PsiJavaTypes(file)));
-        GeneratedUnit unit = result.unit();
+        Options options = new Options(false).withJavaTypes(new PsiJavaTypes(file));
+        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(), options);
+        GeneratedUnit unit = result.unit() != null ? result.unit() : withoutErrorLines(file, options, result.diagnostics());
+        if (unit == null) {
+            unit = file.getUserData(LAST_UNIT);
+        }
         if (unit == null) {
             return null;
         }
+        file.putUserData(LAST_UNIT, unit);
         Project project = file.getProject();
         PsiJavaFile java = (PsiJavaFile) PsiFileFactory.getInstance(project)
                 .createFileFromText(unit.className() + ".java", com.intellij.lang.java.JavaLanguage.INSTANCE, unit.javaSource());
@@ -88,6 +101,28 @@ public final class AxlLightClasses {
             return null;
         }
         return new Copy(file, unit.qualifiedName()).of(java.getClasses()[0], unit.qualifiedName(), declaration(file, file.className()), null);
+    }
+
+    /**
+     * The translation of the text with the lines that have errors left empty. Of syntax errors only the
+     * first counts: the parser's later ones may be about lines it misread after it.
+     */
+    private static @Nullable GeneratedUnit withoutErrorLines(AxlFile file, Options options, List<AxlDiagnostic> diagnostics) {
+        List<String> lines = new ArrayList<>(List.of(file.getText().split("\n", -1)));
+        for (int attempt = 0; attempt < 3; attempt++) {
+            List<AxlDiagnostic> syntax = diagnostics.stream().filter(d -> d.code() == ErrorCode.SYNTAX).limit(1).toList();
+            for (AxlDiagnostic d : syntax.isEmpty() ? diagnostics : syntax) {
+                if (d.isError() && d.line() >= 1 && d.line() <= lines.size()) {
+                    lines.set(d.line() - 1, "");
+                }
+            }
+            Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), String.join("\n", lines), options.asDraft());
+            if (result.unit() != null) {
+                return result.unit();
+            }
+            diagnostics = result.diagnostics();
+        }
+        return null;
     }
 
     private static @Nullable AxlTypeDeclaration declaration(AxlFile file, String name) {

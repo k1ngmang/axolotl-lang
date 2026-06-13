@@ -21,6 +21,7 @@ import java.util.List;
 import org.axl.intellij.highlight.AxlSyntaxHighlighter;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 
 /** Data classes, classes, enums and interfaces, as Java code and other .axl files see them. */
@@ -263,6 +264,15 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertCompletes(SHAPES.replace("val color = Color.RED", "val color = Color.<caret>"), "RED", "values");
         assertCompletes(SHAPES.replace("3.14 * shape.radius()", "3.14 * shape.<caret>"), "radius");
         assertCompletes(COUNTER.replace("println(d.count)", "println(d.<caret>)"), "count", "next");
+    }
+
+    public void testKeepsTheMembersOfTypesWhileTheFileHasErrors() {
+        for (String error : List.of("fn g() = \"x\"\n\n", "fn g() -> Int = 1 +\n\n", "fn g(a: Int) {\n    val a = 2\n}\n\n")) {
+            String text = SHAPES.replace("fn main() {", error + "fn main() {");
+            myFixture.configureByText("Shapes.axl", text);
+            assertTrue(error, resolveAt("println(c.rad|ius())") instanceof AxlVariable);
+            assertCompletes(text.replace("println(c.radius())", "println(c.<caret>)"), "radius", "name");
+        }
     }
 
     public void testOffersTheKeywordsThatFitThePlace() {
