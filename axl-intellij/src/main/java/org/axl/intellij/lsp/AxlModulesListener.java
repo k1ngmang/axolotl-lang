@@ -6,7 +6,11 @@ import com.intellij.openapi.roots.ModuleRootListener;
 import com.intellij.platform.lsp.api.LspServerManager;
 import org.jetbrains.annotations.NotNull;
 
-/** Restarts the language server when the modules change, such as after a Gradle sync: it gets them when it starts. */
+/**
+ * Restarts the language server when the modules change, such as after a Gradle sync: it gets them
+ * when it starts. Roots change often without changing the modules, as on every sync, and a restart
+ * loses all the server's state.
+ */
 public final class AxlModulesListener implements ModuleRootListener {
 
     private final Project project;
@@ -17,6 +21,8 @@ public final class AxlModulesListener implements ModuleRootListener {
 
     @Override
     public void rootsChanged(@NotNull ModuleRootEvent event) {
-        LspServerManager.getInstance(project).stopAndRestartIfNeeded(AxlLspServerSupportProvider.class);
+        if (AxlLspModules.changed(project)) {
+            LspServerManager.getInstance(project).stopAndRestartIfNeeded(AxlLspServerSupportProvider.class);
+        }
     }
 }

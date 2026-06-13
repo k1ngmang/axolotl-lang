@@ -25,4 +25,17 @@ public class AxlLspModulesTest extends LightJavaCodeInsightFixtureTestCase {
             PsiTestUtil.removeSourceRoot(getModule(), tests);
         }
     }
+
+    public void testTellsWhetherTheModulesChangedSinceTheServerStarted() throws IOException {
+        myFixture.addFileToProject("app/Main.axl", "package app\n");
+        AxlLspModules.forServer(getProject());
+        assertFalse(AxlLspModules.changed(getProject()));
+        VirtualFile tests = myFixture.getTempDirFixture().findOrCreateDir("tests");
+        PsiTestUtil.addSourceRoot(getModule(), tests, true);
+        try {
+            assertTrue(AxlLspModules.changed(getProject()));
+        } finally {
+            PsiTestUtil.removeSourceRoot(getModule(), tests);
+        }
+    }
 }

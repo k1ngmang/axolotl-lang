@@ -61,7 +61,7 @@ public final class AxlLspServerSupportProvider implements LspServerSupportProvid
          */
         @Override
         public Object createInitializationOptions() {
-            return Map.of("translatorDiagnostics", false, "modules", AxlLspModules.of(getProject()));
+            return Map.of("translatorDiagnostics", false, "modules", AxlLspModules.forServer(getProject()));
         }
 
         @Override

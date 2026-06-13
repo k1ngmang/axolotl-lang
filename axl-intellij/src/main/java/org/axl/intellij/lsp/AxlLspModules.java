@@ -4,6 +4,7 @@ import com.intellij.openapi.application.ReadAction;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleManager;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.util.Key;
 import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.OrderEnumerator;
 import com.intellij.openapi.roots.ProjectFileIndex;
@@ -24,7 +25,21 @@ import java.util.stream.Stream;
  */
 final class AxlLspModules {
 
+    private static final Key<List<Map<String, Object>>> STARTED_WITH = Key.create("axl.lspModules");
+
     private AxlLspModules() {}
+
+    /** The modules for a server being started, remembered to tell later whether they changed. */
+    static List<Map<String, Object>> forServer(Project project) {
+        List<Map<String, Object>> modules = of(project);
+        project.putUserData(STARTED_WITH, modules);
+        return modules;
+    }
+
+    /** Whether the modules differ from those the server was started with. */
+    static boolean changed(Project project) {
+        return !of(project).equals(project.getUserData(STARTED_WITH));
+    }
 
     /** Dependencies come before the modules that use them, so that a file belongs to its own module first. */
     static List<Map<String, Object>> of(Project project) {
