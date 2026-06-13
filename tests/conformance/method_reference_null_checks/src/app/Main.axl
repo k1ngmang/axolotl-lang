@@ -1,0 +1,60 @@
+package app
+
+import java.util.ArrayDeque
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.Map
+import java.util.TreeSet
+import java.util.function.BiFunction
+import java.util.function.Function
+import java.util.function.Supplier
+
+data class Q(val n: Int)
+
+fn show(n: Int) { println(n + 1) }
+
+// A method reference is checked like the lambda it stands for.
+fn primitives() {
+    val xs = ArrayList<Int?>()
+    xs.add(null)
+    xs.forEach(Main::show)
+    println(xs.stream().map(Q::new).toList())
+    println(xs.stream().map(Integer::toHexString).toList())
+}
+
+fn rejecting() {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    println(xs.stream().filter("abc"::contains).count())
+    println(xs.stream().map(StringBuilder::new).toList())
+    val t = TreeSet<String?>()
+    xs.forEach(t::add)
+    val f: BiFunction<String, String?, Boolean> = String::startsWith
+    println(f.apply("a", null))
+    val m = Map.of("a", "b")
+    val g: Function<String?, Boolean> = m::containsKey
+    println(g.apply(null))
+    println(m.containsKey(xs.get(0)))
+}
+
+fn absent() {
+    val q = ArrayDeque<String>()
+    val s: Supplier<String> = q::poll
+    println(s.get().length())
+    val maybe: Supplier<String?> = q::poll
+    println(maybe.get())
+}
+
+fn accepted() {
+    val xs = ArrayList<String?>()
+    println(xs.stream().map(String::valueOf).toList())
+    val ns = ArrayList<Int>()
+    ns.add(1)
+    ns.forEach(Main::show)
+    println(ns.stream().map(Integer::toHexString).toList())
+    val counts = HashMap<String, Int>()
+    counts.merge("a", 1, Integer::sum)
+    val names = ArrayList<String>()
+    names.add("b")
+    println(names.stream().filter("abc"::contains).count())
+}

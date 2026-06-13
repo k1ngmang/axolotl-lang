@@ -1,0 +1,10 @@
+AXL102 app/Main.axl:20:16: error: `Main::show` may get null, but `show` uses it as a number or boolean; pass a lambda that checks for null
+AXL102 app/Main.axl:21:29: error: `Q::new` may get null, but `Q` uses it as a number or boolean; pass a lambda that checks for null
+AXL102 app/Main.axl:22:29: error: `Integer::toHexString` may get null, but `toHexString` uses it as a number or boolean; pass a lambda that checks for null
+AXL102 app/Main.axl:28:32: error: `"abc"::contains` may get null, but `contains` does not take null; pass a lambda that checks for null
+AXL102 app/Main.axl:29:29: error: `StringBuilder::new` may get null, but `StringBuilder` does not take null; pass a lambda that checks for null
+AXL102 app/Main.axl:31:16: error: `t::add` may get null, but `add` does not take null; pass a lambda that checks for null
+AXL102 app/Main.axl:32:51: error: `String::startsWith` may get null, but `startsWith` does not take null; pass a lambda that checks for null
+AXL102 app/Main.axl:35:41: error: `m::containsKey` may get null, but `containsKey` does not take null; pass a lambda that checks for null
+AXL102 app/Main.axl:37:30: error: the result of `get()` may be null: its type is a type argument written with `?`, but `containsKey` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:42:31: error: `q::poll` may return null, but `Supplier.get` returns `String` here; use a lambda with `?:`

@@ -327,6 +327,8 @@ final class NullChecker implements TaskListener {
         private final Set<Element> reassigned = new HashSet<>();
         // Locals whose written type has `?`; javac drops it from their element.
         private final Set<Element> nullableLocals = new HashSet<>();
+        // `val` locals that hold a collection of `List.of` and the like.
+        private final Set<Element> immutableLocals = new HashSet<>();
         // The origins and shapes of trees, valid while `state` and `shapes` hold what they held when
         // computed. Each nesting level asks for those of the levels below again, which takes
         // exponential time without them.
@@ -381,6 +383,10 @@ final class NullChecker implements TaskListener {
             }
             if (element == null || init == null) {
                 return null;
+            }
+            if (element.getKind() == ElementKind.LOCAL_VARIABLE && element.getModifiers().contains(Modifier.FINAL)
+                    && immutable(init)) {
+                immutableLocals.add(element);
             }
             if (element.getKind() == ElementKind.LOCAL_VARIABLE && isVar(variable)) {
                 inferredLocals.add(element);
@@ -858,12 +864,13 @@ final class NullChecker implements TaskListener {
                 }
             }
             TypeMirror returned = ((ExecutableType) types.asMemberOf(declared, sam)).getReturnType();
+            boolean absent = PlatformValues.returnsNullByContract(method);
             if (returned.getKind() == TypeKind.VOID || returned.getKind().isPrimitive()
-                    || !PlatformValues.isNullable(method, method.getReturnType())
+                    || !absent && !PlatformValues.isNullable(method, method.getReturnType())
                     || resultMayBeNull(getCurrentPath(), iface, sam, returned)) {
                 return;
             }
-            report(reference, Origin.DECLARED, isNullMarked(iface), "`" + reference + "` may return null, but `"
+            report(reference, absent ? Origin.ABSENT : Origin.DECLARED, isNullMarked(iface), "`" + reference + "` may return null, but `"
                     + iface.getSimpleName() + "." + sam.getSimpleName() + "` returns `" + typeName(returned)
                     + "` here; use a lambda with `?:`");
         }
@@ -892,27 +899,50 @@ final class NullChecker implements TaskListener {
 
         /**
          * The parameters of Axolotl code say whether they accept null; those of a JDK method whose type is
-         * a type argument of the receiver, such as `add` of `ys::add`, follow that type argument.
+         * a type argument of the receiver, such as `add` of `ys::add`, follow that type argument. A
+         * primitive parameter unboxes what it gets.
          */
         private boolean checkReferenceParameter(MemberReferenceTree reference, ExecutableElement method, int index,
                                                 Origin origin, boolean nullAwayChecks) {
-            VariableElement param = method.getParameters().get(index);
-            String rejects;
-            if (isAxolotlCode(method)) {
-                if (param.asType().getKind().isPrimitive() || PlatformValues.isNullable(param, param.asType())) {
-                    return false;
-                }
-                rejects = "the parameter `" + param.getSimpleName() + "` does not accept null";
-            } else if (takesWrittenTypeArgument(reference, method, param)) {
-                rejects = "`" + calledName(method) + "` takes a type argument written without `?` here";
-                nullAwayChecks = false;
-            } else {
+            String rejects = referenceRejects(reference, method, index);
+            if (rejects == null) {
                 return false;
             }
+            boolean declaredParameter = isAxolotlCode(method) && !method.getParameters().get(index).asType().getKind().isPrimitive();
             String gets = origin == Origin.PLATFORM
                     ? "Java code without nullness annotations may pass null to `" + calledName(method) + "`"
                     : "`" + reference + "` may get null";
-            return report(reference, origin, nullAwayChecks, gets + ", but " + rejects + "; pass a lambda that checks for null");
+            return report(reference, origin, nullAwayChecks && declaredParameter,
+                    gets + ", but " + rejects + "; pass a lambda that checks for null");
+        }
+
+        /** Why a parameter of the method a reference stands for does not take null, or null when it does. */
+        private String referenceRejects(MemberReferenceTree reference, ExecutableElement method, int index) {
+            VariableElement param = method.getParameters().get(index);
+            if (param.asType().getKind().isPrimitive()) {
+                return "`" + calledName(method) + "` uses it as a number or boolean";
+            }
+            if (isAxolotlCode(method)) {
+                return PlatformValues.isNullable(param, param.asType()) ? null
+                        : "the parameter `" + param.getSimpleName() + "` does not accept null";
+            }
+            if (index < rejectedCount(reference, method)) {
+                return "`" + calledName(method) + "` does not take null";
+            }
+            if (takesWrittenTypeArgument(reference, method, param)) {
+                return "`" + calledName(method) + "` takes a type argument written without `?` here";
+            }
+            return null;
+        }
+
+        /** `"abc"::contains` and `TreeMap::get`, as the calls they stand for. */
+        private int rejectedCount(MemberReferenceTree reference, ExecutableElement method) {
+            ExpressionTree qualifier = reference.getQualifierExpression();
+            String name = method.getKind() == ElementKind.CONSTRUCTOR ? "new" : method.getSimpleName().toString();
+            if (!isTypeName(qualifier) && immutable(qualifier) && IMMUTABLE_QUERIES.contains(name)) {
+                return 1;
+            }
+            return rejectedCount(erasedName(typeOf(qualifier)) + "." + name, method);
         }
 
         private static String calledName(ExecutableElement method) {
@@ -1341,6 +1371,9 @@ final class NullChecker implements TaskListener {
         }
 
         private boolean immutable(ExpressionTree collection) {
+            if (unwrap(collection) instanceof IdentifierTree) {
+                return immutableLocals.contains(element(collection));
+            }
             return unwrap(collection) instanceof MethodInvocationTree factory
                     && element(factory) instanceof ExecutableElement created && isOneOf(created, NULL_REJECTING_FACTORIES);
         }

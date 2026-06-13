@@ -1,4 +1,4 @@
 AXL102 app/Main.axl:12:29: error: `P::new` may get null, but the parameter `s` does not accept null; pass a lambda that checks for null
 AXL102 app/Main.axl:15:16: error: `ys::add` may get null, but `add` takes a type argument written without `?` here; pass a lambda that checks for null
 AXL102 app/Main.axl:16:25: error: `ys::add` may get null, but `add` takes a type argument written without `?` here; pass a lambda that checks for null
-AXL102 app/Main.axl:18:16: error: `sorted::add` may get null, but `add` takes a type argument written without `?` here; pass a lambda that checks for null
+AXL102 app/Main.axl:18:16: error: `sorted::add` may get null, but `add` does not take null; pass a lambda that checks for null
