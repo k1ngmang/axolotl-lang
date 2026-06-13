@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:14:16: error: `forEach` may pass null to `c`, but it has the type `Consumer<String>`; add `?` to its type argument or drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:16:29: error: `map` may pass null to `f`, but it has the type `Function<String, Int>`; add `?` to its type argument or drop the nulls first: `|> filter { it != null }`

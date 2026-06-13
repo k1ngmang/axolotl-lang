@@ -1,0 +1,26 @@
+package app
+
+import java.util.ArrayList
+import java.util.function.Consumer
+import java.util.function.Function
+
+fn lengths() -> Function<String?, Int> = { s -> s?.length() ?: 0 }
+
+// A function value gets what a lambda in its place would get.
+fn main() {
+    val xs = ArrayList<String?>()
+    xs.add(null)
+    val c: Consumer<String> = { s -> println(s.length()) }
+    xs.forEach(c)
+    val f: Function<String, Int> = String::length
+    println(xs.stream().map(f).toList())
+
+    val maybe: Consumer<String?> = { s -> println(s) }
+    xs.forEach(maybe)
+    val g = lengths()
+    println(xs.stream().map(g).toList())
+    val ys = ArrayList<String>()
+    ys.add("a")
+    ys.forEach(c)
+    println(ys.stream().map(f).toList())
+}

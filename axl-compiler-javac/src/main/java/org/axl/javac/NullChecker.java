@@ -521,6 +521,7 @@ final class NullChecker implements TaskListener {
             } else {
                 checkPrimitiveArguments(method, call.getArguments());
                 checkNullRejecting(call, method);
+                checkFunctionArguments(call, method);
             }
             if (call.getMethodSelect() instanceof MemberSelectTree select && !isTypeName(select.getExpression())) {
                 ExpressionTree receiver = select.getExpression();
@@ -986,6 +987,46 @@ final class NullChecker implements TaskListener {
             Shape wanted = writtenBindings(owner, asSuper(typeOf(receiver), owner), receiverBindings(receiver, method))
                     .getOrDefault(variable.asElement(), Shape.ANY);
             return !wanted.nullable();
+        }
+
+        /**
+         * `xs.forEach(c)` with `c: Consumer<String>` on a `List<String?>`: a function value gets what a
+         * lambda in its place would get, but NullAway trusts the JDK's generic types.
+         */
+        private void checkFunctionArguments(MethodInvocationTree call, ExecutableElement method) {
+            List<? extends ExpressionTree> args = call.getArguments();
+            Map<Element, Shape> fixed = call.getMethodSelect() instanceof MemberSelectTree select
+                    && !isTypeName(select.getExpression()) ? receiverBindings(select.getExpression(), method) : Map.of();
+            Map<Element, Shape> bound = bindings(fixed, method, args, false);
+            for (int i = 0; i < args.size() && !method.getParameters().isEmpty(); i++) {
+                ExpressionTree arg = args.get(i);
+                // javac infers the type arguments of other values, such as `Function.identity()`, from the call.
+                if (!(unwrap(arg) instanceof IdentifierTree) && !(unwrap(arg) instanceof MemberSelectTree)) {
+                    continue;
+                }
+                List<Shape> passed = parameterShapes(parameterType(method, i, args.size()), bound);
+                List<Shape> accepted = acceptedShapes(arg);
+                boolean rejects = false;
+                for (int j = 0; j < Math.min(passed.size(), accepted.size()); j++) {
+                    rejects |= passed.get(j).nullable() && !accepted.get(j).nullable();
+                }
+                if (rejects) {
+                    String type = Messages.axlType(typeOf(arg).toString());
+                    report(arg, Origin.HIDDEN, false, "`" + calledName(method) + "` may pass null to `" + arg
+                            + "`, but it has the type `" + type + "`; add `?` to its type argument or " + DROP_NULLS);
+                }
+            }
+        }
+
+        /** What the parameters of a function value accept, by the type arguments of its value. */
+        private List<Shape> acceptedShapes(ExpressionTree function) {
+            if (!(typeOf(function) instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement iface)
+                    || functionalMethod(iface) == null) {
+                return List.of();
+            }
+            Map<Element, Shape> own = typeBindings(iface, shapeAs(shape(function), declared, iface));
+            ExecutableType sam = (ExecutableType) types.asMemberOf((DeclaredType) iface.asType(), functionalMethod(iface));
+            return sam.getParameterTypes().stream().map(p -> p.getKind().isPrimitive() ? Shape.ANY : shapeOf(p, own)).toList();
         }
 
         /** What may be null in the parameters that the call a lambda or method reference is passed to gives it. */
