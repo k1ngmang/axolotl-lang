@@ -3,6 +3,7 @@ package org.axl.intellij.psi;
 import com.intellij.codeInsight.lookup.LookupElement;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.openapi.util.TextRange;
+import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementResolveResult;
@@ -25,6 +26,8 @@ import org.jetbrains.annotations.NotNull;
 
 /** Resolves names with the same rules as the translator, plus Java classes for qualified access. */
 public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReferenceExpression> {
+
+    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "Result");
 
     AxlReference(AxlReferenceExpression element, TextRange range) {
         super(element, range);
@@ -76,6 +79,9 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
                     variants.putIfAbsent(imp.simpleName(), LookupElementBuilder.create(imp.simpleName()));
                 }
             }
+            if (typeOnly) {
+                addBuiltinTypes(ref, variants);
+            }
             return variants.values().toArray();
         }
         PsiElement owner = qualifier instanceof AxlReferenceExpression q && q.getReference() != null ? q.getReference().resolve() : null;
@@ -103,6 +109,19 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
             }
         }
         return members.toArray();
+    }
+
+    /** The types every file sees: Axolotl's own and the classes of java.lang. */
+    private static void addBuiltinTypes(PsiElement place, Map<String, LookupElement> variants) {
+        for (String name : BUILTIN_TYPES) {
+            variants.putIfAbsent(name, LookupElementBuilder.create(name));
+        }
+        PsiPackage lang = JavaPsiFacade.getInstance(place.getProject()).findPackage("java.lang");
+        for (PsiClass cls : lang == null ? new PsiClass[0] : lang.getClasses(place.getResolveScope())) {
+            if (cls.getName() != null && cls.hasModifierProperty(PsiModifier.PUBLIC)) {
+                variants.putIfAbsent(cls.getName(), LookupElementBuilder.create(cls, cls.getName()));
+            }
+        }
     }
 
     /** In a written type, such as after `:` or `->` in a declaration, or after `is`. */

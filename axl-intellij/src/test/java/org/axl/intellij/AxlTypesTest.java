@@ -309,7 +309,8 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
                 "fn h() -> <caret> = 1\nfn main() {")) {
             String text = type.startsWith(" ") ? SHAPES.replace("    val color = Color.RED", type) : SHAPES.replace("fn main() {", type);
             List<String> found = complete(text);
-            assertTrue(type + found, found.contains("Circle") && found.stream().noneMatch(List.of("main", "if", "println", "color")::contains));
+            assertTrue(type + found, found.containsAll(List.of("Circle", "Int", "Boolean", "Result", "String")));
+            assertTrue(type + found, found.stream().noneMatch(List.of("main", "if", "println", "color")::contains));
         }
     }
 

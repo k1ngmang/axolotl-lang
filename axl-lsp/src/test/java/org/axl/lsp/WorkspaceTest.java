@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.axl.compiler.ast.Pos;
 import org.eclipse.lsp4j.CompletionItem;
+import org.eclipse.lsp4j.CompletionItemKind;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.DiagnosticSeverity;
@@ -1178,20 +1179,35 @@ class WorkspaceTest {
     void completesOnlyTypesAfterIs() throws Exception {
         String uri = open("Shapes.axl", SHAPES);
         workspace.update(uri, SHAPES.replace("is Square -> {", "is Sq -> {"));
-        List<String> labels = new Completions(workspace).complete(uri, 12, 9).stream().map(CompletionItem::getLabel).toList();
-        assertEquals(List.of("Shape", "Circle", "Square"), labels);
+        assertTypes(new Completions(workspace).complete(uri, 12, 9), "is");
+    }
+
+    /** The file's types first, then the built-in ones and those of java.lang, and nothing else. */
+    private static void assertTypes(List<CompletionItem> items, String where) {
+        List<String> labels = labels(items);
+        assertEquals(List.of("Shape", "Circle", "Square"), labels.subList(0, Math.min(3, labels.size())), where);
+        assertTrue(labels.containsAll(List.of("Int", "Long", "Double", "Boolean", "Result", "String", "Object")), where + ": " + labels);
+        assertTrue(items.stream().allMatch(i -> i.getKind() == CompletionItemKind.Class), where + ": " + labels);
     }
 
     @Test
     void completesOnlyTypesWhereADeclarationNamesOne() throws Exception {
-        for (String line : List.of("    val z: ", "fn g(a: ", "fn h() -> ")) {
+        for (String line : List.of("    val z: ", "fn g(a: ", "fn h() -> ", "    val m: Map<String, ", "    val n: List<")) {
             boolean local = line.startsWith(" ");
             String text = local ? SHAPES.replace("    val total = when", line + "\n    val total = when") : SHAPES + line;
             String uri = open("Shapes.axl", SHAPES);
             workspace.update(uri, text);
             int row = text.lines().toList().indexOf(line);
-            assertEquals(List.of("Shape", "Circle", "Square"), labels(new Completions(workspace).complete(uri, row, line.length())), line);
+            assertTypes(new Completions(workspace).complete(uri, row, line.length()), line);
         }
+    }
+
+    @Test
+    void completesValuesAfterALessThan() throws Exception {
+        String text = "package app\n\nfn f(n: Int, m: Int) -> Boolean = n < m\n";
+        String uri = open("Less.axl", text);
+        workspace.update(uri, text.replace("< m", "< "));
+        assertTrue(labels(new Completions(workspace).complete(uri, 2, 38)).containsAll(List.of("n", "m", "true")));
     }
 
     @Test

@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.parse.AxolotlLexer;
@@ -25,6 +26,10 @@ final class Keywords {
             AxolotlLexer.EQ, AxolotlLexer.NEQ, AxolotlLexer.LT, AxolotlLexer.LE, AxolotlLexer.GT, AxolotlLexer.GE,
             AxolotlLexer.ELVIS, AxolotlLexer.BANG, AxolotlLexer.BANGBANG, AxolotlLexer.PLUS_ASSIGN, AxolotlLexer.MINUS_ASSIGN,
             AxolotlLexer.STAR_ASSIGN, AxolotlLexer.SLASH_ASSIGN, AxolotlLexer.PERCENT_ASSIGN, AxolotlLexer.ELSE, AxolotlLexer.TRY);
+
+    /** Tokens of the type arguments written before the cursor: names, dots, commas and `?`. */
+    private static final Set<Integer> TYPE_ARGUMENT_TOKENS = Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.DOT, AxolotlLexer.COMMA,
+            AxolotlLexer.QUESTION);
 
     /** Keywords in a header that tell what kind of braces follow. */
     private static final Set<Integer> HEADS = Set.of(AxolotlLexer.CLASS, AxolotlLexer.INTERFACE, AxolotlLexer.ENUM,
@@ -53,11 +58,40 @@ final class Keywords {
         };
     }
 
-    /** Whether a type is wanted at a 0-based position: after `is`, after `:` and after the `->` of a function header. */
+    /**
+     * Whether a type is wanted at a 0-based position: after `is`, after `:`, after the `->` of a
+     * function header and among type arguments.
+     */
     static boolean typeExpected(Document document, int line, int character) {
         List<Token> before = tokensBefore(document, line, document.codePointColumn(line, character));
         int previous = before.isEmpty() ? Token.INVALID_TYPE : before.getLast().getType();
-        return previous == AxolotlLexer.IS || previous == AxolotlLexer.COLON || previous == AxolotlLexer.ARROW && afterParameters(before);
+        return previous == AxolotlLexer.IS || previous == AxolotlLexer.COLON || previous == AxolotlLexer.ARROW && afterParameters(before)
+                || (previous == AxolotlLexer.LT || previous == AxolotlLexer.COMMA) && inTypeArguments(before);
+    }
+
+    /** Whether the tokens end inside the `<` of a type, such as `HashMap<String, `, and not after a less-than. */
+    private static boolean inTypeArguments(List<Token> before) {
+        int depth = 0;
+        for (int i = before.size() - 1; i > 0; i--) {
+            Token token = before.get(i);
+            if (token.getType() == AxolotlLexer.GT) {
+                depth++;
+            } else if (token.getType() == AxolotlLexer.LT && depth > 0) {
+                depth--;
+            } else if (token.getType() == AxolotlLexer.LT) {
+                return isTypeName(before.get(i - 1));
+            } else if (!TYPE_ARGUMENT_TOKENS.contains(token.getType())) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /** A capitalized name that is not a constant: `HashMap`, not `MAX`. */
+    private static boolean isTypeName(Token token) {
+        String name = token.getText();
+        return token.getType() == AxolotlLexer.IDENTIFIER && Character.isUpperCase(name.charAt(0))
+                && !name.equals(name.toUpperCase(Locale.ROOT));
     }
 
     /** Whether the token before the last one closes the parameters of a function: `fn f(a: Int) ->`. */

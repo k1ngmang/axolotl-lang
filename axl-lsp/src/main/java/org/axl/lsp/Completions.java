@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
@@ -20,6 +21,7 @@ import org.eclipse.lsp4j.CompletionItemKind;
 final class Completions {
 
     private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
+    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "Result");
     static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
     private static final Set<Integer> DOTS = Set.of(AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT, AxolotlLexer.COLONCOLON);
@@ -81,6 +83,8 @@ final class Completions {
             }
         }
         if (typeOnly) {
+            Set<String> declared = items.stream().map(CompletionItem::getLabel).collect(Collectors.toSet());
+            builtinTypes(current).stream().filter(item -> !declared.contains(item.getLabel())).forEach(items::add);
             return items;
         }
         List<String> keywords = Keywords.at(current, line, character);
@@ -220,6 +224,18 @@ final class Completions {
         }
         items.addAll(items(new ArrayList<>(java.classesOf(qualifier, pkg))));
         return items;
+    }
+
+    /** The types every file sees: Axolotl's own and the classes of java.lang. */
+    private List<CompletionItem> builtinTypes(Document document) {
+        String pkg = Workspace.packageName(document.text);
+        List<String> names = new ArrayList<>(BUILTIN_TYPES);
+        workspace.javaModel(document.module).classesOf("java.lang", pkg).forEach(t -> names.add(t.getSimpleName().toString()));
+        return names.stream().distinct().map(name -> {
+            CompletionItem item = new CompletionItem(name);
+            item.setKind(CompletionItemKind.Class);
+            return item;
+        }).toList();
     }
 
     private static List<CompletionItem> items(List<Element> members) {
