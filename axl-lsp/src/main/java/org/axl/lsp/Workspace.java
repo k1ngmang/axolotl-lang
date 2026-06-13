@@ -22,6 +22,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import javax.lang.model.SourceVersion;
@@ -61,7 +64,8 @@ final class Workspace {
     // javac and the scanners of its trees recurse once per nesting level of an expression, like the translator.
     private static final long STACK_SIZE = 512L * 1024 * 1024;
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> thread(r, "axl-lsp"));
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(1, 1, 0, TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(),
+            r -> thread(r, "axl-lsp"));
     private final ExecutorService compiles = Executors.newSingleThreadExecutor(r -> thread(r, "axl-lsp-compile"));
     // The number of compilations asked for by module, read by the compiling thread to skip outdated ones.
     private final Map<Module, Integer> compileRequests = new ConcurrentHashMap<>();
@@ -161,12 +165,19 @@ final class Workspace {
 
     /**
      * Not interrupted: javac interrupted while reading ct.sym closes it for every later compilation
-     * in the JVM. The threads are daemons and end with it.
+     * in the JVM. The threads are daemons and end with it. The work waiting is dropped, and the work
+     * running gets a few seconds to end, since it may be writing drafts that would be left behind.
      */
     void close() {
         shutDown = true;
         compiles.shutdown();
+        executor.getQueue().clear();
         executor.shutdown();
+        try {
+            executor.awaitTermination(10, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
         deleteTemporaryFiles();
     }
 
