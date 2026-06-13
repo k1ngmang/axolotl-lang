@@ -72,6 +72,7 @@ public class AxlPlugin implements Plugin<Project> {
                 Provider<LspSources> sources = project.provider(() -> LspSources.of(project, sourceSet));
                 module.getSourceRoots().from(sources.map(s -> s.axl));
                 module.getJavaSourceRoots().from(sources.map(s -> s.java));
+                module.getJavaSourcepath().from(sources.map(s -> s.javaSourcepath));
                 module.getClasspath().from(sources.map(s -> s.classpath));
                 task.getModules().add(module);
             }

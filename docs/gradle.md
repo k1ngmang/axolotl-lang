@@ -49,8 +49,9 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
 - Registers `axlLspConfig`, which writes `build/axl/axl.json` for [the language server](lsp.md):
   a module for every source set, with its `.axl` and Java source directories, its compile
   classpath and `strictNull`. A source set that compiles against another, as `test` does against
-  `main`, or against another project of the build, gets that one's source directories in place of
-  its classes, so the editor sees their edits before a build. It is not part of the build; run it
+  `main`, or against another project of the build, also gets that one's `.axl` directories, so the
+  editor sees their edits before a build, and its Java directories as `javaSourcepath`, read where
+  newer than its classes but compiled only by its own build. It is not part of the build; run it
   once and again when dependencies change.
 
 ## Configuration

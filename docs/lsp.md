@@ -72,12 +72,13 @@ with the source roots and libraries of the IntelliJ modules.
 In a build of several projects, such as `samples/multi-module-gradle` where `app` depends on
 `core`, the directory layout does not tell which project uses which, so without descriptions
 `app` gets false errors for everything it takes from `core`. Run `axlLspConfig`: the description
-of `app` then lists the source roots of `core` after its own and leaves `core`'s classes and jar
-out of the classpath, so edits to `core` are seen in `app` before a build. The libraries stay those
-`app` compiles against: one that `core` takes with `implementation` is not offered in `app`, since
-`compileJava` would not find it there either. `axl:lsp-config` writes
-the classpath as Maven resolves it, so a sibling Maven module is seen through its compiled classes
-or its installed jar, which only a build updates.
+of `app` then lists the `.axl` source roots of `core` after its own, so edits to them are seen in
+`app` before a build, and `core`'s Java source roots as its `javaSourcepath`. `core`'s Java is not
+compiled with `app`'s classpath: its classes come from `core`'s build output, or from its sources
+where they are newer. The libraries stay those `app` compiles against: one that `core` takes with
+`implementation` is not offered in `app`, since `compileJava` would not find it there either.
+`axl:lsp-config` writes the classpath as Maven resolves it, so a sibling Maven module is seen
+through its compiled classes or its installed jar, which only a build updates.
 
 ## VS Code
 

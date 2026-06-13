@@ -29,7 +29,10 @@ import org.gradle.work.DisableCachingByDefault;
 @DisableCachingByDefault(because = "The file holds absolute paths of this machine")
 public abstract class LspConfigTask extends DefaultTask {
 
-    /** A module of the language server: the source roots it sees, its own first, and its classpath. */
+    /**
+     * A module of the language server: the source roots it sees, its own first, its Java source
+     * roots, those it only reads, and its classpath.
+     */
     public abstract static class Module {
 
         @InputFiles
@@ -39,6 +42,10 @@ public abstract class LspConfigTask extends DefaultTask {
         @InputFiles
         @PathSensitive(PathSensitivity.ABSOLUTE)
         public abstract ConfigurableFileCollection getJavaSourceRoots();
+
+        @InputFiles
+        @PathSensitive(PathSensitivity.ABSOLUTE)
+        public abstract ConfigurableFileCollection getJavaSourcepath();
 
         @Classpath
         public abstract ConfigurableFileCollection getClasspath();
@@ -69,6 +76,7 @@ public abstract class LspConfigTask extends DefaultTask {
         return "    {\n"
                 + "      \"sourceRoots\": " + array(module.getSourceRoots()) + ",\n"
                 + "      \"javaSourceRoots\": " + array(module.getJavaSourceRoots()) + ",\n"
+                + "      \"javaSourcepath\": " + array(module.getJavaSourcepath()) + ",\n"
                 + "      \"classpath\": " + array(module.getClasspath()) + ",\n"
                 + "      \"strictNull\": " + getStrictNull().get() + "\n"
                 + "    }";
