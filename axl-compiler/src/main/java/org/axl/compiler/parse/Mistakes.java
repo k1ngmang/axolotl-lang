@@ -51,7 +51,8 @@ final class Mistakes {
             return new Placed(typeArguments, "a type test cannot check type arguments, which Java does not keep at run "
                     + "time; write `is " + before(tokens, typeArguments).getText() + "`");
         }
-        Placed unfinished = previous.getLine() < at.getLine() ? unfinishedLine(tokens, previous) : null;
+        Placed unfinished = previous.getLine() < at.getLine() ? unfinishedLine(tokens, previous)
+                : at.getType() == AxolotlLexer.RBRACE ? unfinished(tokens, previous) : null;
         if (unfinished != null) {
             return unfinished;
         }
@@ -221,6 +222,11 @@ final class Mistakes {
             }
             if (t.getType() == AxolotlLexer.ATTEMPT) {
                 return new Placed(t, "`attempt` needs `else`: `attempt f() else e -> ...`");
+            }
+            if (t.getType() == AxolotlLexer.IF && type(before(tokens, t)) == AxolotlLexer.ARROW) {
+                // After `->` of a lambda or a `when` branch, either may have been meant.
+                return new Placed(t, "an `if` that gives a value needs an `else`: `if (c) a else b`; "
+                        + "as a statement it needs braces: `if (c) { ... }`");
             }
             if (t.getType() == AxolotlLexer.IF && givesValue(tokens, t)) {
                 return new Placed(t, "an `if` that gives a value needs an `else`: `if (c) a else b`");

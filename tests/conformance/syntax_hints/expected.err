@@ -17,6 +17,7 @@ AXL001 app/InterfaceFunction.axl:4:5: error: an interface lists values (`val nam
 AXL001 app/InterfaceMethod.axl:4:5: error: an interface lists values (`val name: Type`), not functions; write the function at the top level
 AXL001 app/IsTypeArguments.axl:6:18: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
 AXL001 app/IsTypeArgumentsAtEnd.axl:5:39: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
+AXL001 app/LambdaIfWithoutElse.axl:6:28: error: an `if` that gives a value needs an `else`: `if (c) a else b`; as a statement it needs braces: `if (c) { ... }`
 AXL001 app/LocalClass.axl:4:5: error: types are declared at the top level of the file
 AXL001 app/MissingComma.axl:3:15: error: missing `,` before `b`
 AXL001 app/MissingPlus.axl:5:18: error: missing `+` or `,` before `a`

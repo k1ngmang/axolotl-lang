@@ -1,0 +1,8 @@
+package app
+
+fn hello(s: String) { println(s) }
+
+fn run(s: String?) {
+    val r: Runnable = { -> if (s != null) hello(s) }
+    r.run()
+}
