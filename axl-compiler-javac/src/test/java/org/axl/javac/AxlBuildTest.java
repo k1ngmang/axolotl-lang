@@ -93,6 +93,22 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutComparingANameThatIsNeverNullWithNull(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn f(s: String, t: String?) -> Boolean = s == null || null != s || t == null
+
+                fn main() {
+                    println(f("a", null))
+                }
+                """);
+        assertEquals(List.of(
+                "3:42 `s` has the type `String`, which is never null; this comparison is always false",
+                "3:63 `s` has the type `String`, which is never null; this comparison is always true"), warnings);
+    }
+
+    @Test
     void warnsAboutIntegerWrittenForInt(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

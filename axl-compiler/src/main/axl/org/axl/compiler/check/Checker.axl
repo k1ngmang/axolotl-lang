@@ -717,6 +717,7 @@ class Checker(val file: SourceFile) {
             }
             is Expr.Unary -> expr(e.operand())
             is Expr.Binary -> {
+                nullComparison(e)
                 expr(e.left())
                 expr(e.right())
             }
@@ -1216,6 +1217,19 @@ class Checker(val file: SourceFile) {
         if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
                 "`" + target.name() + "` has the type `" + written.name() + "`, which is never null; " + fix))
+        }
+    }
+
+    /** `s == null` on a name that is never null is always false. */
+    private fn nullComparison(e: Expr.Binary) {
+        if (!e.op().equals("==") && !e.op().equals("!=")) {
+            return
+        }
+        val always = if (e.op().equals("==")) "false" else "true"
+        if (isNull(e.right())) {
+            warnNeverNull(e.left(), "this comparison is always " + always)
+        } else if (isNull(e.left())) {
+            warnNeverNull(e.right(), "this comparison is always " + always)
         }
     }
 

@@ -671,6 +671,7 @@ import org.axl.compiler.ast.TypeRef;
                 expr(e$8.operand());
             }
             case Expr.Binary e$9 -> {
+                nullComparison(e$9);
                 expr(e$9.left());
                 expr(e$9.right());
             }
@@ -1147,6 +1148,17 @@ import org.axl.compiler.ast.TypeRef;
         if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target$1.pos().line(), target$1.pos().column(), ErrorCode.UNNEEDED,
                     "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
+        }
+    }
+    private void nullComparison(Expr.Binary e) {
+        if (!e.op().equals("==") && !e.op().equals("!=")) {
+            return;
+        }
+        final var always = (e.op().equals("==") ? "false" : "true");
+        if (isNull(e.right())) {
+            warnNeverNull(e.left(), "this comparison is always " + always);
+        } else if (isNull(e.left())) {
+            warnNeverNull(e.right(), "this comparison is always " + always);
         }
     }
     private void writtenType(@Nullable TypeRef type, boolean isResult) {
