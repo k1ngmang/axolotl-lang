@@ -301,6 +301,16 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
             assertTrue(line + found, found.contains("length"));
         }
         assertTrue(complete(main.formatted("println(List.of(p).get(0).<caret>)")).contains("age"));
+        for (String line : List.of("xs.forEach({ println(it.<caret>) })", "xs.stream().map({ s -> s.<caret> })",
+                "val zs = xs |> filter { it.isEmpty() }\n    println(zs.get(0).<caret>)")) {
+            List<String> found = complete(main.formatted(line));
+            assertTrue(line + found, found.contains("length"));
+        }
+        for (String line : List.of("val ys = xs |> map { it.length() }\n    println(ys.get(0).<caret>)",
+                "xs |> map { it.length() } |> map { it.<caret> }")) {
+            List<String> found = complete(main.formatted(line));
+            assertTrue(line + found, found.contains("intValue"));
+        }
         assertTrue(complete(main.formatted("attempt Integer.parseInt(\"1\") else e -> e.<caret>")).contains("getMessage"));
     }
 

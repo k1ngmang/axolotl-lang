@@ -3,6 +3,7 @@ package org.axl.intellij.psi;
 import com.intellij.openapi.util.RecursionManager;
 import com.intellij.pom.java.LanguageLevel;
 import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.LambdaUtil;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
@@ -15,6 +16,7 @@ import com.intellij.psi.PsiPrimitiveType;
 import com.intellij.psi.PsiSubstitutor;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiTypes;
+import com.intellij.psi.PsiWildcardType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.psi.util.TypeConversionUtil;
@@ -36,6 +38,8 @@ final class AxlExpressionTypes {
 
     /** Pipe stages after which the elements have the same type as before. */
     private static final Set<String> KEEPING = Set.of("filter", "peek", "sorted", "distinct", "limit", "skip");
+    /** Stages that end a pipe. */
+    private static final Set<String> ENDING = Set.of("forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
 
     private AxlExpressionTypes() {}
 
@@ -50,6 +54,9 @@ final class AxlExpressionTypes {
         }
         if (kind == AxlElementTypes.GENERIC_NEW) {
             return genericNew(expression);
+        }
+        if (kind == AxlElementTypes.PIPE) {
+            return pipeType(expression);
         }
         if (expression instanceof AxlReferenceExpression ref) {
             PsiElement target = ref.getReference() == null ? null : ref.getReference().resolve();
@@ -149,20 +156,71 @@ final class AxlExpressionTypes {
         return lambdaParameterType(owner, parameters.indexOf(parameter));
     }
 
-    /** The element type that a pipe stage's lambda takes: of the pipe's source, as the stages before leave it. */
+    /**
+     * The type a lambda's parameter takes: for a pipe stage the element type, of the pipe's source as
+     * the stages before leave it; for an argument of a Java method, from the interface it expects.
+     */
     private static @Nullable PsiType lambdaParameterType(PsiElement lambda, int index) {
-        PsiElement stage = lambda.getParent();
-        if (index != 0 || stage == null || stage.getNode().getElementType() != AxlElementTypes.PIPE_STAGE) {
+        PsiElement parent = lambda.getParent();
+        IElementType kind = parent == null ? null : parent.getNode().getElementType();
+        if (kind == AxlElementTypes.ARGUMENTS) {
+            return argumentLambdaParameterType(lambda, index);
+        }
+        if (index != 0 || kind != AxlElementTypes.PIPE_STAGE) {
             return null;
         }
-        PsiElement pipe = stage.getParent();
+        PsiElement pipe = parent.getParent();
         PsiType element = elementType(typeOf(pipe.getFirstChild()));
-        for (PsiElement before = pipe.getFirstChild().getNextSibling(); before != null && before != stage; before = before.getNextSibling()) {
+        for (PsiElement before = pipe.getFirstChild().getNextSibling(); before != null && before != parent; before = before.getNextSibling()) {
             if (before.getNode().getElementType() == AxlElementTypes.PIPE_STAGE) {
                 element = afterStage(before, element);
             }
         }
         return element;
+    }
+
+    /** `xs.forEach({ println(it) })`: the parameter of the functional interface, with the receiver's type arguments. */
+    private static @Nullable PsiType argumentLambdaParameterType(PsiElement lambda, int index) {
+        PsiElement arguments = lambda.getParent();
+        PsiElement call = arguments.getParent();
+        if (call == null || call.getNode().getElementType() != AxlElementTypes.CALL
+                || !(call.getFirstChild() instanceof AxlReferenceExpression callee) || callee.getReference() == null) {
+            return null;
+        }
+        int position = PsiTreeUtil.getChildrenOfTypeAsList(arguments, AxlPsiElement.class).indexOf(lambda);
+        if (!(callee.getReference().resolve() instanceof PsiMethod method) || position < 0
+                || position >= method.getParameterList().getParametersCount()) {
+            return null;
+        }
+        PsiType expected = memberSubstitutor(callee, method.getContainingClass())
+                .substitute(method.getParameterList().getParameters()[position].getType());
+        PsiType parameter = LambdaUtil.getLambdaParameterFromType(expected, index);
+        return parameter instanceof PsiWildcardType wildcard ? wildcard.getBound() : parameter;
+    }
+
+    /** What a pipe gives: the list of the elements its stages leave, or the result of its ending stage. */
+    private static @Nullable PsiType pipeType(PsiElement pipe) {
+        PsiType element = elementType(typeOf(pipe.getFirstChild()));
+        String ending = "";
+        for (PsiElement stage = pipe.getFirstChild().getNextSibling(); stage != null; stage = stage.getNextSibling()) {
+            if (stage.getNode().getElementType() == AxlElementTypes.PIPE_STAGE) {
+                ending = stage.getFirstChild().getText();
+                element = ENDING.contains(ending) ? element : afterStage(stage, element);
+            }
+        }
+        PsiElementFactory factory = factory(pipe);
+        return switch (ending) {
+            case "first" -> element;
+            case "count" -> factory.createTypeByFQClassName("java.lang.Long", pipe.getResolveScope());
+            case "anyMatch", "allMatch", "noneMatch" -> factory.createTypeByFQClassName("java.lang.Boolean", pipe.getResolveScope());
+            case "forEach" -> null;
+            default -> listOf(pipe, element);
+        };
+    }
+
+    private static @Nullable PsiType listOf(PsiElement place, @Nullable PsiType element) {
+        PsiClass list = AxlResolver.findClass(place, "java.util.List");
+        return list == null || element == null ? null : factory(place).createType(list, element);
     }
 
     /** The element type after a stage: the same after a filter, the result of the lambda after `map`. */
@@ -180,7 +238,8 @@ final class AxlExpressionTypes {
             last = last.getPrevSibling();
         }
         PsiElement value = last == null || last.getNode().getElementType() != AxlElementTypes.EXPRESSION_STATEMENT ? last : last.getFirstChild();
-        return value == null ? null : RecursionManager.doPreventingRecursion(lambda, false, () -> typeOf(value));
+        // The elements of a stream are objects: `map { it.length() }` gives Integers.
+        return value == null ? null : RecursionManager.doPreventingRecursion(lambda, false, () -> boxed(value, typeOf(value)));
     }
 
     /** The elements of an array, an `Iterable` or a stream; null for other types. */
