@@ -341,6 +341,9 @@ final class Messages {
         if (message.startsWith(RawTypes.PREFIX)) {
             return new Translated(ErrorCode.JAVAC, message.substring(RawTypes.PREFIX.length()));
         }
+        if (message.startsWith(PrivateAccess.PREFIX)) {
+            return new Translated(ErrorCode.JAVAC, message.substring(PrivateAccess.PREFIX.length()));
+        }
         if (message.startsWith(InitCycles.PREFIX)) {
             return new Translated(ErrorCode.INIT_ORDER, message.substring(InitCycles.PREFIX.length()));
         }

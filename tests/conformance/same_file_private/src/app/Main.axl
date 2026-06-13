@@ -1,0 +1,21 @@
+package app
+
+data class P(val x: Int)
+
+class C(val n: Int) {
+    private val hidden: Int = n + 1
+
+    private fn secret() -> Int = hidden
+
+    fn open(other: C) -> Int = other.secret() + other.hidden
+}
+
+fn field(p: P) -> Int = p.x
+
+fn method(c: C) -> Int = c.secret()
+
+fn property(c: C) -> Int = c.hidden
+
+fn main() {
+    println(field(P(1)) + method(C(1)) + property(C(1)) + C(1).open(C(2)))
+}
