@@ -4,3 +4,7 @@ AXL102 app/Main.axl:14:13: error: `n` may be null: it holds a value from Java co
 AXL102 app/Main.axl:18:15: error: `b` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
 AXL102 app/Main.axl:20:35: error: `c` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
 AXL102 app/Main.axl:22:12: error: `a` may be null: it holds a value from Java code without nullness annotations, but the function does not return null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:37:15: error: `a` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:39:15: error: `b` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:44:15: error: `d` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:48:15: error: `e` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`

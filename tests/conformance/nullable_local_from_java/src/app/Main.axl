@@ -30,3 +30,22 @@ fn checked() -> Int {
     val b: String? = System.getProperty("axl.missing")
     return (b ?: "none").length()
 }
+
+fn branches(c: Boolean) {
+    val s: String? = null
+    val a: String? = s ?: System.getProperty("axl.missing")
+    println(a.length())
+    val b: String? = if (c) System.getProperty("axl.missing") else "x"
+    println(b.length())
+    val d: String? = when (c) {
+        true -> "x"
+        else -> System.getenv("AXL_MISSING")
+    }
+    println(d.length())
+    var e: String? = "x"
+    println(e)
+    e = System.getProperty("axl.missing") ?: System.getenv("AXL_MISSING")
+    println(e.length())
+    val f: String? = System.getProperty("axl.missing") ?: "none"
+    println(f.length())
+}

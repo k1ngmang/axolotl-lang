@@ -455,11 +455,36 @@ final class NullChecker implements TaskListener {
         /** NullAway takes a value from Java code without nullness annotations as not null, also in a local written with `?`. */
         private Origin storedOrigin(ExpressionTree value) {
             Origin origin = origin(value);
+            return origin == Origin.NONE && fromUnannotated(value) ? Origin.UNANNOTATED : origin;
+        }
+
+        /** Whether the value may come from Java code without nullness annotations, also through `?:`, `if` or `when`. */
+        private boolean fromUnannotated(ExpressionTree value) {
             ExpressionTree e = unwrap(value);
+            if (e instanceof ConditionalExpressionTree c) {
+                return fromUnannotated(c.getTrueExpression()) || fromUnannotated(c.getFalseExpression());
+            }
+            if (e instanceof SwitchExpressionTree tree) {
+                return yielded(tree).stream().anyMatch(this::fromUnannotated);
+            }
+            if (e instanceof AssignmentTree assignment) {
+                return fromUnannotated(assignment.getExpression());
+            }
+            if (elvisFallback(e) != null) {
+                return fromUnannotated(elvisFallback(e));
+            }
             Element element = element(e);
             boolean returnsWritten = e instanceof MethodInvocationTree call && element instanceof ExecutableElement method
                     && returnsWrittenTypeArgument(call, method);
-            return origin == Origin.NONE && PlatformValues.isPlatform(element) && !returnsWritten ? Origin.UNANNOTATED : origin;
+            return PlatformValues.isPlatform(element) && !returnsWritten;
+        }
+
+        /** `b` of `a ?: b`, which becomes `Nulls.or(a, () -> b)`, or null. */
+        private ExpressionTree elvisFallback(ExpressionTree e) {
+            return e instanceof MethodInvocationTree call && call.getArguments().size() == 2
+                    && element(call) instanceof ExecutableElement method && method.getSimpleName().contentEquals("or")
+                    && isRuntime(method) && unwrap(call.getArguments().get(1)) instanceof LambdaExpressionTree fallback
+                    && fallback.getBody() instanceof ExpressionTree body ? body : null;
         }
 
         @Override
@@ -1716,10 +1741,8 @@ final class NullChecker implements TaskListener {
         }
 
         private Origin callOrigin(MethodInvocationTree call, ExecutableElement method) {
-            if (method.getSimpleName().contentEquals("or") && isRuntime(method) && call.getArguments().size() == 2
-                    && unwrap(call.getArguments().get(1)) instanceof LambdaExpressionTree fallback
-                    && fallback.getBody() instanceof ExpressionTree body) {
-                return origin(body);
+            if (elvisFallback(call) != null) {
+                return origin(elvisFallback(call));
             }
             if (PlatformValues.returnsNullByContract(method)) {
                 return Origin.ABSENT;
