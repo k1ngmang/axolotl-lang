@@ -35,6 +35,7 @@ an entry point.
 `Int`, `Long`, `Boolean`, `Double` are Java's primitives; inside generics and when nullable they are
 the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `java.util.Map<String, Int>`.
 `T?` allows `null`; `T` does not. Nullness is checked by NullAway in JSpecify mode.
+A character in single quotes, `'a'`, is a Java `Character`; text in double quotes is a `String`.
 
 ## Statements
 
@@ -170,7 +171,7 @@ Constants are literals, negative numbers or names of constants such as `Color.RE
 the body of a function, or gives a value (`val x = when ...`); only the last form cannot contain `try` or
 `return`, and none of them can be the single expression of a lambda or of a top-level value. A `when`
 that gives a value cannot be the value of a class property, an argument after `?.` or part of a top-level
-value; compute it in a function instead. A lambda written as a branch of an `if` value needs
+value or the body of an `attempt`; compute it in a function instead. A lambda written as a branch of an `if` value needs
 parentheses: `if (c) ({ -> 1 }) else other`.
 
 ## Null safety

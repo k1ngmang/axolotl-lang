@@ -1,0 +1,3 @@
+AXL001 app/Main.axl:7:13: error: every branch of this `when` gives `null`; write `null` instead
+AXL001 app/Main.axl:8:22: error: every branch of this `if` gives `null`; write `null` instead
+AXL011 app/Types.axl:3:12: error: a type named `NullMarked` would hide the `NullMarked` that every Axolotl file uses; choose another name

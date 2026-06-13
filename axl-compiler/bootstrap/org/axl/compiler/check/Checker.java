@@ -686,6 +686,7 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.Conditional e$12 -> {
                 expr(e$12.condition());
                 checkBranchTypes(e$12.pos(), "`if`", List.of(e$12.then(), e$12.otherwise()));
+                checkAllNull(e$12.pos(), "`if`", List.of(e$12.then(), e$12.otherwise()));
                 conditionalDepth = conditionalDepth + 1;
                 expr(e$12.then());
                 expr(e$12.otherwise());
@@ -797,7 +798,11 @@ import org.axl.compiler.ast.TypeRef;
         }
         checkArms(w, gives || returns);
         if (gives || returns) {
-            checkBranchTypes(w.pos(), "`when`", armValues(w));
+            final var values = armValues(w);
+            checkBranchTypes(w.pos(), "`when`", values);
+            if (values.size() == w.arms().size()) {
+                checkAllNull(w.pos(), "`when`", values);
+            }
         }
         final var outerDepth = valueWhenDepth;
         if (gives) {
@@ -822,6 +827,11 @@ import org.axl.compiler.ast.TypeRef;
             error(pos, ErrorCode.SYNTAX, "the branches of this " + construct + " give values of different types, `" +
                     names +
                     "`; give every branch the same type");
+        }
+    }
+    private void checkAllNull(Pos pos, String construct, List<Expr> branches) {
+        if (branches.size() > 1 && (branches.stream().allMatch(b -> isNull(b)))) {
+            error(pos, ErrorCode.SYNTAX, "every branch of this " + construct + " gives `null`; write `null` instead");
         }
     }
     private List<Expr> armValues(Expr.When w) {
@@ -1215,7 +1225,7 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> SHADOWED_TYPES = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
             "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",
             "RuntimeException", "Throwable", "Error", "Iterable", "Comparable", "Runnable", "CharSequence", "StringBuilder",
-            "Override", "Record", "Enum", "Class", "Thread");
+            "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable");
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
     private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Double", "Boolean", "String", "Char");

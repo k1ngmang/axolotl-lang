@@ -1,0 +1,10 @@
+package app
+
+fn n() -> Int? = 3
+
+fn main() {
+    val k = 1
+    val v = when (k) { 1 -> null; else -> null } ?: n()!!
+    val w: String? = if (k > 0) null else null
+    println(v)
+}

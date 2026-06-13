@@ -73,7 +73,7 @@ private val GENERATED_CODE_PACKAGES: Set<String> = Set.of("axl.lang", "java.lang
 private val SHADOWED_TYPES: Set<String> = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
     "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",
     "RuntimeException", "Throwable", "Error", "Iterable", "Comparable", "Runnable", "CharSequence", "StringBuilder",
-    "Override", "Record", "Enum", "Class", "Thread")
+    "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable")
 
 private val GENERATED_CODE_RECEIVERS: Set<String> = Set.of("System", "Nulls", "Result")
 
@@ -730,6 +730,7 @@ class Checker(val file: SourceFile) {
             is Expr.Conditional -> {
                 expr(e.condition())
                 checkBranchTypes(e.pos(), "`if`", List.of(e.then(), e.otherwise()))
+                checkAllNull(e.pos(), "`if`", List.of(e.then(), e.otherwise()))
                 conditionalDepth = conditionalDepth + 1
                 expr(e.then())
                 expr(e.otherwise())
@@ -835,7 +836,11 @@ class Checker(val file: SourceFile) {
         }
         checkArms(w, gives || returns)
         if (gives || returns) {
-            checkBranchTypes(w.pos(), "`when`", armValues(w))
+            val values = armValues(w)
+            checkBranchTypes(w.pos(), "`when`", values)
+            if (values.size() == w.arms().size()) {
+                checkAllNull(w.pos(), "`when`", values)
+            }
         }
         val outerDepth = valueWhenDepth
         if (gives) {
@@ -861,6 +866,13 @@ class Checker(val file: SourceFile) {
             val names = String.join("` and `", types |> map { t -> if (t.equals("number")) "Int" else t })
             error(pos, ErrorCode.SYNTAX, "the branches of this " + construct + " give values of different types, `" +
                 names + "`; give every branch the same type")
+        }
+    }
+
+    /** Java cannot give a type to a value that is null in every branch. */
+    private fn checkAllNull(pos: Pos, construct: String, branches: List<Expr>) {
+        if (branches.size() > 1 && (branches |> allMatch { b -> isNull(b) })) {
+            error(pos, ErrorCode.SYNTAX, "every branch of this " + construct + " gives `null`; write `null` instead")
         }
     }
 
