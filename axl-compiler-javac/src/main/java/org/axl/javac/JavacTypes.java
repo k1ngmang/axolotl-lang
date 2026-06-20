@@ -231,7 +231,8 @@ public final class JavacTypes implements JavaTypes {
             return false;
         }
         TypeMirror type = element instanceof ExecutableElement method ? method.getReturnType() : element.asType();
-        return PlatformValues.isNullable(element, type) || strict && PlatformValues.isPlatform(element);
+        return PlatformValues.isNullable(element, type) || strict && PlatformValues.isPlatform(element)
+                || element instanceof ExecutableElement method && PlatformValues.returnsNullByContract(method);
     }
 
     /** Java source text for a type, or null when it has no such text (errors, captures, intersections). */

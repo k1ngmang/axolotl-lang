@@ -200,7 +200,8 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   `Deque`, `put`, `remove`, `putIfAbsent` and `replace` of a `Map` (the previous value) and its
   `computeIfPresent` (for a missing key), the navigation methods of `NavigableMap` and `NavigableSet`
   (`ceiling`, `firstEntry`, ...), `AtomicReference.get`, `getAndSet`, `getAndUpdate`, `getAcquire`,
-  `getPlain`, `compareAndExchange` and the like, and `ThreadLocal.get`.
+  `getPlain`, `compareAndExchange` and the like, and `ThreadLocal.get`. A top-level `val` inferred
+  from one of them is nullable.
 - JDK methods that throw on null do not take a value that may be null: `"abc".contains(x)`,
   `concat`, `startsWith`, `compareTo`, `StringBuilder(x)`, `TreeMap.get(x)`, `List.of("a").contains(x)`,
   `PriorityQueue.add(x)`, `Hashtable.put(k, x)`, `Pattern.compile(x)`, `Path.of(x)` and `String.format(x)`

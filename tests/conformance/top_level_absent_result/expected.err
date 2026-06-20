@@ -1,0 +1,1 @@
+AXL102 app/Main.axl:16:18: error: value `head` may be null: use `?.`, `?:` or check `if (head != null)`

@@ -1,0 +1,18 @@
+package app
+
+import java.util.ArrayDeque
+import java.util.HashMap
+
+// A top-level value inferred from a JDK method that returns null without a value is nullable.
+val q: ArrayDeque<String> = ArrayDeque<String>()
+val head = q.poll()
+val m: HashMap<String, String> = HashMap<String, String>()
+val previous = m.put("a", "b")
+val size = q.size()
+
+fn main() {
+    println(head?.length())
+    println(previous ?: "none")
+    println(head.length())
+    println(size + 1)
+}
