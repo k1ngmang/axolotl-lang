@@ -1,0 +1,16 @@
+package app
+
+fn show(n: Int) { println(n) }
+
+fn shows(t: String) { println(t) }
+
+fn wrapped(s: String?) -> Result<String, String> = Ok(s?.trim() ?: System.getProperty("axl.surely.not.set"))
+
+fn main() {
+    val s: String? = null
+    show(s?.length() ?: Integer.getInteger("axl.surely.not.set"))
+    shows(s?.trim() ?: System.getProperty("axl.surely.not.set"))
+    println(Math.max(0, s?.length() ?: Integer.getInteger("axl.surely.not.set")))
+    println(wrapped(s))
+    shows(s?.trim() ?: "fine")
+}

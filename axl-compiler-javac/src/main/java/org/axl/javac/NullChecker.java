@@ -2530,13 +2530,16 @@ final class NullChecker implements TaskListener {
         }
     }
 
-    /** `x` of `Nulls.typed(x).value()`, which only gives `x` a type of its own, or null. */
+    /**
+     * `x` of `Nulls.typed(x).value()` or `Nulls.present(x).value()`, which only give `x` a type of its
+     * own, or null. In strict mode a Java value in `x` may still be null.
+     */
     private static ExpressionTree typedValue(ExpressionTree e) {
         if (e instanceof MethodInvocationTree value && value.getArguments().isEmpty()
                 && value.getMethodSelect() instanceof MemberSelectTree select && select.getIdentifier().contentEquals("value")
                 && select.getExpression() instanceof MethodInvocationTree typed && typed.getArguments().size() == 1
                 && typed.getMethodSelect() instanceof MemberSelectTree typedSelect
-                && typedSelect.getIdentifier().contentEquals("typed")
+                && (typedSelect.getIdentifier().contentEquals("typed") || typedSelect.getIdentifier().contentEquals("present"))
                 && typedSelect.getExpression() instanceof IdentifierTree nulls && nulls.getName().contentEquals("Nulls")) {
             return typed.getArguments().getFirst();
         }

@@ -1,0 +1,4 @@
+AXL104 app/Main.axl:7:55: error: the value of `?:` may be null, since its fallback comes from Java code without nullness annotations, but the result type has no `?` there; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:11:10: error: the value of `?:` may be null, since its fallback comes from Java code without nullness annotations, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:12:11: error: the value of `?:` may be null, since its fallback comes from Java code without nullness annotations, but the parameter `t` does not accept null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:13:25: error: the value of `?:` may be null, since its fallback comes from Java code without nullness annotations, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
