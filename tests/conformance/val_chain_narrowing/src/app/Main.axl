@@ -1,0 +1,39 @@
+package app
+
+import java.util.List
+
+class C(val s: String?)
+
+class Outer(val c: C)
+
+// A null check narrows `a.b` when each step is a `val`, for that object only.
+fn statement(c: C) -> List<String> {
+    if (c.s != null) {
+        return List.of(c.s)
+    }
+    return List.of()
+}
+
+fn value(c: C) -> List<String> = if (c.s != null) List.of(c.s) else List.of()
+
+fn result(c: C) -> Result<String, String> = if (c.s != null) Ok(c.s) else Err("n")
+
+fn nested(o: Outer) -> List<String> = if (o.c.s != null) List.of(o.c.s) else List.of()
+
+fn other(a: C, b: C) -> List<String> = if (a.s != null) List.of(b.s) else List.of()
+
+fn reassigned(first: C, second: C) -> List<String> {
+    var c = first
+    if (c.s != null) {
+        c = second
+        return List.of(c.s)
+    }
+    return List.of()
+}
+
+fn main() {
+    println(statement(C("q")))
+    println(value(C("q")))
+    println(result(C("q")))
+    println(nested(Outer(C("q"))))
+}

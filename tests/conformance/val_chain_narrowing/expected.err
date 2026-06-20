@@ -1,0 +1,4 @@
+AXL102 app/Main.axl:23:57: error: a type argument of the value has `?`, but the result type has none there; add `?` to the type argument of the result type or drop the nulls first
+AXL102 app/Main.axl:23:67: error: the value of `s` may be null, but `of` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:29:21: error: a type argument of the value has `?`, but the result type has none there; add `?` to the type argument of the result type or drop the nulls first
+AXL102 app/Main.axl:29:26: error: the value of `s` may be null, but `of` does not take null; use `?.`, `?:`, a null check or `!!`

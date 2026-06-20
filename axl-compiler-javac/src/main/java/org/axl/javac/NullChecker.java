@@ -352,6 +352,8 @@ final class NullChecker implements TaskListener {
         private final Set<Element> nullableLocals = new HashSet<>();
         // `val` locals that hold a collection of `List.of` and the like.
         private final Set<Element> immutableLocals = new HashSet<>();
+        // The receivers of the `val` properties narrowed as `a.b`, by property.
+        private final Map<Element, Element> narrowedReceivers = new HashMap<>();
         // Boxed numbers that a switch has tested: NullAway takes them as unboxed, so as not null, afterwards.
         private final Set<Element> switchedBoxes = new HashSet<>();
         // The origins and shapes of trees, valid while `state` and `shapes` hold what they held when
@@ -582,10 +584,7 @@ final class NullChecker implements TaskListener {
             }
             if (isRequireNonNull(method) && call.getArguments().size() == 1
                     && getCurrentPath().getParentPath().getLeaf() instanceof ExpressionStatementTree) {
-                Element checked = narrowable(call.getArguments().getFirst());
-                if (checked != null) {
-                    state.put(checked, Origin.NONE);
-                }
+                markNonNull(call.getArguments().getFirst());
             }
             return null;
         }
@@ -731,7 +730,7 @@ final class NullChecker implements TaskListener {
                 state = new HashMap<>(entry);
                 if (subject != null && !takesNull(List.of(branch))) {
                     // Null goes to the `case null` branch, or the switch throws before any branch.
-                    state.put(subject, Origin.NONE);
+                    markNonNull(selector);
                 }
                 scan(branch, null);
                 if (promoted) {
@@ -1650,15 +1649,36 @@ final class NullChecker implements TaskListener {
         }
 
         /**
-         * A check narrows a variable named on its own: a local, a parameter or a `val` property of this
-         * class. The element of `xs.get(0)` or `a.name` stands for every call or access, not for this one.
+         * A check narrows a local, a parameter or a `val` property, also `a.b` when each step is a `val`
+         * and `a` is not assigned again. The element of `xs.get(0)` stands for every call, not for this one.
          */
         private Element narrowable(ExpressionTree expression) {
-            if (!(unwrap(expression) instanceof IdentifierTree)) {
+            ExpressionTree e = unwrap(expression);
+            if (!(e instanceof IdentifierTree) && !(e instanceof MemberSelectTree)) {
                 return null;
             }
-            Element element = element(expression);
-            return element instanceof VariableElement && stable(expression) ? element : null;
+            Element element = element(e);
+            return element instanceof VariableElement && stable(e) ? element : null;
+        }
+
+        /** The element of `b` in `a.b` stands for the property of every object, so the narrowing keeps `a`. */
+        private void markNonNull(ExpressionTree checked) {
+            Element element = narrowable(checked);
+            if (element == null) {
+                return;
+            }
+            state.put(element, Origin.NONE);
+            if (unwrap(checked) instanceof MemberSelectTree select) {
+                narrowedReceivers.put(element, element(select.getExpression()));
+            } else {
+                narrowedReceivers.remove(element);
+            }
+        }
+
+        /** Whether what `state` knows of the element holds for this access to it; see `markNonNull`. */
+        private boolean knownHere(ExpressionTree access, Element element) {
+            Element receiver = narrowedReceivers.get(element);
+            return receiver == null || access instanceof MemberSelectTree select && receiver.equals(element(select.getExpression()));
         }
 
         /**
@@ -1726,16 +1746,14 @@ final class NullChecker implements TaskListener {
             if (c instanceof BinaryTree b && (b.getKind() == Tree.Kind.NOT_EQUAL_TO || b.getKind() == Tree.Kind.EQUAL_TO)) {
                 ExpressionTree other = isNullLiteral(b.getLeftOperand()) ? b.getRightOperand()
                         : isNullLiteral(b.getRightOperand()) ? b.getLeftOperand() : null;
-                Element checked = other == null ? null : narrowable(other);
                 boolean nonNullWhenTrue = b.getKind() == Tree.Kind.NOT_EQUAL_TO;
-                if (checked != null && nonNullWhenTrue == when) {
-                    state.put(checked, Origin.NONE);
+                if (other != null && nonNullWhenTrue == when) {
+                    markNonNull(other);
                 }
             } else if (c instanceof MethodInvocationTree call && call.getArguments().size() == 1
                     && element(call) instanceof ExecutableElement method && isObjectsNonNull(method)) {
-                Element checked = narrowable(call.getArguments().getFirst());
-                if (checked != null && when == method.getSimpleName().contentEquals("nonNull")) {
-                    state.put(checked, Origin.NONE);
+                if (when == method.getSimpleName().contentEquals("nonNull")) {
+                    markNonNull(call.getArguments().getFirst());
                 }
             } else if (c instanceof BinaryTree b && b.getKind() == Tree.Kind.CONDITIONAL_AND && when) {
                 narrow(b.getLeftOperand(), true);
@@ -1830,7 +1848,7 @@ final class NullChecker implements TaskListener {
                     || element.getKind() == ElementKind.PACKAGE) {
                 return Origin.NONE;
             }
-            if (state.containsKey(element)) {
+            if (state.containsKey(element) && knownHere(e, element)) {
                 return state.get(element);
             }
             if (e instanceof MethodInvocationTree call && element instanceof ExecutableElement method) {
