@@ -8,3 +8,8 @@ AXL102 app/Main.axl:20:52: error: the result of `firstEntry()` may be null: the 
 AXL102 app/Main.axl:21:44: error: the result of `ceiling()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
 AXL102 app/Main.axl:22:45: error: the result of `get()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
 AXL102 app/Main.axl:23:26: error: the result of `pollLast()` may be null: the JDK method returns null when there is no value, but `head` is not nullable; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:36:59: error: the result of `computeIfPresent()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:37:46: error: the result of `getAndUpdate()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:38:28: error: the result of `getAcquire()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:39:26: error: the result of `getPlain()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:40:44: error: the result of `compareAndExchange()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`

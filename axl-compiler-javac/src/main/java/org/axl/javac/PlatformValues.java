@@ -29,6 +29,7 @@ final class PlatformValues {
             "java.util.Deque.pollFirst/0", "java.util.Deque.pollLast/0", "java.util.Deque.peekFirst/0",
             "java.util.Deque.peekLast/0", "java.util.concurrent.BlockingQueue.poll/2",
             "java.util.Map.put/2", "java.util.Map.remove/1", "java.util.Map.putIfAbsent/2", "java.util.Map.replace/2",
+            "java.util.Map.computeIfPresent/2",
             "java.util.NavigableMap.lowerKey/1", "java.util.NavigableMap.floorKey/1",
             "java.util.NavigableMap.ceilingKey/1", "java.util.NavigableMap.higherKey/1",
             "java.util.NavigableMap.lowerEntry/1", "java.util.NavigableMap.floorEntry/1",
@@ -38,6 +39,12 @@ final class PlatformValues {
             "java.util.NavigableSet.lower/1", "java.util.NavigableSet.floor/1", "java.util.NavigableSet.ceiling/1",
             "java.util.NavigableSet.higher/1", "java.util.NavigableSet.pollFirst/0", "java.util.NavigableSet.pollLast/0",
             "java.util.concurrent.atomic.AtomicReference.get/0", "java.util.concurrent.atomic.AtomicReference.getAndSet/1",
+            "java.util.concurrent.atomic.AtomicReference.getAcquire/0", "java.util.concurrent.atomic.AtomicReference.getPlain/0",
+            "java.util.concurrent.atomic.AtomicReference.getOpaque/0", "java.util.concurrent.atomic.AtomicReference.getAndUpdate/1",
+            "java.util.concurrent.atomic.AtomicReference.getAndAccumulate/2",
+            "java.util.concurrent.atomic.AtomicReference.compareAndExchange/2",
+            "java.util.concurrent.atomic.AtomicReference.compareAndExchangeAcquire/2",
+            "java.util.concurrent.atomic.AtomicReference.compareAndExchangeRelease/2",
             "java.lang.ThreadLocal.get/0");
 
     private PlatformValues() {}

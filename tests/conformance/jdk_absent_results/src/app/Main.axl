@@ -31,3 +31,12 @@ fn main() {
     }
     println(q.getFirst().length() + q.size())
 }
+
+fn more(m: HashMap<String, String>, r: AtomicReference<String>) {
+    println(m.computeIfPresent("zz", { k, v -> v + "y" }).length())
+    println(r.getAndUpdate({ s -> s + "x" }).length())
+    println(r.getAcquire().length())
+    println(r.getPlain().length())
+    println(r.compareAndExchange("a", "b").length())
+    println(r.updateAndGet({ s -> "x" }).length())
+}

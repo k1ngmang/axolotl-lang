@@ -197,9 +197,10 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   drops the `?`: its value fits a `List<String>`.
 - `Map.get` may return null, as NullAway knows, and so may the JDK methods that return null when
   there is no value: `poll` and `peek` of a `Queue`, `pollFirst`, `peekFirst` and the like of a
-  `Deque`, `put`, `remove`, `putIfAbsent` and `replace` of a `Map` (the previous value), the
-  navigation methods of `NavigableMap` and `NavigableSet` (`ceiling`, `firstEntry`, ...),
-  `AtomicReference.get` and `getAndSet`, and `ThreadLocal.get`.
+  `Deque`, `put`, `remove`, `putIfAbsent` and `replace` of a `Map` (the previous value) and its
+  `computeIfPresent` (for a missing key), the navigation methods of `NavigableMap` and `NavigableSet`
+  (`ceiling`, `firstEntry`, ...), `AtomicReference.get`, `getAndSet`, `getAndUpdate`, `getAcquire`,
+  `getPlain`, `compareAndExchange` and the like, and `ThreadLocal.get`.
 - JDK methods that throw on null do not take a value that may be null: `"abc".contains(x)`,
   `concat`, `startsWith`, `compareTo`, `StringBuilder(x)`, `TreeMap.get(x)` and `List.of("a").contains(x)`.
 - A method reference is checked like the lambda it stands for: `xs.forEach(Main::print)` on a
