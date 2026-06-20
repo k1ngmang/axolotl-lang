@@ -1,0 +1,33 @@
+package app
+
+fn g(x: Int) -> Int = x
+
+// NullAway takes a boxed `when` subject as unboxed, so the `else` branch is checked here.
+fn value(n: Int?) -> Int = when (n) {
+    1 -> 5
+    else -> n + 1
+}
+
+fn passed(n: Int?) -> Int = when (n) {
+    1 -> 0
+    else -> g(n)
+}
+
+fn statement(n: Int?) {
+    when (n) {
+        1 -> println(1)
+        else -> println(n + 1)
+    }
+    println(n * 2)
+}
+
+fn checked(n: Int?) -> Int = when (n) {
+    null -> 0
+    1 -> n + 1
+    else -> n * 2
+}
+
+fn main() {
+    println(value(1) + passed(1) + checked(null))
+    statement(1)
+}

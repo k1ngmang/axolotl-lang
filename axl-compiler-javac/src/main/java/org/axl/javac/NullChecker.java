@@ -352,6 +352,8 @@ final class NullChecker implements TaskListener {
         private final Set<Element> nullableLocals = new HashSet<>();
         // `val` locals that hold a collection of `List.of` and the like.
         private final Set<Element> immutableLocals = new HashSet<>();
+        // Boxed numbers that a switch has tested: NullAway takes them as unboxed, so as not null, afterwards.
+        private final Set<Element> switchedBoxes = new HashSet<>();
         // The origins and shapes of trees, valid while `state` and `shapes` hold what they held when
         // computed. Each nesting level asks for those of the levels below again, which takes
         // exponential time without them.
@@ -722,6 +724,9 @@ final class NullChecker implements TaskListener {
             boolean hasDefault = cases.stream().anyMatch(c -> c.getLabels().stream().anyMatch(l -> l instanceof DefaultCaseLabelTree));
             Map<Element, Origin> result = hasDefault ? null : entry;
             Element subject = narrowable(selector);
+            if (subject != null && BOXES.contains(erasedName(typeOf(selector)))) {
+                switchedBoxes.add(subject);
+            }
             for (CaseTree branch : cases) {
                 state = new HashMap<>(entry);
                 if (subject != null && !takesNull(List.of(branch))) {
@@ -2163,11 +2168,12 @@ final class NullChecker implements TaskListener {
 
         private boolean reportValue(Tree at, ExpressionTree value, boolean nullAwayChecks, String problem, String fix) {
             Origin origin = origin(value);
-            if (nullAwayChecks && origin == Origin.DECLARED && mayChange(value)) {
+            boolean checked = nullAwayChecks && !switchedBoxes.contains(narrowable(value));
+            if (checked && origin == Origin.DECLARED && mayChange(value)) {
                 String changing = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
                 return report(at, origin, false, describe(value) + problem + "; " + changing);
             }
-            return report(at, origin, nullAwayChecks, describe(value) + problem + "; " + fix);
+            return report(at, origin, checked, describe(value) + problem + "; " + fix);
         }
 
         /** Reports unless NullAway reports the same problem; returns whether anything is wrong. */

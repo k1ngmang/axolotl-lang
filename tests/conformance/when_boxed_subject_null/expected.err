@@ -1,0 +1,4 @@
+AXL102 app/Main.axl:8:13: error: `n` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:13:15: error: `n` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:19:25: error: `n` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:21:13: error: `n` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
