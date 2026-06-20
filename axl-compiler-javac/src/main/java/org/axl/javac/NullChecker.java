@@ -1599,8 +1599,9 @@ final class NullChecker implements TaskListener {
                 return;
             }
             checkRaw(value, declared);
-            // `Ok(x)` and `attempt` are checked against the type they go to.
-            if (element(value) != null && isRuntime(element(value)) && elvisFallback(unwrap(value)) == null) {
+            // `Ok(x)` and `attempt` are checked against the type they go to; `Nulls.sure(x)` is `x`.
+            if (element(value) != null && isRuntime(element(value)) && elvisFallback(unwrap(value)) == null
+                    && !(element(value) instanceof ExecutableElement method && isRequireNonNull(method))) {
                 return;
             }
             Shape wanted = shapeOf(declared, bindings);
@@ -2490,8 +2491,10 @@ final class NullChecker implements TaskListener {
         return elements.getPackageOf(element).getQualifiedName().contentEquals("axl.lang");
     }
 
+    /** `requireNonNull` or `Nulls.sure`, which the expansion of `!!` calls. */
     private static boolean isRequireNonNull(ExecutableElement method) {
-        return method.getSimpleName().contentEquals("requireNonNull") && declaredIn(method, "java.util.Objects");
+        return method.getSimpleName().contentEquals("requireNonNull") && declaredIn(method, "java.util.Objects")
+                || method.getSimpleName().contentEquals("sure") && declaredIn(method, "axl.lang.Nulls");
     }
 
     private static boolean isObjectsNonNull(ExecutableElement method) {

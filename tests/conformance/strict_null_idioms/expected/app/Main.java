@@ -27,7 +27,7 @@ import java.util.List;
         return home.length();
     }
     public static void main(String[] args) {
-        System.out.println(count(java.util.Objects.requireNonNull(List.of("a", ""))));
+        System.out.println(count(Nulls.sure(List.of("a", ""))));
         final var names = java.util.Objects.requireNonNull(List.of("b", "a"));
         System.out.println(Nulls.first(names.stream().sorted(java.util.Comparator.naturalOrder()).map(Nulls.nonNull(it -> it.length())).iterator()));
         System.out.println(size(true));

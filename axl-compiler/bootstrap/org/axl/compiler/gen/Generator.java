@@ -1408,7 +1408,8 @@ import org.axl.compiler.check.Whens;
             return "(" + argument(arg$1.inner(), inLambda) + ")";
         }
         if (arg instanceof Expr.NotNull arg$2) {
-            return "java.util.Objects.requireNonNull(" + argument(arg$2.target(), inLambda) + ")";
+            final var check = (withoutParens(arg$2.target()) instanceof Expr.Name ? "java.util.Objects.requireNonNull(" : "Nulls.sure(");
+            return check + argument(arg$2.target(), inLambda) + ")";
         }
         if (arg instanceof Expr.Elvis arg$3 && hasSafeElvis(arg$3) && fallbackGivesValue(arg$3.right())) {
             return "Nulls.present(" + exprIn(arg$3, inLambda) + ").value()";

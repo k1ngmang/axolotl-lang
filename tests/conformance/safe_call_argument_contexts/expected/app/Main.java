@@ -12,7 +12,7 @@ import java.util.List;
         final var r = Result.attempt(() -> String.valueOf(Nulls.typed(Nulls.map(s, $n2 -> $n2.length())).value()), $ex1 -> "err");
         System.out.println(r);
         System.out.println((Nulls.typed(Nulls.map(s, $n3 -> $n3.trim())).value()));
-        System.out.println(java.util.Objects.requireNonNull(Nulls.typed(Nulls.map(s, $n4 -> $n4.trim())).value()));
+        System.out.println(Nulls.sure(Nulls.typed(Nulls.map(s, $n4 -> $n4.trim())).value()));
         System.out.println(t);
     }
 }

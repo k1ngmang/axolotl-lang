@@ -24,4 +24,9 @@ fn main() {
     val objects = java.util.HashMap<String, Object>()
     val t: String? = "x"
     println(objects.get("a") ?: t!!)
+    val chars: List<CharSequence> = List.of()
+    println((chars |> first) ?: t!!)
+    for (el in List.of(maybe()!!)) {
+        println(el + 1)
+    }
 }

@@ -36,5 +36,10 @@ import java.util.List;
         final var objects = new java.util.HashMap<String, Object>();
         final @Nullable String t = "x";
         System.out.println(Nulls.or(objects.get("a"), () -> Nulls.sure(t)));
+        final List<CharSequence> chars = List.of();
+        System.out.println(Nulls.or((Nulls.first(chars.stream().iterator())), () -> Nulls.sure(t)));
+        for (final var el : List.of(Nulls.sure(maybe()))) {
+            System.out.println(el + 1);
+        }
     }
 }

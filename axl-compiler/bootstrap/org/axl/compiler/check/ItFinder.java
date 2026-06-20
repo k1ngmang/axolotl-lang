@@ -15,10 +15,10 @@ import org.axl.compiler.ast.Stmt;
                 return usesIt(stmt$2.target()) || usesIt(stmt$2.value());
             }
             case Stmt.Return stmt$3 -> {
-                return stmt$3.value() != null && usesIt(java.util.Objects.requireNonNull(stmt$3.value()));
+                return stmt$3.value() != null && usesIt(Nulls.sure(stmt$3.value()));
             }
             case Stmt.If stmt$4 -> {
-                return usesIt(stmt$4.condition()) || usesIt(stmt$4.then()) || (stmt$4.elseBranch() != null && usesIt(java.util.Objects.requireNonNull(stmt$4.elseBranch())));
+                return usesIt(stmt$4.condition()) || usesIt(stmt$4.then()) || (stmt$4.elseBranch() != null && usesIt(Nulls.sure(stmt$4.elseBranch())));
             }
             case Stmt.While stmt$5 -> {
                 return usesIt(stmt$5.condition()) || usesIt(stmt$5.body());
@@ -46,7 +46,7 @@ import org.axl.compiler.ast.Stmt;
                 return usesIt(expr$3.target());
             }
             case Expr.Call expr$4 -> {
-                return (expr$4.target() != null && usesIt(java.util.Objects.requireNonNull(expr$4.target()))) || expr$4.args().stream().anyMatch(it -> usesIt(it));
+                return (expr$4.target() != null && usesIt(Nulls.sure(expr$4.target()))) || expr$4.args().stream().anyMatch(it -> usesIt(it));
             }
             case Expr.GenericNew expr$5 -> {
                 return expr$5.args().stream().anyMatch(it -> usesIt(it));
@@ -92,7 +92,7 @@ import org.axl.compiler.ast.Stmt;
             }
             case Expr.Pipe expr$19 -> {
                 return usesIt(expr$19.source()) || expr$19.stages().stream().anyMatch(stage ->
-                        stage.args().stream().anyMatch(it -> usesIt(it)) || (stage.lambda() != null && usesIt(java.util.Objects.requireNonNull(stage.lambda()))));
+                        stage.args().stream().anyMatch(it -> usesIt(it)) || (stage.lambda() != null && usesIt(Nulls.sure(stage.lambda()))));
             }
         }
     }

@@ -1600,7 +1600,10 @@ class Generator(
             return "(" + argument(arg.inner(), inLambda) + ")"
         }
         if (arg is Expr.NotNull) {
-            return "java.util.Objects.requireNonNull(" + argument(arg.target(), inLambda) + ")"
+            // NullAway infers `List.of(requireNonNull(n()))` as a list of nullable values; a name is
+            // kept in requireNonNull, after which NullAway knows it is not null.
+            val check = if (withoutParens(arg.target()) is Expr.Name) "java.util.Objects.requireNonNull(" else "Nulls.sure("
+            return check + argument(arg.target(), inLambda) + ")"
         }
         // As the receiver of `.value()`, the expansion gets its type without the overloads of the call.
         // A `?:` gives a value when its right side does, which Nulls.present keeps.
