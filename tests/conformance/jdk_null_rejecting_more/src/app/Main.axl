@@ -1,0 +1,47 @@
+package app
+
+import java.nio.file.Path
+import java.util.ArrayList
+import java.util.Hashtable
+import java.util.Locale
+import java.util.PriorityQueue
+import java.util.Properties
+import java.util.TreeSet
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ConcurrentSkipListMap
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.regex.Pattern
+import java.util.stream.Collectors
+
+fn maybe() -> String? = null
+
+fn main() {
+    val x = maybe()
+    val sb = StringBuilder("abc")
+    println(sb.indexOf(x))
+    println(sb.lastIndexOf(x))
+    PriorityQueue<String?>().add(x)
+    ConcurrentLinkedQueue<String?>().add(x)
+    LinkedBlockingQueue<String?>().offer(x)
+    println(ConcurrentSkipListMap<String, String>().get(x))
+    val table = Hashtable<String, String?>()
+    table.put("a", x)
+    println(table.get(x))
+    Properties().setProperty("a", x)
+    println(Pattern.compile(x))
+    println(String.format(x, 1))
+    println(Path.of(x))
+    val xs = ArrayList<String?>()
+    val sorted = xs.stream().collect(Collectors.toCollection(TreeSet::new))
+    println(sorted)
+    println(xs.stream().collect(Collectors.toCollection({ -> TreeSet<String?>() })))
+
+    val locale: Locale? = null
+    println(String.format(locale, "%s", x))
+    println(String.format("%s", x))
+    println(sb.append(x))
+    println(xs.stream().collect(Collectors.toCollection({ -> ArrayList<String?>() })))
+    val names = ArrayList<String>()
+    val sortedNames = names.stream().collect(Collectors.toCollection(TreeSet::new))
+    println(sortedNames)
+}

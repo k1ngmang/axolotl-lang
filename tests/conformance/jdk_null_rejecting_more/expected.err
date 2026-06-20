@@ -1,0 +1,14 @@
+AXL102 app/Main.axl:21:24: error: `x` may be null, but `indexOf` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:28: error: `x` may be null, but `lastIndexOf` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:23:34: error: `x` may be null, but `add` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:24:42: error: `x` may be null, but `add` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:25:42: error: `x` may be null, but `offer` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:26:57: error: `x` may be null, but `get` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:28:20: error: `x` may be null, but `put` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:29:23: error: `x` may be null, but `get` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:30:35: error: `x` may be null, but `setProperty` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:31:29: error: `x` may be null, but `compile` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:32:27: error: `x` may be null, but `format` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:33:21: error: `x` may be null, but `of` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:35:30: error: the elements may be null, and `TreeSet` does not take null; drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:37:25: error: the elements may be null, and `TreeSet` does not take null; drop the nulls first: `|> filter { it != null }`

@@ -202,7 +202,9 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   (`ceiling`, `firstEntry`, ...), `AtomicReference.get`, `getAndSet`, `getAndUpdate`, `getAcquire`,
   `getPlain`, `compareAndExchange` and the like, and `ThreadLocal.get`.
 - JDK methods that throw on null do not take a value that may be null: `"abc".contains(x)`,
-  `concat`, `startsWith`, `compareTo`, `StringBuilder(x)`, `TreeMap.get(x)` and `List.of("a").contains(x)`.
+  `concat`, `startsWith`, `compareTo`, `StringBuilder(x)`, `TreeMap.get(x)`, `List.of("a").contains(x)`,
+  `PriorityQueue.add(x)`, `Hashtable.put(k, x)`, `Pattern.compile(x)`, `Path.of(x)` and `String.format(x)`
+  (see docs/decisions.md for the whole list).
 - A method reference is checked like the lambda it stands for: `xs.forEach(Main::print)` on a
   `List<String?>` needs a `print` that accepts null, and so do `P::new` and `ys::add` on an
   `ArrayList<String>`.

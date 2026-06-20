@@ -126,14 +126,37 @@ final class NullChecker implements TaskListener {
             "java.util.concurrent.ConcurrentHashMap.replace", "java.util.concurrent.ConcurrentHashMap.containsValue",
             "java.util.ArrayDeque.add", "java.util.ArrayDeque.addFirst", "java.util.ArrayDeque.addLast",
             "java.util.ArrayDeque.offer", "java.util.ArrayDeque.offerFirst", "java.util.ArrayDeque.offerLast",
-            "java.util.ArrayDeque.push");
+            "java.util.ArrayDeque.push", "java.lang.StringBuilder.indexOf", "java.lang.StringBuilder.lastIndexOf",
+            "java.lang.StringBuffer.indexOf", "java.lang.StringBuffer.lastIndexOf", "java.util.PriorityQueue.add",
+            "java.util.PriorityQueue.offer", "java.util.concurrent.PriorityBlockingQueue.add",
+            "java.util.concurrent.PriorityBlockingQueue.offer", "java.util.concurrent.PriorityBlockingQueue.put",
+            "java.util.concurrent.ConcurrentLinkedQueue.add", "java.util.concurrent.ConcurrentLinkedQueue.offer",
+            "java.util.concurrent.ConcurrentLinkedDeque.add", "java.util.concurrent.ConcurrentLinkedDeque.offer",
+            "java.util.concurrent.ConcurrentLinkedDeque.push", "java.util.concurrent.ConcurrentLinkedDeque.addFirst",
+            "java.util.concurrent.ConcurrentLinkedDeque.addLast", "java.util.concurrent.LinkedBlockingQueue.add",
+            "java.util.concurrent.LinkedBlockingQueue.offer", "java.util.concurrent.LinkedBlockingQueue.put",
+            "java.util.concurrent.ArrayBlockingQueue.add", "java.util.concurrent.ArrayBlockingQueue.offer",
+            "java.util.concurrent.ArrayBlockingQueue.put", "java.util.concurrent.LinkedBlockingDeque.add",
+            "java.util.concurrent.LinkedBlockingDeque.offer", "java.util.concurrent.LinkedBlockingDeque.put",
+            "java.util.concurrent.LinkedBlockingDeque.push", "java.util.concurrent.ConcurrentSkipListSet.add",
+            "java.util.concurrent.ConcurrentSkipListSet.contains", "java.util.concurrent.ConcurrentSkipListSet.remove",
+            "java.util.concurrent.ConcurrentSkipListMap.put", "java.util.concurrent.ConcurrentSkipListMap.putIfAbsent",
+            "java.util.concurrent.ConcurrentSkipListMap.replace", "java.util.concurrent.ConcurrentSkipListMap.containsValue",
+            "java.util.Hashtable.put", "java.util.Hashtable.putIfAbsent", "java.util.Hashtable.replace",
+            "java.util.Hashtable.contains", "java.util.Hashtable.containsValue", "java.util.Properties.setProperty",
+            "java.util.Properties.put", "java.util.regex.Pattern.compile", "java.util.regex.Pattern.matches",
+            "java.nio.file.Path.of", "java.nio.file.Paths.get", "java.lang.String.format");
     private static final Set<String> NULL_REJECTING_KEY = Set.of("java.util.TreeMap.get", "java.util.TreeMap.containsKey",
             "java.util.TreeMap.remove", "java.util.TreeMap.put", "java.util.TreeMap.putIfAbsent",
             "java.util.TreeMap.ceilingKey", "java.util.TreeMap.floorKey", "java.util.TreeMap.higherKey",
             "java.util.TreeMap.lowerKey", "java.util.TreeMap.ceilingEntry", "java.util.TreeMap.floorEntry",
             "java.util.TreeMap.higherEntry", "java.util.TreeMap.lowerEntry", "java.util.concurrent.ConcurrentHashMap.get",
             "java.util.concurrent.ConcurrentHashMap.containsKey", "java.util.concurrent.ConcurrentHashMap.remove",
-            "java.util.concurrent.ConcurrentHashMap.getOrDefault");
+            "java.util.concurrent.ConcurrentHashMap.getOrDefault", "java.util.concurrent.ConcurrentSkipListMap.get",
+            "java.util.concurrent.ConcurrentSkipListMap.containsKey", "java.util.concurrent.ConcurrentSkipListMap.remove",
+            "java.util.concurrent.ConcurrentSkipListMap.getOrDefault", "java.util.Hashtable.get",
+            "java.util.Hashtable.containsKey", "java.util.Hashtable.remove", "java.util.Properties.getProperty",
+            "java.util.Properties.get", "java.util.Properties.containsKey", "java.util.Properties.remove");
     // What the collections of `List.of` and the like throw on when asked about null.
     private static final Set<String> IMMUTABLE_QUERIES = Set.of("contains", "indexOf", "lastIndexOf", "containsKey",
             "containsValue", "get");
@@ -540,14 +563,19 @@ final class NullChecker implements TaskListener {
                             method, call.getArguments());
                 }
                 if (method.getSimpleName().contentEquals("sorted") && naturalOrder(call.getArguments()) && isStream(receiver)) {
-                    reportCompared(call, shape(receiver).arg(0), "sorted");
+                    reportElements(call, shape(receiver).arg(0), "`sorted` compares them");
+                }
+                String collection = method.getSimpleName().contentEquals("collect") && call.getArguments().size() == 1
+                        && isStream(receiver) ? rejectingCollection(call.getArguments().getFirst()) : null;
+                if (collection != null) {
+                    reportElements(call, shape(receiver).arg(0), "`" + collection + "` does not take null");
                 }
             } else if (method.getModifiers().contains(Modifier.STATIC)) {
                 checkTypeArgumentParameters(Map.of(), null, method, call.getArguments());
                 checkFactoryArguments(method, call.getArguments());
                 if (method.getSimpleName().contentEquals("sort") && call.getArguments().size() == 1
                         && erasedName(method.getEnclosingElement().asType()).equals("java.util.Collections")) {
-                    reportCompared(call, elementShape(call.getArguments().getFirst()), "sort");
+                    reportElements(call, elementShape(call.getArguments().getFirst()), "`sort` compares them");
                 }
             }
             if (isRequireNonNull(method) && call.getArguments().size() == 1
@@ -560,11 +588,30 @@ final class NullChecker implements TaskListener {
             return null;
         }
 
-        private void reportCompared(MethodInvocationTree call, Shape elements, String method) {
+        private void reportElements(MethodInvocationTree call, Shape elements, String problem) {
             Origin origin = elements.nullable() ? Origin.HIDDEN : elements.fromJava() ? Origin.PLATFORM : Origin.NONE;
             String may = origin == Origin.PLATFORM ? "the elements come from Java code without nullness annotations and may be null"
                     : "the elements may be null";
-            report(call, origin, false, may + ", and `" + method + "` compares them; " + DROP_NULLS);
+            report(call, origin, false, may + ", and " + problem + "; " + DROP_NULLS);
+        }
+
+        /** `Collectors.toCollection(TreeSet::new)`: the simple name of a created collection that rejects null, or null. */
+        private String rejectingCollection(ExpressionTree collector) {
+            if (!(unwrap(collector) instanceof MethodInvocationTree call) || call.getArguments().size() != 1
+                    || !(element(call) instanceof ExecutableElement method)
+                    || !method.getSimpleName().contentEquals("toCollection") || !declaredIn(method, "java.util.stream.Collectors")) {
+                return null;
+            }
+            ExpressionTree supplier = unwrap(call.getArguments().getFirst());
+            if (supplier instanceof LambdaExpressionTree lambda && lambda.getBody() instanceof ExpressionTree body) {
+                supplier = unwrap(body);
+            }
+            Element created = supplier instanceof MemberReferenceTree || supplier instanceof NewClassTree ? element(supplier) : null;
+            if (!(created instanceof ExecutableElement constructor) || constructor.getKind() != ElementKind.CONSTRUCTOR
+                    || !(constructor.getEnclosingElement() instanceof TypeElement type)) {
+                return null;
+            }
+            return NULL_REJECTING.contains(type.getQualifiedName() + ".add") ? type.getSimpleName().toString() : null;
         }
 
         @Override
@@ -1467,7 +1514,9 @@ final class NullChecker implements TaskListener {
 
         private void checkNullRejecting(ExecutableElement method, List<? extends ExpressionTree> args, int checked) {
             for (int i = 0; i < Math.min(checked, args.size()); i++) {
-                if (!method.getParameters().get(i).asType().getKind().isPrimitive()) {
+                TypeMirror param = method.getParameters().get(i).asType();
+                // `String.format(null, ...)` formats without a locale.
+                if (!param.getKind().isPrimitive() && !erasedName(param).equals("java.util.Locale")) {
                     reportValue(args.get(i), args.get(i), false, ", but `" + calledName(method) + "` does not take null");
                 }
             }
