@@ -399,7 +399,7 @@ final class NullChecker implements TaskListener {
                 store(init, element);
                 checkTypeArguments(init, element.asType(), Map.of(), "`" + element.getSimpleName() + "`");
             } else if (element.getKind() == ElementKind.FIELD) {
-                checkValue(init, element.asType(), element, true, "`" + element.getSimpleName() + "` is not nullable");
+                checkProperty(init, element);
             }
             return null;
         }
@@ -421,11 +421,21 @@ final class NullChecker implements TaskListener {
             } else if (target.getKind() == ElementKind.LOCAL_VARIABLE) {
                 store(assignment.getExpression(), target);
             } else if (isAxolotlCode(target)) {
-                checkValue(assignment.getExpression(), target.asType(), target, true, "`" + target.getSimpleName() + "` is not nullable");
+                checkProperty(assignment.getExpression(), target);
             } else if (assignment.getVariable() instanceof MemberSelectTree select) {
                 checkTypeArgumentField(select, target, assignment.getExpression());
             }
             return null;
+        }
+
+        /**
+         * A top-level `val` without a written type gets the type javac infers, without the `?` of its
+         * type arguments, so only the type arguments that Java gives are checked, as a written type.
+         */
+        private void checkProperty(ExpressionTree value, Element property) {
+            String name = "`" + property.getSimpleName() + "`";
+            checkValue(value, property.asType(), property, true, name + " is not nullable");
+            checkJavaTypeArguments(value, property.asType(), Map.of(), name);
         }
 
         /** `var s = "x"` takes the type of its first value, which has no `?` when that value is not null. */
@@ -1117,6 +1127,10 @@ final class NullChecker implements TaskListener {
                 checkUnboxing(result, false);
                 return;
             }
+            TypeMirror written = lambdaResultType(lambda);
+            if (written != null) {
+                checkTypeArguments(result, written, Map.of(), "the result type of the lambda");
+            }
             Origin origin = origin(result);
             if (origin == Origin.NONE || resultMayBeNull(lambda, iface, method, returned)) {
                 return;
@@ -1492,7 +1506,7 @@ final class NullChecker implements TaskListener {
                 return;
             }
             // `Ok(x)` and `attempt` are checked against the type they go to.
-            if (element(value) != null && isRuntime(element(value))) {
+            if (element(value) != null && isRuntime(element(value)) && elvisFallback(unwrap(value)) == null) {
                 return;
             }
             Shape wanted = shapeOf(declared, bindings);

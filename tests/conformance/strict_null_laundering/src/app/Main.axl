@@ -1,0 +1,23 @@
+package app
+
+import java.util.List
+import java.util.function.Supplier
+import lib.Legacy
+
+// The elements that Java gives may be null, wherever the list is stored.
+val items: List<String> = Legacy.names()!!
+
+class C {
+    val items: List<String> = Legacy.names()!!
+}
+
+fn main() {
+    val l: List<String> = Legacy.names() ?: List.of("a")
+    val s: Supplier<List<String>> = { -> Legacy.names()!! }
+    val u: Supplier<List<String>> = { -> List.of("a") }
+    println(l)
+    println(s.get())
+    println(u.get())
+    println(C().items)
+    println(items)
+}
