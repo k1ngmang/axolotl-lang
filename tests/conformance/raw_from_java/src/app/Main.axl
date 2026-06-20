@@ -1,0 +1,24 @@
+package app
+
+import java.util.Collections
+import java.util.List
+
+class Box(val items: List<String>)
+
+fn size(l: List<String>) -> Int = l.size()
+
+fn copy() -> List<String> = RawJ.raw()
+
+// A raw type that Java code gives cannot become a type with type arguments unchecked.
+fn main() {
+    val s: List<String> = RawJ.raw()
+    val m: List<String> = Collections.EMPTY_LIST
+    println(size(RawJ.raw()))
+    println(Box(RawJ.raw()).items)
+    var t: List<String> = List.of()
+    t = RawJ.raw()
+
+    val any: Object = RawJ.raw()
+    val typed: List<String> = Collections.emptyList()
+    println(s.size() + m.size() + t.size() + typed.size() + copy().size())
+}

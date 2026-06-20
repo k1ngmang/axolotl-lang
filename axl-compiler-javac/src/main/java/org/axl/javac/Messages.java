@@ -350,6 +350,9 @@ final class Messages {
         if (message.startsWith(NullChecker.PREFIX)) {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, message.substring(NullChecker.PREFIX.length()));
         }
+        if (message.startsWith(NullChecker.RAW_PREFIX)) {
+            return new Translated(ErrorCode.JAVAC, message.substring(NullChecker.RAW_PREFIX.length()));
+        }
         if (text.contains("Result.propagate(") || text.contains("Result.unwrap(") || text.contains("Result.<")) {
             Translated tryProblem = tryProblem(message, text, javaLines, javaLine);
             if (tryProblem != null) {

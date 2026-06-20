@@ -88,6 +88,7 @@ final class NullChecker implements TaskListener {
 
     static final String PREFIX = "null: ";
     static final String STRICT_PREFIX = "strict null: ";
+    static final String RAW_PREFIX = "raw type: ";
 
     private static final String FIX = "use `?.`, `?:`, a null check or `!!`";
     private static final String FROM_JAVA = "a type argument of the value comes from Java code without nullness "
@@ -447,6 +448,7 @@ final class NullChecker implements TaskListener {
                 shapes.merge(target, shape(assignment.getExpression()).nonNull(), Shape::or);
             } else if (target.getKind() == ElementKind.LOCAL_VARIABLE) {
                 store(assignment.getExpression(), target);
+                checkRaw(assignment.getExpression(), target.asType());
             } else if (isAxolotlCode(target)) {
                 checkProperty(assignment.getExpression(), target);
             } else if (assignment.getVariable() instanceof MemberSelectTree select) {
@@ -463,6 +465,38 @@ final class NullChecker implements TaskListener {
             String name = "`" + property.getSimpleName() + "`";
             checkValue(value, property.asType(), property, true, name + " is not nullable");
             checkJavaTypeArguments(value, property.asType(), Map.of(), name);
+            checkRaw(value, property.asType());
+        }
+
+        /**
+         * `val s: List<String> = RawJ.raw()`: javac converts a raw type that Java code gives to any
+         * type arguments with only a warning, and a value of another type fails later with a cast. A raw
+         * `ArrayList()` in Axolotl code is reported where it is written.
+         */
+        private void checkRaw(ExpressionTree value, TypeMirror declared) {
+            Element source = element(value);
+            boolean fromJava = source != null && (source.getKind() == ElementKind.METHOD || source.getKind() == ElementKind.FIELD)
+                    && !isAxolotlCode(source);
+            if (!fromJava || !(typeOf(value) instanceof DeclaredType type) || !type.getTypeArguments().isEmpty()
+                    || ((TypeElement) type.asElement()).getTypeParameters().isEmpty()
+                    || !(declared instanceof DeclaredType wanted) || wanted.getTypeArguments().stream().allMatch(NullChecker::anything)) {
+                return;
+            }
+            String raw = type.asElement().getSimpleName().toString();
+            String message = describeRaw(value) + " has the raw type `" + raw + "`, so its type arguments may be anything, but "
+                    + "it goes where `" + Messages.axlType(declared.toString()) + "` is expected; use Java code that gives `"
+                    + raw + "` its type arguments";
+            if (reporting) {
+                reports.add(new Report(RAW_PREFIX + message, position(value), value, unit));
+            }
+        }
+
+        private String describeRaw(ExpressionTree value) {
+            ExpressionTree e = unwrap(value);
+            if (e instanceof MethodInvocationTree) {
+                return "the result of `" + name(e) + "`";
+            }
+            return e instanceof MemberSelectTree || e instanceof IdentifierTree ? "the value of `" + name(e) + "`" : "the value";
         }
 
         /** `var s = "x"` takes the type of its first value, which has no `?` when that value is not null. */
@@ -1564,6 +1598,7 @@ final class NullChecker implements TaskListener {
             if (!(declared instanceof DeclaredType type) || !(type.asElement() instanceof TypeElement element)) {
                 return;
             }
+            checkRaw(value, declared);
             // `Ok(x)` and `attempt` are checked against the type they go to.
             if (element(value) != null && isRuntime(element(value)) && elvisFallback(unwrap(value)) == null) {
                 return;
@@ -2285,6 +2320,11 @@ final class NullChecker implements TaskListener {
             }
         }
         return null;
+    }
+
+    /** `?`, which a raw type fits. */
+    private static boolean anything(TypeMirror type) {
+        return type instanceof WildcardType wildcard && wildcard.getExtendsBound() == null && wildcard.getSuperBound() == null;
     }
 
     private static boolean isObjectMethod(ExecutableElement method) {

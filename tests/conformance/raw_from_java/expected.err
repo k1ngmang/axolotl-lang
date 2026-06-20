@@ -1,0 +1,6 @@
+AXL100 app/Main.axl:10:34: error: the result of `raw()` has the raw type `List`, so its type arguments may be anything, but it goes where `List<String>` is expected; use Java code that gives `List` its type arguments
+AXL100 app/Main.axl:14:32: error: the result of `raw()` has the raw type `List`, so its type arguments may be anything, but it goes where `List<String>` is expected; use Java code that gives `List` its type arguments
+AXL100 app/Main.axl:15:39: error: the value of `EMPTY_LIST` has the raw type `List`, so its type arguments may be anything, but it goes where `List<String>` is expected; use Java code that gives `List` its type arguments
+AXL100 app/Main.axl:16:23: error: the result of `raw()` has the raw type `List`, so its type arguments may be anything, but it goes where `List<String>` is expected; use Java code that gives `List` its type arguments
+AXL100 app/Main.axl:17:22: error: the result of `raw()` has the raw type `List`, so its type arguments may be anything, but it goes where `List<String>` is expected; use Java code that gives `List` its type arguments
+AXL100 app/Main.axl:19:14: error: the result of `raw()` has the raw type `List`, so its type arguments may be anything, but it goes where `List<String>` is expected; use Java code that gives `List` its type arguments
