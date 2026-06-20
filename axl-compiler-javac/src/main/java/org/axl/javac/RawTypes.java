@@ -28,8 +28,7 @@ import javax.tools.Diagnostic;
 
 /**
  * A generic class created or written without type arguments, `ArrayList()` or `val xs: ArrayList`,
- * lets values of any type in, and so does a raw value from Java, or from `o is List`, stored as a
- * `List<String>`. This runs in the javac plugin, so builds that pass no lint options see it too.
+ * lets values of any type in, and so does `o` after `o is List` stored as a `List<String>`. This runs in the javac plugin, so builds that pass no lint options see it too.
  */
 final class RawTypes implements TaskListener {
 
@@ -61,8 +60,8 @@ final class RawTypes implements TaskListener {
     }
 
     static String uncheckedMessage(String raw, String target) {
-        return "this `" + raw + "` has no type arguments, so nothing checks that it holds what `" + target
-                + "` promises; keep it as `Object` and test its elements with `is`";
+        return "`is " + raw + "` cannot check type arguments, so nothing checks that the value holds what `" + target
+                + "` promises; use it as a `" + raw + "` and test its elements with `is`";
     }
 
     private final class Scanner extends TreePathScanner<Void, Void> {
@@ -124,19 +123,16 @@ final class RawTypes implements TaskListener {
         private void converted(ExpressionTree value, TypeMirror target) {
             TypeMirror source = type(value);
             if (isRaw(source) && target instanceof DeclaredType declared && !declared.getTypeArguments().isEmpty()
-                    && !declaredHere(value)) {
+                    && testedName(value)) {
                 String message = PREFIX + uncheckedMessage(simpleName(source), simpleName(target));
                 found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, value, unit));
             }
         }
 
-        /** A local or parameter of this file that is raw already has an error where it is declared. */
-        private boolean declaredHere(ExpressionTree value) {
+        /** NullChecker reports raw values from Java code; this is a name narrowed by `is` to a raw type. */
+        private boolean testedName(ExpressionTree value) {
             Element element = trees.getElement(new TreePath(getCurrentPath(), value));
-            boolean variable = element != null && (element.getKind() == ElementKind.LOCAL_VARIABLE
-                    || element.getKind() == ElementKind.PARAMETER || element.getKind() == ElementKind.FIELD);
-            TreePath declaration = variable ? trees.getPath(element) : null;
-            return declaration != null && declaration.getCompilationUnit() == unit;
+            return element != null && element.getKind() == ElementKind.BINDING_VARIABLE;
         }
 
         private boolean isRaw(TypeMirror type) {

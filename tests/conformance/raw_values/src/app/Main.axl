@@ -1,7 +1,6 @@
 package app
 
 import java.util.ArrayList
-import java.util.Collections
 import java.util.List
 
 fn fromTest(o: Object) -> Int {
@@ -12,11 +11,9 @@ fn fromTest(o: Object) -> Int {
     return 0
 }
 
-fn fromJava() -> List<String> = Collections.EMPTY_LIST
-
 fn kept(o: Object) -> Int = if (o is List) o.size() else 0
 
 fn main() {
     val ints = ArrayList<Int>()
-    println(fromTest(ints) + fromJava().size() + kept(ints))
+    println(fromTest(ints) + kept(ints))
 }
