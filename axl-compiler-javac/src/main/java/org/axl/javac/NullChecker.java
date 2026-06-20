@@ -1271,8 +1271,12 @@ final class NullChecker implements TaskListener {
          * result type of the function it is returned from, or the written type of a local. Null when unknown.
          */
         private Boolean targetTypeArgNullable(TreePath expression, int index) {
+            TreePath child = expression;
             TreePath parent = expression.getParentPath();
-            while (parent.getLeaf() instanceof ParenthesizedTree) {
+            // A branch of an `if` value goes where the whole value goes.
+            while (parent.getLeaf() instanceof ParenthesizedTree || parent.getLeaf() instanceof ConditionalExpressionTree c
+                    && c.getCondition() != child.getLeaf()) {
+                child = parent;
                 parent = parent.getParentPath();
             }
             TypeMirror target = null;
@@ -1538,8 +1542,10 @@ final class NullChecker implements TaskListener {
                 Map<Element, Shape> bound = new HashMap<>();
                 bind(param, valueShape(arg), typeOf(arg), bound);
                 boolean fromJava = method.getTypeParameters().stream().anyMatch(v -> bound.containsKey(v) && bound.get(v).fromJava());
+                // In strict mode a value from Java code without nullness annotations may be null too.
+                boolean platform = param instanceof TypeVariable && origin(arg) == Origin.PLATFORM;
                 if (method.getTypeParameters().stream().noneMatch(v -> bound.containsKey(v) && bound.get(v).nullable())
-                        && (param instanceof TypeVariable || !fromJava)) {
+                        && (param instanceof TypeVariable || !fromJava) && !platform) {
                     continue;
                 }
                 if (param instanceof TypeVariable) {

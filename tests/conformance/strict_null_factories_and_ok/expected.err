@@ -1,0 +1,5 @@
+AXL104 app/Main.axl:9:68: error: the result of `getProperty()` comes from Java code without nullness annotations and may be null, but the result type has no `?` there; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:17:25: error: `t` may be null: it holds a value from Java code without nullness annotations, but `of` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:23:21: error: `s` may be null: it holds a value from Java code without nullness annotations, but `of` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:24:20: error: `s` may be null: it holds a value from Java code without nullness annotations, but `of` does not take null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:25:25: error: `s` may be null: it holds a value from Java code without nullness annotations, but `of` does not take null; use `?.`, `?:`, a null check or `!!`

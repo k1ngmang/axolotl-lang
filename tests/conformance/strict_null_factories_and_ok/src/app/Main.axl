@@ -1,0 +1,31 @@
+package app
+
+import java.util.List
+import java.util.Map
+import java.util.Set
+
+// In strict mode a value from Java code without nullness annotations may be null, so `List.of`
+// and the like do not take it, and neither does `Ok` of a type without `?`.
+fn branch(c: Boolean) -> Result<String, String> = if (c) Ok(System.getProperty("axl.missing")) else Err("x")
+
+fn maybe(c: Boolean) -> Result<String?, String> = if (c) Ok(System.getProperty("axl.missing")) else Err("x")
+
+fn of(s: String) -> List<String> {
+    val t = System.getProperty(s)
+    return when (t) {
+        "a" -> List.of()
+        else -> List.of(t)
+    }
+}
+
+fn main() {
+    val s = System.getProperty("axl.missing")
+    println(List.of(s))
+    println(Set.of(s))
+    println(Map.of("k", s))
+    println(List.of(s ?: "none"))
+    println(List.of(System.getProperty("axl.missing")!!))
+    println(branch(true))
+    println(maybe(true))
+    println(of("a"))
+}
