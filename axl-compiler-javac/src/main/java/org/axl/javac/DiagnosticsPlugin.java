@@ -85,7 +85,7 @@ public final class DiagnosticsPlugin implements Plugin {
         boolean internals = ModuleLayer.boot().findModule("jdk.compiler")
                 .map(m -> m.isExported("com.sun.tools.javac.util", DiagnosticsPlugin.class.getModule()))
                 .orElse(false);
-        return internals && task instanceof BasicJavacTask basic ? new NullAwayReports(basic.getContext()) : null;
+        return internals && task instanceof BasicJavacTask basic ? new NullAwayReports(basic) : null;
     }
 
     public static String option(List<Root> roots) {

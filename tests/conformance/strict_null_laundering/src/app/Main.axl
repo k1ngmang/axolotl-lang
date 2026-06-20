@@ -6,18 +6,26 @@ import lib.Legacy
 
 // The elements that Java gives may be null, wherever the list is stored.
 val items: List<String> = Legacy.names()!!
+val maybeItems: List<String?> = Legacy.names()!!
 
 class C {
     val items: List<String> = Legacy.names()!!
+    val maybeItems: List<String?> = Legacy.names()!!
 }
 
 fn main() {
     val l: List<String> = Legacy.names() ?: List.of("a")
+    val m: List<String?> = Legacy.names() ?: List.of("a")
     val s: Supplier<List<String>> = { -> Legacy.names()!! }
+    val t: Supplier<List<String?>> = { -> Legacy.names()!! }
     val u: Supplier<List<String>> = { -> List.of("a") }
     println(l)
+    println(m)
     println(s.get())
+    println(t.get())
     println(u.get())
     println(C().items)
+    println(C().maybeItems)
     println(items)
+    println(maybeItems)
 }

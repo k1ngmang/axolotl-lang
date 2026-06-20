@@ -1,0 +1,23 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import lib.Legacy
+
+class C(val items: List<String?>)
+
+fn first(l: List<String?>) -> String? = l.get(1)
+
+// A list from Java code without nullness annotations may be stored with `?` in its type argument.
+fn main() {
+    val l: List<String?> = Legacy.names()
+    println(l.get(1)?.length())
+    println(first(Legacy.names()))
+    println(C(Legacy.names()).items)
+    var m: List<String?> = List.of("a")
+    m = Legacy.names()
+    println(m)
+
+    val own = ArrayList<String>()
+    println(first(own))
+}
