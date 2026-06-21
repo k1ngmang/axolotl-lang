@@ -66,6 +66,7 @@ import org.axl.compiler.check.Whens;
     public Map<String, String> copies;
     public @Nullable String returnType;
     public final HashMap<String, @Nullable TypeRef> localTypes;
+    public final HashSet<String> boxedLocals;
     public Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
         this.file = file;
         this.analysis = analysis;
@@ -93,6 +94,7 @@ import org.axl.compiler.check.Whens;
         this.copies = Map.of();
         this.returnType = null;
         this.localTypes = new HashMap<String, @Nullable TypeRef>();
+        this.boxedLocals = new HashSet<String>();
     }
     public void emitFile() {
         final var packageName = Nulls.or(file.packageName(), () -> "");
@@ -367,6 +369,7 @@ import org.axl.compiler.check.Whens;
         em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
         returnType = (declaredReturn == null ? null : nullableType(declaredReturn));
         localTypes.clear();
+        boxedLocals.clear();
         for (final var p : f.params()) {
             localTypes.put(p.name(), p.type());
         }
@@ -441,6 +444,12 @@ import org.axl.compiler.check.Whens;
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
         });
         localTypes.put(local.name(), localType);
+        final var unwrapped = whole instanceof Expr.Try whole$3 || whole instanceof Expr.Elvis whole$4;
+        if (declared == null && unwrapped) {
+            boxedLocals.add(local.name());
+        } else {
+            boxedLocals.remove(local.name());
+        }
     }
     private void assignStatement(Stmt.Assign assign) {
         final var line = assign.pos().line();
@@ -1120,11 +1129,38 @@ import org.axl.compiler.check.Whens;
     private String binaryCode(Expr.Binary b, boolean inLambda) {
         final var left = compared(b, b.left(), exprIn(b.left(), inLambda));
         final var right = compared(b, b.right(), narrowedValue(rightNarrowing(b), () -> exprIn(b.right(), inLambda)));
+        return comparison(b, left, right);
+    }
+    private String comparison(Expr.Binary b, String left, String right) {
+        if (boxedOnBothSides(b)) {
+            final var same = joined("Nulls.same(" + left, ", ", right, startLine(b.left()), startLine(b.right())) + ")";
+            return (b.op().equals("==") ? same : "!" + same);
+        }
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()));
     }
+    private boolean boxedOnBothSides(Expr.Binary b) {
+        if (!b.op().equals("==") && !b.op().equals("!=")) {
+            return false;
+        }
+        return (isUnwrapped(b.left()) || isUnwrapped(b.right())) && primitiveOf(b.left()) == null && primitiveOf(b.right()) == null &&
+                !isNullLiteral(b.left()) &&
+                !isNullLiteral(b.right());
+    }
+    private boolean isUnwrapped(Expr e) {
+        final var inner = withoutParens(e);
+        return inner instanceof Expr.Try inner$1 || inner instanceof Expr.Elvis inner$2 || inner instanceof Expr.NotNull inner$3 ||
+                (inner instanceof Expr.Name inner$4 && boxedLocals.contains(inner$4.name()));
+    }
+    private @Nullable String primitiveOf(Expr e) {
+        final var inner = withoutParens(e);
+        if (inner instanceof Expr.Literal inner$1) {
+            return "literal";
+        }
+        final var type = typeOf(e);
+        return (type == null || type.nullable() ? null : PRIMITIVE_NAMES.get(type.name()));
+    }
     private String compared(Expr.Binary b, Expr operand, String code) {
-        final var inner = withoutParens(operand);
-        if ((!b.op().equals("==") && !b.op().equals("!=")) || (!(inner instanceof Expr.Try inner$1) && !(inner instanceof Expr.Elvis inner$2))) {
+        if ((!b.op().equals("==") && !b.op().equals("!=")) || !isUnwrapped(operand)) {
             return code;
         }
         final var type = typeOf(operand);
@@ -1587,8 +1623,7 @@ import org.axl.compiler.check.Whens;
         }
         final var ops = operands(line, List.of(b.left(), b.right()));
         final var left = compared(b, b.left(), ops.get(0).code());
-        final var code = joined(left, " " + b.op() + " ", compared(b, b.right(), ops.get(1).code()), startLine(b.left()), startLine(b.right()));
-        return new Lifted(code, false);
+        return new Lifted(comparison(b, left, compared(b, b.right(), ops.get(1).code())), false);
     }
     private Lifted liftedElvis(int line, Expr.Elvis el) {
         if (Lifts.needed(el.right())) {

@@ -1,0 +1,34 @@
+package app
+
+import java.util.Map
+
+fn f() -> Int = 1000
+
+fn q(n: Int) -> Result<Int, String> = Ok(n)
+
+fn n() -> Int? = 1000
+
+class C(val a: Int?, val b: Int?) {
+    fn same() -> Boolean = (a ?: f()) == (b ?: f())
+}
+
+fn tried() -> Result<Boolean, String> {
+    val x = try q(1000)
+    val y = try q(1000)
+    return Ok(x == y && try q(1000) == try q(1000))
+}
+
+fn main() {
+    val m: Map<String, Int> = Map.of()
+    val s: String? = null
+    println((m.get("a") ?: f()) == (m.get("b") ?: f()))
+    println((s?.length() ?: f()) != (s?.length() ?: f()))
+    println(C(null, null).same())
+    println(tried())
+    val a: Int? = null
+    val x = a ?: f()
+    val y = a ?: f()
+    println(x == y)
+    println(n()!! == (a ?: f()))
+    println((s ?: "x") == (s ?: "x"))
+}

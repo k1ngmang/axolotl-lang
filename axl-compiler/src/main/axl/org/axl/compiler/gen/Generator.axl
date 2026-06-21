@@ -118,6 +118,8 @@ class Generator(
 
     // Types of the parameters and locals of the function so far; null where the code does not say.
     val localTypes: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
+    // Untyped locals set from `try` or `?:`, which Java keeps as the boxed type Result.unwrap or Nulls.or gives.
+    val boxedLocals: HashSet<String> = HashSet<String>()
 
     fn emitFile() {
         val packageName = file.packageName() ?: ""
@@ -404,6 +406,7 @@ class Generator(
         em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
         localTypes.clear()
+        boxedLocals.clear()
         for (p in f.params()) {
             localTypes.put(p.name(), p.type())
         }
@@ -467,6 +470,12 @@ class Generator(
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
         })
         localTypes.put(local.name(), localType)
+        val unwrapped = whole is Expr.Try || whole is Expr.Elvis
+        if (declared == null && unwrapped) {
+            boxedLocals.add(local.name())
+        } else {
+            boxedLocals.remove(local.name())
+        }
     }
 
     private fn assignStatement(assign: Stmt.Assign) {
@@ -1242,7 +1251,42 @@ class Generator(
     private fn binaryCode(b: Expr.Binary, inLambda: Boolean) -> String {
         val left = compared(b, b.left(), exprIn(b.left(), inLambda))
         val right = compared(b, b.right(), narrowedValue(rightNarrowing(b), { -> exprIn(b.right(), inLambda) }))
+        return comparison(b, left, right)
+    }
+
+    private fn comparison(b: Expr.Binary, left: String, right: String) -> String {
+        if (boxedOnBothSides(b)) {
+            val same = joined("Nulls.same(" + left, ", ", right, startLine(b.left()), startLine(b.right())) + ")"
+            return if (b.op().equals("==")) same else "!" + same
+        }
         return joined(left, " " + b.op() + " ", right, startLine(b.left()), startLine(b.right()))
+    }
+
+    /**
+     * `try a() == try b()`, `(a ?: f()) == (b ?: g())` or `a!! == b!!` without a primitive type for either
+     * side: Java would compare the boxed numbers as objects.
+     */
+    private fn boxedOnBothSides(b: Expr.Binary) -> Boolean {
+        if (!b.op().equals("==") && !b.op().equals("!=")) {
+            return false
+        }
+        return (isUnwrapped(b.left()) || isUnwrapped(b.right())) && primitiveOf(b.left()) == null && primitiveOf(b.right()) == null
+            && !isNullLiteral(b.left()) && !isNullLiteral(b.right())
+    }
+
+    private fn isUnwrapped(e: Expr) -> Boolean {
+        val inner = withoutParens(e)
+        return inner is Expr.Try || inner is Expr.Elvis || inner is Expr.NotNull
+            || (inner is Expr.Name && boxedLocals.contains(inner.name()))
+    }
+
+    private fn primitiveOf(e: Expr) -> String? {
+        val inner = withoutParens(e)
+        if (inner is Expr.Literal) {
+            return "literal"
+        }
+        val type = typeOf(e)
+        return if (type == null || type.nullable()) null else PRIMITIVE_NAMES.get(type.name())
     }
 
     /**
@@ -1250,8 +1294,7 @@ class Generator(
      * the primitive compares the numbers, not the objects.
      */
     private fn compared(b: Expr.Binary, operand: Expr, code: String) -> String {
-        val inner = withoutParens(operand)
-        if ((!b.op().equals("==") && !b.op().equals("!=")) || (inner !is Expr.Try && inner !is Expr.Elvis)) {
+        if ((!b.op().equals("==") && !b.op().equals("!=")) || !isUnwrapped(operand)) {
             return code
         }
         val type = typeOf(operand)
@@ -1786,8 +1829,7 @@ class Generator(
         }
         val ops = operands(line, List.of(b.left(), b.right()))
         val left = compared(b, b.left(), ops.get(0).code())
-        val code = joined(left, " " + b.op() + " ", compared(b, b.right(), ops.get(1).code()), startLine(b.left()), startLine(b.right()))
-        return Lifted(code, false)
+        return Lifted(comparison(b, left, compared(b, b.right(), ops.get(1).code())), false)
     }
 
     private fn liftedElvis(line: Int, el: Expr.Elvis) -> Lifted {

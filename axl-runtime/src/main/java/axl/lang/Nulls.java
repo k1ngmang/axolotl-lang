@@ -23,6 +23,15 @@ import org.jspecify.annotations.Nullable;
     public static <T extends @Nullable Object> T or(@Nullable T a, T b) { return a != null ? a : b; }
     // `a ?: b!!`: the fallback's `!!`, which NullAway types as not null, unlike requireNonNull there.
     public static <T> T sure(@Nullable T value) { return java.util.Objects.requireNonNull(value); }
+    // `(a ?: f()) == (b ?: g())` whose types the translator does not know: both may be boxed, and `==`
+    // compares numbers by value, as Axolotl does for Int, and other objects by reference.
+    public static boolean same(@Nullable Object a, @Nullable Object b) {
+        if (a instanceof Number x && b instanceof Number y) {
+            return isFloating(x) || isFloating(y) ? x.doubleValue() == y.doubleValue() : x.longValue() == y.longValue();
+        }
+        return a instanceof Boolean || a instanceof Character ? a.equals(b) : a == b;
+    }
+    private static boolean isFloating(Number n) { return n instanceof Double || n instanceof Float; }
     // `c ? a : b` with an Integer `a` and a Long `b` unboxes both; converting `a` first keeps a null.
     @Contract("!null -> !null")
     public static @Nullable Long toLong(@Nullable Number a) { return a == null ? null : a.longValue(); }
