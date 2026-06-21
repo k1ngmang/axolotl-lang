@@ -67,6 +67,7 @@ import org.axl.compiler.check.Whens;
     public @Nullable String returnType;
     public final HashMap<String, @Nullable TypeRef> localTypes;
     public final HashSet<String> boxedLocals;
+    public int nestedValues;
     public Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
         this.file = file;
         this.analysis = analysis;
@@ -95,6 +96,7 @@ import org.axl.compiler.check.Whens;
         this.returnType = null;
         this.localTypes = new HashMap<String, @Nullable TypeRef>();
         this.boxedLocals = new HashSet<String>();
+        this.nestedValues = 0;
     }
     public void emitFile() {
         final var packageName = Nulls.or(file.packageName(), () -> "");
@@ -929,7 +931,10 @@ import org.axl.compiler.check.Whens;
     }
     private String leftAssociatedCode(Expr.Elvis e, boolean inLambda) {
         final var chain = leftAssociated(e);
-        return elvisCode(chain, exprIn(chain.left(), inLambda));
+        nestedValues += 1;
+        final var left = exprIn(chain.left(), inLambda);
+        nestedValues -= 1;
+        return elvisCode(chain, left);
     }
     private Expr.Elvis leftAssociated(Expr.Elvis e) {
         final var parts = new ArrayList<Expr>();
@@ -966,10 +971,19 @@ import org.axl.compiler.check.Whens;
     }
     private String elvisWitness(@Nullable TypeRef leftType, Expr right) {
         final var rightType = typeOf(right);
-        if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
+        if (rightType == null || !rightType.args().isEmpty() || leftType == null || !rightType.name().equals(leftType.name())) {
             return "";
         }
-        return (leftType != null && rightType.name().equals(leftType.name()) ? "<" + boxedType(rightType) + ">" : "");
+        if (rightType.nullable()) {
+            return (nestedValues > 0 ? nullableWitness(rightType) : "");
+        }
+        return "<" + boxedType(rightType) + ">";
+    }
+    private String nullableWitness(@Nullable TypeRef type) {
+        if (type == null || !type.nullable() || !type.args().isEmpty() || type.name().contains(".")) {
+            return "";
+        }
+        return "<@Nullable " + boxedType(new TypeRef(type.pos(), type.name(), type.args(), false)) + ">";
     }
     private String lambdaFallback(Expr right, @Nullable String narrow) {
         if (narrow != null) {
@@ -1189,8 +1203,10 @@ import org.axl.compiler.check.Whens;
     }
     private String conditional(String condition, Expr.Conditional c, boolean inLambda) {
         final var branches = List.of(c.then(), c.otherwise());
+        nestedValues += 1;
         final var thenCode = narrowedValue(whenTrue(c.condition()), () -> exprIn(c.then(), inLambda));
         final var otherwise = narrowedValue(whenFalse(c.condition()), () -> exprIn(c.otherwise(), inLambda));
+        nestedValues -= 1;
         final var thenLine = startLine(c.then());
         final var head = joined("(" + condition, " ? ", boxedBranch(thenCode, c.then(), branches), c.pos().line(), thenLine);
         return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")";
@@ -1835,7 +1851,9 @@ import org.axl.compiler.check.Whens;
         em.line(line, "final var " + result + " = java.util.Objects.isNull(" + value + ") ? " + expr(t.inner()) + " : null;");
         em.line(line, "if (" + result + " != null && " + result + ".isErr()) return Result.propagate(" + result + ");");
         return new Lifted("(java.util.Objects.nonNull(" + value + ") ? " + value +
-                " : Result.unwrap(java.util.Objects.requireNonNull(" +
+                " : Result." +
+                nullableWitness(typeOf(t)) +
+                "unwrap(java.util.Objects.requireNonNull(" +
                 result +
                 ")))",
                 false);

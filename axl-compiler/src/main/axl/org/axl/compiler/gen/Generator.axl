@@ -120,6 +120,8 @@ class Generator(
     val localTypes: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
     // Untyped locals set from `try` or `?:`, which Java keeps as the boxed type Result.unwrap or Nulls.or gives.
     val boxedLocals: HashSet<String> = HashSet<String>()
+    // Inside a branch of an `if` value or the left side of `?:`, where NullAway infers a nested `?:` from the target.
+    var nestedValues: Int = 0
 
     fn emitFile() {
         val packageName = file.packageName() ?: ""
@@ -1060,7 +1062,10 @@ class Generator(
 
     private fn leftAssociatedCode(e: Expr.Elvis, inLambda: Boolean) -> String {
         val chain = leftAssociated(e)
-        return elvisCode(chain, exprIn(chain.left(), inLambda))
+        nestedValues += 1
+        val left = exprIn(chain.left(), inLambda)
+        nestedValues -= 1
+        return elvisCode(chain, left)
     }
 
     /**
@@ -1109,10 +1114,22 @@ class Generator(
      */
     private fn elvisWitness(leftType: TypeRef?, right: Expr) -> String {
         val rightType = typeOf(right)
-        if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
+        if (rightType == null || !rightType.args().isEmpty() || leftType == null || !rightType.name().equals(leftType.name())) {
             return ""
         }
-        return if (leftType != null && rightType.name().equals(leftType.name())) "<" + boxedType(rightType) + ">" else ""
+        // A nullable fallback: inside an `if` or another `?:` NullAway would infer `T` from the target as not null.
+        if (rightType.nullable()) {
+            return if (nestedValues > 0) nullableWitness(rightType) else ""
+        }
+        return "<" + boxedType(rightType) + ">"
+    }
+
+    /** `<@Nullable Integer>` for a nullable type: NullAway would take `T` from the target, as not null. */
+    private fn nullableWitness(type: TypeRef?) -> String {
+        if (type == null || !type.nullable() || !type.args().isEmpty() || type.name().contains(".")) {
+            return ""
+        }
+        return "<@Nullable " + boxedType(TypeRef(type.pos(), type.name(), type.args(), false)) + ">"
     }
 
     private fn lambdaFallback(right: Expr, narrow: String?) -> String {
@@ -1331,8 +1348,10 @@ class Generator(
     /** The branches are evaluated only when chosen, so they stay expressions; the checker keeps `try` out. */
     private fn conditional(condition: String, c: Expr.Conditional, inLambda: Boolean) -> String {
         val branches = List.of(c.then(), c.otherwise())
+        nestedValues += 1
         val thenCode = narrowedValue(whenTrue(c.condition()), { -> exprIn(c.then(), inLambda) })
         val otherwise = narrowedValue(whenFalse(c.condition()), { -> exprIn(c.otherwise(), inLambda) })
+        nestedValues -= 1
         val thenLine = startLine(c.then())
         val head = joined("(" + condition, " ? ", boxedBranch(thenCode, c.then(), branches), c.pos().line(), thenLine)
         return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")"
@@ -2054,7 +2073,7 @@ class Generator(
         em.line(line, "if (" + result + " != null && " + result + ".isErr()) return Result.propagate(" + result + ");")
         // In parentheses: it may be an operand, as in `(n ?: try q()) * 2`.
         return Lifted("(java.util.Objects.nonNull(" + value + ") ? " + value +
-            " : Result.unwrap(java.util.Objects.requireNonNull(" + result + ")))", false)
+            " : Result." + nullableWitness(typeOf(t)) + "unwrap(java.util.Objects.requireNonNull(" + result + ")))", false)
     }
 
     /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */

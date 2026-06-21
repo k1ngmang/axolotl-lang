@@ -1,0 +1,26 @@
+package app
+
+fn n(v: Int?) -> Int? = v
+
+fn tn(v: Int?) -> Result<Int?, String> = Ok(v)
+
+fn ts(v: String?) -> Result<String?, String> = Ok(v)
+
+fn f() -> Int = 9
+
+fn tried() -> Result<Int, String> = Ok((n(null) ?: try tn(4)) ?: f())
+
+fn sn(v: String?) -> String? = v
+
+fn text() -> Result<String, String> = Ok((sn(null) ?: try ts(null)) ?: "s")
+
+fn main() {
+    val c = System.nanoTime() > 0
+    val y: Int = (if (c) (n(3) ?: n(4)) else 42) ?: n(5)!!
+    var x = 10
+    x += (if (c) (n(null) ?: n(null)) else 42) ?: f()
+    println(y)
+    println(x)
+    println(tried())
+    println(text())
+}
