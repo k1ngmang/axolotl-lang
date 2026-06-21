@@ -918,6 +918,43 @@ import org.axl.compiler.check.Whens;
         final var witness = (number || narrow != null ? "" : elvisWitness(leftType, right));
         return joined("Nulls." + witness + "or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")";
     }
+    private String leftAssociatedCode(Expr.Elvis e, boolean inLambda) {
+        final var chain = leftAssociated(e);
+        return elvisCode(chain, exprIn(chain.left(), inLambda));
+    }
+    private Expr.Elvis leftAssociated(Expr.Elvis e) {
+        final var parts = new ArrayList<Expr>();
+        parts.add(e.left());
+        elvisParts(e.right(), parts);
+        final var first = typeOf(e.left());
+        if (parts.size() < 3 || typeOf(parts.getLast()) != null || first == null || !first.args().isEmpty()) {
+            return e;
+        }
+        var i = 1;
+        while (i < parts.size() - 1) {
+            final var type = typeOf(parts.get(i));
+            if (type == null || !type.nullable() || !type.name().equals(first.name()) || !type.args().isEmpty()) {
+                return e;
+            }
+            i += 1;
+        }
+        var chain = new Expr.Elvis(e.pos(), parts.get(0), parts.get(1));
+        var k = 2;
+        while (k < parts.size()) {
+            chain = new Expr.Elvis(e.pos(), chain, parts.get(k));
+            k += 1;
+        }
+        return chain;
+    }
+    private void elvisParts(Expr e, List<Expr> out) {
+        final var inner = withoutParens(e);
+        if (inner instanceof Expr.Elvis inner$1) {
+            out.add(inner$1.left());
+            elvisParts(inner$1.right(), out);
+        } else {
+            out.add(e);
+        }
+    }
     private String elvisWitness(@Nullable TypeRef leftType, Expr right) {
         final var rightType = typeOf(right);
         if (rightType == null || rightType.nullable() || !rightType.args().isEmpty()) {
@@ -1034,7 +1071,7 @@ import org.axl.compiler.check.Whens;
                 throw new IllegalStateException("throw at " + e$12.pos() + " cannot be an expression");
             }
             case Expr.Elvis e$13 -> {
-                return elvisCode(e$13, exprIn(e$13.left(), inLambda));
+                return leftAssociatedCode(e$13, inLambda);
             }
             case Expr.Paren e$14 -> {
                 return parenCode(e$14, inLambda);

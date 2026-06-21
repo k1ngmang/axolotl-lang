@@ -1049,6 +1049,51 @@ class Generator(
         return joined("Nulls." + witness + "or(" + left, ", ", fallback, startLine(elvis.left()), startLine(right)) + ")"
     }
 
+    private fn leftAssociatedCode(e: Expr.Elvis, inLambda: Boolean) -> String {
+        val chain = leftAssociated(e)
+        return elvisCode(chain, exprIn(chain.left(), inLambda))
+    }
+
+    /**
+     * `a ?: b ?: f()` as `(a ?: b) ?: f()`, which gives the same value. When only the last fallback has
+     * a type the code does not tell, Nulls.or gets no witness, and NullAway infers fallbacks nested in
+     * fallbacks again at every level, which takes exponential time; nested as left sides they are not.
+     */
+    private fn leftAssociated(e: Expr.Elvis) -> Expr.Elvis {
+        val parts = ArrayList<Expr>()
+        parts.add(e.left())
+        elvisParts(e.right(), parts)
+        val first = typeOf(e.left())
+        if (parts.size() < 3 || typeOf(parts.getLast()) != null || first == null || !first.args().isEmpty()) {
+            return e
+        }
+        var i = 1
+        while (i < parts.size() - 1) {
+            val type = typeOf(parts.get(i))
+            if (type == null || !type.nullable() || !type.name().equals(first.name()) || !type.args().isEmpty()) {
+                return e
+            }
+            i += 1
+        }
+        var chain = Expr.Elvis(e.pos(), parts.get(0), parts.get(1))
+        var k = 2
+        while (k < parts.size()) {
+            chain = Expr.Elvis(e.pos(), chain, parts.get(k))
+            k += 1
+        }
+        return chain
+    }
+
+    private fn elvisParts(e: Expr, out: List<Expr>) {
+        val inner = withoutParens(e)
+        if (inner is Expr.Elvis) {
+            out.add(inner.left())
+            elvisParts(inner.right(), out)
+        } else {
+            out.add(e)
+        }
+    }
+
     /**
      * `Nulls.<String>or(...)`: NullAway infers the type of nested fallbacks again at every level, which
      * takes exponential time, and infers `requireNonNull` in a fallback as nullable.
@@ -1156,7 +1201,7 @@ class Generator(
         is Expr.Is -> typeCheck(e, inLambda)
         is Expr.Conditional -> conditionalCode(e, inLambda)
         is Expr.Throw -> throw IllegalStateException("throw at " + e.pos() + " cannot be an expression")
-        is Expr.Elvis -> elvisCode(e, exprIn(e.left(), inLambda))
+        is Expr.Elvis -> leftAssociatedCode(e, inLambda)
         is Expr.Paren -> parenCode(e, inLambda)
         is Expr.Attempt -> attemptCode(e)
         is Expr.Lambda -> lambdaCode(e)
