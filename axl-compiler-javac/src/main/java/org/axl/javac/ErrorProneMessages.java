@@ -199,6 +199,7 @@ final class ErrorProneMessages {
                 yield always.find() ? "a comparison of constants here is always `" + always.group(1) + "`; write `"
                         + always.group(1) + "` in its place" : null;
             }
+            case "AlreadyChecked" -> "an `if` around this condition already checked it, so its result is known here; remove it";
             case "DuplicateBranches" -> "both branches give the same, so the condition makes no difference; keep one of them";
             case "UnnecessaryStringBuilder" -> "join strings with `+` instead of a `StringBuilder`; it reads better and is as fast";
             case "DoNotCall" -> message.contains("Calling run on Thread")

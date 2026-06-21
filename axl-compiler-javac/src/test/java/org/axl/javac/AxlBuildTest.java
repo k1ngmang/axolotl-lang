@@ -126,6 +126,21 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutAConditionAnEnclosingIfChecked(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn pick(a: String?, b: String?) -> String? = if (a != null) (if (a != null) a else b) else b
+
+                fn main() {
+                    println(pick("a", null))
+                }
+                """);
+        assertEquals(List.of("3:71 an `if` around this condition already checked it, so its result is known here; remove it"),
+                warnings);
+    }
+
+    @Test
     void warnsAboutIntegerWrittenForInt(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
