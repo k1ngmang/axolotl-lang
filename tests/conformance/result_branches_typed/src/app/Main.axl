@@ -1,0 +1,24 @@
+package app
+
+import java.util.List
+
+fn q() -> Result<Int, String> = Ok(0)
+
+fn chain(a: Boolean, b: Boolean) -> Result<Int, String> {
+    val r: Result<Int, String> = if (a) q() else if (b) Ok(1) else Err("x")
+    val s: Result<Int, String> = if (a) (if (b) Ok(1) else Err("x")) else q()
+    return if (r is Ok) s else r
+}
+
+fn positives(xs: List<Int>) -> Result<List<Int>, String> {
+    val ys: List<Int> = xs |> mapResult { if (it > 0) Ok(it) else Err("neg") }
+    return Ok(ys)
+}
+
+fn main() {
+    println(chain(false, true))
+    println(positives(List.of(1, 2)))
+    println(positives(List.of(1, -2)))
+    val rs: List<Result<Int, String>> = List.of(1, -1) |> map { if (it > 0) Ok(it) else Err("neg") }
+    println(rs)
+}

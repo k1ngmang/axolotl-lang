@@ -981,6 +981,9 @@ import org.axl.compiler.ast.TypeRef;
             if (stage.name().equals("mapResult") && lambda != null) {
                 mapResult(stage, lambda, (isLast ? declared : null));
             }
+            if (stage.name().equals("map") && lambda != null) {
+                mapToResults(stage, lambda, (isLast ? declared : null));
+            }
             exprs(stage.args());
             if (lambda != null) {
                 lambdaExpr(lambda, !stage.name().equals("sorted"));
@@ -1006,6 +1009,19 @@ import org.axl.compiler.ast.TypeRef;
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes no arguments");
         } else if (TERMINAL_STAGES.contains(name) && !isLast) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` ends a pipe and must be its last stage");
+        }
+    }
+    private void mapToResults(Expr.Stage stage, Expr.Lambda lambda, @Nullable TypeRef declared) {
+        final var body = lambda.body();
+        final var last = (body.size() == 1 ? body.getFirst() : null);
+        if (!(last instanceof Stmt.ExprStmt last$1) || (!buildsResult(last$1.expr()) && !isResultCall(last$1.expr()))) {
+            return;
+        }
+        if (declared != null && declared.args().size() == 1) {
+            mapResultTypes.put(stage, declared.args().getFirst());
+        } else {
+            error(stage.pos(), ErrorCode.TYPE_REQUIRED, "a `map` whose lambda builds an `Ok` or an `Err` needs the " +
+                    "element type: declare the result as `val name: List<Result<T, E>> = ...`");
         }
     }
     private void mapResult(Expr.Stage stage, Expr.Lambda lambda, @Nullable TypeRef declared) {
@@ -1267,7 +1283,8 @@ import org.axl.compiler.ast.TypeRef;
     private static boolean buildsResult(Expr e) {
         final var inner = unparenthesized(e);
         if (inner instanceof Expr.Conditional inner$1) {
-            return isResultCall(inner$1.then()) || isResultCall(inner$1.otherwise());
+            return isResultCall(inner$1.then()) || isResultCall(inner$1.otherwise()) || buildsResult(inner$1.then()) ||
+                    buildsResult(inner$1.otherwise());
         }
         if (inner instanceof Expr.When inner$2) {
             return inner$2.arms().stream().anyMatch(a -> armBuildsResult(a));
@@ -1276,7 +1293,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static boolean armBuildsResult(Expr.Arm arm) {
         final var last = (arm.body().isEmpty() ? null : arm.body().getLast());
-        return last instanceof Stmt.ExprStmt last$1 && isResultCall(last$1.expr());
+        return last instanceof Stmt.ExprStmt last$1 && (isResultCall(last$1.expr()) || buildsResult(last$1.expr()));
     }
     private static boolean isResultCall(Expr e) {
         final var inner = unparenthesized(e);

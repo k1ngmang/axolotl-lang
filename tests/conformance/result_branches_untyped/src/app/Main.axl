@@ -1,0 +1,15 @@
+package app
+
+import java.util.List
+
+fn q() -> Result<Int, String> = Ok(0)
+
+fn chain(a: Boolean, b: Boolean) -> Result<Int, String> {
+    val r = if (a) q() else if (b) Ok(1) else Err("x")
+    return r
+}
+
+fn mapped() {
+    val rs = List.of(1, -1) |> map { if (it > 0) Ok(it) else Err("neg") }
+    println(rs)
+}

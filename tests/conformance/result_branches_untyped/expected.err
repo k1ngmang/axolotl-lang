@@ -1,0 +1,2 @@
+AXL009 app/Main.axl:8:5: error: `val r` needs a type when it is initialized with branches that build an `Ok` or an `Err`: `val r: Type = ...`
+AXL009 app/Main.axl:13:32: error: a `map` whose lambda builds an `Ok` or an `Err` needs the element type: declare the result as `val name: List<Result<T, E>> = ...`

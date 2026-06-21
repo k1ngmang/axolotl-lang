@@ -1,0 +1,4 @@
+Ok[value=0]
+Ok[value=[1, 2]]
+Err[error=neg]
+[Ok[value=1], Err[error=neg]]

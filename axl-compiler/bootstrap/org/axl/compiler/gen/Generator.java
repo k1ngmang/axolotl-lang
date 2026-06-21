@@ -65,6 +65,7 @@ import org.axl.compiler.check.Whens;
     public int listCount;
     public Map<String, String> copies;
     public @Nullable String returnType;
+    public @Nullable TypeRef resultTypeRef;
     public final HashMap<String, @Nullable TypeRef> localTypes;
     public final HashSet<String> boxedLocals;
     public int nestedValues;
@@ -94,6 +95,7 @@ import org.axl.compiler.check.Whens;
         this.listCount = 0;
         this.copies = Map.of();
         this.returnType = null;
+        this.resultTypeRef = null;
         this.localTypes = new HashMap<String, @Nullable TypeRef>();
         this.boxedLocals = new HashSet<String>();
         this.nestedValues = 0;
@@ -370,6 +372,7 @@ import org.axl.compiler.check.Whens;
         final var annotation = (!isStatic && f.params().isEmpty() && overridden.contains(f.name()) ? "@Override " : "");
         em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
         returnType = (declaredReturn == null ? null : nullableType(declaredReturn));
+        resultTypeRef = declaredReturn;
         localTypes.clear();
         boxedLocals.clear();
         for (final var p : f.params()) {
@@ -1946,7 +1949,9 @@ import org.axl.compiler.check.Whens;
         em.indent();
         final var temp = newTemp();
         final var bodyLine = lambda.pos().line();
-        em.line(bodyLine, "final var " + temp + " = " + expr(body) + ";");
+        final var inner = withoutParens(body);
+        final var typeCode = (inner instanceof Expr.Conditional inner$1 || inner instanceof Expr.When inner$2 ? stageResultType(element) : "var");
+        em.line(bodyLine, "final " + typeCode + " " + temp + " = " + expr(body) + ";");
         if (!isOkCall(body)) {
             em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");");
         }
@@ -1961,6 +1966,13 @@ import org.axl.compiler.check.Whens;
             throw new IllegalStateException("mapResult without a lambda");
         }
         return lambda;
+    }
+    private String stageResultType(String element) {
+        final var result = resultTypeRef;
+        if (result == null || !isResultType(result) || result.args().size() != 2) {
+            return "var";
+        }
+        return "Result<" + element + ", " + boxedType(result.args().get(1)) + ">";
     }
     private TypeRef mapResultType(Expr.Stage stage) {
         final var type = analysis.mapResultTypes().get(stage);
@@ -2003,7 +2015,9 @@ import org.axl.compiler.check.Whens;
                 sb.insert(0, "Nulls.first(").append(".iterator())");
             }
             case "map" -> {
-                sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))");
+                final var element = analysis.mapResultTypes().get(stage);
+                final var witness = (element == null ? "" : "<" + boxedType(element) + ">");
+                sb.append(".").append(witness).append("map(Nulls.nonNull(").append(lambdaText).append("))");
             }
             case "sorted" -> {
                 sb.append(".sorted(").append((lambdaText.isEmpty() ? "java.util.Comparator.naturalOrder()" : lambdaText)).append(')');

@@ -272,9 +272,12 @@ fn doubled(s: String) -> Result<Int, String> {
   right side only when they need it.
 - `try` is not allowed inside a lambda or `attempt` (it would return from the lambda), after `?.`
   and in `return try e` (write `return e`).
-- An `if` or `when` whose branches are `Ok(...)` and `Err(...)` takes its type from where it goes, a
-  result or a `val` with a type: `val r: Result<Int, String> = if (c) Ok(1) else Err("x")`. Java cannot
-  find the type of `val r = if (c) Ok(1) else Err("x")`, which is therefore an error.
+- An `if` or `when` with an `Ok(...)` or `Err(...)` branch, also in an `else if` or a nested `if`,
+  takes its type from where it goes, a result or a `val` with a type:
+  `val r: Result<Int, String> = if (c) Ok(1) else Err("x")`. Java cannot find the type of
+  `val r = if (c) Ok(1) else Err("x")`, which is therefore an error, also when another branch is a
+  `Result` such as `attempt ...`. A `map` stage whose lambda builds them takes the element type from
+  `val rs: List<Result<Int, String>> = xs |> map { ... }`.
 
 ## Pipes
 

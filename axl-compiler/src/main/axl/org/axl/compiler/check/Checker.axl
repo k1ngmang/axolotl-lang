@@ -1034,6 +1034,9 @@ class Checker(val file: SourceFile) {
             if (stage.name().equals("mapResult") && lambda != null) {
                 mapResult(stage, lambda, if (isLast) declared else null)
             }
+            if (stage.name().equals("map") && lambda != null) {
+                mapToResults(stage, lambda, if (isLast) declared else null)
+            }
             exprs(stage.args())
             if (lambda != null) {
                 // Every stage but `sorted` passes one element, so a lambda without parameters takes `it`.
@@ -1060,6 +1063,21 @@ class Checker(val file: SourceFile) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes no arguments")
         } else if (TERMINAL_STAGES.contains(name) && !isLast) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` ends a pipe and must be its last stage")
+        }
+    }
+
+    /** `map { if (c) Ok(x) else Err(e) }`: Java finds no common type for the branches without the element type. */
+    private fn mapToResults(stage: Expr.Stage, lambda: Expr.Lambda, declared: TypeRef?) {
+        val body = lambda.body()
+        val last = if (body.size() == 1) body.getFirst() else null
+        if (last !is Stmt.ExprStmt || (!buildsResult(last.expr()) && !isResultCall(last.expr()))) {
+            return
+        }
+        if (declared != null && declared.args().size() == 1) {
+            mapResultTypes.put(stage, declared.args().getFirst())
+        } else {
+            error(stage.pos(), ErrorCode.TYPE_REQUIRED, "a `map` whose lambda builds an `Ok` or an `Err` needs the " +
+                "element type: declare the result as `val name: List<Result<T, E>> = ...`")
         }
     }
 
@@ -1283,10 +1301,12 @@ private fn isNullConstant(c: Expr.Cond) -> Boolean {
 }
 
 /** An `if` or `when` with a branch `Ok(...)` or `Err(...)`, which Java cannot type on its own. */
+/** An `if` or `when` with an `Ok(...)` or `Err(...)` branch, also in an `else if` or a nested `if`. */
 private fn buildsResult(e: Expr) -> Boolean {
     val inner = unparenthesized(e)
     if (inner is Expr.Conditional) {
-        return isResultCall(inner.then()) || isResultCall(inner.otherwise())
+        return isResultCall(inner.then()) || isResultCall(inner.otherwise()) || buildsResult(inner.then())
+            || buildsResult(inner.otherwise())
     }
     if (inner is Expr.When) {
         return inner.arms() |> anyMatch { a -> armBuildsResult(a) }
@@ -1296,7 +1316,7 @@ private fn buildsResult(e: Expr) -> Boolean {
 
 private fn armBuildsResult(arm: Expr.Arm) -> Boolean {
     val last = if (arm.body().isEmpty()) null else arm.body().getLast()
-    return last is Stmt.ExprStmt && isResultCall(last.expr())
+    return last is Stmt.ExprStmt && (isResultCall(last.expr()) || buildsResult(last.expr()))
 }
 
 private fn isResultCall(e: Expr) -> Boolean {

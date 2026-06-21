@@ -115,6 +115,7 @@ class Generator(
 
     // The Java result type of the function whose body is being emitted; null inside a lambda.
     var returnType: String? = null
+    var resultTypeRef: TypeRef? = null
 
     // Types of the parameters and locals of the function so far; null where the code does not say.
     val localTypes: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
@@ -407,6 +408,7 @@ class Generator(
         val annotation = if (!isStatic && f.params().isEmpty() && overridden.contains(f.name())) "@Override " else ""
         em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
+        resultTypeRef = declaredReturn
         localTypes.clear()
         boxedLocals.clear()
         for (p in f.params()) {
@@ -2174,7 +2176,9 @@ class Generator(
         em.indent()
         val temp = newTemp()
         val bodyLine = lambda.pos().line()
-        em.line(bodyLine, "final var " + temp + " = " + expr(body) + ";")
+        val inner = withoutParens(body)
+        val typeCode = if (inner is Expr.Conditional || inner is Expr.When) stageResultType(element) else "var"
+        em.line(bodyLine, "final " + typeCode + " " + temp + " = " + expr(body) + ";")
         // `Ok(...)` is never an error, and Java would give it an Object error, which the function does not return.
         if (!isOkCall(body)) {
             em.line(bodyLine, "if (" + temp + ".isErr()) return Result.propagate(" + temp + ");")
@@ -2191,6 +2195,15 @@ class Generator(
             throw IllegalStateException("mapResult without a lambda")
         }
         return lambda
+    }
+
+    /** `if (c) Ok(x) else Err(e)` gets no type of its own in Java; the function's error type gives it one. */
+    private fn stageResultType(element: String) -> String {
+        val result = resultTypeRef
+        if (result == null || !isResultType(result) || result.args().size() != 2) {
+            return "var"
+        }
+        return "Result<" + element + ", " + boxedType(result.args().get(1)) + ">"
     }
 
     private fn mapResultType(stage: Expr.Stage) -> TypeRef {
@@ -2228,7 +2241,11 @@ class Generator(
             "distinct" -> sb.append(".distinct()")
             "count" -> sb.append(".count()")
             "first" -> sb.insert(0, "Nulls.first(").append(".iterator())")
-            "map" -> sb.append(".map(Nulls.nonNull(").append(lambdaText).append("))")
+            "map" -> {
+                val element = analysis.mapResultTypes().get(stage)
+                val witness = if (element == null) "" else "<" + boxedType(element) + ">"
+                sb.append(".").append(witness).append("map(Nulls.nonNull(").append(lambdaText).append("))")
+            }
             // naturalOrder makes javac check that the elements can be compared; sorted() would throw.
             "sorted" -> sb.append(".sorted(").append(if (lambdaText.isEmpty()) "java.util.Comparator.naturalOrder()" else lambdaText).append(')')
             "filter" -> {
