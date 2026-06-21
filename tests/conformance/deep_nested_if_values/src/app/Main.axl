@@ -1,0 +1,11 @@
+package app
+
+// Each level has a type, so javac does not infer the nested values again at every level.
+fn main() {
+    val a0: String? = "x"
+    val a1: String? = null
+    val a2: String? = null
+    val a3: String? = "y"
+    val r = if (a3 != null) (if (a2 != null) (if (a1 != null) (if (a0 != null) (if (a3 != null) (if (a2 != null) (if (a1 != null) (if (a0 != null) (if (a3 != null) (if (a2 != null) (if (a1 != null) (if (a0 != null) (if (a3 != null) (if (a2 != null) (if (a1 != null) (if (a0 != null) (a0) else a1) else a2) else a3) else a0) else a1) else a2) else a3) else a0) else a1) else a2) else a3) else a0) else a1) else a2) else a3) else a0
+    println(r)
+}

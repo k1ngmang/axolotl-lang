@@ -920,7 +920,15 @@ import org.axl.compiler.check.Whens;
             final var target = typeOf(inner$3.target());
             return (target == null ? null : new TypeRef(target.pos(), target.name(), target.args(), false));
         }
+        if (inner instanceof Expr.Conditional inner$4) {
+            return commonBranchType(typeOf(inner$4.then()), typeOf(inner$4.otherwise()), inner$4);
+        }
         return TypeInference.typeOf(file, inner);
+    }
+    private @Nullable TypeRef commonBranchType(@Nullable TypeRef a, @Nullable TypeRef b, Expr.Conditional c) {
+        final var same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty();
+        return (a != null && same ? new TypeRef(a.pos(), a.name(), a.args(), a.nullable() || java.util.Objects.requireNonNull(b).nullable()) :
+                TypeInference.typeOf(file, c));
     }
     private String elvisCode(Expr.Elvis elvis, String left) {
         final var right = elvis.right();

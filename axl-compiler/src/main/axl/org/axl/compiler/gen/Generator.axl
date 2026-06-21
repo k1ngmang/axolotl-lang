@@ -1044,7 +1044,18 @@ class Generator(
             val target = typeOf(inner.target())
             return if (target == null) null else TypeRef(target.pos(), target.name(), target.args(), false)
         }
+        // Nested `if` values over locals: without a type each level is boxed by a generic call, which
+        // javac infers again at every level.
+        if (inner is Expr.Conditional) {
+            return commonBranchType(typeOf(inner.then()), typeOf(inner.otherwise()), inner)
+        }
         return TypeInference.typeOf(file, inner)
+    }
+
+    private fn commonBranchType(a: TypeRef?, b: TypeRef?, c: Expr.Conditional) -> TypeRef? {
+        val same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty()
+        return if (a != null && same) TypeRef(a.pos(), a.name(), a.args(), a.nullable() || b!!.nullable())
+            else TypeInference.typeOf(file, c)
     }
 
     /**
