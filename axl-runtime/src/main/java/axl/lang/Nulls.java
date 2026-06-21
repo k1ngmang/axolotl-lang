@@ -50,6 +50,9 @@ import org.jspecify.annotations.Nullable;
     // and println(String) and println(char[]) both fit. As the receiver of `.value()` it is typed first.
     public record Typed<T extends @Nullable Object>(@Nullable T value) {}
     public static <T extends @Nullable Object> Typed<T> typed(@Nullable T value) { return new Typed<>(value); }
+    // An `if` value with a `?:` branch is typed the same way; it may be null only when a branch may be.
+    public record Inferred<T extends @Nullable Object>(T value) {}
+    public static <T extends @Nullable Object> Inferred<T> inferred(T value) { return new Inferred<>(value); }
     public record Present<T>(T value) {}
     public static <T> Present<T> present(T value) { return new Present<>(value); }
     public static <T, R> @Nullable R map(@Nullable T a, Function<? super T, ? extends @Nullable R> f) {

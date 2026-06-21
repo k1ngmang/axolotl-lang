@@ -1148,7 +1148,7 @@ import org.axl.compiler.check.Whens;
         return "Nulls.to" + widest + "(" + code + ")";
     }
     private String typedConditional(Expr.Conditional c, String code) {
-        return ((givesValue(c) ? "Nulls.present(" : "Nulls.typed(")) + code + ").value()";
+        return ((givesValue(c) ? "Nulls.present(" : "Nulls.inferred(")) + code + ").value()";
     }
     private boolean branchBecomesCall(Expr.Conditional c) {
         return List.of(c.then(), c.otherwise()).stream().anyMatch(b -> becomesCallSomewhere(withoutParens(b)));

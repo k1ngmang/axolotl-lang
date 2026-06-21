@@ -1,5 +1,9 @@
 package app
 
+import java.util.Map
+
+fn show(n: Int) { println(n) }
+
 fn shout(s: String) -> String = s + "!"
 
 fn main() {
@@ -8,4 +12,10 @@ fn main() {
     println(if (c) (s?.length() ?: 1000) else if (false) 42 else 7)
     println(shout(if (c) (s?.trim() ?: "none") else "other"))
     println((if (c) (s?.length() ?: 5) else "ab".length()))
+    println(1 + (if (c) (s?.length() ?: 5) else "ab".length()))
+    println(Math.max(0, if (c) (s?.length() ?: 5) else "ab".length()))
+    show(if (c) (s?.length() ?: 5) else "ab".length())
+    println(Ok((if (c) (s?.length() ?: 5) else "ab".length())))
+    val m: Map<String, Int> = Map.of()
+    println(if (!c) (s?.length() ?: 5) else m.get("k"))
 }

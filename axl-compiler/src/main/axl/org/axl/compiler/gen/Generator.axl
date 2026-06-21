@@ -1284,8 +1284,12 @@ class Generator(
         return "Nulls.to" + widest + "(" + code + ")"
     }
 
+    /**
+     * Nulls.inferred keeps the value nullable only when a branch is, as NullAway infers it: a branch
+     * that is a Java call, such as `"ab".length()`, gives a value.
+     */
     private fn typedConditional(c: Expr.Conditional, code: String) -> String =
-        (if (givesValue(c)) "Nulls.present(" else "Nulls.typed(") + code + ").value()"
+        (if (givesValue(c)) "Nulls.present(" else "Nulls.inferred(") + code + ").value()"
 
     private fn branchBecomesCall(c: Expr.Conditional) -> Boolean =
         List.of(c.then(), c.otherwise()) |> anyMatch { b -> becomesCallSomewhere(withoutParens(b)) }
