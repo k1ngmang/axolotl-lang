@@ -109,6 +109,23 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutConstantComparisonsAndSameBranches(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn pick(c: Boolean) -> Int = if (c) 1000 else 1000
+
+                fn main() {
+                    println(!(1000 > 42))
+                    println(pick(true))
+                }
+                """);
+        assertEquals(List.of(
+                "3:30 both branches give the same, so the condition makes no difference; keep one of them",
+                "6:5 a comparison of constants here is always `true`; write `true` in its place"), warnings);
+    }
+
+    @Test
     void warnsAboutIntegerWrittenForInt(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

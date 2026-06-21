@@ -45,6 +45,7 @@ final class ErrorProneMessages {
             + "(\\S+) will always evaluate to (\\w+)");
     private static final Pattern SENTENCE_START = Pattern.compile("(?:This|The|A|An|It|Use|Using|Calling|Consider|Prefer|"
             + "Avoid|Do|Don't|Expected|Found)\\b");
+    private static final Pattern ALWAYS = Pattern.compile("always evaluates to `(\\w+)`");
     private static final Pattern CALL = Pattern.compile("\\w\\(");
     private static final Pattern INTERFACE = Pattern.compile("java\\.\\w+\\.(\\w+)");
 
@@ -193,6 +194,12 @@ final class ErrorProneMessages {
                 yield cases.find() ? "this `when` has no branch for " + constants(cases.group(1))
                         + "; add the missing branches or an `else ->` branch" : null;
             }
+            case "ComplexBooleanConstant" -> {
+                Matcher always = ALWAYS.matcher(message);
+                yield always.find() ? "a comparison of constants here is always `" + always.group(1) + "`; write `"
+                        + always.group(1) + "` in its place" : null;
+            }
+            case "DuplicateBranches" -> "both branches give the same, so the condition makes no difference; keep one of them";
             case "UnnecessaryStringBuilder" -> "join strings with `+` instead of a `StringBuilder`; it reads better and is as fast";
             case "DoNotCall" -> message.contains("Calling run on Thread")
                     ? "`run` does the work on this thread; call `start` to run it on a thread of its own" : null;
