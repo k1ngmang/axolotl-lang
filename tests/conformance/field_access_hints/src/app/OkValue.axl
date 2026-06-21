@@ -1,0 +1,8 @@
+package app
+
+fn g() -> Result<Int, String> = Ok(1)
+
+fn f() -> Int = when (val r = g()) {
+    is Ok -> r.value
+    is Err -> 0
+}

@@ -60,6 +60,9 @@ final class Mistakes {
         if (placed == null) {
             placed = missingPart(tokens, at, previous);
         }
+        if (placed == null) {
+            placed = slip(tokens, at, previous);
+        }
         if (placed != null) {
             return placed;
         }
@@ -72,6 +75,18 @@ final class Mistakes {
             case AxolotlLexer.FN -> inInterface(tokens, at) ? INTERFACE_FUNCTION : null;
             case AxolotlLexer.LBRACE -> text(SourceParser.lineStart(tokens, at)).equals("data")
                     ? "a data class has no body; write its functions at the top level, taking it as a parameter" : null;
+            case AxolotlLexer.ELSE -> previous.getType() != AxolotlLexer.RBRACE && !lineHas(tokens, previous.getLine(), AxolotlLexer.IF)
+                    && type(SourceParser.nextToken(tokens, at)) != AxolotlLexer.ARROW
+                    ? "`else` needs an `if` before it: `if (c) { ... } else { ... }`" : null;
+            case AxolotlLexer.ELVIS -> previous.getType() == AxolotlLexer.IDENTIFIER && inParameters(tokens, at)
+                    ? "Axolotl has no optional parameters; for a value that may be null, write `" + previous.getText() + ": "
+                    + text(SourceParser.nextToken(tokens, at)) + "?`" : null;
+            case AxolotlLexer.COMMA -> Set.of(AxolotlLexer.VAL, AxolotlLexer.VAR).contains(type(SourceParser.nextToken(tokens, at)))
+                    ? "declare each value on a line of its own, or separate them with `;`" : missingComma(tokens, at, previous);
+            case AxolotlLexer.RPAREN -> enclosingParen(tokens, at) == null
+                    ? "no `(` is open here" + (enclosingBrace(tokens, at) != null ? "; did you mean `}`?" : "") : null;
+            case AxolotlLexer.SEMI -> startsFunction(tokens, at) && !lineHas(tokens, at.getLine(), AxolotlLexer.ASSIGN)
+                    ? "a function needs a body after its header: `= value` or `{ ... }`" : null;
             case AxolotlLexer.COLON -> previous.getType() == AxolotlLexer.RPAREN && startsFunction(tokens, at)
                     ? "the result type comes after `->`: `fn f(...) -> Int`"
                     : endsLine(tokens, at) ? "a block goes in braces: `{ ... }`, not after `:`" : null;
@@ -93,8 +108,25 @@ final class Mistakes {
         if (next.getType() == AxolotlLexer.LPAREN && inInterface(tokens, at)) {
             return INTERFACE_FUNCTION;
         }
+        if (next.getType() == AxolotlLexer.COLON && inInterface(tokens, at)) {
+            return "an interface lists values: `val " + at.getText() + ": " + text(SourceParser.nextToken(tokens, next)) + "`";
+        }
         String typeArguments = next.getType() == AxolotlLexer.LT ? typeArgumentCall(tokens, at, next) : null;
         return typeArguments != null ? typeArguments : missingComma(tokens, at, previous);
+    }
+
+    /** A misspelled keyword before the token where the parser gave up: `atempt f() else e`, `whne (n) {`. */
+    private static Placed slip(CommonTokenStream tokens, Token at, Token previous) {
+        Token word = previous;
+        String keyword = previous.getLine() == at.getLine() ? SourceParser.keywordLike(previous) : null;
+        if (keyword == null && at.getType() == AxolotlLexer.LBRACE && previous.getType() == AxolotlLexer.RPAREN) {
+            word = before(tokens, matchingOpen(tokens, previous));
+            keyword = type(word) == AxolotlLexer.IDENTIFIER ? SourceParser.controlKeyword(word.getText()) : null;
+        }
+        if (keyword == null || type(before(tokens, word)) == AxolotlLexer.DOT) {
+            return null;
+        }
+        return new Placed(word, "unknown word `" + word.getText() + "`; did you mean `" + keyword + "`?", true);
     }
 
     /**
@@ -133,6 +165,14 @@ final class Mistakes {
             return unfinished;
         }
         Token first = SourceParser.lineStart(tokens, previous);
+        if (startsFunction(tokens, previous) && !lineHas(tokens, first.getLine(), AxolotlLexer.ASSIGN)
+                && !lineHas(tokens, first.getLine(), AxolotlLexer.LBRACE) && !unclosedParen(tokens, previous)
+                && !inInterface(tokens, previous)) {
+            // An indented line after the header is its body; a declaration at the margin is the next one.
+            Token next = SourceParser.nextToken(tokens, previous);
+            return next.getCharPositionInLine() > 0
+                    ? new Placed(next, "missing `{` at the end of line " + previous.getLine(), true) : null;
+        }
         Token declared = first.getType() == AxolotlLexer.PRIVATE ? SourceParser.nextToken(tokens, first) : first;
         boolean declaration = declared.getType() == AxolotlLexer.VAR || declared.getType() == AxolotlLexer.VAL;
         if (!declaration || lineHas(tokens, first.getLine(), AxolotlLexer.ASSIGN) || !lineHas(tokens, first.getLine(), AxolotlLexer.COLON)) {
@@ -150,6 +190,23 @@ final class Mistakes {
 
     /** Code with a part left out: a type, a condition, a value after an operator or `,`, a name after `.`. */
     private static Placed missingPart(CommonTokenStream tokens, Token at, Token previous) {
+        Token declaration = before(tokens, previous);
+        if (previous.getType() == AxolotlLexer.IDENTIFIER && declaration != null && declaration.getLine() < previous.getLine()
+                && Set.of(AxolotlLexer.VAL, AxolotlLexer.VAR).contains(declaration.getType())) {
+            return new Placed(declaration, "`" + declaration.getText() + "` needs a name: `" + declaration.getText()
+                    + " x = ...`", true);
+        }
+        Token paren = enclosingParen(tokens, at);
+        if (at.getType() == AxolotlLexer.LBRACE && paren != null && paren.getLine() == at.getLine()
+                && Set.of(AxolotlLexer.IF, AxolotlLexer.WHILE, AxolotlLexer.FOR, AxolotlLexer.WHEN).contains(type(before(tokens, paren)))) {
+            return new Placed(at, "missing `)` before `{`", true);
+        }
+        boolean untypedParameter = (at.getType() == AxolotlLexer.RPAREN || at.getType() == AxolotlLexer.COMMA)
+                && previous.getType() == AxolotlLexer.IDENTIFIER && inParameters(tokens, at)
+                && Set.of(AxolotlLexer.LPAREN, AxolotlLexer.COMMA).contains(type(before(tokens, previous)));
+        if (untypedParameter) {
+            return new Placed(previous, "`" + previous.getText() + "` needs a type: `" + previous.getText() + ": Int`", true);
+        }
         if (previous.getType() == AxolotlLexer.COLON && at.getType() == AxolotlLexer.LPAREN) {
             return new Placed(at, "Axolotl has no function types; use an interface such as "
                     + "`java.util.function.Function<Int, Int>`", true);
@@ -171,7 +228,8 @@ final class Mistakes {
             return new Placed(previous, "`,` needs a value after it; remove it or add the value", true);
         }
         Token next = SourceParser.nextToken(tokens, at);
-        if (BINARY_OPERATORS.contains(at.getType()) && BINARY_OPERATORS.contains(next.getType()) && next.getLine() == at.getLine()) {
+        if (BINARY_OPERATORS.contains(at.getType()) && (next.getType() == Token.EOF
+                || BINARY_OPERATORS.contains(next.getType()) && next.getLine() == at.getLine())) {
             return new Placed(at, "`" + at.getText() + "` needs a value after it", true);
         }
         if (BINARY_OPERATORS.contains(at.getType()) && BINARY_OPERATORS.contains(previous.getType())
@@ -182,6 +240,23 @@ final class Mistakes {
             return new Placed(at, "`.` needs a name after it", true);
         }
         return null;
+    }
+
+    private static boolean declaresInterface(CommonTokenStream tokens, String name) {
+        return tokens.getTokens().stream().anyMatch(t -> t.getType() == AxolotlLexer.INTERFACE
+                && SourceParser.nextToken(tokens, t).getText().equals(name));
+    }
+
+    /** Whether a `(` of the line is still open at last, as in a header written over several lines. */
+    private static boolean unclosedParen(CommonTokenStream tokens, Token last) {
+        int depth = 0;
+        for (Token t = SourceParser.lineStart(tokens, last); t.getTokenIndex() <= last.getTokenIndex(); t = SourceParser.nextToken(tokens, t)) {
+            depth += t.getType() == AxolotlLexer.LPAREN ? 1 : t.getType() == AxolotlLexer.RPAREN ? -1 : 0;
+            if (t.getType() == Token.EOF) {
+                break;
+            }
+        }
+        return depth > 0;
     }
 
     private static boolean inInterface(CommonTokenStream tokens, Token at) {
@@ -248,6 +323,9 @@ final class Mistakes {
         if (previous.getType() == AxolotlLexer.VAL || previous.getType() == AxolotlLexer.VAR) {
             return "Axolotl has no destructuring; declare each value: `val a = p.a()`";
         }
+        if (previous.getType() == AxolotlLexer.FN) {
+            return "missing the name of the function: `fn name(...)`";
+        }
         if (previous.getType() != AxolotlLexer.IDENTIFIER) {
             return null;
         }
@@ -256,7 +334,8 @@ final class Mistakes {
             return "an enum lists its constants only: `enum " + previous.getText() + " { RED, GREEN }`";
         }
         if (type(before) == AxolotlLexer.COLON && lineHas(tokens, at.getLine(), AxolotlLexer.CLASS)) {
-            return "a class cannot extend another class; it can only implement interfaces";
+            return declaresInterface(tokens, previous.getText()) ? "an interface takes no `()`: `: " + previous.getText() + "`"
+                    : "a class cannot extend another class; it can only implement interfaces";
         }
         return null;
     }
@@ -265,7 +344,9 @@ final class Mistakes {
     private static String assignment(CommonTokenStream tokens, Token at, Token previous) {
         Token paren = enclosingParen(tokens, at);
         if (paren == null) {
-            return null;
+            Token brace = enclosingBrace(tokens, at);
+            return brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM)
+                    ? "an enum lists only its constants, as in `{ RED, GREEN }`; it cannot give them values" : null;
         }
         Token beforeParen = before(tokens, paren);
         if (type(beforeParen) == AxolotlLexer.IF || type(beforeParen) == AxolotlLexer.WHILE) {
@@ -303,11 +384,12 @@ final class Mistakes {
         }
         boolean value = at.getType() == AxolotlLexer.IDENTIFIER || literal(at);
         boolean afterValue = previous.getType() == AxolotlLexer.IDENTIFIER || literal(previous);
-        if (!value || !afterValue || previous.getLine() != at.getLine() || enclosingParen(tokens, at) == null) {
+        boolean text = at.getType() == AxolotlLexer.STRING_LITERAL || previous.getType() == AxolotlLexer.STRING_LITERAL;
+        if (!value || !afterValue || previous.getLine() != at.getLine() || enclosingParen(tokens, at) == null && !text) {
             return null;
         }
-        boolean text = at.getType() == AxolotlLexer.STRING_LITERAL || previous.getType() == AxolotlLexer.STRING_LITERAL;
-        return "missing " + (text ? "`+` or `,`" : "`,`") + " before `" + at.getText() + "`";
+        String separator = enclosingParen(tokens, at) == null ? "`+`" : text ? "`+` or `,`" : "`,`";
+        return "missing " + separator + " before `" + at.getText() + "`";
     }
 
     /** The `<` of `x is List<String>`, given its `>`, or null. */

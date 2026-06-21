@@ -1,0 +1,4 @@
+package app
+
+interface I
+class C(val n: Int) : I()

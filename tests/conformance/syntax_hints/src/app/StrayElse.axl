@@ -1,0 +1,7 @@
+package app
+
+fn f() {
+    else {
+        println("x")
+    }
+}

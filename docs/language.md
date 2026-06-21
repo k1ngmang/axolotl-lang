@@ -58,7 +58,8 @@ concatenation, lambdas and method references `String::length` work as in Java. A
 capitalized name creates an object: `StringBuilder("x")`, `ArrayList<String>()`, also when it is
 qualified by a package: `java.sql.Timestamp(1L)`. A generic class needs its type arguments,
 `ArrayList<String>()`, or `ArrayList<>(xs)` where the type it is stored as gives them; a bare
-`ArrayList()` is an error, since any value could go in. Names use the letters A to Z and a to z,
+`ArrayList()` is an error, since any value could go in, and so is `val xs = ArrayList<>()`, where
+no type gives them. Names use the letters A to Z and a to z,
 digits and `_`.
 
 Lambdas are written in braces: `{ x -> x + 1 }`, `{ a, b -> a.compareTo(b) }`. Without an arrow,

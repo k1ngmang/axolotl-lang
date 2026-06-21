@@ -29,7 +29,7 @@ class DiagnosticsPluginTest {
         assertEquals(tmp.resolve("my src/app/Main.axl").toUri(), ((javax.tools.FileObject) error.getSource()).toUri());
         assertEquals(5, error.getLineNumber());
         assertEquals(22, error.getColumnNumber());
-        assertEquals("`greeting` of type `String` has no method `lenght()`", error.getMessage(Locale.ROOT));
+        assertEquals("`greeting` of type `String` has no method `lenght()`; did you mean `length`?", error.getMessage(Locale.ROOT));
     }
 
     @Test

@@ -1,0 +1,13 @@
+package app
+
+import java.util.ArrayDeque
+
+fn shows(t: String) {
+    println(t)
+}
+
+fn main() {
+    val s: String? = null
+    val q = ArrayDeque<String>()
+    shows(s?.trim() ?: q.poll())
+}

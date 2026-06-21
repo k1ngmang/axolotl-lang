@@ -1,0 +1,5 @@
+package app
+
+interface I
+interface J
+data class C(val n: Int) implements I, J

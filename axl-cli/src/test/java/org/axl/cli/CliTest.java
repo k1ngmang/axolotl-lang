@@ -218,7 +218,7 @@ class CliTest {
         int exit = axl("build", CASES.resolve("javac_error_mapping/src").toString(), "-d", tmp.toString());
         assertEquals(1, exit);
         String message = err.toString(StandardCharsets.UTF_8).strip();
-        assertTrue(message.endsWith("Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()` [AXL100]"), message);
+        assertTrue(message.endsWith("Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()`; did you mean `length`? [AXL100]"), message);
     }
 
     @Test

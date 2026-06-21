@@ -1,0 +1,4 @@
+package app
+
+sealed class Shape
+data class Circle(val r: Double) : Shape()

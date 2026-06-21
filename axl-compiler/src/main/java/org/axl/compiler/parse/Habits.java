@@ -42,9 +42,11 @@ final class Habits {
         return switch (t.getType()) {
             case AxolotlLexer.IDENTIFIER -> word(tokens, i);
             case AxolotlLexer.FOR -> javaFor(tokens, i);
-            case AxolotlLexer.IMPORT -> wildcardImport(tokens, i);
-            case AxolotlLexer.QUESTION -> followedBy(tokens, i, AxolotlLexer.QUESTION)
-                    ? "write `?:` for a default: `s ?: \"x\"`" : ternary(tokens, i);
+            case AxolotlLexer.IMPORT -> text(tokens, SourceParser.nextCode(tokens, i)).equals("static")
+                    ? staticImport(tokens, i) : wildcardImport(tokens, i);
+            case AxolotlLexer.QUESTION -> followedBy(tokens, i, AxolotlLexer.QUESTION) ? nullish(tokens, i) : ternary(tokens, i);
+            case AxolotlLexer.CLASS -> kotlinClass(tokens, i);
+            case AxolotlLexer.COLON -> pythonBlock(tokens, i);
             case AxolotlLexer.ASSIGN -> followedBy(tokens, i, AxolotlLexer.GT) ? fatArrow(tokens, i) : null;
             case AxolotlLexer.UNKNOWN_CHAR -> unknownChar(tokens, i);
             default -> symbol(tokens, i);
@@ -62,9 +64,11 @@ final class Habits {
                     ? "Axolotl has no `**`; use `Math.pow(a, b)`" : null;
             case AxolotlLexer.LT -> followedBy(tokens, i, AxolotlLexer.LT) ? BIT_OPERATORS : null;
             case AxolotlLexer.BANG -> followedBy(tokens, i, AxolotlLexer.DOT)
-                    ? "write `!!.` to state that the value is not null: `s!!.length()`" : null;
-            case AxolotlLexer.IS -> next == AxolotlLexer.NULL ? "compare with `==` to test for null: `s == null`" : null;
-            case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN ? elvisReturn(tokens, i) : null;
+                    ? "write `!!.` to state that the value is not null: `s!!.length()`"
+                    : followedBy(tokens, i, AxolotlLexer.IDENTIFIER) && text(tokens, i + 1).equals("in") ? notIn(tokens, i) : null;
+            case AxolotlLexer.IS -> next == AxolotlLexer.NULL || text(tokens, SourceParser.nextCode(tokens, i)).equals("None")
+                    ? "compare with `==` to test for null: `s == null`" : null;
+            case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN || next == AxolotlLexer.THROW ? elvisJump(tokens, i) : null;
             case AxolotlLexer.STRING_LITERAL -> tokens.get(i).getText().equals("\"\"")
                     && followedBy(tokens, i, AxolotlLexer.STRING_LITERAL)
                     ? "Axolotl has no text blocks (`\"\"\"`); join the lines with `+` and `\\n`" : null;
@@ -72,18 +76,55 @@ final class Habits {
         };
     }
 
-    /** `s ?: return 0`, which Kotlin allows. */
-    private static String elvisReturn(List<Token> tokens, int i) {
+    /** `s ?: return 0` and `s ?: throw e`, which Kotlin allows. */
+    private static String elvisJump(List<Token> tokens, int i) {
         int previous = SourceParser.previousCode(tokens, i);
-        String value = type(tokens, previous) == AxolotlLexer.IDENTIFIER ? text(tokens, previous) : "s";
-        StringBuilder fallback = new StringBuilder();
-        int line = tokens.get(i).getLine();
-        for (int j = SourceParser.nextCode(tokens, i); j < tokens.size() && tokens.get(j).getLine() == line
-                && type(tokens, j) != Token.EOF; j = SourceParser.nextCode(tokens, j)) {
-            fallback.append(fallback.isEmpty() ? "" : " ").append(text(tokens, j));
+        int start = operandStart(tokens, previous);
+        int fallback = SourceParser.nextCode(tokens, i);
+        String problem = "`" + text(tokens, fallback) + "` cannot be the fallback of `?:`; ";
+        String jump = source(tokens, fallback, lineEnd(tokens, fallback));
+        if (start == previous && type(tokens, previous) == AxolotlLexer.IDENTIFIER) {
+            String value = text(tokens, previous);
+            return problem + "check first: `if (" + value + " == null) { " + jump + " }`, and `" + value
+                    + "` is not null after it";
         }
-        return "`return` cannot be the fallback of `?:`; check first: `if (" + value + " == null) { " + fallback
-                + " }`, and `" + value + "` is not null after it";
+        // A null check of a call does not make the next call return non-null, so the value needs a name.
+        String name = declaredName(tokens, start);
+        return problem + "keep the value in a `val` and check that: `val " + name + " = " + source(tokens, start, previous)
+                + "`, then `if (" + name + " == null) { " + jump + " }`";
+    }
+
+    /** `v` of `val v = ` before the token at start, or `v` when there is none. */
+    private static String declaredName(List<Token> tokens, int start) {
+        int assign = SourceParser.previousCode(tokens, start);
+        int name = SourceParser.previousCode(tokens, assign);
+        int keyword = type(tokens, SourceParser.previousCode(tokens, name));
+        boolean declared = type(tokens, assign) == AxolotlLexer.ASSIGN && type(tokens, name) == AxolotlLexer.IDENTIFIER
+                && (keyword == AxolotlLexer.VAL || keyword == AxolotlLexer.VAR);
+        return declared ? text(tokens, name) : "v";
+    }
+
+    /** The last code token on the line of the token at i. */
+    private static int lineEnd(List<Token> tokens, int i) {
+        int end = i;
+        for (int j = SourceParser.nextCode(tokens, i); type(tokens, j) != Token.EOF
+                && tokens.get(j).getLine() == tokens.get(i).getLine(); j = SourceParser.nextCode(tokens, j)) {
+            end = j;
+        }
+        return end;
+    }
+
+    /** TypeScript's `a ?? b`, or `String??` in a type. */
+    private static String nullish(List<Token> tokens, int i) {
+        int previous = SourceParser.previousCode(tokens, i);
+        int next = SourceParser.nextCode(tokens, i + 1);
+        if (!VALUE_STARTS.contains(type(tokens, next))) {
+            return type(tokens, previous) == AxolotlLexer.IDENTIFIER
+                    ? "a type takes one `?`: `" + text(tokens, previous) + "?`" : "a type takes one `?`";
+        }
+        String right = type(tokens, next) == AxolotlLexer.IDENTIFIER ? source(tokens, next, operandEnd(tokens, next))
+                : text(tokens, next);
+        return "write `?:` for a default: `" + source(tokens, operandStart(tokens, previous), previous) + " ?: " + right + "`";
     }
 
     /** `=>` of TypeScript lambdas, or a `when` branch written with the wrong arrow. */
@@ -115,8 +156,10 @@ final class Habits {
     private static String unknownChar(List<Token> tokens, int i) {
         return switch (tokens.get(i).getText()) {
             case "[" -> bracket(tokens, i);
-            case "@" -> followedBy(tokens, i, AxolotlLexer.IDENTIFIER)
-                    ? "Axolotl has no annotations; remove `@" + text(tokens, i + 1) + "`" : null;
+            case "@" -> !followedBy(tokens, i, AxolotlLexer.IDENTIFIER) ? null
+                    : i > 0 && type(tokens, i - 1) == AxolotlLexer.RETURN
+                    ? "Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@" + text(tokens, i + 1) + "`"
+                    : "Axolotl has no annotations; remove `@" + text(tokens, i + 1) + "`";
             case "`" -> "Axolotl has no template strings; join the parts with `+`: `\"n is \" + n`";
             case "#" -> !alone(tokens, i) && startsLine(tokens, i) ? "comments start with `//`" : null;
             case "|" -> unionType(tokens, i) ? "a parameter has one type; Axolotl has no union types, so take a common "
@@ -164,6 +207,10 @@ final class Habits {
             case "catch", "finally" -> type(tokens, SourceParser.previousCode(tokens, i)) == AxolotlLexer.RBRACE
                     ? NO_TRY_CATCH : null;
             case "instanceof" -> "Axolotl tests types with `is`: `if (x is String) { ... }`";
+            case "typeof" -> next == AxolotlLexer.IDENTIFIER ? "Axolotl tests types with `is`: `if ("
+                    + text(tokens, nextIndex) + " is String) { ... }`" : null;
+            case "as" -> cast(tokens, i, nextIndex);
+            case "to" -> pair(tokens, i, nextIndex);
             case "vararg" -> next == AxolotlLexer.IDENTIFIER ? "Axolotl has no `vararg`; take a `List` parameter" : null;
             case "and", "or" -> VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
                     && VALUE_STARTS.contains(next) ? AND_OR_NOT : null;
@@ -186,6 +233,40 @@ final class Habits {
 
     private static final String AND_OR_NOT = "write `&&`, `||` and `!` instead of `and`, `or` and `not`";
 
+    /** Kotlin's `o as String` and `o as? String`. */
+    private static String cast(List<Token> tokens, int i, int nextIndex) {
+        int previous = SourceParser.previousCode(tokens, i);
+        boolean safe = type(tokens, nextIndex) == AxolotlLexer.QUESTION && adjacent(tokens, i);
+        int typeName = safe ? SourceParser.nextCode(tokens, nextIndex) : nextIndex;
+        if (!VALUE_ENDS.contains(type(tokens, previous)) || type(tokens, typeName) != AxolotlLexer.IDENTIFIER) {
+            return null;
+        }
+        String value = type(tokens, previous) == AxolotlLexer.IDENTIFIER && operandStart(tokens, previous) == previous
+                ? text(tokens, previous) : "x";
+        return "Axolotl has no casts; test the type with `is`: `if (" + value + " is " + text(tokens, typeName) + ") { ... }`";
+    }
+
+    /** Kotlin's `1 to 2` outside a call; in a call, the parser explains it as the arguments of `Map.of`. */
+    private static String pair(List<Token> tokens, int i, int nextIndex) {
+        int previous = SourceParser.previousCode(tokens, i);
+        boolean value = VALUE_ENDS.contains(type(tokens, previous)) && type(tokens, nextIndex) != AxolotlLexer.LPAREN
+                && VALUE_STARTS.contains(type(tokens, nextIndex)) && tokens.get(nextIndex).getLine() == tokens.get(i).getLine();
+        if (!value || inParentheses(tokens, i) || Set.of(AxolotlLexer.BANG, AxolotlLexer.MINUS).contains(type(tokens, nextIndex))) {
+            return null;
+        }
+        String arguments = type(tokens, previous) == AxolotlLexer.RPAREN ? "a, b"
+                : text(tokens, previous) + ", " + text(tokens, nextIndex);
+        return "Axolotl has no `to` or `Pair`; use a data class, or `Map.entry(" + arguments + ")`";
+    }
+
+    private static boolean inParentheses(List<Token> tokens, int i) {
+        int depth = 0;
+        for (int j = 0; j < i; j++) {
+            depth += type(tokens, j) == AxolotlLexer.LPAREN ? 1 : type(tokens, j) == AxolotlLexer.RPAREN ? -1 : 0;
+        }
+        return depth > 0;
+    }
+
     /** Python's `3 in xs`; `for (x in xs)` is Axolotl's own. */
     private static String inOperator(List<Token> tokens, int i, int nextIndex) {
         int previous = SourceParser.previousCode(tokens, i);
@@ -195,7 +276,83 @@ final class Habits {
         if (loop || !VALUE_ENDS.contains(type(tokens, previous)) || type(tokens, nextIndex) != AxolotlLexer.IDENTIFIER) {
             return null;
         }
-        return "Axolotl has no `in` operator; write `" + text(tokens, nextIndex) + ".contains(" + text(tokens, previous) + ")`";
+        // Python's `3 not in xs`.
+        boolean not = text(tokens, previous).equals("not")
+                && VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, previous)));
+        int end = not ? SourceParser.previousCode(tokens, previous) : previous;
+        return "Axolotl has no `in` operator; write `" + contains(tokens, operandStart(tokens, end), end, nextIndex, not) + "`";
+    }
+
+    /** Kotlin's `x !in xs`. */
+    private static String notIn(List<Token> tokens, int bang) {
+        int previous = SourceParser.previousCode(tokens, bang);
+        int collection = SourceParser.nextCode(tokens, bang + 1);
+        if (!VALUE_ENDS.contains(type(tokens, previous)) || type(tokens, collection) != AxolotlLexer.IDENTIFIER) {
+            return null;
+        }
+        return "Axolotl has no `!in`; write `" + contains(tokens, operandStart(tokens, previous), previous, collection, true) + "`";
+    }
+
+    /** `xs.contains(x)` for the element from first to last and the collection that starts at collection. */
+    private static String contains(List<Token> tokens, int first, int last, int collection, boolean not) {
+        return (not ? "!" : "") + source(tokens, collection, operandEnd(tokens, collection)) + ".contains("
+                + source(tokens, first, last) + ")";
+    }
+
+    /** The first token of the operand that ends at end, such as `s` of `s.length()`. */
+    private static int operandStart(List<Token> tokens, int end) {
+        int start = end;
+        while (true) {
+            if (type(tokens, start) == AxolotlLexer.RPAREN) {
+                start = matching(tokens, start, -1);
+            }
+            int before = SourceParser.previousCode(tokens, start);
+            if (type(tokens, start) == AxolotlLexer.LPAREN && type(tokens, before) == AxolotlLexer.IDENTIFIER) {
+                start = before;
+                before = SourceParser.previousCode(tokens, start);
+            }
+            if (type(tokens, before) != AxolotlLexer.DOT) {
+                return start;
+            }
+            start = SourceParser.previousCode(tokens, before);
+        }
+    }
+
+    /** The last token of the operand that starts with the name at start, such as `)` of `b.items()`. */
+    private static int operandEnd(List<Token> tokens, int start) {
+        int end = start;
+        while (true) {
+            int next = SourceParser.nextCode(tokens, end);
+            if (type(tokens, next) == AxolotlLexer.LPAREN) {
+                end = matching(tokens, next, 1);
+            } else if (type(tokens, next) == AxolotlLexer.DOT
+                    && type(tokens, SourceParser.nextCode(tokens, next)) == AxolotlLexer.IDENTIFIER) {
+                end = SourceParser.nextCode(tokens, next);
+            } else {
+                return end;
+            }
+        }
+    }
+
+    /** The parenthesis that matches the one at i, searching in direction step, or i when there is none. */
+    private static int matching(List<Token> tokens, int i, int step) {
+        int depth = 0;
+        for (int j = i; j >= 0 && j < tokens.size(); j += step) {
+            depth += type(tokens, j) == AxolotlLexer.LPAREN ? step : type(tokens, j) == AxolotlLexer.RPAREN ? -step : 0;
+            if (depth == 0) {
+                return j;
+            }
+        }
+        return i;
+    }
+
+    /** The code from first to last as written. */
+    private static String source(List<Token> tokens, int first, int last) {
+        StringBuilder text = new StringBuilder();
+        for (int j = first; j <= last; j++) {
+            text.append(text(tokens, j));
+        }
+        return text.toString();
     }
 
     /** Declarations and parts of them from Kotlin, TypeScript and Python. */
@@ -211,10 +368,20 @@ final class Habits {
                     : null;
             case "typealias" -> startsLine(tokens, i) && next == AxolotlLexer.IDENTIFIER
                     ? "Axolotl has no `typealias`; write the type itself" : null;
+            case "type" -> startsLine(tokens, i) && next == AxolotlLexer.IDENTIFIER
+                    && type(tokens, SourceParser.nextCode(tokens, SourceParser.nextCode(tokens, i))) == AxolotlLexer.ASSIGN
+                    ? "Axolotl has no type aliases; write the type itself" : null;
+            case "implements" -> (previous == AxolotlLexer.IDENTIFIER || previous == AxolotlLexer.RPAREN)
+                    && next == AxolotlLexer.IDENTIFIER && lineStartsType(tokens, i)
+                    ? "a class names its interfaces after `:`: `class " + className(tokens, i) + "(...) : "
+                    + source(tokens, SourceParser.nextCode(tokens, i), lineEnd(tokens, i)) + "`" : null;
+            case "readonly" -> next == AxolotlLexer.IDENTIFIER ? "write `val` instead of `readonly`" : null;
             case "init" -> startsLine(tokens, i) && next == AxolotlLexer.LBRACE
                     ? "a class has no `init` block; give each property its value where it is declared" : null;
             case "constructor" -> previous == AxolotlLexer.IDENTIFIER && next == AxolotlLexer.LPAREN
-                    ? "write the parameters right after the class name: `class Box(val v: Int)`" : null;
+                    ? "write the parameters right after the class name: `class " + text(tokens, previousIndex)
+                    + source(tokens, SourceParser.nextCode(tokens, i), matching(tokens, SourceParser.nextCode(tokens, i), 1)) + "`"
+                    : null;
             case "self" -> previous == AxolotlLexer.LPAREN && (next == AxolotlLexer.RPAREN || next == AxolotlLexer.COMMA)
                     && declaresFunction(tokens, previousIndex)
                     ? "a function of a class takes no `self`; use `this` inside the class" : null;
@@ -327,7 +494,22 @@ final class Habits {
             String receiver = type(tokens, previous) == AxolotlLexer.IDENTIFIER ? before : "list";
             return "Axolotl has no `[]` indexing; call `get`: `" + receiver + ".get(0)`";
         }
-        return "Axolotl has no list literals; write `List.of(1, 2, 3)`";
+        String source = comprehensionSource(tokens, i);
+        return source != null ? "Axolotl has no list comprehensions; use a pipe: `" + source + " |> map { ... }`"
+                : "Axolotl has no list literals; write `List.of(1, 2, 3)`";
+    }
+
+    /** `xs` of Python's `[x * 2 for x in xs]`, or null for a list literal. */
+    private static String comprehensionSource(List<Token> tokens, int open) {
+        boolean loop = false;
+        for (int j = SourceParser.nextCode(tokens, open); type(tokens, j) != Token.EOF && !text(tokens, j).equals("]");
+                j = SourceParser.nextCode(tokens, j)) {
+            loop |= type(tokens, j) == AxolotlLexer.FOR;
+            if (loop && text(tokens, j).equals("in") && type(tokens, SourceParser.nextCode(tokens, j)) == AxolotlLexer.IDENTIFIER) {
+                return text(tokens, SourceParser.nextCode(tokens, j));
+            }
+        }
+        return null;
     }
 
     private static String typeName(String javaName) {
@@ -339,9 +521,74 @@ final class Habits {
         };
     }
 
+    /** Kotlin's `enum class Color` and `sealed class Shape`. */
+    private static String kotlinClass(List<Token> tokens, int i) {
+        int previous = type(tokens, SourceParser.previousCode(tokens, i));
+        String name = text(tokens, SourceParser.nextCode(tokens, i));
+        if (previous == AxolotlLexer.ENUM) {
+            return "write `enum " + name + " { ... }` without `class`";
+        }
+        return previous == AxolotlLexer.SEALED ? "a sealed type is a `sealed interface " + name
+                + "`; its data classes implement it: `: " + name + "`" : null;
+    }
+
+    /** Python's `class C:` with its body indented below; a type on the next line goes on with the header. */
+    private static String pythonBlock(List<Token> tokens, int i) {
+        int next = SourceParser.nextCode(tokens, i);
+        boolean endsLine = type(tokens, next) == Token.EOF || tokens.get(next).getLine() > tokens.get(i).getLine();
+        boolean typeBelow = type(tokens, next) == AxolotlLexer.IDENTIFIER && Character.isUpperCase(text(tokens, next).charAt(0));
+        return endsLine && !typeBelow && lineStartsType(tokens, i) ? "a block goes in braces: `{ ... }`, not after `:`" : null;
+    }
+
+    /** Java's `import static java.lang.Math.max` and `import static java.lang.Math.*`. */
+    private static String staticImport(List<Token> tokens, int i) {
+        int first = SourceParser.nextCode(tokens, SourceParser.nextCode(tokens, i));
+        String path = source(tokens, first, lineEnd(tokens, i));
+        if (path.endsWith(".*")) {
+            return "Axolotl has no `import static`; import each function with `import fn "
+                    + path.substring(0, path.length() - 1) + "name`, and each constant with `import val`";
+        }
+        return "Axolotl has no `import static`; import a function with `import fn " + path
+                + "`, and a constant with `import val`";
+    }
+
+    /** Whether the line of the token declares a type. */
+    private static boolean lineStartsType(List<Token> tokens, int i) {
+        int first = lineStart(tokens, i);
+        if (type(tokens, first) == AxolotlLexer.PRIVATE) {
+            first = SourceParser.nextCode(tokens, first);
+        }
+        return Set.of(AxolotlLexer.CLASS, AxolotlLexer.INTERFACE, AxolotlLexer.ENUM, AxolotlLexer.SEALED)
+                .contains(type(tokens, first)) || text(tokens, first).equals("data");
+    }
+
+    /** The name after `class` on the line of the token, or `C`. */
+    private static String className(List<Token> tokens, int i) {
+        for (int j = lineStart(tokens, i); j < i; j = SourceParser.nextCode(tokens, j)) {
+            if (type(tokens, j) == AxolotlLexer.CLASS) {
+                return text(tokens, SourceParser.nextCode(tokens, j));
+            }
+        }
+        return "C";
+    }
+
+    private static int lineStart(List<Token> tokens, int i) {
+        int first = i;
+        for (int j = SourceParser.previousCode(tokens, i); j >= 0 && tokens.get(j).getLine() == tokens.get(i).getLine();
+                j = SourceParser.previousCode(tokens, j)) {
+            first = j;
+        }
+        return first;
+    }
+
+    /** A statement of its own: `break` on its line, or in `if (c) { break }`. */
     private static boolean alone(List<Token> tokens, int i) {
         int next = SourceParser.nextCode(tokens, i);
-        return startsLine(tokens, i) && (next >= tokens.size() || tokens.get(next).getLine() > tokens.get(i).getLine()
+        int previous = type(tokens, SourceParser.previousCode(tokens, i));
+        // In `case 1: f(); break;` the `switch` is the habit to report.
+        boolean afterStatement = previous == AxolotlLexer.SEMI && !Set.of("case", "default").contains(text(tokens, lineStart(tokens, i)));
+        boolean starts = startsLine(tokens, i) || previous == AxolotlLexer.LBRACE || afterStatement;
+        return starts && (next >= tokens.size() || tokens.get(next).getLine() > tokens.get(i).getLine()
                 || type(tokens, next) == AxolotlLexer.SEMI || type(tokens, next) == AxolotlLexer.RBRACE);
     }
 

@@ -8,7 +8,8 @@ import java.util.regex.Pattern;
 final class OtherFiles {
 
     private static final Pattern NO_MEMBER = Pattern.compile("^`(\\w+)` has no function or value `(\\w+)`$");
-    private static final Pattern UNKNOWN_IMPORT = Pattern.compile("^unknown type `((?:[a-z]\\w*\\.)*)(\\w+)`; check the spelling$");
+    private static final Pattern UNKNOWN_TYPE = Pattern.compile("^unknown type `(\\w+)`; check the spelling or add an import$");
+    private static final Pattern UNKNOWN_IMPORT =Pattern.compile("^unknown type `((?:[a-z]\\w*\\.)*)(\\w+)`; check the spelling$");
 
     private static final Pattern UNKNOWN_FUNCTION = Pattern.compile(
             "^(unknown function `(\\w+)\\(.*?\\)`); check the spelling or add `import fn`$");
@@ -28,9 +29,13 @@ final class OtherFiles {
             return message + "; `" + noField.group(2) + "` is a method: `" + noField.group(2) + "()`";
         }
         Matcher privateField = PRIVATE_FIELD.matcher(message);
-        if (privateField.find() && hasAccessor(privateField.group(2), privateField.group(1))) {
+        if (privateField.find() && hasComponent(privateField.group(2), privateField.group(1))) {
             return "read the field `" + privateField.group(1) + "` of the data class `" + privateField.group(2)
                     + "` with parentheses: `" + privateField.group(1) + "()`";
+        }
+        String file = privateField.find(0) ? declaringFile(privateField.group(2)) : null;
+        if (file != null) {
+            return message.replaceFirst("that file$", file + ".axl");
         }
         Matcher noMember = NO_MEMBER.matcher(message);
         if (noMember.find() && isPrivate(noMember.group(1), noMember.group(2))) {
@@ -45,6 +50,12 @@ final class OtherFiles {
             String declaring = declaringFunction(unknownFunction.group(2));
             return declaring == null ? message : unknownFunction.group(1) + "; it is declared in " + declaring + ".axl: "
                     + "`import fn " + declaring.replace('/', '.') + "." + unknownFunction.group(2) + "`";
+        }
+        Matcher unknownType = UNKNOWN_TYPE.matcher(message);
+        String typeFile = unknownType.find() ? declaringFile(unknownType.group(1)) : null;
+        if (typeFile != null) {
+            return "unknown type `" + unknownType.group(1) + "`; it is declared in " + typeFile + ".axl: `import "
+                    + typeFile.replace('/', '.') + "." + unknownType.group(1) + "`";
         }
         Matcher unknownImport = UNKNOWN_IMPORT.matcher(message);
         if (unknownImport.find()) {
@@ -67,6 +78,23 @@ final class OtherFiles {
             Matcher found = declaration.matcher(java);
             return found.find() && accessor.matcher(typeBody(java, found)).find();
         });
+    }
+
+    /** Whether a data class of the build has a field of this name. */
+    private boolean hasComponent(String type, String field) {
+        Pattern header = Pattern.compile("^    (?:public |private )?(?:static |final )*record " + Pattern.quote(type)
+                + "\\b(?:<.*?>)?\\((.*)\\)", Pattern.MULTILINE);
+        Pattern component = Pattern.compile("(?:^|,)[^,]*\\b" + Pattern.quote(field) + "\\s*(?:,|$)");
+        return sources.stream().map(s -> header.matcher(s.unit().javaSource()))
+                .anyMatch(found -> found.find() && component.matcher(found.group(1)).find());
+    }
+
+    /** The .axl path without extension of the file of the build that declares the type, or null. */
+    private String declaringFile(String type) {
+        Pattern nested = Pattern.compile("^    (?:public |private )?(?:static |sealed |final )*(?:record|class|interface|enum) "
+                + Pattern.quote(type) + "\\b", Pattern.MULTILINE);
+        return sources.stream().map(GeneratedSource::unit).filter(u -> nested.matcher(u.javaSource()).find())
+                .map(u -> u.qualifiedName().replace('.', '/')).findFirst().orElse(null);
     }
 
     /** The declaration line of a nested type, and its body when it has one. */

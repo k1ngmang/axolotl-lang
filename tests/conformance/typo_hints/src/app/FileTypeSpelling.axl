@@ -1,0 +1,5 @@
+package app
+
+data class Point(val x: Int)
+
+fn f() -> Point = Pointt(1)

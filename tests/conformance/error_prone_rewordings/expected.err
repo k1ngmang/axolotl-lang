@@ -1,3 +1,9 @@
+AXL100 app/ArrayEquals.axl:3:57: error: `equals` of Java arrays tests whether both are the same array, not their elements; use `java.util.Arrays.equals(a, b)`
+AXL100 app/DeadException.axl:4:5: error: the exception is created but not thrown; write `throw IllegalStateException(...)`
 AXL100 app/DivisionByZero.axl:4:16: error: division by zero
+AXL100 app/EqualsNull.axl:3:32: error: `equals(null)` is always false, and fails when the value itself is null; test with `== null`
 AXL100 app/EqualsOnly.axl:4:8: error: a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal objects have equal hash codes
-AXL100 app/SameSides.axl:5:11: error: both sides of this expression are the same, so its value is always `true`
+AXL100 app/InfiniteRecursion.axl:3:23: error: this function always calls itself, so it never ends; return without the call in some case
+AXL100 app/NotNullLiteral.axl:3:20: error: `"x"` is never null; remove `!!`
+AXL100 app/RoundWholeNumber.axl:3:29: error: `Math.round` of a whole number turns it into a `Float` first, which can change large values; remove `Math.round`
+AXL100 app/SubstringZero.axl:3:31: error: `substring(0)` gives the same string; remove it

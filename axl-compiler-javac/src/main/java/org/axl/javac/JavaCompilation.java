@@ -36,9 +36,12 @@ public final class JavaCompilation {
                     "--add-opens=jdk.compiler/com.sun.tools.javac." + p + "=ALL-UNNAMED"))
             .toList();
 
-    /** The plugin argument; NullAway only checks classes annotated with {@code @NullMarked}. */
+    /**
+     * The plugin argument; NullAway only checks classes annotated with {@code @NullMarked}. `f() == f()`
+     * is only a warning, since the two calls can give different values.
+     */
     public static final String ERROR_PRONE_PLUGIN = "-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR "
-            + "-XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
+            + "-Xep:IdentityBinaryExpression:WARN -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
 
     public record Outcome(boolean success, List<Diagnostic<? extends JavaFileObject>> diagnostics) {}
 

@@ -28,7 +28,9 @@ import javax.tools.Diagnostic;
 
 /**
  * A generic class created or written without type arguments, `ArrayList()` or `val xs: ArrayList`,
- * lets values of any type in, and so does `o` after `o is List` stored as a `List<String>`. This runs in the javac plugin, so builds that pass no lint options see it too.
+ * or created as `ArrayList<>()` with no type to take them from, lets values of any type in, and so
+ * does `o` after `o is List` stored as a `List<String>`. This runs in the javac plugin, so builds that
+ * pass no lint options see it too.
  */
 final class RawTypes implements TaskListener {
 
@@ -54,9 +56,22 @@ final class RawTypes implements TaskListener {
         found.clear();
     }
 
-    static String message(String type) {
-        return "`" + type + "` needs its type arguments, such as `" + type + "<String>`, or any value could go in; "
-                + "a new object written `" + type + "<>()` takes them from the type it is stored as";
+    /** creation: the type is that of a new object, which can take its type arguments from the type it is stored as. */
+    static String message(String type, int arity, boolean creation) {
+        String needs = "`" + type + "` needs its type arguments, such as `" + type + "<" + example(arity)
+                + ">`, or any value could go in";
+        return creation ? needs + "; a new object written `" + type + "<>()` takes them from the type it is stored as" : needs;
+    }
+
+    /** `String, Int` for a type with two parameters. */
+    static String example(int arity) {
+        List<String> types = List.of("String", "Int", "Boolean", "Double");
+        return String.join(", ", types.subList(0, Math.min(arity, types.size())));
+    }
+
+    private static boolean isObject(TypeMirror type) {
+        return type instanceof DeclaredType declared
+                && ((TypeElement) declared.asElement()).getQualifiedName().contentEquals("java.lang.Object");
     }
 
     static String uncheckedMessage(String raw, String target) {
@@ -74,8 +89,29 @@ final class RawTypes implements TaskListener {
 
         @Override
         public Void visitNewClass(NewClassTree creation, Void unused) {
-            check(creation.getIdentifier());
+            check(creation.getIdentifier(), true);
+            checkDiamond(creation);
             return super.visitNewClass(creation, unused);
+        }
+
+        /** `val xs = ArrayList<>()`: with no type to take them from, the type arguments become `Object`. */
+        private void checkDiamond(NewClassTree creation) {
+            if (!(creation.getIdentifier() instanceof ParameterizedTypeTree diamond) || !diamond.getTypeArguments().isEmpty()
+                    || !(trees.getTypeMirror(getCurrentPath()) instanceof DeclaredType type)
+                    || type.getTypeArguments().isEmpty() || !type.getTypeArguments().stream().allMatch(RawTypes::isObject)) {
+                return;
+            }
+            String name = type.asElement().getSimpleName().toString();
+            String example = name + "<" + example(type.getTypeArguments().size()) + ">";
+            String message = PREFIX + "`" + name + "<>()` takes its type arguments from the type it is stored as, and "
+                    + "here there is none, so any value could go in; write `" + example + "()`";
+            found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, creation, unit));
+        }
+
+        @Override
+        public Void visitMethod(MethodTree method, Void unused) {
+            check(method.getReturnType(), false);
+            return super.visitMethod(method, unused);
         }
 
         @Override
@@ -83,7 +119,7 @@ final class RawTypes implements TaskListener {
             // `x instanceof List o` is tested raw on purpose: Java keeps no type arguments to test.
             boolean binding = getCurrentPath().getParentPath().getLeaf() instanceof BindingPatternTree;
             if (variable.getType() != null && !binding) {
-                check(variable.getType());
+                check(variable.getType(), false);
             }
             if (variable.getInitializer() != null) {
                 converted(variable.getInitializer(), trees.getTypeMirror(getCurrentPath()));
@@ -154,13 +190,16 @@ final class RawTypes implements TaskListener {
             return sb.append('>').toString();
         }
 
-        private void check(Tree type) {
-            if (type == null || type instanceof ParameterizedTypeTree) {
+        private void check(Tree type, boolean creation) {
+            // The type javac gives a `var` has no place in the source; its value is checked instead.
+            if (type == null || type instanceof ParameterizedTypeTree
+                    || trees.getSourcePositions().getStartPosition(unit, type) == Diagnostic.NOPOS) {
                 return;
             }
             Element element = trees.getElement(new TreePath(getCurrentPath(), type));
             if (element instanceof TypeElement generic && !generic.getTypeParameters().isEmpty()) {
-                String message = PREFIX + message(generic.getSimpleName().toString());
+                String message = PREFIX + message(generic.getSimpleName().toString(), generic.getTypeParameters().size(),
+                        creation);
                 found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, type, unit));
             }
         }

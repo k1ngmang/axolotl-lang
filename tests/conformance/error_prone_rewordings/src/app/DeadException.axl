@@ -1,0 +1,5 @@
+package app
+
+fn f() {
+    IllegalStateException("x")
+}

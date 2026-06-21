@@ -3,18 +3,31 @@ AXL001 app/Async.axl:3:1: error: Axolotl has no `async`; remove it
 AXL001 app/Backtick.axl:4:13: error: Axolotl has no template strings; join the parts with `+`: `"n is " + n`
 AXL001 app/BangDot.axl:3:28: error: write `!!.` to state that the value is not null: `s!!.length()`
 AXL001 app/BitAnd.axl:3:33: error: Axolotl has no bit operators such as `&`, `|` and `<<`; for flags, use a `Set` or `java.util.BitSet`
+AXL001 app/Comprehension.axl:5:36: error: Axolotl has no list comprehensions; use a pipe: `xs |> map { ... }`
 AXL001 app/Elif.axl:6:7: error: write `else if`
+AXL001 app/EnumValues.axl:3:18: error: an enum lists only its constants, as in `{ RED, GREEN }`; it cannot give them values
 AXL001 app/Export.axl:3:1: error: declarations are public by default; remove `export`
 AXL001 app/FString.axl:4:13: error: Axolotl has no f-strings; join the parts with `+`: `"n=" + n`
 AXL001 app/FatArrow.axl:3:28: error: lambdas are written in braces: `{ a, b -> ... }`
 AXL001 app/ForOf.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
 AXL001 app/HashComment.axl:4:5: error: comments start with `//`
 AXL001 app/InOperator.axl:5:36: error: Axolotl has no `in` operator; write `xs.contains(3)`
+AXL001 app/InOperatorCall.axl:7:49: error: Axolotl has no `in` operator; write `b.items().contains(s.length())`
+AXL001 app/InterfaceField.axl:4:5: error: an interface lists values: `val x: Int`
+AXL001 app/IsNone.axl:3:33: error: compare with `==` to test for null: `s == null`
 AXL001 app/IsNull.axl:3:33: error: compare with `==` to test for null: `s == null`
 AXL001 app/LambdaKeyword.axl:5:29: error: lambdas are written in braces: `{ x -> x + 1 }`
+AXL001 app/NotInOperator.axl:5:40: error: Axolotl has no `in` operator; write `!xs.contains(3)`
+AXL001 app/NullishCall.axl:5:47: error: write `?:` for a default: `m.get("a") ?: 0`
 AXL001 app/NullishDefault.axl:3:32: error: write `?:` for a default: `s ?: "x"`
+AXL001 app/NullishType.axl:3:15: error: a type takes one `?`: `String?`
+AXL001 app/OptionalParameter.axl:3:7: error: Axolotl has no optional parameters; for a value that may be null, write `x: Int?`
 AXL001 app/Power.axl:3:25: error: Axolotl has no `**`; use `Math.pow(a, b)`
+AXL001 app/PythonClass.axl:3:8: error: a block goes in braces: `{ ... }`, not after `:`
+AXL001 app/Readonly.axl:3:9: error: write `val` instead of `readonly`
 AXL001 app/SelfParameter.axl:4:12: error: a function of a class takes no `self`; use `this` inside the class
 AXL001 app/Shift.axl:3:25: error: Axolotl has no bit operators such as `&`, `|` and `<<`; for flags, use a `Set` or `java.util.BitSet`
 AXL001 app/StrictEquals.axl:3:37: error: Axolotl has no `===` or `!==`; `==` compares numbers by value, and other objects by identity; compare objects with `a.equals(b)`
+AXL001 app/TypeAlias.axl:3:1: error: Axolotl has no type aliases; write the type itself
+AXL001 app/Typeof.axl:3:30: error: Axolotl tests types with `is`: `if (x is String) { ... }`
 AXL001 app/UnionType.axl:3:16: error: a parameter has one type; Axolotl has no union types, so take a common interface or `Object`

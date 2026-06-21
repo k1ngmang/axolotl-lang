@@ -1,0 +1,3 @@
+package app
+
+fn f(a: String, b: String) -> Boolean = a.toCharArray().equals(b.toCharArray())

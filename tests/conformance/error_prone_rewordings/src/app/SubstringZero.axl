@@ -1,0 +1,3 @@
+package app
+
+fn f(s: String) -> String = s.substring(0)

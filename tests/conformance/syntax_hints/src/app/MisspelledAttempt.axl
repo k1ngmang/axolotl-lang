@@ -1,0 +1,3 @@
+package app
+
+fn f(s: String) -> Result<Int, String> = atempt Integer.parseInt(s) else "x"

@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+fn f(x: Int, xs: List<Int>) -> Boolean = x !in xs

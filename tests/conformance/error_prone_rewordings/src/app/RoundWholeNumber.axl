@@ -1,0 +1,3 @@
+package app
+
+fn f(n: Int) -> Long = Math.round(n)

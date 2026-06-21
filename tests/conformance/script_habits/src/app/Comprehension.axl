@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+fn f(xs: List<Int>) -> List<Int> = [x * 2 for x in xs]

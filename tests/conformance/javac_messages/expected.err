@@ -1,3 +1,8 @@
+AXL100 app/ArgsAsList.axl:4:18: error: `args` is a Java array of `String`, which has no method `get(Int)`; turn it into a list with `List.of(args)`, or read its `length`
+AXL100 app/BracesAfterEquals.axl:3:17: error: a function body in braces comes without `=`: `fn f(...) -> Type { ... }`; after `=`, braces make a lambda
+AXL100 app/ImportedTwice.axl:4:1: error: `List` is already imported from `java.util`; use the other one by its full name instead
+AXL100 app/PrintlnTwoValues.axl:4:5: error: `println` takes one value; join them with `+`, as in `println(a + " " + b)`
+AXL100 app/TypeArgumentCount.axl:5:13: error: `Map` takes 2 type arguments, as in `Map<String, Int>`
 AXL100 app/Types.axl:5:18: error: unknown type `java.util.Lisst`; check the spelling
 AXL100 app/Types.axl:6:26: error: `Math` has no function or value `maxx`
 AXL010 app/Types.axl:14:4: error: `twice` is already declared with the same parameter types
@@ -15,3 +20,5 @@ AXL100 app/Types.axl:48:65: error: type mismatch: expected `String`, found `Int`
 AXL100 app/Types.axl:52:28: error: a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; write it with a null check: `{ -> if (x != null) { x.m() } }`
 AXL100 app/Types.axl:53:39: error: a lambda whose body is a `?.` call returns that call's value, but nothing is expected here; write it with a null check: `{ -> if (x != null) { x.m() } }`
 AXL100 app/Types.axl:57:12: error: this call can throw `InterruptedException`, which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`
+AXL100 app/UnclosedTypeArguments.axl:6:14: error: `ArrayList` is a type; to create one, close its type arguments: `ArrayList<String>()`
+AXL100 app/VoidResult.axl:3:8: error: a function that returns nothing has no result type; remove `-> Void`

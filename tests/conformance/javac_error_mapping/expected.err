@@ -1,1 +1,1 @@
-AXL100 app/Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()`
+AXL100 app/Main.axl:6:22: error: `greeting` of type `String` has no method `lenght()`; did you mean `length`?

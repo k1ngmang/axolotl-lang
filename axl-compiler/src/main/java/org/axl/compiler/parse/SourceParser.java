@@ -188,14 +188,25 @@ public final class SourceParser {
         for (int i = 1; i < statements.size(); i++) {
             Token start = statements.get(i).getStart();
             boolean sign = start.getType() == AxolotlLexer.PLUS || start.getType() == AxolotlLexer.MINUS;
-            if (sign && givesValue(statements.get(i - 1)) && statements.get(i - 1).getStop().getLine() < start.getLine()) {
+            boolean afterValue = givesValue(statements.get(i - 1)) && statements.get(i - 1).getStop().getLine() < start.getLine();
+            if (sign && afterValue) {
                 diagnostics.add(error(path, start, "a line that starts with `" + start.getText() + "` starts a new "
                         + "statement; to go on with the line before, end it with `" + start.getText() + "` instead"));
+            } else if (afterValue && parenthesized(statements.get(i))) {
+                diagnostics.add(error(path, start, "a line that starts with `(` starts a new statement; to go on with "
+                        + "the line before, end it with an operator such as `+`"));
             }
         }
         for (int i = 0; i < node.getChildCount(); i++) {
             signedLines(path, node.getChild(i), diagnostics);
         }
+    }
+
+    /** `(b + 1)` as a statement of its own. */
+    private static boolean parenthesized(ParserRuleContext statement) {
+        Token start = statement.getStart();
+        return start.getType() == AxolotlLexer.LPAREN && statement.getStop().getType() == AxolotlLexer.RPAREN
+                && statement.getText().matches("\\((?:[^()]|\\([^()]*\\))*\\)");
     }
 
     /** A statement whose value the next line could be meant to go on with. */
@@ -287,8 +298,12 @@ public final class SourceParser {
                 || last.getType() != AxolotlLexer.RPAREN || next.getType() != AxolotlLexer.LBRACE) {
             return null;
         }
-        return CONTROL_KEYWORDS.stream().filter(k -> distance(first.getText(), k) <= (k.length() > 4 ? 2 : 1))
-                .findFirst().orElse(null);
+        return controlKeyword(first.getText());
+    }
+
+    /** `if`, `while`, `for` or `when`, when the word is a slip of one of them. */
+    static String controlKeyword(String word) {
+        return closest(word, CONTROL_KEYWORDS);
     }
 
     /** The name of the call or member that ends a statement, or null: `xs.map` or `xs.forEach()`. */
@@ -341,20 +356,24 @@ public final class SourceParser {
     }
 
     /** The keyword a word is a slip of: one or two letters off, or swapped. */
-    private static String keywordLike(Token token) {
-        if (token.getType() != AxolotlLexer.IDENTIFIER || token.getText().length() < 3) {
+    static String keywordLike(Token token) {
+        String text = token.getText();
+        if (token.getType() != AxolotlLexer.IDENTIFIER) {
             return null;
         }
-        String text = token.getText();
-        if (Set.of("fun", "fnn", "func", "def", "function").contains(text)) {
+        if (Set.of("fun", "fnn", "fnc", "func", "def", "function").contains(text)) {
             return "fn";
         }
-        for (String keyword : KEYWORDS) {
-            if (keyword.length() >= 3 && distance(text, keyword) <= (keyword.length() > 4 ? 2 : 1)) {
-                return keyword;
-            }
+        if (text.length() < 3) {
+            return text.equals("vl") ? "val" : text.equals("vr") ? "var" : null;
         }
-        return null;
+        return closest(text, KEYWORDS.stream().filter(k -> k.length() >= 3).toList());
+    }
+
+    /** The keyword one or two letters away from the word, the nearest first, or null. */
+    private static String closest(String word, List<String> keywords) {
+        return keywords.stream().filter(k -> distance(word, k) <= (k.length() > 4 ? 2 : 1))
+                .min(java.util.Comparator.comparingInt(k -> distance(word, k))).orElse(null);
     }
 
     /** Edits that turn one word into the other, a swap of neighbours counting as one. */

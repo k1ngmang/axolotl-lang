@@ -1,0 +1,3 @@
+package app
+
+fn f() -> Result<Int, String> = OK(1)

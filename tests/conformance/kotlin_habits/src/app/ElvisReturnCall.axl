@@ -1,0 +1,8 @@
+package app
+
+import java.util.Map
+
+fn f(m: Map<String, String>) -> Int {
+    val v = m.get("k") ?: return -1
+    return v.length()
+}

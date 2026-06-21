@@ -1,0 +1,8 @@
+package app
+
+class Box(val v: Object)
+
+fn f(b: Box) -> Int = when (b.v) {
+    is String -> b.v.length()
+    else -> 0
+}

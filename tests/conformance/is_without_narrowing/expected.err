@@ -1,2 +1,5 @@
+AXL100 app/AndVar.axl:6:26: error: `x` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with `val` if it does not change
 AXL100 app/Main.axl:8:18: error: `x` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with `val` if it does not change
 AXL100 app/Main.axl:16:20: error: `b.v` is a property, so `is` does not narrow it; copy it to a local `val` first: `val v = b.v`
+AXL100 app/WhenProperty.axl:6:22: error: `b.v` is a property, so `is` does not narrow it; name the subject: `when (val v = b.v)`
+AXL100 app/WhenVar.axl:11:19: error: `y` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with `val` if it does not change

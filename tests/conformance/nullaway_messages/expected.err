@@ -3,3 +3,10 @@ AXL102 app/Main.axl:10:13: error: a value that may be null is used as a number o
 AXL102 app/Main.axl:13:26: error: the returned value may be null, but the result type has no `?`; add `?` to the result type or return a value that is not null
 AXL102 app/Main.axl:15:32: error: the fallback of `?:` may be null, but the value is not nullable; give a fallback that is not null or add `?` to the type
 AXL102 app/Main.axl:18:5: error: `map` may produce null here, but the list it builds cannot hold nulls; filter them out first or give a default with `?:`
+AXL102 app/NullArgument.axl:5:17: error: `null` is passed for `name`, which does not accept null; make its type nullable with `?`
+AXL102 app/NullToProperty.axl:6:11: error: `s` is declared as `String`, which does not allow null; declare it `var s: String?`
+AXL102 app/NullableFallback.axl:12:11: error: the value of `?:` may be null, since its fallback may be null, but the parameter `t` does not accept null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/NullablePipeSource.axl:5:37: error: `xs` may be null, but `|>` needs a collection; check it for null first or give a default with `?:`
+AXL102 app/UnboxedBoolean.axl:4:9: error: `b` may be null, but it is used as a boolean; give a default with `?:`, as in `(b ?: false)`
+AXL102 app/UnboxedNumber.axl:3:24: error: `n` may be null, but it is used as a number; give a default with `?:`, as in `(n ?: 0)`
+AXL102 app/ValProperty.axl:4:21: error: `s` may be null, but `t` is declared as `String`; declare it `val t: String?` or use `?:`

@@ -1,0 +1,14 @@
+package app
+
+sealed interface S
+data class A(val n: Int) : S
+data class B(val s: String) : S
+
+fn f(x: S) -> Int {
+    var y = x
+    y = A(2)
+    return when (y) {
+        is A -> y.n()
+        is B -> 0
+    }
+}

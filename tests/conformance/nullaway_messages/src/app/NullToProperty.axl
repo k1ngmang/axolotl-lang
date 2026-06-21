@@ -1,0 +1,7 @@
+package app
+
+class C(var s: String)
+
+fn f(c: C) {
+    c.s = null
+}

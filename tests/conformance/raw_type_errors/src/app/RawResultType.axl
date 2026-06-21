@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+fn f() -> List = List.of(1)

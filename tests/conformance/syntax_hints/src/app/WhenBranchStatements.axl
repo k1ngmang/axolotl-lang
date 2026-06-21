@@ -1,0 +1,8 @@
+package app
+
+fn f(n: Int) {
+    when (n) {
+        1 -> println("a"); println("b")
+        else -> println("c")
+    }
+}

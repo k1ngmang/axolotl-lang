@@ -1,0 +1,5 @@
+package app
+
+import java.util.Map
+
+fn f(m: Map<String, Int>) -> Int = m.get("a") ?? 0

@@ -1,3 +1,3 @@
 AXL100 app/Main.axl:4:21: error: unknown name `qq`; check the spelling or add an import
 AXL100 app/Main.axl:4:26: error: unknown name `rr`; check the spelling or add an import
-AXL100 app/Main.axl:5:28: error: `Math` has no method `mux(Int)`
+AXL100 app/Main.axl:5:28: error: `Math` has no method `mux(Int)`; did you mean `max`?

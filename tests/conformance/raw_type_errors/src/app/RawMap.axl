@@ -1,0 +1,8 @@
+package app
+
+import java.util.HashMap
+
+fn main() {
+    val m = HashMap()
+    println(m)
+}

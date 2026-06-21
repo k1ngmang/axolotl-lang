@@ -146,6 +146,7 @@ public class AxlPlugin implements Plugin<Project> {
                     .getByType(ErrorProneOptions.class);
             errorprone.getEnabled().set(axl.getNullAway());
             errorprone.check("NullAway", CheckSeverity.ERROR);
+            errorprone.check("IdentityBinaryExpression", CheckSeverity.WARN);
             errorprone.option("NullAway:JSpecifyMode", "true");
             errorprone.option("NullAway:OnlyNullMarked", "true");
         });

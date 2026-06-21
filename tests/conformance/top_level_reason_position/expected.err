@@ -1,2 +1,2 @@
-AXL100 app/Main.axl:4:6: error: `String` has no method `lenght()`
+AXL100 app/Main.axl:4:6: error: `String` has no method `lenght()`; did you mean `length`?
 AXL100 app/Main.axl:5:37: error: `Int` has no method `foo()`

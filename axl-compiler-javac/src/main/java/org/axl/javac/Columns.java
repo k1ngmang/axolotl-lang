@@ -78,7 +78,8 @@ final class Columns {
     /** The index of the anchor in the .axl line, of its group 1 if it has one, or null. */
     private static Integer anchored(Pattern anchor, String axlLine) {
         Matcher matcher = anchor.matcher(axlLine);
-        if (!matcher.find(bodyStart(axlLine))) {
+        // The result type is the one anchor in the signature, which the others skip.
+        if (!matcher.find(anchor == Messages.RESULT_TYPE ? 0 : bodyStart(axlLine))) {
             return null;
         }
         return matcher.groupCount() > 0 && matcher.group(1) != null ? matcher.start(1) : matcher.start();

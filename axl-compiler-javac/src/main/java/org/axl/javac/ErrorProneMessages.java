@@ -6,6 +6,17 @@ import java.util.regex.Pattern;
 /** Error Prone findings in Axolotl's words, without the check's `[Tag]` and without Java advice. */
 final class ErrorProneMessages {
 
+    static final String NEVER_NULL = " is never null; remove `!!`";
+
+    static final String CLASS_TYPE = "this type is a class, which ties callers to it; ";
+
+    static final String FILLED_NOT_READ = " is filled but never read; use its values or remove it";
+
+    private static final String LINKED_LIST = "`ArrayList` or `ArrayDeque` is almost always faster than `LinkedList`; "
+            + "use one of them";
+    private static final String STACK = "`Stack` is an old class; use `ArrayDeque`, which has `push`, `pop` and `peek` too";
+    private static final String LOCKS = " locks on every call, which is rarely needed; use `";
+
     static final String BOXED_EQUALITY = "`==` compares these numbers as objects, not by value, since they may be null "
             + "or come from a collection; use `java.util.Objects.equals(a, b)`";
 
@@ -27,6 +38,15 @@ final class ErrorProneMessages {
     private static final Pattern MISSING_CASES = Pattern.compile("^\\[MissingCasesInEnumSwitch] .*handle the remaining cases: (.+)$");
     private static final Pattern CREATED = Pattern.compile("\\b(\\w+) = new ");
     private static final Pattern SELF_ASSIGNED = Pattern.compile("^\\s*(\\w+) = \\1;");
+    private static final Pattern NOT_NULL_ARGUMENT = Pattern.compile("requireNonNull\\((\"[^\"]*\"|[\\w.]+)\\)");
+    private static final Pattern CREATED_EXCEPTION = Pattern.compile("\\bnew (?:[a-z]\\w*\\.)*(\\w+)\\(");
+    private static final Pattern OUT_OF_RANGE = Pattern.compile(
+            "^\\[ComparisonOutOfRange] (\\w+?)s may have a value in the range (\\S+) to (\\S+); therefore, this comparison to "
+            + "(\\S+) will always evaluate to (\\w+)");
+    private static final Pattern SENTENCE_START = Pattern.compile("(?:This|The|A|An|It|Use|Using|Calling|Consider|Prefer|"
+            + "Avoid|Do|Don't|Expected|Found)\\b");
+    private static final Pattern CALL = Pattern.compile("\\w\\(");
+    private static final Pattern INTERFACE = Pattern.compile("java\\.\\w+\\.(\\w+)");
 
     private ErrorProneMessages() {}
 
@@ -39,7 +59,80 @@ final class ErrorProneMessages {
         if (reworded == null) {
             reworded = withAxolotlTypes(message);
         }
-        return reworded != null ? reworded : TAG.matcher(message).replaceFirst("");
+        if (reworded == null) {
+            reworded = mistake(message, text);
+        }
+        return reworded != null ? reworded : plain(message);
+    }
+
+    /**
+     * A finding without a rewording of its own, with less of Java's notation: `String#trim` and `#trim`
+     * become `trim`, a method a function.
+     */
+    private static String plain(String message) {
+        String text = TAG.matcher(message).replaceFirst("").replaceAll("\\b[A-Z]\\w*#(\\w+)", "$1").replace("#", "")
+                .replaceAll("\\bmethod\\b", "function").replaceAll("\\bmethods\\b", "functions")
+                .replaceAll("\\bInteger\\b", "Int").replaceFirst("\\.$", "");
+        // A sentence starts lowercase in Axolotl's messages, but a class name keeps its capital.
+        Matcher first = SENTENCE_START.matcher(text);
+        return first.lookingAt() ? first.group().toLowerCase(java.util.Locale.ROOT) + text.substring(first.end()) : text;
+    }
+
+    /** Findings about code that does not do what it seems to, with the way to write what was meant. */
+    private static String mistake(String message, String text) {
+        return switch (tag(message)) {
+            case "EqualsNull" -> "`equals(null)` is always false, and fails when the value itself is null; test with `== null`";
+            case "UnnecessaryCheckNotNull", "ImpossibleNullComparison" -> {
+                Matcher argument = NOT_NULL_ARGUMENT.matcher(text);
+                yield argument.find() ? "`" + argument.group(1) + "`" + NEVER_NULL : "this value" + NEVER_NULL;
+            }
+            case "DeadException" -> {
+                Matcher created = CREATED_EXCEPTION.matcher(text);
+                yield "the exception is created but not thrown; write `throw " + (created.find() ? created.group(1) : "E")
+                        + "(...)`";
+            }
+            case "InfiniteRecursion" -> "this function always calls itself, so it never ends; return without the call "
+                    + "in some case";
+            case "MathRoundIntLong" -> "`Math.round` of a whole number turns it into a `Float` first, which can change "
+                    + "large values; remove `Math.round`";
+            case "CompareToZero" -> "compare the result of `compareTo` with 0, as in `a.compareTo(b) > 0`; it need not be "
+                    + "1 or -1";
+            case "ListRemoveAmbiguous" -> "on a list of `Int`, `remove(i)` removes the element at index `i`, not the value "
+                    + "`i`; to remove a value, write `remove(Integer.valueOf(i))`";
+            case "NullNeedsCastForVarargs" -> "a lone `null` here is taken as the whole list of values, which fails when "
+                    + "the call runs; keep it in a typed value first, such as `val none: String? = null`";
+            case "SubstringOfZero" -> "`substring(0)` gives the same string; remove it";
+            default -> arrayOrOldApi(message);
+        };
+    }
+
+    private static String arrayOrOldApi(String message) {
+        return switch (tag(message)) {
+            case "ArrayHashCode" -> "`hashCode` of a Java array does not look at its elements; use "
+                    + "`java.util.Arrays.hashCode(a)`";
+            case "ArrayToString" -> "`toString` of a Java array shows only its type and address; use "
+                    + "`java.util.Arrays.toString(a)`, or `String(chars)` for characters";
+            case "ArrayEquals" -> "`equals` of Java arrays tests whether both are the same array, not their elements; use "
+                    + "`java.util.Arrays.equals(a, b)`";
+            case "DefaultCharset" -> "this uses the computer's default character set, which differs between computers; "
+                    + "pass one, such as `java.nio.charset.StandardCharsets.UTF_8`";
+            case "MisusedWeekYear" -> "`YYYY` in a date pattern is the year of the week, which differs around New Year; "
+                    + "write `yyyy`";
+            case "JavaUtilDate", "JavaUtilDateChecker" -> "`Date` is an old class that leads to bugs; use `java.time.Instant` or `LocalDate`";
+            default -> outOfRange(message);
+        };
+    }
+
+    private static String outOfRange(String message) {
+        Matcher range = OUT_OF_RANGE.matcher(message);
+        if (!range.find()) {
+            return null;
+        }
+        String primitive = range.group(1);
+        String type = primitive.equals("char") ? "Character" : primitive.equals("int") ? "Int"
+                : Character.toUpperCase(primitive.charAt(0)) + primitive.substring(1);
+        return "a `" + type + "` holds values from " + range.group(2) + " to " + range.group(3) + ", so this comparison with "
+                + range.group(4) + " is always " + range.group(5);
     }
 
     /** Findings whose Java words, such as override and reference equality, have plain Axolotl advice. */
@@ -59,17 +152,20 @@ final class ErrorProneMessages {
                     + "as in `(a && b) || c`";
             case "StringSplitter" -> "`split` takes a regular expression and drops empty strings at the end; check that "
                     + "this is what you want";
-            case "NonApiType" -> "a parameter or result typed as a class such as `HashSet` ties callers to it; use its "
-                    + "interface, such as `Set`, `List` or `Map`";
+            case "NonApiType" -> {
+                Matcher type = INTERFACE.matcher(message);
+                yield CLASS_TYPE + (type.find() ? "use `" + type.group(1) + "` instead" : "use an interface, such as `List`");
+            }
             case "ReturnAtTheEndOfVoidFunction" -> "the `return` at the end of this function is unnecessary";
-            default -> identityOrToString(message);
+            default -> identityOrToString(message, text);
         };
     }
 
-    private static String identityOrToString(String message) {
+    private static String identityOrToString(String message, String text) {
         Matcher identity = IDENTITY.matcher(message);
         if (identity.find()) {
-            return "both sides of this expression are the same, so its value is always `" + identity.group(1) + "`";
+            String always = "both sides of this expression are the same, so its value is always `" + identity.group(1) + "`";
+            return CALL.matcher(text).find() ? always + " unless their calls give different values" : always;
         }
         Matcher toString = OBJECT_TO_STRING.matcher(message);
         if (toString.find()) {
@@ -87,8 +183,7 @@ final class ErrorProneMessages {
             case "NarrowCalculation", "IntLongMath" -> narrowCalculation(message);
             case "ModifiedButNotUsed" -> {
                 Matcher created = CREATED.matcher(text);
-                yield (created.find() ? "`" + created.group(1) + "`" : "this collection")
-                        + " is filled but never read; use its values or remove it";
+                yield (created.find() ? "`" + created.group(1) + "`" : "this collection") + FILLED_NOT_READ;
             }
             case "JdkObsolete" -> obsolete(message);
             case "MathAbsoluteNegative" -> "`Math.abs` of the smallest `Int` is still negative; for a remainder that is "
@@ -149,14 +244,18 @@ final class ErrorProneMessages {
 
     private static String obsolete(String message) {
         if (message.contains("LinkedList to out-perform")) {
-            return "`ArrayList` or `ArrayDeque` is almost always faster than `LinkedList`; use one of them";
+            return LINKED_LIST;
         }
         if (message.contains("Stack is a nonstandard class")) {
-            return "`Stack` is an old class; use `ArrayDeque`, which has `push`, `pop` and `peek` too";
+            return STACK;
         }
         Matcher synchronizes = SYNCHRONIZED.matcher(message);
-        return synchronizes.find() ? "`" + synchronizes.group(1) + "` locks on every call, which is rarely needed; use `"
-                + synchronizes.group(2) + "`" : null;
+        return synchronizes.find() ? "`" + synchronizes.group(1) + "`" + LOCKS + synchronizes.group(2) + "`" : null;
+    }
+
+    /** Whether a translated message advises against an old JDK class, which says more than NonApiType. */
+    static boolean isObsoleteClass(String translated) {
+        return translated.equals(LINKED_LIST) || translated.equals(STACK) || translated.contains(LOCKS);
     }
 
     /** Findings about types, which name them as Axolotl does. */

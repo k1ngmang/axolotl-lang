@@ -1,0 +1,5 @@
+package app
+
+import java.util.Map
+
+fn f(m: Map<String>) -> Int = 0

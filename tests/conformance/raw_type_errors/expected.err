@@ -1,2 +1,5 @@
 AXL100 app/Main.axl:7:15: error: `ArrayList` needs its type arguments, such as `ArrayList<String>`, or any value could go in; a new object written `ArrayList<>()` takes them from the type it is stored as
 AXL100 app/Main.axl:12:5: error: the result does not fit the type of the variable and would be cut, as `i += 1.7` gives 6 for an `Int`; give the variable a type that holds the result, such as `Double` or `Long`
+AXL100 app/RawMap.axl:6:13: error: `HashMap` needs its type arguments, such as `HashMap<String, Int>`, or any value could go in; a new object written `HashMap<>()` takes them from the type it is stored as
+AXL100 app/RawResultType.axl:5:11: error: `List` needs its type arguments, such as `List<String>`, or any value could go in
+AXL100 app/UntypedDiamond.axl:6:13: error: `HashMap<>()` takes its type arguments from the type it is stored as, and here there is none, so any value could go in; write `HashMap<String, Int>()`

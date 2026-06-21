@@ -43,6 +43,14 @@ final class Misplaced {
 
     /** Functions and types inside a block, statements outside one, and a `{` left open before the next function. */
     private static Placed declaration(CommonTokenStream tokens, Token at, Token previous) {
+        boolean named = Set.of(AxolotlLexer.VAL, AxolotlLexer.VAR, AxolotlLexer.FN).contains(previous.getType());
+        if (named && previous.getLine() == at.getLine() && at.getType() != AxolotlLexer.IDENTIFIER
+                && at.getText().matches("[a-z]+")) {
+            return new Placed(at, "`" + at.getText() + "` is a keyword and cannot be a name; choose another name", true);
+        }
+        if (at.getType() == AxolotlLexer.IMPORT && at.getCharPositionInLine() == 0) {
+            return new Placed(at, "imports go at the top of the file, after `package`", true);
+        }
         Token brace = enclosingBrace(tokens, at);
         boolean declares = at.getType() == AxolotlLexer.FN || TYPE_WORDS.contains(at.getType());
         if (declares && brace != null && at.getCharPositionInLine() == 0) {
@@ -77,6 +85,11 @@ final class Misplaced {
             String kind = at.getType() == AxolotlLexer.RETURN ? "a `return`" : "an assignment";
             return new Placed(at, kind + " in a `when` branch goes in braces: `" + text(tokens, first, arrow) + " -> { "
                     + restOfLine(tokens, SourceParser.nextToken(tokens, arrow)) + " }`", true);
+        }
+        Token semicolon = arrow == null ? null : semicolonBefore(tokens, arrow, at);
+        if (semicolon != null) {
+            return new Placed(semicolon, "several statements in a `when` branch go in braces: `" + text(tokens, first, arrow)
+                    + " -> { " + tokens.getText(SourceParser.nextToken(tokens, arrow), lastOfLine(tokens, at)) + " }`", true);
         }
         if (arrow == null && CONDITION_OPERATORS.contains(at.getType()) && lineHas(tokens, at.getLine(), AxolotlLexer.ARROW)) {
             return new Placed(at, "a `when` branch compares with a constant or tests a type with `is`; for other "
@@ -118,6 +131,25 @@ final class Misplaced {
             }
         }
         return null;
+    }
+
+    /** A `;` between the arrow of a `when` branch and the token, or null. */
+    private static Token semicolonBefore(CommonTokenStream tokens, Token arrow, Token at) {
+        for (Token t = arrow; t.getTokenIndex() < at.getTokenIndex(); t = SourceParser.nextToken(tokens, t)) {
+            if (t.getType() == AxolotlLexer.SEMI) {
+                return t;
+            }
+        }
+        return null;
+    }
+
+    private static Token lastOfLine(CommonTokenStream tokens, Token at) {
+        Token last = at;
+        for (Token t = SourceParser.nextToken(tokens, at); t.getLine() == at.getLine() && t.getType() != Token.EOF;
+                t = SourceParser.nextToken(tokens, t)) {
+            last = t;
+        }
+        return last;
     }
 
     /** The tokens from first up to end, without end, as written with single spaces. */

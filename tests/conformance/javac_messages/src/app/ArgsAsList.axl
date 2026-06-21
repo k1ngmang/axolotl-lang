@@ -1,0 +1,5 @@
+package app
+
+fn main() {
+    println(args.get(0))
+}

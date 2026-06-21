@@ -1,0 +1,5 @@
+package app
+
+class C(val s: String?) {
+    val t: String = s
+}

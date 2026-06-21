@@ -1,0 +1,3 @@
+package app
+
+fn (n: Int) -> Int = n

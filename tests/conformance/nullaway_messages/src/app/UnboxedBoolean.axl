@@ -1,0 +1,8 @@
+package app
+
+fn f(b: Boolean?) -> Int {
+    if (b) {
+        return 1
+    }
+    return 0
+}

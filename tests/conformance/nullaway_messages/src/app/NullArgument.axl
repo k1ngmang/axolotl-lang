@@ -1,0 +1,5 @@
+package app
+
+data class P(val name: String)
+
+fn f() -> P = P(null)

@@ -1,5 +1,5 @@
 AXL102 app/Main.axl:10:19: error: value `v` may be null: use `?.`, `?:` or check `if (v != null)`
-AXL102 app/Main.axl:13:38: error: value `s` may be null: use `?.`, `?:` or check `if (s != null)`
+AXL102 app/Main.axl:13:38: error: `s` may be null, but `|>` needs a collection; check it for null first or give a default with `?:`
 AXL102 app/Main.axl:15:41: error: the returned value may be null, but the result type has no `?`; add `?` to the result type or return a value that is not null
 AXL102 app/Main.axl:17:9: error: type mismatch: expected `List<String>`, found `List<String?>`
 AXL102 app/Main.axl:21:75: error: `s` may be null, but the parameter does not accept null: use `?:` or check `if (s != null)`

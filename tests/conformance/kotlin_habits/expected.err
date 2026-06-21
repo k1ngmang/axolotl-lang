@@ -1,3 +1,4 @@
+AXL001 app/AsCast.axl:3:31: error: Axolotl has no casts; test the type with `is`: `if (o is String) { ... }`
 AXL001 app/ColonResult.axl:3:13: error: the result type comes after `->`: `fn f(...) -> Int`
 AXL001 app/Companion.axl:4:5: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program
 AXL001 app/Const.axl:3:1: error: Axolotl has no `const`; a top-level `val` is already constant, so remove `const`
@@ -6,6 +7,9 @@ AXL001 app/DataClassVar.axl:3:30: error: a data class cannot change; declare its
 AXL001 app/DefaultParameter.axl:3:41: error: parameters have no default values in Axolotl; declare a second function with fewer parameters
 AXL001 app/Destructuring.axl:4:9: error: Axolotl has no destructuring; declare each value: `val a = p.a()`
 AXL001 app/ElvisReturn.axl:4:15: error: `return` cannot be the fallback of `?:`; check first: `if (s == null) { return 0 }`, and `s` is not null after it
+AXL001 app/ElvisReturnCall.axl:6:24: error: `return` cannot be the fallback of `?:`; keep the value in a `val` and check that: `val v = m.get("k")`, then `if (v == null) { return -1 }`
+AXL001 app/ElvisThrow.axl:3:32: error: `throw` cannot be the fallback of `?:`; check first: `if (s == null) { throw IllegalArgumentException("x") }`, and `s` is not null after it
+AXL001 app/EnumClass.axl:3:6: error: write `enum Color { ... }` without `class`
 AXL001 app/EnumConstructor.axl:3:11: error: an enum lists its constants only: `enum Color { RED, GREEN }`
 AXL001 app/Extension.axl:3:10: error: Axolotl has no extension functions; take the value as the first parameter: `fn shout(s: String)`
 AXL001 app/FatArrow.axl:4:7: error: write `->` after the condition of a `when` branch, and in a lambda
@@ -13,12 +17,18 @@ AXL001 app/GenericClass.axl:3:15: error: Axolotl classes have no type parameters
 AXL001 app/GenericFunction.axl:5:4: error: Axolotl functions have no type parameters; write the types the function works with
 AXL001 app/InfixTo.axl:4:23: error: Axolotl has no `to`; a map takes keys and values in turn: `Map.of("a", 1)`
 AXL001 app/InitBlock.axl:4:5: error: a class has no `init` block; give each property its value where it is declared
+AXL001 app/InterfaceParentheses.axl:4:24: error: an interface takes no `()`: `: I`
 AXL001 app/Lateinit.axl:4:5: error: Axolotl has no `lateinit`; give the `var` a value, or make it nullable: `var x: T? = null`
 AXL001 app/NamedArguments.axl:6:24: error: Axolotl has no named arguments; pass the values in the order of the parameters
+AXL001 app/NotInKotlin.axl:5:44: error: Axolotl has no `!in`; write `!xs.contains(x)`
 AXL001 app/ObjectDeclaration.axl:3:1: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program
 AXL001 app/Override.axl:4:5: error: Axolotl has no `override`; remove it
+AXL001 app/PairTo.axl:4:15: error: Axolotl has no `to` or `Pair`; use a data class, or `Map.entry(1, 2)`
 AXL001 app/Ranges.axl:4:15: error: Axolotl has no ranges (`..`); count with a `while` loop, or use `java.util.stream.IntStream.range(from, to)`
+AXL001 app/ReturnLabel.axl:6:32: error: Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@forEach`
+AXL001 app/SafeAsCast.axl:3:32: error: Axolotl has no casts; test the type with `is`: `if (o is String) { ... }`
 AXL001 app/SafeLet.axl:5:12: error: Axolotl has no `let`; check for null instead: `if (s != null) { ... }`
+AXL001 app/SealedClass.axl:3:8: error: a sealed type is a `sealed interface Shape`; its data classes implement it: `: Shape`
 AXL001 app/TextBlock.axl:3:20: error: Axolotl has no text blocks (`"""`); join the lines with `+` and `\n`
 AXL001 app/TopLevelVar.axl:3:1: error: top-level values cannot change; use `val`, or keep the state in a class
 AXL001 app/TrailingLambda.axl:7:16: error: a lambda argument goes inside the parentheses: `xs.forEach({ ... })`; for a collection, use a pipe: `xs |> forEach { ... }`

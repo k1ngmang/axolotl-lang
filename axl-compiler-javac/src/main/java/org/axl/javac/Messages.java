@@ -95,6 +95,15 @@ final class Messages {
     private static final Pattern RECEIVER = Pattern.compile("\\b([A-Z]\\w*)\\.(\\w+)\\b");
     private static final Pattern NON_NULL_LOCAL = Pattern.compile(
             ", but `(\\w+)` (?:is not nullable|has the type of its first value, `[^`]+`, which is not nullable);");
+    // A lambda where the type is not an interface: `fn f() -> Int = { return 1 }`.
+    private static final Pattern NOT_FUNCTIONAL = Pattern.compile("^incompatible types: [\\w.<>, ]+ is not a functional interface$");
+    private static final Pattern TYPE_ARITY = Pattern.compile("^wrong number of type arguments; required (\\d+)$");
+    private static final Pattern IMPORTED_TWICE = Pattern.compile(
+            "^a type with the same simple name is already defined by the single-type-import of ([\\w.]+)$");
+    private static final Pattern CALL_WITH_NULL = Pattern.compile("(?:new )?([\\w.]+)\\(([^()]*\\bnull\\b[^()]*)\\)");
+    private static final Pattern UNBOXED = Pattern.compile("^unboxing of a @Nullable expression '(.+)'");
+    private static final Pattern GENERIC_TYPE = Pattern.compile("\\b((?:[a-z]\\w*\\.)*[A-Z]\\w*)<");
+    private static final Pattern NEVER_READ = Pattern.compile("^`(\\w+)` is never read$");
     private static final Pattern USED_BEFORE = Pattern.compile("^`(\\w+)` is used before it has a value$");
     private static final Pattern ABSTRACT = Pattern.compile("^([\\w.$]+) is abstract; cannot be instantiated$");
     private static final Pattern ELVIS_FALLBACK = Pattern.compile("\\?:\\s*(\\S)");
@@ -125,6 +134,10 @@ final class Messages {
     private static final String LAMBDA_VALUE = "the lambda returns a value, but nothing is expected here; "
             + "use the value in a call, such as `println(...)`, or remove it";
     private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
+    private static final Pattern RETURNED_NAME = Pattern.compile("^\\s*return (\\w+);$");
+    private static final String GENERATED_VALUE = "the result of `value()` may be null: its type is a type argument written with `?`";
+    private static final String NO_RESULT_TYPE = "a function that returns nothing has no result type; remove ";
+    static final Pattern RESULT_TYPE = Pattern.compile("->\\s*(?:Void|Unit)\\b");
 
     private Messages() {}
 
@@ -156,6 +169,9 @@ final class Messages {
         if (mustGive.find()) {
             return Pattern.compile("\\bclass\\s+(" + Pattern.quote(mustGive.group(1)) + ")\\b");
         }
+        if (translated.startsWith(NO_RESULT_TYPE)) {
+            return RESULT_TYPE;
+        }
         if (translated.contains("` has no result type, so it cannot return a value")
                 || translated.startsWith(LAMBDA_RETURN_VALUE)) {
             return RETURN;
@@ -172,10 +188,32 @@ final class Messages {
         return javaText.contains("Result.unwrap(") || javaText.contains("Result.propagate(") ? TRY : null;
     }
 
+    /** The Java line of a translated message: javac reports a missing `return` at the end of the function, not at `-> Void`. */
+    static int javaLine(String translated, String[] javaLines, int javaLine) {
+        if (!translated.startsWith(NO_RESULT_TYPE)) {
+            return javaLine;
+        }
+        for (int i = Math.min(javaLine, javaLines.length) - 1; i >= 0; i--) {
+            if (METHOD.matcher(javaLines[i].strip()).find()) {
+                return i + 1;
+            }
+        }
+        return javaLine;
+    }
+
     /** Whether the error only follows from another error of the same file, which already explains the mistake. */
     static boolean followsFrom(AxlDiagnostic effect, List<AxlDiagnostic> all) {
-        return all.stream().anyMatch(cause -> cause != effect && cause.isError() && cause.file().equals(effect.file())
-                && causes(cause, effect));
+        return all.stream().anyMatch(cause -> cause != effect && cause.file().equals(effect.file())
+                && (cause.isError() && causes(cause, effect) || cause.line() == effect.line() && repeats(cause, effect)));
+    }
+
+    /** Warnings of two Error Prone checks about the same mistake, of which the second says less. */
+    private static boolean repeats(AxlDiagnostic first, AxlDiagnostic second) {
+        Matcher neverRead = NEVER_READ.matcher(first.message());
+        if (neverRead.find()) {
+            return second.message().equals("`" + neverRead.group(1) + "`" + ErrorProneMessages.FILLED_NOT_READ);
+        }
+        return ErrorProneMessages.isObsoleteClass(first.message()) && second.message().startsWith(ErrorProneMessages.CLASS_TYPE);
     }
 
     private static boolean causes(AxlDiagnostic cause, AxlDiagnostic effect) {
@@ -187,7 +225,7 @@ final class Messages {
         if (cause.line() == effect.line() && cause.message().contains(LAMBDA_PARAMETERS)) {
             return effect.message().startsWith("unknown name `");
         }
-        if (effect.message().startsWith("a function that returns nothing has no result type; remove `-> Unit`")) {
+        if (effect.message().startsWith(NO_RESULT_TYPE + "`-> Unit`")) {
             return cause.message().startsWith("unknown type `Unit`");
         }
         Matcher nonNullLocal = NON_NULL_LOCAL.matcher(cause.message());
@@ -195,7 +233,8 @@ final class Messages {
             String name = nonNullLocal.group(1);
             // NullAway follows the value that was stored, not the declared type of the local.
             return effect.message().startsWith("value `" + name + "` may be null")
-                    || effect.message().startsWith("`" + name + "` may be null, but the parameter");
+                    || effect.message().startsWith("`" + name + "` may be null, but the parameter")
+                    || effect.message().startsWith("`" + name + "` may be null, but the result type");
         }
         Matcher usedBefore = USED_BEFORE.matcher(effect.message());
         if (usedBefore.find()) {
@@ -231,9 +270,57 @@ final class Messages {
         }
     }
 
+    /** `n.toString()` and `c.equals("a")` on a primitive value, which Kotlin allows. */
+    private static String primitiveHint(String javaType, String text) {
+        if (text.contains(".toString()")) {
+            return "; for its text, write `String.valueOf(x)`";
+        }
+        return javaType.equals("char") && text.contains(".equals(") ? "; compare it with `==`, as in `c == 'a'`" : "";
+    }
+
+    /**
+     * `s.lenght()` for `s.length()`: a Kotlin name, or a method of the class one or two letters away. A
+     * class of the build is looked for in the generated file.
+     */
+    private static String similarMethod(String location, String name, String[] javaLines) {
+        String kotlin = Names.methodHint(name);
+        if (kotlin != null) {
+            return "; " + kotlin;
+        }
+        int ofType = location.indexOf(" of type ");
+        String type = (ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1))
+                .replaceAll("@\\S+ ", "").replaceAll("<.*", "");
+        List<String> methods;
+        try {
+            methods = Arrays.stream(Class.forName(type, false, Messages.class.getClassLoader()).getMethods())
+                    .map(Method::getName).distinct().toList();
+        } catch (ClassNotFoundException | LinkageError e) {
+            String similar = Names.similar(name, javaLines);
+            return similar == null ? "" : "; did you mean `" + similar + "`?";
+        }
+        String similar = Names.closest(name, methods);
+        return similar == null ? "" : "; did you mean `" + similar + "`?";
+    }
+
+    /** `Pointt` for `Point`: a type of the file, then a type Axolotl or the JDK has. */
+    private static String unknownType(String symbol, String[] javaLines) {
+        List<String> types = nestedTypes(javaLines);
+        String similar = types.stream().filter(t -> t.equalsIgnoreCase(symbol)).findFirst()
+                .orElse(Names.closest(symbol, types));
+        return similar == null ? Names.unknownType(symbol) : "unknown type `" + symbol + "`; did you mean `" + similar + "`?";
+    }
+
     /** `nmae` for `name`: a name of the generated file one or two letters away. */
-    private static String unknownName(String symbol, String[] javaLines) {
-        String hint = Names.typeHint(symbol) != null ? Names.typeHint(symbol) : Names.nameHint(symbol);
+    private static String unknownName(String symbol, String text, String[] javaLines) {
+        // `ArrayList<String()` reads as the comparison `ArrayList < String()`.
+        Matcher unclosed = Pattern.compile("\\b" + Pattern.quote(symbol) + "\\s*<\\s*(?:new )?([\\w.]+)\\s*\\(").matcher(text);
+        if (unclosed.find()) {
+            return "`" + symbol + "` is a type; to create one, close its type arguments: `" + symbol + "<"
+                    + unclosed.group(1) + ">()`";
+        }
+        Pattern imported = Pattern.compile("^import [\\w.]+\\." + Pattern.quote(symbol) + ";$");
+        String hint = Names.typeHint(symbol) != null && Arrays.stream(javaLines).noneMatch(l -> imported.matcher(l.strip()).find())
+                ? Names.typeHint(symbol) : Names.nameHint(symbol);
         if (hint != null) {
             return "unknown name `" + symbol + "`; " + hint;
         }
@@ -252,6 +339,7 @@ final class Messages {
     /** Messages that javac reports twice for one mistake, at different columns of the same line. */
     static boolean oncePerLine(String translated) {
         return translated.equals(LAMBDA_VALUE) || translated.endsWith(UNKNOWN_IMPORTED_CLASS)
+                || translated.endsWith(ErrorProneMessages.NEVER_NULL)
                 || translated.endsWith(Names.NO_TYPE_PARAMETERS);
     }
 
@@ -279,6 +367,8 @@ final class Messages {
         return message.startsWith("unreported exception <any>;")
                 || message.startsWith("[UnnecessaryParentheses]") || message.startsWith("[RefactorSwitch]")
                 || message.startsWith("[StatementSwitchToExpressionSwitch]")
+                // It asks for a `Locale` at every `toUpperCase()`, which ordinary code has no reason to give.
+                || message.startsWith("[StringCaseLocaleUsage]")
                 // Axolotl has no @Override; the generated methods cannot carry one the author could write.
                 || message.startsWith("[MissingOverride]")
                 || message.startsWith("[UnusedVariable]") && UNUSED_GENERATED.matcher(message).find();
@@ -348,7 +438,7 @@ final class Messages {
             return new Translated(ErrorCode.INIT_ORDER, message.substring(InitCycles.PREFIX.length()));
         }
         if (message.startsWith(NullChecker.PREFIX)) {
-            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, message.substring(NullChecker.PREFIX.length()));
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, generatedValue(message.substring(NullChecker.PREFIX.length()), text));
         }
         if (message.startsWith(NullChecker.RAW_PREFIX)) {
             return new Translated(ErrorCode.JAVAC, message.substring(NullChecker.RAW_PREFIX.length()));
@@ -361,8 +451,7 @@ final class Messages {
         }
         String returnType = enclosingReturnType(javaLines, javaLine);
         if (message.equals("missing return statement") && ("Void".equals(returnType) || "Unit".equals(returnType))) {
-            return new Translated(ErrorCode.JAVAC, "a function that returns nothing has no result type; remove `-> "
-                    + returnType + "`");
+            return new Translated(ErrorCode.JAVAC, NO_RESULT_TYPE + "`-> " + returnType + "`");
         }
         if (message.startsWith("[NullAway] ")) {
             return nullAway(message, text, javaLines);
@@ -425,6 +514,18 @@ final class Messages {
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines)).replaceAll(""));
     }
 
+    /**
+     * `value()` of the code that `?:` becomes is the author's value, not a call they wrote, and its type
+     * argument is the translator's, not a reason to give them.
+     */
+    private static String generatedValue(String message, String text) {
+        if (!message.startsWith(GENERATED_VALUE)) {
+            return message;
+        }
+        String subject = text.contains("Nulls.or(") ? "the fallback of `?:`" : "this value";
+        return subject + " may be null" + message.substring(GENERATED_VALUE.length());
+    }
+
     private static Translated nullAway(String message, String text, String[] javaLines) {
         Matcher dereference = DEREFERENCE.matcher(message);
         if (dereference.find()) {
@@ -435,6 +536,10 @@ final class Messages {
             }
             if (GENERATED.matcher(value).find()) {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "this value may be null: use `?.`, `?:` or a null check");
+            }
+            if (text.contains(value + ".stream()")) {
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`" + value + "` may be null, but `|>` needs a "
+                        + "collection; check it for null first or give a default with `?:`");
             }
             if (!narrowable(value, javaLines)) {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`" + value + "` may be null: copy it to a `val` "
@@ -447,8 +552,10 @@ final class Messages {
         if (nullableArgument.find()) {
             String value = nullableArgument.group(1);
             if (value.equals("null")) {
-                return new Translated(ErrorCode.NULLABLE_DEREFERENCE,
-                        "`null` is passed where null is not accepted; make the type nullable with `?`");
+                String parameter = parameterGivenNull(text, javaLines);
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, parameter == null
+                        ? "`null` is passed where null is not accepted; make the type nullable with `?`"
+                        : "`null` is passed for `" + parameter + "`, which does not accept null; make its type nullable with `?`");
             }
             boolean name = IDENTIFIER.matcher(value).matches() && !GENERATED.matcher(value).find();
             String subject = name ? "`" + value + "`" : "the argument";
@@ -478,15 +585,17 @@ final class Messages {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`map` may produce null here, but the list it builds "
                         + "cannot hold nulls; filter them out first or give a default with `?:`");
             }
-            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "the returned value may be null, but the result type has "
-                    + "no `?`; add `?` to the result type or return a value that is not null");
+            Matcher returned = RETURNED_NAME.matcher(text);
+            String value = returned.find() && !GENERATED.matcher(returned.group(1)).find() ? "`" + returned.group(1) + "`"
+                    : "the returned value";
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, value + " may be null, but the result type has no `?`; "
+                    + "add `?` to the result type or return a value that is not null");
         }
         if (plain.startsWith("assigning @Nullable expression to @NonNull field")) {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, nullableToField(text, javaLines));
         }
         if (plain.startsWith("unboxing of a @Nullable value") || plain.startsWith("unboxing of a @Nullable expression")) {
-            return new Translated(ErrorCode.NULLABLE_DEREFERENCE,
-                    "a value that may be null is used as a number or boolean; give a default with `?:`");
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, unboxing(plain, text));
         }
         if (plain.startsWith("incompatible types: ") && text.contains(">unwrap(")) {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`mapResult` may produce null values here, but the list "
@@ -494,6 +603,19 @@ final class Messages {
         }
         return new Translated(plain.startsWith("incompatible types: ") ? ErrorCode.NULLABLE_DEREFERENCE : ErrorCode.JAVAC,
                 javacMessage(plain, text, javaLines));
+    }
+
+    /** `n + 1` and `if (b)` with a nullable `n` or `b`, which Java unboxes. */
+    private static String unboxing(String plain, String text) {
+        Matcher unboxed = UNBOXED.matcher(plain);
+        if (!unboxed.find() || GENERATED.matcher(unboxed.group(1)).find()) {
+            return "a value that may be null is used as a number or boolean; give a default with `?:`";
+        }
+        String value = unboxed.group(1).replaceAll("^\\((.*)\\)$", "$1");
+        Pattern condition = Pattern.compile("(?:\\b(?:if|while) \\(|!|&&|\\|\\|)\\s*" + Pattern.quote(value) + "\\s*(?:\\)|&&|\\|\\||$)");
+        boolean flag = condition.matcher(text).find();
+        return "`" + value + "` may be null, but it is used as a " + (flag ? "boolean" : "number") + "; give a default with "
+                + "`?:`, as in `(" + value + (flag ? " ?: false)`" : " ?: 0)`");
     }
 
     /** `b.label = a`, with the property's name and declared type. */
@@ -505,11 +627,14 @@ final class Messages {
         }
         String name = assigned.group(1);
         String value = IDENTIFIER.matcher(assigned.group(2)).matches() ? "`" + assigned.group(2) + "`" : "the value";
-        Pattern declaration = Pattern.compile("^\\s+public ([\\w.<>?, ]+) " + Pattern.quote(name) + ";$");
-        String type = Arrays.stream(javaLines).map(declaration::matcher).filter(Matcher::find)
-                .map(m -> simpleNames(axlType(m.group(1)))).findFirst().orElse("Type");
-        return value + " may be null, but `" + name + "` is declared as `" + type + "`; declare it `var " + name + ": "
-                + type + "?` or use `?:`";
+        Pattern declaration = Pattern.compile("^\\s+public (final )?([\\w.<>?, ]+) " + Pattern.quote(name) + "(?: =.*)?;$");
+        Matcher found = Arrays.stream(javaLines).map(declaration::matcher).filter(Matcher::find).findFirst().orElse(null);
+        String type = found == null ? "Type" : simpleNames(axlType(found.group(2)));
+        String keyword = found != null && found.group(1) != null ? "val" : "var";
+        String declared = "`" + name + "` is declared as `" + type + "`";
+        String fix = "declare it `" + keyword + " " + name + ": " + type + "?`";
+        return value.equals("`null`") ? declared + ", which does not allow null; " + fix
+                : value + " may be null, but " + declared + "; " + fix + " or use `?:`";
     }
 
     /** A null check narrows locals, parameters and `val` properties, but not a call or a `var` property. */
@@ -548,6 +673,11 @@ final class Messages {
         }
         if (text.contains("Nulls.or(") && message.endsWith(" is not a functional interface)")) {
             return "the right side of `?:` returns nothing, so it cannot be the value when the left side is null";
+        }
+        String lambdaBody = NOT_FUNCTIONAL.matcher(message).find() ? returnsLambdaOnly(text, javaLines) : null;
+        if (lambdaBody != null) {
+            return "a function body in braces comes without `=`: `fn " + lambdaBody + "(...) -> Type { ... }`; after `=`, "
+                    + "braces make a lambda";
         }
         if (message.equals("incompatible types: incompatible parameter types in lambda expression") && text.contains(".sorted(")) {
             return SORTED_ARITY;
@@ -633,11 +763,17 @@ final class Messages {
             String name = privateAccess.group(1);
             String owner = simpleNames(axlType(privateAccess.group(3)));
             boolean constructor = privateAccess.group(2) != null && (owner.equals(name) || owner.endsWith("." + name));
+            if (privateAccess.group(2) == null && isLibraryRecordField(privateAccess.group(3), name)) {
+                return "read the field `" + name + "` of `" + owner + "` with parentheses: `" + name + "()`";
+            }
             return constructor ? "`" + owner + "` cannot be created here: its constructor is private"
                     : "`" + name + "` is private to `" + owner + "` and can only be used in that file";
         }
         Matcher noSuitable = NO_SUITABLE.matcher(message);
-        if (noSuitable.find()) {
+        if (noSuitable.find() && noSuitable.group(1).matches("println|print") && splitTopLevel(noSuitable.group(2)).size() > 1) {
+            return "`" + noSuitable.group(1) + "` takes one value; join them with `+`, as in `println(a + \" \" + b)`";
+        }
+        if (noSuitable.find(0)) {
             List<String> candidates = new ArrayList<>();
             Matcher candidate = CANDIDATE.matcher(message);
             while (candidate.find()) {
@@ -675,25 +811,23 @@ final class Messages {
             if (!inThisFile && owner.endsWith("[]")) {
                 String member = unknown.group(1).equals("method") ? "method `" + withoutLambdas(symbol) + "`"
                         : "field `" + symbol + "`";
-                return arrayMember(axlType(owner.substring(0, owner.length() - 2)), member);
+                return arrayMember(axlType(owner.substring(0, owner.length() - 2)), member, location);
             }
             String constants = unknown.group(1).equals("variable") ? enumConstants(javaLines, simpleNames(axlType(owner))) : null;
             if (!inThisFile && constants != null) {
                 return "`" + simpleNames(axlType(owner)) + "` has no constant `" + symbol + "`; its constants are " + constants;
             }
-            String tested = inThisFile ? null : testedWithoutNarrowing(location, text, javaLines);
+            Tested tested = inThisFile ? null : testedWithoutNarrowing(location, text, javaLines);
             if (tested != null) {
-                return tested.contains(".") ? "`" + tested + "` is a property, so `is` does not narrow it; copy it to a "
-                        + "local `val` first: `val " + tested.substring(tested.lastIndexOf('.') + 1) + " = " + tested + "`"
-                        : "`" + tested + "` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare "
-                        + "it with `val` if it does not change";
+                return notNarrowed(tested);
             }
             return switch (unknown.group(1)) {
-                case "variable" -> inThisFile ? unknownName(symbol, javaLines)
+                case "variable" -> inThisFile ? unknownName(symbol, text, javaLines)
                         : memberOwner(location) + " has no field `" + symbol + "`" + methodHint(location, symbol);
                 case "method" -> inThisFile ? unknownFunction(symbol, name, javaLines)
-                        : memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`";
-                default -> Names.unknownType(symbol);
+                        : staticOwner(location, text) + " has no method `" + withoutLambdas(symbol) + "`"
+                        + similarMethod(location, name, javaLines);
+                default -> unknownType(symbol, javaLines);
             };
         }
         Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);
@@ -701,7 +835,8 @@ final class Messages {
             return PIPE_SUBJECT + ", found `" + axlType(notDereferenced.group(1)) + "`";
         }
         if (notDereferenced.find(0)) {
-            return "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members";
+            return "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members"
+                    + primitiveHint(notDereferenced.group(1), text);
         }
         Matcher badOperands = BAD_OPERANDS.matcher(message);
         if (badOperands.find()) {
@@ -761,11 +896,53 @@ final class Messages {
             return noPackage.group(1).startsWith("kotlin") ? "Axolotl uses Java's library, not Kotlin's; import Java's "
                     + "classes, such as `java.util.List`" : "unknown package `" + noPackage.group(1) + "`; check the spelling";
         }
+        Matcher importedTwice = IMPORTED_TWICE.matcher(message);
+        if (importedTwice.find()) {
+            String type = importedTwice.group(1);
+            return "`" + type.substring(type.lastIndexOf('.') + 1) + "` is already imported from `"
+                    + type.substring(0, type.lastIndexOf('.')) + "`; use the other one by its full name instead";
+        }
+        Matcher arity = TYPE_ARITY.matcher(message);
+        if (arity.find()) {
+            return typeArity(Integer.parseInt(arity.group(1)), text);
+        }
         if (message.equals("illegal forward reference")) {
             return "a top-level value is used before it is declared; move its declaration up";
         }
         String structural = structuralMessage(message, text, javaLines);
         return structural != null ? structural : message;
+    }
+
+    /** `f` of `fn f() -> Int = { ... }`, a function whose whole body is a lambda without parameters, or null. */
+    private static String returnsLambdaOnly(String text, String[] javaLines) {
+        int line = Arrays.asList(javaLines).lastIndexOf(text);
+        Matcher function = METHOD_DECLARATION.matcher(line > 0 ? javaLines[line - 1] : "");
+        return text.strip().equals("return () -> {") && function.find() ? function.group(1) : null;
+    }
+
+    /** `Map<String>`: the first type on the line with another number of type arguments than required. */
+    private static String typeArity(int required, String text) {
+        Matcher generic = GENERIC_TYPE.matcher(text);
+        while (generic.find()) {
+            if (splitTopLevel(angleArguments(text, generic.end())).size() != required) {
+                String type = simpleNames(generic.group(1));
+                return "`" + type + "` takes " + required + " type argument" + (required == 1 ? "" : "s") + ", as in `"
+                        + type + "<" + RawTypes.example(required) + ">`";
+            }
+        }
+        return "this type takes " + required + " type argument" + (required == 1 ? "" : "s");
+    }
+
+    /** `A, B<C>` of the `<A, B<C>>` that starts after the index; the rest of the text when it is not closed. */
+    private static String angleArguments(String text, int start) {
+        int depth = 1;
+        for (int i = start; i < text.length(); i++) {
+            depth += text.charAt(i) == '<' ? 1 : text.charAt(i) == '>' ? -1 : 0;
+            if (depth == 0) {
+                return text.substring(start, i);
+            }
+        }
+        return text.substring(start);
     }
 
     /** Errors about what a class, enum or function is: static members, abstract types, missing methods. */
@@ -903,28 +1080,70 @@ final class Messages {
      * `x` or `b.v` when an `is` test of it comes before this line in the same function: the translator
      * narrows only a `val` local or parameter, and leaves other tests without a binding.
      */
-    private static String testedWithoutNarrowing(String location, String text, String[] javaLines) {
+    private static Tested testedWithoutNarrowing(String location, String text, String[] javaLines) {
         int ofType = location.indexOf(" of type ");
         if (!location.startsWith("variable ") || ofType < 0) {
             return null;
         }
-        String name = location.substring("variable ".length(), ofType);
-        Pattern test = Pattern.compile("((?:\\w+\\.)*" + Pattern.quote(name) + ") instanceof [\\w.<>]+\\)");
+        String name = Pattern.quote(location.substring("variable ".length(), ofType));
+        // An `if` condition, the left side of `&&`, or the subject of a `when`.
+        Pattern test = Pattern.compile("((?:\\w+\\.)*" + name + ") instanceof [\\w.<>]+(?:\\)| &&)"
+                + "|\\bswitch \\(((?:\\w+\\.)*" + name + ")\\) \\{");
         int line = Arrays.asList(javaLines).lastIndexOf(text);
-        for (int j = line - 1; j >= 0 && !METHOD_DECLARATION.matcher(javaLines[j]).find(); j--) {
-            Matcher tested = test.matcher(javaLines[j]);
-            if (tested.find() && Pattern.compile("(?<![\\w.])" + Pattern.quote(tested.group(1) + ".")).matcher(text).find()) {
-                return tested.group(1);
+        for (int j = line; j >= 0 && !METHOD_DECLARATION.matcher(javaLines[j]).find(); j--) {
+            Matcher found = test.matcher(javaLines[j]);
+            String tested = !found.find() ? null : found.group(1) != null ? found.group(1) : found.group(2);
+            if (tested != null && Pattern.compile("(?<![\\w.])" + Pattern.quote(tested + ".")).matcher(text).find()) {
+                return new Tested(tested, found.group(2) != null);
             }
         }
         return null;
     }
 
+    /** A value tested with `is`, and whether as the subject of a `when`. */
+    private record Tested(String value, boolean subject) {}
+
+    private static String notNarrowed(Tested tested) {
+        String value = tested.value();
+        String name = value.substring(value.lastIndexOf('.') + 1);
+        if (!value.contains(".")) {
+            return "`" + value + "` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with "
+                    + "`val` if it does not change";
+        }
+        String problem = "`" + value + "` is a property, so `is` does not narrow it; ";
+        return tested.subject() ? problem + "name the subject: `when (val " + name + " = " + value + ")`"
+                : problem + "copy it to a local `val` first: `val " + name + " = " + value + "`";
+    }
+
     /** `s.split(",").size()`: Axolotl has no arrays of its own, but Java methods return them. */
-    private static String arrayMember(String element, String member) {
+    private static String arrayMember(String element, String member, String location) {
         boolean primitive = Character.isLowerCase(element.charAt(0));
-        return "this is a Java array of `" + element + "`, which has no " + member + "; read its `length`"
-                + (primitive ? "" : ", or turn it into a list with `List.of(...)`");
+        int ofType = location.indexOf(" of type ");
+        String name = location.startsWith("variable ") && ofType > 0 ? location.substring("variable ".length(), ofType) : null;
+        String array = name == null ? "this is a Java array" : "`" + name + "` is a Java array";
+        String list = "turn it into a list with `List.of(" + (name == null ? "..." : name) + ")`";
+        return array + " of `" + element + "`, which has no " + member + "; "
+                + (primitive ? "read its `length`" : list + ", or read its `length`");
+    }
+
+    /** `name` of `P(null)`: the parameter that the call `null` is passed to declares. */
+    private static String parameterGivenNull(String text, String[] javaLines) {
+        Matcher call = CALL_WITH_NULL.matcher(text);
+        if (!call.find()) {
+            return null;
+        }
+        String callee = call.group(1).substring(call.group(1).lastIndexOf('.') + 1);
+        int index = splitTopLevel(call.group(2)).indexOf("null");
+        Pattern declaration = Pattern.compile("\\b(?:record )?" + Pattern.quote(callee) + "\\(([^()]*)\\)(?: implements [^{]*)? \\{");
+        for (String line : javaLines) {
+            Matcher declared = declaration.matcher(line);
+            if (declared.find()) {
+                List<String> parameters = splitTopLevel(declared.group(1));
+                return index >= 0 && index < parameters.size()
+                        ? parameters.get(index).substring(parameters.get(index).lastIndexOf(' ') + 1) : null;
+            }
+        }
+        return null;
     }
 
     /** `val c: Comparator<String> = { a.compareTo(b) }`: the parameters the interface gives the lambda. */
@@ -1057,6 +1276,16 @@ final class Messages {
         return false;
     }
 
+    /** `r.value` of an `Ok`: a record of the runtime or the JDK, whose fields are read with `()`. */
+    private static boolean isLibraryRecordField(String owner, String field) {
+        try {
+            Class<?> type = Class.forName(owner, false, Messages.class.getClassLoader());
+            return type.isRecord() && Arrays.stream(type.getRecordComponents()).anyMatch(c -> c.getName().equals(field));
+        } catch (ClassNotFoundException | LinkageError e) {
+            return false;
+        }
+    }
+
     /** javac lists private overloads of JDK classes too, which nobody outside can call. */
     private static boolean isPrivate(String owner, String name, String parameters) {
         if (!owner.startsWith("java.")) {
@@ -1167,6 +1396,11 @@ final class Messages {
             String inner = m.group(1) != null ? m.group(1) : m.group(2);
             return GENERATED.matcher(inner).find() ? "this value" : Matcher.quoteReplacement(m.group());
         });
+    }
+
+    /** `Integer.parse(s)` is about the class `Integer`, which Axolotl does not call `Int`. */
+    private static String staticOwner(String location, String text) {
+        return location.equals("class java.lang.Integer") && text.contains("Integer.") ? "`Integer`" : memberOwner(location);
     }
 
     /** `variable list of type java.util.List<java.lang.Integer>` or `class app.Util`. */

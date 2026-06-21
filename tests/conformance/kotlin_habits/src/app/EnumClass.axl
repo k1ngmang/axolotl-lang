@@ -1,0 +1,3 @@
+package app
+
+enum class Color { RED, GREEN }

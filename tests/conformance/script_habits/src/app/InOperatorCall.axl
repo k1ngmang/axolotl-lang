@@ -1,0 +1,7 @@
+package app
+
+import java.util.List
+
+data class Bag(val items: List<Int>)
+
+fn f(s: String, b: Bag) -> Boolean = s.length() in b.items()

@@ -1,0 +1,10 @@
+package app
+
+fn f(o: Object) -> Int {
+    var x = o
+    x = "s"
+    if (x is String && x.length() > 0) {
+        return 1
+    }
+    return 0
+}

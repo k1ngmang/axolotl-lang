@@ -26,10 +26,24 @@ final class Names {
             Map.entry("IntStream", "java.util.stream"), Map.entry("Path", "java.nio.file"),
             Map.entry("Files", "java.nio.file"), Map.entry("LocalDate", "java.time"), Map.entry("Duration", "java.time"));
 
-    private static final Map<String, String> FUNCTIONS = Map.of("print", "did you mean `println`?",
-            "listOf", "write `List.of(...)`", "mutableListOf", "write `ArrayList<T>()`", "arrayOf", "write `List.of(...)`",
-            "mapOf", "write `Map.of(...)`", "setOf", "write `Set.of(...)`", "require", "throw an `IllegalArgumentException`",
-            "check", "throw an `IllegalStateException`");
+    private static final Map<String, String> FUNCTIONS = Map.ofEntries(Map.entry("print", "did you mean `println`?"),
+            Map.entry("listOf", "write `List.of(...)`"), Map.entry("mutableListOf", "write `ArrayList<T>()`"),
+            Map.entry("arrayListOf", "write `ArrayList<T>()`"), Map.entry("emptyList", "write `List.of()`"),
+            Map.entry("emptyMap", "write `Map.of()`"), Map.entry("arrayOf", "write `List.of(...)`"),
+            Map.entry("mapOf", "write `Map.of(...)`"), Map.entry("setOf", "write `Set.of(...)`"),
+            Map.entry("require", "throw an `IllegalArgumentException`"), Map.entry("check", "throw an `IllegalStateException`"),
+            Map.entry("len", "write `s.length()` for a string, `xs.size()` for a list"),
+            Map.entry("str", "write `String.valueOf(x)`"));
+
+    // Kotlin's library functions on strings and lists, and what Java's classes have instead.
+    private static final Map<String, String> METHODS = Map.of("first", "write `getFirst()`", "last", "write `getLast()`",
+            "isNullOrEmpty", "write `s == null || s.isEmpty()`", "toInt", "write `Integer.parseInt(s)`",
+            "toDouble", "write `Double.parseDouble(s)`", "count", "write `size()`");
+
+    // Classes of java.lang, which need no import and so are not in JDK_TYPES.
+    private static final List<String> LANG_TYPES = List.of("StringBuilder", "Math", "Integer", "Character", "System",
+            "Exception", "RuntimeException", "IllegalArgumentException", "IllegalStateException", "Thread", "Iterable",
+            "Comparable", "Ok", "Err");
 
     private static final Set<String> JAVA_WORDS = Set.of("final", "var", "return", "public", "private", "static",
             "class", "new", "this", "null", "true", "false", "void", "else", "case", "default", "switch", "record",
@@ -64,9 +78,22 @@ final class Names {
     }
 
     private static String similarType(String symbol) {
-        return Stream.concat(BUILTIN_TYPES.stream(), JDK_TYPES.keySet().stream().sorted())
-                .filter(t -> distance(symbol, t) <= (symbol.length() > 4 ? 2 : 1)).findFirst()
-                .map(t -> "did you mean `" + t + "`?").orElse("check the spelling or add an import");
+        List<String> types = Stream.of(BUILTIN_TYPES.stream(), LANG_TYPES.stream(), JDK_TYPES.keySet().stream().sorted())
+                .flatMap(s -> s).toList();
+        String similar = types.stream().filter(t -> t.equalsIgnoreCase(symbol)).findFirst().orElse(closest(symbol, types));
+        return similar != null ? "did you mean `" + similar + "`?" : "check the spelling or add an import";
+    }
+
+    /** What Java writes for a Kotlin method, or null. */
+    static String methodHint(String name) {
+        return METHODS.get(name);
+    }
+
+    /** The candidate one or two letters away from the name, the nearest first, or null. */
+    static String closest(String name, List<String> candidates) {
+        int allowed = name.length() > 4 ? 2 : 1;
+        return candidates.stream().filter(c -> !c.equals(name) && distance(name, c) <= allowed)
+                .min(java.util.Comparator.comparingInt(c -> distance(name, c))).orElse(null);
     }
 
     /** `None`, `undefined` and `nul`: what other languages, or a slip, write for Axolotl's own words. */

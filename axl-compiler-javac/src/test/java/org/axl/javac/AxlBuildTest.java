@@ -216,6 +216,44 @@ class AxlBuildTest {
     }
 
     @Test
+    void wordsErrorProneWarningsWithoutJavaNotation(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.util.ArrayList
+                import java.util.Date
+                import java.util.HashMap
+                import java.util.LinkedList
+
+                fn f() -> Int = 1
+                fn same() -> Boolean = f() == f()
+                fn later(a: String, b: String) -> Boolean = a.compareTo(b) == 1
+                fn size(m: HashMap<String, Int>) -> Int = m.size()
+                fn queue() -> LinkedList<Int> = LinkedList<Int>()
+                fn shout(s: String) -> String = s.toUpperCase()
+                fn now() -> Date = Date()
+
+                fn main() {
+                    val xs = ArrayList<String>()
+                    val ys = ArrayList<Int>()
+                    ys.add(1)
+                    ys.remove(0)
+                    println(ys)
+                }
+                """);
+        assertEquals(List.of(
+                "9:28 both sides of this expression are the same, so its value is always `true` unless their calls give "
+                        + "different values",
+                "10:45 compare the result of `compareTo` with 0, as in `a.compareTo(b) > 0`; it need not be 1 or -1",
+                "11:9 this type is a class, which ties callers to it; use `Map` instead",
+                "12:33 `ArrayList` or `ArrayDeque` is almost always faster than `LinkedList`; use one of them",
+                "14:20 `Date` is an old class that leads to bugs; use `java.time.Instant` or `LocalDate`",
+                "17:9 `xs` is never read",
+                "20:8 on a list of `Int`, `remove(i)` removes the element at index `i`, not the value `i`; to remove a "
+                        + "value, write `remove(Integer.valueOf(i))`"), warnings);
+    }
+
+    @Test
     void doesNotWarnAboutTheVariableOfACountingLoop(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
