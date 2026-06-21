@@ -432,8 +432,8 @@ import org.axl.compiler.check.Whens;
     }
     private void localStatement(Stmt.Local local) {
         final var line = local.pos().line();
-        final var init = local.init();
         final var declared = local.type();
+        final var init = widened(local.init(), declared);
         final var modifiers = (local.mutable() ? "" : "final ");
         final var typeCode = (declared == null ? "var" : javaType(declared));
         final var whole = withoutParens(init);
@@ -487,7 +487,7 @@ import org.axl.compiler.check.Whens;
             return;
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), () ->
-                em.line(line, "return " + valueCode(line, value, returnType) + ";"));
+                em.line(line, "return " + valueCode(line, widened(value, resultTypeRef), returnType) + ";"));
     }
     private void ifStatement(Stmt.If ifStmt) {
         final var split = shortCircuitWithLift(ifStmt.condition());
@@ -1141,7 +1141,22 @@ import org.axl.compiler.check.Whens;
         if (target != null) {
             return chainCode(Chains.flatten(c), inLambda);
         }
-        return callCode(c, argsCode(c.args(), inLambda, c.pos().line()));
+        return callCode(c, argsCode(widenedArgs(c), inLambda, c.pos().line()));
+    }
+    private List<Expr> widenedArgs(Expr.Call c) {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Function decl$1 && decl$1.name().equals(c.name()) && decl$1.params().size() == c.args().size()) {
+                final var params = decl$1.params();
+                final var args = new ArrayList<Expr>();
+                var i = 0;
+                while (i < params.size()) {
+                    args.add(widened(c.args().get(i), params.get(i).type()));
+                    i += 1;
+                }
+                return args;
+            }
+        }
+        return c.args();
     }
     private String binaryCode(Expr.Binary b, boolean inLambda) {
         final var left = compared(b, b.left(), exprIn(b.left(), inLambda));
@@ -2510,6 +2525,19 @@ import org.axl.compiler.check.Whens;
                 source instanceof Expr.GenericNew source$5 ||
                 source instanceof Expr.Literal source$6;
         return (simple ? code : "(" + code + ")");
+    }
+    private static Expr widened(Expr e, @Nullable TypeRef target) {
+        final var name = (target == null ? "" : target.name());
+        if (!name.equals("Long") && !name.equals("Double")) {
+            return e;
+        }
+        if (e instanceof Expr.Unary e$1 && e$1.op().equals("-")) {
+            return new Expr.Unary(e$1.pos(), e$1.op(), widened(e$1.operand(), target));
+        }
+        if (!(e instanceof Expr.Literal e$2) || !e$2.text().matches("[0-9][0-9_]*")) {
+            return e;
+        }
+        return new Expr.Literal(e$2.pos(), e$2.text() + ((name.equals("Long") ? "L" : ".0")));
     }
     private static String literal(String text) {
         if (!text.contains("\\u") || !(text.startsWith("\"") || text.startsWith("'"))) {

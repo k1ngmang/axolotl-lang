@@ -457,8 +457,8 @@ class Generator(
 
     private fn localStatement(local: Stmt.Local) {
         val line = local.pos().line()
-        val init = local.init()
         val declared = local.type()
+        val init = widened(local.init(), declared)
         val modifiers = if (local.mutable()) "" else "final "
         val typeCode = if (declared == null) "var" else javaType(declared)
         val whole = withoutParens(init)
@@ -515,7 +515,7 @@ class Generator(
             return
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), { ->
-            em.line(line, "return " + valueCode(line, value, returnType) + ";")
+            em.line(line, "return " + valueCode(line, widened(value, resultTypeRef), returnType) + ";")
         })
     }
 
@@ -1264,7 +1264,24 @@ class Generator(
         if (target != null) {
             return chainCode(Chains.flatten(c), inLambda)
         }
-        return callCode(c, argsCode(c.args(), inLambda, c.pos().line()))
+        return callCode(c, argsCode(widenedArgs(c), inLambda, c.pos().line()))
+    }
+
+    /** `f(5)` for `fn f(x: Long?)`: Java boxes the 5 as an Integer, which is no Long. */
+    private fn widenedArgs(c: Expr.Call) -> List<Expr> {
+        for (decl in file.decls()) {
+            if (decl is Decl.Function && decl.name().equals(c.name()) && decl.params().size() == c.args().size()) {
+                val params = decl.params()
+                val args = ArrayList<Expr>()
+                var i = 0
+                while (i < params.size()) {
+                    args.add(widened(c.args().get(i), params.get(i).type()))
+                    i += 1
+                }
+                return args
+            }
+        }
+        return c.args()
     }
 
     private fn binaryCode(b: Expr.Binary, inLambda: Boolean) -> String {
@@ -2754,6 +2771,21 @@ private fn parenthesized(code: String, source: Expr) -> String {
  * javac turns unicode escapes into their characters before it reads anything else, so an escaped
  * quote would end the string there. In a string or character literal it becomes an ordinary escape.
  */
+/** An Int literal stored as a `Long` or `Double`, which Java widens only to the primitive, as `5L` or `5.0`. */
+private fn widened(e: Expr, target: TypeRef?) -> Expr {
+    val name = if (target == null) "" else target.name()
+    if (!name.equals("Long") && !name.equals("Double")) {
+        return e
+    }
+    if (e is Expr.Unary && e.op().equals("-")) {
+        return Expr.Unary(e.pos(), e.op(), widened(e.operand(), target))
+    }
+    if (e !is Expr.Literal || !e.text().matches("[0-9][0-9_]*")) {
+        return e
+    }
+    return Expr.Literal(e.pos(), e.text() + (if (name.equals("Long")) "L" else ".0"))
+}
+
 private fn literal(text: String) -> String {
     if (!text.contains("\\u") || !(text.startsWith("\"") || text.startsWith("'"))) {
         return text

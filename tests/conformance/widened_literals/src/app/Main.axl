@@ -1,0 +1,17 @@
+package app
+
+fn orZero(x: Long?) -> Long = x ?: 0L
+
+fn half(x: Double?) -> Double = (x ?: 0.0) / 2
+
+fn seven() -> Long? = 7
+
+fn main() {
+    val a: Long? = 5
+    val b: Double? = -3
+    println(a)
+    println(b)
+    println(orZero(5) + orZero(null))
+    println(half(3))
+    println(seven())
+}
