@@ -18,6 +18,9 @@ download Error Prone, NullAway and their other dependencies from Maven Central.
 | Debian 12+, Ubuntu 22.04+ | `axolotl-<version>-linux-amd64.deb` | `sudo apt install ./axolotl-<version>-linux-amd64.deb` |
 | Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root, or into the directory `AXL_HOME` names. |
 
+Step-by-step guides to the installation and the `axl` commands, as PDF in English and Russian, are in
+[`docs/guides`](https://github.com/succubus-uwu/axolotl/tree/main/docs/guides) and on the release page.
+
 Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another
 user. It follows a `localRepository` in `~/.m2/settings.xml` and a `-Dmaven.repo.local` in
 `MAVEN_OPTS`; `axl setup --repository <dir>` names the repository directly. The installers run
