@@ -36,9 +36,10 @@ final class ModuleCompiler {
 
     /**
      * documents: every .axl file of the module, already translated. standIns: by URI, the Java
-     * compiled for documents that do not translate, whose own errors are the translator's.
+     * compiled for documents that do not translate, whose own errors are the translator's. One at a
+     * time: a save and a change on disk can start two, which would clean each other's directories.
      */
-    Map<String, List<AxlDiagnostic>> compile(Module module, List<Document> documents, Map<String, GeneratedUnit> standIns)
+    synchronized Map<String, List<AxlDiagnostic>> compile(Module module, List<Document> documents, Map<String, GeneratedUnit> standIns)
             throws IOException {
         try {
             return compileIn(module, documents, standIns);
