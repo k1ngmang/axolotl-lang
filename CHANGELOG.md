@@ -174,3 +174,14 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
 - Compiler: warnings about `?.` and `!!` on values that are never null, null checks that cannot fail, `var`s never assigned again and Kotlin string templates; explanations of habits from Java, Kotlin, TypeScript and Python, misspelled builtin words and misplaced code; Error Prone findings worded without Java terms. Strict mode keeps the elements and type arguments of unannotated Java nullable, nullable arguments to JDK methods that throw on null are rejected, and only locals, parameters and `val` properties are narrowed after a null check. `if` and `when` values with branches of different basic types, raw generic types and strings too long for a Java constant are rejected; `else if` chains parse in linear time.
 - Build: the project builds with Gradle 9.8.1 and IntelliJ Platform Gradle Plugin 2.19.0, and the published Gradle plugin still supports Gradle 8.5. The wrappers check the SHA-256 of the Gradle and Maven distributions. With `-q` the Maven builds are quiet too.
 - Workflows: CI reports every failing task, uploads the test reports and checks that every file has the version of the build. Version tags publish a GitHub release with the zip, the VS Code and IntelliJ packages and the installers, after checking that the tag is new and is the version of the build and running `./gradlew check`; the packages are built in a job without write access. The installers are built and tried on each system for pull requests, releases and once a week, and the Linux ones on every push to main too; the `.deb` is also installed on Debian 12 and Ubuntu 22.04.
+- Seventh audit:
+  - Initialization order follows methods called on locals, loop variables, pipe elements, list elements, stored method references and the `toString` of `"x" + box`.
+  - `p.x` on a data class and private members are closed within the same file too.
+  - Java's names `int`, `boolean` and `void` are rejected, and `Integer` gets a warning. `record` is allowed as a name.
+  - A raw value from Java code, or after `o is List`, cannot be stored as `List<String>`.
+  - A `when` over an `Int?` no longer unboxes null in its `else` branch.
+  - `==` compares numbers from `?:`, `try` and `!!` by value.
+  - Int literals are widened for `Long?` and `Double?`.
+  - `Ok`/`Err` branches in `else if` chains, `mapResult` and `map` lambdas get their types.
+  - Long `?:` chains and deeply nested `if` values compile in linear time.
+  - The language server compiles one module at a time.
