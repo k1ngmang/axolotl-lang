@@ -19,6 +19,17 @@ fn nestedUntyped(c: Boolean, d: Boolean, s: String?) {
     println(v)
 }
 
+fn javaBranch(k: Int, s: String?) {
+    val v = if (k == 1) Math.abs(-1) else s?.length()
+    println(v)
+    val w = when (k) {
+        1 -> "ab".length()
+        else -> s?.length()
+    }
+    println(w)
+    println((if (k == 1) (if (s == null) Math.abs(-3) else 2) else s?.length()) ?: 5)
+}
+
 fn main() {
     println(next(true, null, 1))
     println(next(false, null, 1))
@@ -29,4 +40,6 @@ fn main() {
     chosen(2, null, 1)
     nestedUntyped(false, true, null)
     nestedUntyped(true, false, null)
+    javaBranch(1, null)
+    javaBranch(2, null)
 }

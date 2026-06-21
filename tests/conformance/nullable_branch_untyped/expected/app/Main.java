@@ -21,8 +21,18 @@ import org.jspecify.annotations.*;
         System.out.println(r);
     }
     public static void nestedUntyped(boolean c, boolean d, @Nullable String s) {
-        final var v = (c ? Integer.valueOf(((d ? 42 : 3))) : Nulls.map(s, $n1 -> $n1.length()));
+        final var v = (c ? Integer.valueOf(((d ? 42 : 3))) : Nulls.box(Nulls.map(s, $n1 -> $n1.length())));
         System.out.println(v);
+    }
+    public static void javaBranch(int k, @Nullable String s) {
+        final var v = (k == 1 ? Nulls.box(Math.abs(-1)) : Nulls.box(Nulls.map(s, $n1 -> $n1.length())));
+        System.out.println(v);
+        final var w = switch (k) {
+            case 1 -> Nulls.box("ab".length());
+            default -> Nulls.box(Nulls.map(s, $n2 -> $n2.length()));
+        };
+        System.out.println(w);
+        System.out.println(Nulls.or(((k == 1 ? Nulls.box(((s == null ? Math.abs(-3) : Integer.valueOf(2)))) : Nulls.box(Nulls.map(s, $n3 -> $n3.length())))), 5));
     }
     public static void main(String[] args) {
         System.out.println(next(true, null, 1));
@@ -34,5 +44,7 @@ import org.jspecify.annotations.*;
         chosen(2, null, 1);
         nestedUntyped(false, true, null);
         nestedUntyped(true, false, null);
+        javaBranch(1, null);
+        javaBranch(2, null);
     }
 }

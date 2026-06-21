@@ -1269,7 +1269,7 @@ class Generator(
             }
             // It may be an int, such as `k + 1` or a Java call: boxing it keeps Java from unboxing a
             // branch written to hold null.
-            val nullable = branches |> anyMatch { b -> typedNullable(b) }
+            val nullable = branches |> anyMatch { b -> holdsNull(b) }
             val inner = withoutParens(branch)
             val plain = inner is Expr.Literal || inner is Expr.Lambda || inner is Expr.MethodRef
             return if (nullable && !plain) "Nulls.box(" + code + ")" else code
@@ -1333,6 +1333,21 @@ class Generator(
             }
         }
         return widest
+    }
+
+    /**
+     * Whether a branch is written to hold a null that Java would unbox: a nullable type, a `?.` chain or
+     * a `?:` ending in one. Next to a `null` literal Java boxes the other branch itself.
+     */
+    private fn holdsNull(e: Expr) -> Boolean {
+        val inner = withoutParens(e)
+        if (inner is Expr.Elvis) {
+            return holdsNull(inner.right())
+        }
+        if (inner is Expr.Conditional) {
+            return holdsNull(inner.then()) || holdsNull(inner.otherwise())
+        }
+        return typedNullable(inner) || Chains.hasSafeStep(inner)
     }
 
     private fn typedNullable(e: Expr) -> Boolean {

@@ -1133,7 +1133,7 @@ import org.axl.compiler.check.Whens;
             if (wider != null && mayBeNull(branch)) {
                 return "Nulls.to" + wider + "(" + code + ")";
             }
-            final var nullable = branches.stream().anyMatch(b -> typedNullable(b));
+            final var nullable = branches.stream().anyMatch(b -> holdsNull(b));
             final var inner = withoutParens(branch);
             final var plain = inner instanceof Expr.Literal inner$1 || inner instanceof Expr.Lambda inner$2 || inner instanceof Expr.MethodRef inner$3;
             return (nullable && !plain ? "Nulls.box(" + code + ")" : code);
@@ -1185,6 +1185,16 @@ import org.axl.compiler.check.Whens;
             }
         }
         return widest;
+    }
+    private boolean holdsNull(Expr e) {
+        final var inner = withoutParens(e);
+        if (inner instanceof Expr.Elvis inner$1) {
+            return holdsNull(inner$1.right());
+        }
+        if (inner instanceof Expr.Conditional inner$2) {
+            return holdsNull(inner$2.then()) || holdsNull(inner$2.otherwise());
+        }
+        return typedNullable(inner) || Chains.hasSafeStep(inner);
     }
     private boolean typedNullable(Expr e) {
         final var type = typeOf(e);
