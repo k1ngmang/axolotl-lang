@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Tag to create and release, such as v0.1.1
+        description: Tag to create and release, such as v0.2.0
         required: true
 
 permissions:

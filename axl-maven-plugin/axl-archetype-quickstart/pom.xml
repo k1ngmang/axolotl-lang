@@ -6,7 +6,7 @@
 
   <groupId>org.axl</groupId>
   <artifactId>axl-archetype-quickstart</artifactId>
-  <version>0.1.1</version>
+  <version>0.2.0</version>
   <packaging>maven-archetype</packaging>
 
   <name>Axolotl quickstart archetype</name>

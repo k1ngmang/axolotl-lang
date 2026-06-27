@@ -2,11 +2,11 @@
 
 ## Installers
 
-The installers come with the next release, 0.1.1. Release 0.1.0 has the `axl` zip, which needs Java
+The installers come with the next release, 0.2.0. Release 0.1.0 has the `axl` zip, which needs Java
 21 and has no `axl setup`, and the VS Code and IntelliJ plugins; with it, build the Gradle and Maven
 plugins [from source](#from-source).
 
-From 0.1.1 on, the release page has an installer for each system. Each one brings its own Java
+From 0.2.0 on, the release page has an installer for each system. Each one brings its own Java
 runtime, puts `axl` on the `PATH` and runs `axl setup`, which copies the Axolotl libraries and the Maven and Gradle
 plugins into `~/.m2/repository`. Maven and Gradle projects then find Axolotl there; they still
 download Error Prone, NullAway and their other dependencies from Maven Central.
@@ -69,7 +69,7 @@ dependencyResolutionManagement {
 // build.gradle.kts
 plugins {
     java
-    id("org.axl.lang") version "0.1.1"
+    id("org.axl.lang") version "0.2.0"
 }
 ```
 
@@ -91,7 +91,7 @@ The quickest start is then the archetype:
 
 ```
 mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-archetype-quickstart \
-    -DarchetypeVersion=0.1.1 -DgroupId=org.example -DartifactId=demo -Dpackage=org.example.demo
+    -DarchetypeVersion=0.2.0 -DgroupId=org.example -DartifactId=demo -Dpackage=org.example.demo
 ```
 
 For an existing project, copy the configuration from
@@ -138,7 +138,7 @@ release page with *Settings | Plugins | Install Plugin from Disk*. To build it f
 ./gradlew :axl-intellij:buildPlugin
 ```
 
-The plugin is then `axl-intellij/build/distributions/axl-intellij-0.1.1.zip`. Gradle and Maven
+The plugin is then `axl-intellij/build/distributions/axl-intellij-0.2.0.zip`. Gradle and Maven
 projects are recognized on import. See [the IntelliJ plugin](intellij.md).
 
 ## VS Code and other editors
@@ -148,7 +148,7 @@ from source, which needs Node.js:
 
 ```
 ./gradlew :axl-lsp:vsix
-code --install-extension editors/vscode/axolotl-0.1.1.vsix
+code --install-extension editors/vscode/axolotl-0.2.0.vsix
 ```
 
 The extension starts the language server with the JDK from the `axl.java.home` setting,

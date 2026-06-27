@@ -159,14 +159,14 @@ A fourth audit checked the new language features, the self-hosted compiler, the 
 
 Left as they are: mixing `Int?` and `Long?` branches in one value, `Int? ?: 0L`, and `var x = when` with lambdas in the branches (the message asks for the type).
 
-## Unreleased (0.1.1)
+## Unreleased (0.2.0)
 
 Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and the VS Code and IntelliJ plugins.
 
 - Installers that bring their own Java runtime and put `axl` on the `PATH`: a setup program for Windows, a `.pkg` for macOS, a `.deb` for Debian 12 and Ubuntu 22.04 or newer and a tarball with `install.sh` for other Linux systems. The runtime has every module of Java SE, so code that uses `java.awt` or `java.beans` compiles and runs, and the `.deb` depends on the X11, ALSA and font libraries; `/usr/bin/axl` is registered with `update-alternatives`. The runtime keeps the line tables of the JDK, so stack traces show `Objects.java:233` rather than `Unknown Source`. See `docs/install.md`.
 - `axl setup` copies the libraries and the Maven and Gradle plugins that come with `axl` into the local Maven repository, the one named by `-Dmaven.repo.local` or `~/.m2/settings.xml` if set. The installers run it, and the `axl` zip carries the repository too. A blank `--repository` is rejected, and the repository is printed as an absolute path.
 - Every `axl` command takes `--help` and `--version`, and `axl help <command>` describes one. `axl run` says that `fn main` takes no parameters when it has some; the program reads `args`.
-- Version 0.1.1 in the build, the POMs, the samples and the documentation. `axl --version` and the language server take their version from the build.
+- Version 0.2.0 in the build, the POMs, the samples and the documentation. `axl --version` and the language server take their version from the build.
 - On a non-UTF-8 locale, a missing file in a directory with non-ASCII characters is reported with the same locale hint as an invalid path.
 - Windows: `.axl` paths of javac errors are printed as file paths, IntelliJ starts the language server, and the Gradle and Maven plugin tests accept long and URI-style paths.
 - Module descriptions: `axlLspConfig` writes a module for each source set, which reads the sources of the source sets and projects it compiles against instead of their classes but keeps its own classpath, and `axl:lsp-config` writes a main and a test module. `axl.json` now holds a list of `"modules"`, so run the task again after upgrading.
@@ -185,3 +185,4 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - `Ok`/`Err` branches in `else if` chains, `mapResult` and `map` lambdas get their types.
   - Long `?:` chains and deeply nested `if` values compile in linear time.
   - The language server compiles one module at a time.
+- Language: annotations (`@Test fn ...`, `@Marker(x = 1) data class ...`), which go into the generated Java as they are, so JUnit tests, Jackson and JPA records and Spring entry points can be written in Axolotl; class literals `String.class` (`Int.class` is `Integer.class`); the type argument `*` for Java's `?`. `@Nullable` is rejected in favor of `T?`.

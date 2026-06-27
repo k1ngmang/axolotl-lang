@@ -174,7 +174,7 @@ def build(version, system, language, out_dir):
 
 
 def main():
-    version = sys.argv[1] if len(sys.argv) > 1 else "0.1.1"
+    version = sys.argv[1] if len(sys.argv) > 1 else "0.2.0"
     register_fonts()
     out_dir = Path(__file__).resolve().parents[2] / "docs" / "guides"
     out_dir.mkdir(parents=True, exist_ok=True)

@@ -1,3 +1,3 @@
 plugins {
-    id("org.axl.lang") version "0.1.1" apply false
+    id("org.axl.lang") version "0.2.0" apply false
 }
