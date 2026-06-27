@@ -1,2 +1,2 @@
-AXL001 app/Main.axl:5:32: error: `throw` can stand as a statement or as a branch of a `when`, not inside an expression
+AXL001 app/Main.axl:5:32: error: `throw` can stand as a statement, as a branch of a `when` or as the handler of an `attempt`, not inside an expression
 AXL006 app/Main.axl:8:24: error: `try` cannot be used in an `if` that gives a value; write an `if` statement

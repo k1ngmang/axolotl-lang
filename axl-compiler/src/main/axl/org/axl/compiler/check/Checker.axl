@@ -747,8 +747,8 @@ class Checker(val file: SourceFile) {
             }
             is Expr.Throw -> {
                 if (!allowedThrows.contains(e)) {
-                    error(e.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
-                        "not inside an expression")
+                    error(e.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement, as a branch of a `when` or as " +
+                        "the handler of an `attempt`, not inside an expression")
                 }
                 expr(e.value())
             }
@@ -823,6 +823,10 @@ class Checker(val file: SourceFile) {
         val errorPos = e.errorNamePos()
         if (errorName != null && errorPos != null) {
             declare(errorPos, errorName, Kind.PARAM, null)
+        }
+        val handler = unparenthesized(e.handler())
+        if (handler is Expr.Throw) {
+            allowedThrows.add(handler)
         }
         expr(e.handler())
         pop()

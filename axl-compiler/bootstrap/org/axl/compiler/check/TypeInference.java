@@ -77,6 +77,9 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.ClassLiteral expr$13 -> {
                 return classOf(expr$13);
             }
+            case Expr.Attempt expr$14 -> {
+                return (throwsInstead(expr$14) ? Nulls.box(of(expr$14.body())) : resultOf(of(expr$14.body()), of(expr$14.handler()), expr$14.pos()));
+            }
             default -> {
                 return null;
             }
@@ -206,5 +209,17 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static TypeRef simple(String name, Pos pos) {
         return new TypeRef(pos, name, new ArrayList<TypeRef>(), false);
+    }
+    private static @Nullable TypeRef resultOf(@Nullable TypeRef value, @Nullable TypeRef error, Pos pos) {
+        if (value == null || error == null) {
+            return null;
+        }
+        return new TypeRef(pos, "Result", List.of(value, error), false);
+    }
+    private static boolean throwsInstead(Expr.Attempt a) {
+        return isThrow(a.handler());
+    }
+    private static boolean isThrow(Expr e) {
+        return e instanceof Expr.Throw e$1 || (e instanceof Expr.Paren e$2 && isThrow(e$2.inner()));
     }
 }

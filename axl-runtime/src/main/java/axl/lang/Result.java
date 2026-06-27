@@ -8,6 +8,10 @@ public sealed interface Result<T extends @Nullable Object, E extends @Nullable O
     static <T extends @Nullable Object, E extends @Nullable Object> Result<T, E> attempt(ThrowingSupplier<T> x, Function<Exception, E> y) {
         try { return new Ok<>(x.get()); } catch (Exception ex) { return new Err<>(y.apply(ex)); }
     }
+    // `attempt X else e -> throw Y`: the value of X, or Y thrown instead of an Err.
+    static <T extends @Nullable Object> T orThrow(ThrowingSupplier<T> x, Function<Exception, ? extends RuntimeException> y) {
+        try { return x.get(); } catch (Exception ex) { throw y.apply(ex); }
+    }
     default boolean isErr() { return this instanceof Err; }
     // Converts the error, so that `try` works where the function returns another error type.
     default <F extends @Nullable Object> Result<T, F> mapErr(Function<? super E, ? extends F> f) {

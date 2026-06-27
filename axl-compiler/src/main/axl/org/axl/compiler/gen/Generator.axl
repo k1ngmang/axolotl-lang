@@ -1538,6 +1538,10 @@ class Generator(
     private fn attemptCode(a: Expr.Attempt) -> String {
         val errorName = a.errorName()
         val error = if (errorName != null) errorName else "$ex" + nextException()
+        val handler = withoutParens(a.handler())
+        if (handler is Expr.Throw) {
+            return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler.value(), true) + ")"
+        }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")"
     }
 

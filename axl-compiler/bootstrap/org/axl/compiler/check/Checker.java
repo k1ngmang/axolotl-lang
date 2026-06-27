@@ -702,8 +702,8 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Expr.Throw e$14 -> {
                 if (!allowedThrows.contains(e$14)) {
-                    error(e$14.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
-                            "not inside an expression");
+                    error(e$14.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement, as a branch of a `when` or as " +
+                            "the handler of an `attempt`, not inside an expression");
                 }
                 expr(e$14.value());
             }
@@ -786,6 +786,10 @@ import org.axl.compiler.ast.TypeRef;
         final var errorPos = e.errorNamePos();
         if (errorName != null && errorPos != null) {
             declare(errorPos, errorName, Kind.PARAM, null);
+        }
+        final var handler = unparenthesized(e.handler());
+        if (handler instanceof Expr.Throw handler$1) {
+            allowedThrows.add(handler$1);
         }
         expr(e.handler());
         pop();

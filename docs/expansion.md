@@ -27,6 +27,7 @@ always gives byte-for-byte the same output.
 | `f(a?.m())` | `final var $t1 = Nulls.map(a, $n1 -> $n1.m()); f($t1)`; where no statement can go, `f(Nulls.typed(Nulls.map(...)).value())` |
 | `a?.m()` as a statement | `final var $n1 = a; if ($n1 != null) { $n1.m(); }` |
 | `attempt X else e -> Y` | `Result.attempt(() -> X, e -> Y)`; without a name the parameter is `$ex1` |
+| `attempt X else e -> throw Y` | `Result.orThrow(() -> X, e -> Y)`: the value of `X`, or `Y` thrown |
 | `val x = try r` | `final var $t1 = r; if ($t1.isErr()) return Result.propagate($t1); final var x = Result.unwrap($t1);` |
 | `try r` as a statement | the same without the last declaration |
 | `f(a(), try r, b())` | `final var $t1 = a(); final var $t2 = r; if ($t2.isErr()) return Result.propagate($t2); f($t1, Result.unwrap($t2), b())` |

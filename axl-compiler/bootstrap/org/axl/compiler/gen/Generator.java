@@ -1358,6 +1358,10 @@ import org.axl.compiler.check.Whens;
     private String attemptCode(Expr.Attempt a) {
         final var errorName = a.errorName();
         final var error = (errorName != null ? errorName : "$ex" + nextException());
+        final var handler = withoutParens(a.handler());
+        if (handler instanceof Expr.Throw handler$1) {
+            return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler$1.value(), true) + ")";
+        }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")";
     }
     private int nextException() {

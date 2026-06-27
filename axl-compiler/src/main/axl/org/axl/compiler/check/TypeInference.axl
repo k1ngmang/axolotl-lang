@@ -50,6 +50,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
         is Expr.Conditional -> common(of(expr.then()), of(expr.otherwise()))
         is Expr.Try -> okType(of(expr.inner()))
         is Expr.ClassLiteral -> classOf(expr)
+        is Expr.Attempt -> if (throwsInstead(expr)) of(expr.body()) else resultOf(of(expr.body()), of(expr.handler()), expr.pos())
         else -> null
     }
 
@@ -193,3 +194,16 @@ private fn nonNull(type: TypeRef?) -> TypeRef? =
     if (type == null) null else TypeRef(type.pos(), type.name(), type.args(), false)
 
 private fn simple(name: String, pos: Pos) -> TypeRef = TypeRef(pos, name, ArrayList<TypeRef>(), false)
+
+/** `attempt X else Y` is a `Result<T, E>` when the types of `X` and `Y` are known. */
+private fn resultOf(value: TypeRef?, error: TypeRef?, pos: Pos) -> TypeRef? {
+    if (value == null || error == null) {
+        return null
+    }
+    return TypeRef(pos, "Result", List.of(value, error), false)
+}
+
+/** `attempt X else e -> throw Y` has the type of `X`. */
+private fn throwsInstead(a: Expr.Attempt) -> Boolean = isThrow(a.handler())
+
+private fn isThrow(e: Expr) -> Boolean = e is Expr.Throw || (e is Expr.Paren && isThrow(e.inner()))

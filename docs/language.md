@@ -286,6 +286,10 @@ fn doubled(s: String) -> Result<Int, String> {
 
 - `attempt X else e -> Y` runs `X`; an `Exception` becomes `Err(Y)`. Without a name the exception
   is not available: `attempt X else Y`.
+- `attempt X else e -> throw Y` gives the value of `X` itself, not a `Result`: a failure of `X` is
+  a bug here, so `Y`, a `RuntimeException`, is thrown instead. This is how a Java method that
+  declares a checked exception is called where no `Result` is wanted, such as in a test:
+  `val response = attempt client.send(request, handler) else e -> throw IllegalStateException(e)`.
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
   `Result`. The error types must match; convert them first with `mapErr`:
   `try parse(s).mapErr({ code -> "error " + code })`.

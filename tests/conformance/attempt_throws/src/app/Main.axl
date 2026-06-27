@@ -1,0 +1,22 @@
+package app
+
+import java.nio.file.Files
+import java.nio.file.Path
+
+fn size(path: String) -> Long = attempt Files.size(Path.of(path)) else e -> throw IllegalStateException("no " + path, e)
+
+fn safeSize(path: String) -> Long {
+    val caught = attempt size(path) else e -> "failed: " + e.getMessage()
+    return when (caught) {
+        is Ok -> caught.value()
+        is Err -> -1L
+    }
+}
+
+fn main() {
+    val n: Int = attempt Integer.parseInt("7") else e -> throw RuntimeException(e)
+    println(n + 1)
+    val parsed = attempt Integer.parseInt("8") else throw IllegalStateException("unparsable")
+    println(parsed * 2)
+    println(safeSize("/nowhere"))
+}
