@@ -186,3 +186,4 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - Long `?:` chains and deeply nested `if` values compile in linear time.
   - The language server compiles one module at a time.
 - Language: annotations (`@Test fn ...`, `@Marker(x = 1) data class ...`), which go into the generated Java as they are, so JUnit tests, Jackson and JPA records and Spring entry points can be written in Axolotl; class literals `String.class` (`Int.class` is `Integer.class`); the type argument `*` for Java's `?`. `@Nullable` is rejected in favor of `T?`.
+- Language: `attempt X else e -> throw Y` gives the value of `X` and throws `Y` when it fails, for checked exceptions where no `Result` is wanted.
