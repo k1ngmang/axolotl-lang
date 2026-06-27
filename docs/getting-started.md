@@ -167,7 +167,7 @@ Add JUnit to `build.gradle.kts`:
 
 ```kotlin
 dependencies {
-    testImplementation(platform("org.junit:junit-bom:5.13.4"))
+    testImplementation(platform("org.junit:junit-bom:5.14.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -177,26 +177,29 @@ tasks.test {
 }
 ```
 
-and a test in `src/test/java/app/PortsTest.java`:
+and a test in `src/test/axl/app/PortsTest.axl`. A class whose methods carry `@Test` is a JUnit test
+class, and the assertions are imported as functions:
 
-```java
-package app;
+```axl
+package app
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-import axl.lang.Ok;
-import org.junit.jupiter.api.Test;
+import fn org.junit.jupiter.api.Assertions.assertEquals
+import fn org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 
 class PortsTest {
     @Test
-    void parsesPorts() {
-        assertEquals(new Ok<>(8080), Ports.parsePort(" 8080 "));
+    fn parsesPorts() {
+        assertEquals(Ok(8080), Ports.parsePort(" 8080 "))
+        assertTrue(Ports.parsePort("x") is Err)
     }
 }
 ```
 
 `./gradlew test` runs it. When a test fails inside Axolotl code, the stack trace shows `.axl`
-lines.
+lines. A Java method that declares a checked exception is called in a test as
+`attempt client.send(request, handler) else e -> throw IllegalStateException(e)`, which gives its
+value and fails the test if it throws.
 
 ## Next steps
 
