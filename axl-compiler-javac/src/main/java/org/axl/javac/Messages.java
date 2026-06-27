@@ -888,13 +888,17 @@ final class Messages {
             return text.contains("Result.attempt(") ? throwsIt + "; `attempt` catches it only around a call that returns a value"
                     : throwsIt + ", which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`";
         }
+        if (message.equals("static methods cannot be annotated with @Override")) {
+            return "`@Override` goes on a method of a class that overrides one, such as `toString`; a function of a file overrides nothing";
+        }
         if (message.equals("unreachable statement")) {
             return "this statement is never run: the code before it always returns, throws or loops forever; remove it";
         }
         Matcher noPackage = NO_PACKAGE.matcher(message);
         if (noPackage.find()) {
             return noPackage.group(1).startsWith("kotlin") ? "Axolotl uses Java's library, not Kotlin's; import Java's "
-                    + "classes, such as `java.util.List`" : "unknown package `" + noPackage.group(1) + "`; check the spelling";
+                    + "classes, such as `java.util.List`" : "unknown package `" + noPackage.group(1) + "`; check the spelling, or "
+                    + "add the library that has it: a dependency of the build, or `-cp` on the command line";
         }
         Matcher importedTwice = IMPORTED_TWICE.matcher(message);
         if (importedTwice.find()) {
