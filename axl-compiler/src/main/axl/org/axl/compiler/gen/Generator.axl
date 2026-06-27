@@ -1234,6 +1234,7 @@ class Generator(
         is Expr.Call -> callExpr(e, inLambda)
         is Expr.GenericNew -> genericNew(e, argsCode(e.args(), inLambda, e.pos().line()))
         is Expr.MethodRef -> exprIn(e.target(), inLambda) + "::" + e.name()
+        is Expr.ClassLiteral -> classLiteral(e)
         is Expr.NotNull -> "java.util.Objects.requireNonNull(" + exprIn(e.target(), inLambda) + ")"
         is Expr.Unary -> unary(e.op(), exprIn(e.operand(), inLambda))
         is Expr.Binary -> binaryCode(e, inLambda)
@@ -1858,6 +1859,7 @@ class Generator(
             is Expr.Member -> chainLifted(line, Chains.flatten(e))
             is Expr.GenericNew -> Lifted(genericNew(e, codes(operands(line, e.args()))), false)
             is Expr.MethodRef -> Lifted(lifted(line, e.target()).code() + "::" + e.name(), false)
+            is Expr.ClassLiteral -> Lifted(classLiteral(e), false)
             is Expr.NotNull -> Lifted("java.util.Objects.requireNonNull(" + lifted(line, e.target()).code() + ")", false)
             is Expr.Pipe -> pipeLifted(line, e)
             is Expr.Conditional -> Lifted(conditional(withNullTests(lifted(line, e.condition()).code(), e.condition()), e, false), false)
@@ -2026,12 +2028,19 @@ class Generator(
         return String.join(", ", texts)
     }
 
+    /** `Int.class` is `Integer.class`: the primitive classes are never what a Java API wants. */
+    private fn classLiteral(e: Expr.ClassLiteral) -> String {
+        val name = Expr.pathName(e.target()) ?: "Object"
+        return boxedType(TypeRef(e.pos(), name, List.of(), false)) + ".class"
+    }
+
     /** Values that no call can change: literals, lambdas and the file's own names. */
     private fn isPure(e: Expr) -> Boolean = when (e) {
         is Expr.Literal -> true
         is Expr.Name -> analysis.stableNames().contains(e) || analysis.staticNames().contains(e)
         is Expr.Lambda -> true
         is Expr.MethodRef -> isPure(e.target()) || isPath(e.target())
+        is Expr.ClassLiteral -> true
         is Expr.Paren -> isPure(e.inner())
         is Expr.Call -> isPureResult(e)
         else -> false

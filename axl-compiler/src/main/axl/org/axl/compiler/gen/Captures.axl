@@ -36,6 +36,7 @@ class Captures(val analysis: Analysis) {
             }
             is Expr.GenericNew -> visitAll(expr.args(), inLambda)
             is Expr.MethodRef -> visit(expr.target(), inLambda)
+            is Expr.ClassLiteral -> { }
             is Expr.NotNull -> visit(expr.target(), inLambda)
             is Expr.Unary -> visit(expr.operand(), inLambda)
             is Expr.Binary -> {

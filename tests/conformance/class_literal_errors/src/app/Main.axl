@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val x = "a"
+    println(x.class)
+    println("x".getClass().class)
+}

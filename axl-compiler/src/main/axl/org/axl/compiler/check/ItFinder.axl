@@ -26,6 +26,7 @@ fn usesIt(expr: Expr) -> Boolean = when (expr) {
     is Expr.Call -> (expr.target() != null && usesIt(expr.target()!!)) || expr.args().stream().anyMatch({ usesIt(it) })
     is Expr.GenericNew -> expr.args().stream().anyMatch({ usesIt(it) })
     is Expr.MethodRef -> usesIt(expr.target())
+    is Expr.ClassLiteral -> false
     is Expr.NotNull -> usesIt(expr.target())
     is Expr.Unary -> usesIt(expr.operand())
     is Expr.Binary -> usesIt(expr.left()) || usesIt(expr.right())

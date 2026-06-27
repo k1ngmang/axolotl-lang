@@ -659,68 +659,71 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.MethodRef e$6 -> {
                 expr(e$6.target());
             }
-            case Expr.NotNull e$7 -> {
-                if (isNull(e$7.target())) {
-                    diagnostics.add(AxlDiagnostic.warning(file.path(), e$7.pos().line(), e$7.pos().column(), ErrorCode.UNNEEDED,
+            case Expr.ClassLiteral e$7 -> {
+                classLiteral(e$7);
+            }
+            case Expr.NotNull e$8 -> {
+                if (isNull(e$8.target())) {
+                    diagnostics.add(AxlDiagnostic.warning(file.path(), e$8.pos().line(), e$8.pos().column(), ErrorCode.UNNEEDED,
                             "`null!!` always fails; throw an exception that says what went wrong instead"));
                 }
-                warnNeverNull(e$7.target(), "remove `!!`");
-                expr(e$7.target());
+                warnNeverNull(e$8.target(), "remove `!!`");
+                expr(e$8.target());
             }
-            case Expr.Unary e$8 -> {
-                expr(e$8.operand());
+            case Expr.Unary e$9 -> {
+                expr(e$9.operand());
             }
-            case Expr.Binary e$9 -> {
-                nullComparison(e$9);
-                expr(e$9.left());
-                expr(e$9.right());
-            }
-            case Expr.Elvis e$10 -> {
-                warnNeverNull(e$10.left(), "remove `?:` and its fallback");
+            case Expr.Binary e$10 -> {
+                nullComparison(e$10);
                 expr(e$10.left());
                 expr(e$10.right());
             }
-            case Expr.Is e$11 -> {
-                expr(e$11.target());
+            case Expr.Elvis e$11 -> {
+                warnNeverNull(e$11.left(), "remove `?:` and its fallback");
+                expr(e$11.left());
+                expr(e$11.right());
             }
-            case Expr.Conditional e$12 -> {
-                expr(e$12.condition());
-                checkBranchTypes(e$12.pos(), "`if`", List.of(e$12.then(), e$12.otherwise()));
-                checkAllNull(e$12.pos(), "`if`", List.of(e$12.then(), e$12.otherwise()));
+            case Expr.Is e$12 -> {
+                expr(e$12.target());
+            }
+            case Expr.Conditional e$13 -> {
+                expr(e$13.condition());
+                checkBranchTypes(e$13.pos(), "`if`", List.of(e$13.then(), e$13.otherwise()));
+                checkAllNull(e$13.pos(), "`if`", List.of(e$13.then(), e$13.otherwise()));
                 conditionalDepth = conditionalDepth + 1;
-                expr(e$12.then());
-                expr(e$12.otherwise());
+                expr(e$13.then());
+                expr(e$13.otherwise());
                 conditionalDepth = conditionalDepth - 1;
             }
-            case Expr.Throw e$13 -> {
-                if (!allowedThrows.contains(e$13)) {
-                    error(e$13.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
+            case Expr.Throw e$14 -> {
+                if (!allowedThrows.contains(e$14)) {
+                    error(e$14.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement or as a branch of a `when`, " +
                             "not inside an expression");
                 }
-                expr(e$13.value());
+                expr(e$14.value());
             }
-            case Expr.When e$14 -> {
-                whenExpr(e$14);
+            case Expr.When e$15 -> {
+                whenExpr(e$15);
             }
-            case Expr.Paren e$15 -> {
-                expr(e$15.inner());
-            }
-            case Expr.Try e$16 -> {
-                checkTryPlace(e$16.pos(), "`try`");
-                if (buildsResult(e$16.inner())) {
-                    error(e$16.pos(), ErrorCode.TYPE_REQUIRED, "`try` needs the type of these `Ok` and `Err` branches: " +
-                            "compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`");
-                }
+            case Expr.Paren e$16 -> {
                 expr(e$16.inner());
             }
-            case Expr.Attempt e$17 -> {
-                attemptExpr(e$17);
+            case Expr.Try e$17 -> {
+                checkTryPlace(e$17.pos(), "`try`");
+                if (buildsResult(e$17.inner())) {
+                    error(e$17.pos(), ErrorCode.TYPE_REQUIRED, "`try` needs the type of these `Ok` and `Err` branches: " +
+                            "compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`");
+                }
+                expr(e$17.inner());
             }
-            case Expr.Pipe e$18 -> {
-                pipeExpr(e$18);
+            case Expr.Attempt e$18 -> {
+                attemptExpr(e$18);
             }
-            case Expr.Lambda e$19 -> {
-                lambdaExpr(e$19, false);
+            case Expr.Pipe e$19 -> {
+                pipeExpr(e$19);
+            }
+            case Expr.Lambda e$20 -> {
+                lambdaExpr(e$20, false);
             }
         }
     }
@@ -1174,6 +1177,17 @@ import org.axl.compiler.ast.TypeRef;
         if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target$1.pos().line(), target$1.pos().column(), ErrorCode.UNNEEDED,
                     "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
+        }
+    }
+    private void classLiteral(Expr.ClassLiteral e) {
+        final var path = Expr.pathName(e.target());
+        final var target = e.target();
+        final var value = path != null && !path.contains(".") && Character.isLowerCase(path.charAt(0));
+        if (path == null || value) {
+            error(e.pos(), ErrorCode.SYNTAX, "`.class` goes after the name of a type, as in `String.class`; for the class " +
+                    "of a value call `getClass()`");
+        } else if (target instanceof Expr.Name target$1) {
+            staticNames.add(target$1);
         }
     }
     private void nullComparison(Expr.Binary e) {

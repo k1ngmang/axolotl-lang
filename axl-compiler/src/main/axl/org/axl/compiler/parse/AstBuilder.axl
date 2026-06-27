@@ -25,6 +25,7 @@ import org.axl.compiler.ast.Expr.GenericNew
 import org.axl.compiler.ast.Expr.Is
 import org.axl.compiler.ast.Expr.Lambda
 import org.axl.compiler.ast.Expr.Literal
+import org.axl.compiler.ast.Expr.ClassLiteral
 import org.axl.compiler.ast.Expr.Member
 import org.axl.compiler.ast.Expr.MethodRef
 import org.axl.compiler.ast.Expr.Name
@@ -86,6 +87,7 @@ import org.axl.compiler.parse.AxolotlParser.LambdaContext
 import org.axl.compiler.parse.AxolotlParser.LambdaParamContext
 import org.axl.compiler.parse.AxolotlParser.LambdaPrimaryContext
 import org.axl.compiler.parse.AxolotlParser.LiteralPrimaryContext
+import org.axl.compiler.parse.AxolotlParser.ClassSuffixContext
 import org.axl.compiler.parse.AxolotlParser.MemberSuffixContext
 import org.axl.compiler.parse.AxolotlParser.MethodMemberContext
 import org.axl.compiler.parse.AxolotlParser.MethodRefSuffixContext
@@ -437,6 +439,8 @@ private fn buildPostfix(ctx: PostfixExpressionContext) -> Expr {
             current = MethodRef(pos(suffix.start), current, nameOf(suffix.identifier()))
         } else if (suffix is NotNullSuffixContext) {
             current = NotNull(pos(suffix.start), current)
+        } else if (suffix is ClassSuffixContext) {
+            current = ClassLiteral(pos(suffix.CLASS().getSymbol()), current)
         } else {
             throw IllegalStateException("unknown suffix " + suffix.getClass())
         }

@@ -119,52 +119,54 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.NotNull expr$6 -> {
                 names(expr$6.target(), hidden, out);
             }
-            case Expr.Unary expr$7 -> {
-                names(expr$7.operand(), hidden, out);
+            case Expr.ClassLiteral expr$7 -> {
             }
-            case Expr.Binary expr$8 -> {
-                names(expr$8.left(), hidden, out);
-                names(expr$8.right(), hidden, out);
-                if (expr$8.op().equals("+")) {
-                    toStringOf(expr$8.left(), hidden, out);
-                    toStringOf(expr$8.right(), hidden, out);
-                }
+            case Expr.Unary expr$8 -> {
+                names(expr$8.operand(), hidden, out);
             }
-            case Expr.Elvis expr$9 -> {
+            case Expr.Binary expr$9 -> {
                 names(expr$9.left(), hidden, out);
                 names(expr$9.right(), hidden, out);
+                if (expr$9.op().equals("+")) {
+                    toStringOf(expr$9.left(), hidden, out);
+                    toStringOf(expr$9.right(), hidden, out);
+                }
             }
-            case Expr.Is expr$10 -> {
-                names(expr$10.target(), hidden, out);
+            case Expr.Elvis expr$10 -> {
+                names(expr$10.left(), hidden, out);
+                names(expr$10.right(), hidden, out);
             }
-            case Expr.Conditional expr$11 -> {
-                names(expr$11.condition(), hidden, out);
-                names(expr$11.then(), hidden, out);
-                names(expr$11.otherwise(), hidden, out);
+            case Expr.Is expr$11 -> {
+                names(expr$11.target(), hidden, out);
             }
-            case Expr.Throw expr$12 -> {
-                names(expr$12.value(), hidden, out);
+            case Expr.Conditional expr$12 -> {
+                names(expr$12.condition(), hidden, out);
+                names(expr$12.then(), hidden, out);
+                names(expr$12.otherwise(), hidden, out);
             }
-            case Expr.When expr$13 -> {
-                whenNames(expr$13, hidden, out);
+            case Expr.Throw expr$13 -> {
+                names(expr$13.value(), hidden, out);
             }
-            case Expr.Paren expr$14 -> {
-                names(expr$14.inner(), hidden, out);
+            case Expr.When expr$14 -> {
+                whenNames(expr$14, hidden, out);
             }
-            case Expr.Try expr$15 -> {
+            case Expr.Paren expr$15 -> {
                 names(expr$15.inner(), hidden, out);
             }
-            case Expr.Attempt expr$16 -> {
-                names(expr$16.body(), hidden, out);
-                final var errorName = expr$16.errorName();
-                names(expr$16.handler(), (errorName == null ? hidden : with(hidden, Set.of(errorName))), out);
+            case Expr.Try expr$16 -> {
+                names(expr$16.inner(), hidden, out);
             }
-            case Expr.Pipe expr$17 -> {
-                pipeNames(expr$17, hidden, out);
+            case Expr.Attempt expr$17 -> {
+                names(expr$17.body(), hidden, out);
+                final var errorName = expr$17.errorName();
+                names(expr$17.handler(), (errorName == null ? hidden : with(hidden, Set.of(errorName))), out);
             }
-            case Expr.Lambda expr$18 -> {
+            case Expr.Pipe expr$18 -> {
+                pipeNames(expr$18, hidden, out);
             }
-            case Expr.Literal expr$19 -> {
+            case Expr.Lambda expr$19 -> {
+            }
+            case Expr.Literal expr$20 -> {
             }
         }
     }

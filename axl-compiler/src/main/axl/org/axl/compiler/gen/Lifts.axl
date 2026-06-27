@@ -30,6 +30,7 @@ fn needed(expr: Expr) -> Boolean = when (expr) {
     is Expr.Call -> neededInCall(expr)
     is Expr.GenericNew -> expr.args().stream().anyMatch({ hoisted(it) })
     is Expr.MethodRef -> needed(expr.target())
+    is Expr.ClassLiteral -> false
     is Expr.NotNull -> needed(expr.target())
     is Expr.Unary -> needed(expr.operand())
     is Expr.Binary -> needed(expr.left()) || needed(expr.right())

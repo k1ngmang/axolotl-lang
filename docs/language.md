@@ -54,7 +54,8 @@ A character in single quotes, `'a'`, is a Java `Character`; text in double quote
 ## Expressions
 
 Calls, member access, `+ - * / %`, comparisons, `== !=` (Java's `==`), `&& || !`, string
-concatenation, lambdas and method references `String::length` work as in Java. A call of a
+concatenation, lambdas, method references `String::length` and class literals `String.class` work
+as in Java (`Int.class` is `Integer.class`, the class a Java API such as Jackson wants). A call of a
 capitalized name creates an object: `StringBuilder("x")`, `ArrayList<String>()`, also when it is
 qualified by a package: `java.sql.Timestamp(1L)`. A generic class needs its type arguments,
 `ArrayList<String>()`, or `ArrayList<>(xs)` where the type it is stored as gives them; a bare

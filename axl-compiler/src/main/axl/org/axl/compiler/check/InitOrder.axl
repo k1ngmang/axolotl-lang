@@ -127,6 +127,7 @@ class InitOrder(val file: SourceFile) {
                 }
             }
             is Expr.NotNull -> names(expr.target(), hidden, out)
+            is Expr.ClassLiteral -> { }
             is Expr.Unary -> names(expr.operand(), hidden, out)
             is Expr.Binary -> {
                 names(expr.left(), hidden, out)

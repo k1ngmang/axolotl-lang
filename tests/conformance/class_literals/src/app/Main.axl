@@ -1,0 +1,17 @@
+package app
+
+import java.util.List
+
+data class Todo(val id: Int)
+
+fn main() {
+    println(String.class.getSimpleName())
+    println(Int.class.getName())
+    println(java.util.List.class.getName())
+    println(List.class.getSimpleName())
+    println(Todo.class.getSimpleName())
+    val c: Class<String> = String.class
+    println(c == String.class)
+    val boxes = List.of(Int.class, Long.class, Double.class, Boolean.class)
+    println(boxes)
+}

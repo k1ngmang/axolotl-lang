@@ -37,43 +37,46 @@ import org.axl.compiler.ast.Expr;
             case Expr.MethodRef expr$6 -> {
                 return needed(expr$6.target());
             }
-            case Expr.NotNull expr$7 -> {
-                return needed(expr$7.target());
+            case Expr.ClassLiteral expr$7 -> {
+                return false;
             }
-            case Expr.Unary expr$8 -> {
-                return needed(expr$8.operand());
+            case Expr.NotNull expr$8 -> {
+                return needed(expr$8.target());
             }
-            case Expr.Binary expr$9 -> {
-                return needed(expr$9.left()) || needed(expr$9.right());
+            case Expr.Unary expr$9 -> {
+                return needed(expr$9.operand());
             }
-            case Expr.Elvis expr$10 -> {
-                return needed(expr$10.left()) || needed(expr$10.right()) || numberAfterSafeCall(expr$10);
+            case Expr.Binary expr$10 -> {
+                return needed(expr$10.left()) || needed(expr$10.right());
             }
-            case Expr.Is expr$11 -> {
-                return needed(expr$11.target());
+            case Expr.Elvis expr$11 -> {
+                return needed(expr$11.left()) || needed(expr$11.right()) || numberAfterSafeCall(expr$11);
             }
-            case Expr.Conditional expr$12 -> {
-                return needed(expr$12.condition()) || needed(expr$12.then()) || needed(expr$12.otherwise());
+            case Expr.Is expr$12 -> {
+                return needed(expr$12.target());
             }
-            case Expr.Throw expr$13 -> {
-                return needed(expr$13.value());
+            case Expr.Conditional expr$13 -> {
+                return needed(expr$13.condition()) || needed(expr$13.then()) || needed(expr$13.otherwise());
             }
-            case Expr.When expr$14 -> {
+            case Expr.Throw expr$14 -> {
+                return needed(expr$14.value());
+            }
+            case Expr.When expr$15 -> {
                 return true;
             }
-            case Expr.Paren expr$15 -> {
-                return needed(expr$15.inner());
+            case Expr.Paren expr$16 -> {
+                return needed(expr$16.inner());
             }
-            case Expr.Literal expr$16 -> {
+            case Expr.Literal expr$17 -> {
                 return false;
             }
-            case Expr.Name expr$17 -> {
+            case Expr.Name expr$18 -> {
                 return false;
             }
-            case Expr.Attempt expr$18 -> {
+            case Expr.Attempt expr$19 -> {
                 return false;
             }
-            case Expr.Lambda expr$19 -> {
+            case Expr.Lambda expr$20 -> {
                 return false;
             }
         }

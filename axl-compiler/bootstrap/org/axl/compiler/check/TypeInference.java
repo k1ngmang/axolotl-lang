@@ -74,10 +74,17 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.Try expr$12 -> {
                 return okType(of(expr$12.inner()));
             }
+            case Expr.ClassLiteral expr$13 -> {
+                return classOf(expr$13);
+            }
             default -> {
                 return null;
             }
         }
+    }
+    private @Nullable TypeRef classOf(Expr.ClassLiteral e) {
+        final var name = Expr.pathName(e.target());
+        return (name == null ? null : new TypeRef(e.pos(), "Class", List.of(simple(name, e.pos())), false));
     }
     private @Nullable TypeRef okType(@Nullable TypeRef result) {
         if (result == null || !(result.name().equals("Result") || result.name().equals("axl.lang.Result")) || result.args().size() != 2) {

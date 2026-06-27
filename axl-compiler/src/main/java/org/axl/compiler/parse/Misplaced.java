@@ -33,6 +33,10 @@ final class Misplaced {
 
     /** The cause of an error the parser found at the token at, after previous, or null. */
     static Placed find(CommonTokenStream tokens, Token at, Token previous) {
+        if (at.getType() == AxolotlLexer.CLASS && previous.getType() == AxolotlLexer.COLONCOLON) {
+            String type = Mistakes.text(SourceParser.previousToken(tokens, previous));
+            return new Placed(previous, "Axolotl has no `::class`; the class of a type is `" + type + ".class`", true);
+        }
         Placed declaration = declaration(tokens, at, previous);
         if (declaration != null) {
             return declaration;

@@ -26,6 +26,7 @@ import org.axl.compiler.ast.Expr.GenericNew;
 import org.axl.compiler.ast.Expr.Is;
 import org.axl.compiler.ast.Expr.Lambda;
 import org.axl.compiler.ast.Expr.Literal;
+import org.axl.compiler.ast.Expr.ClassLiteral;
 import org.axl.compiler.ast.Expr.Member;
 import org.axl.compiler.ast.Expr.MethodRef;
 import org.axl.compiler.ast.Expr.Name;
@@ -87,6 +88,7 @@ import org.axl.compiler.parse.AxolotlParser.LambdaContext;
 import org.axl.compiler.parse.AxolotlParser.LambdaParamContext;
 import org.axl.compiler.parse.AxolotlParser.LambdaPrimaryContext;
 import org.axl.compiler.parse.AxolotlParser.LiteralPrimaryContext;
+import org.axl.compiler.parse.AxolotlParser.ClassSuffixContext;
 import org.axl.compiler.parse.AxolotlParser.MemberSuffixContext;
 import org.axl.compiler.parse.AxolotlParser.MethodMemberContext;
 import org.axl.compiler.parse.AxolotlParser.MethodRefSuffixContext;
@@ -451,6 +453,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
                 current = new MethodRef(pos(suffix$3.start), current, nameOf(suffix$3.identifier()));
             } else if (suffix instanceof NotNullSuffixContext suffix$4) {
                 current = new NotNull(pos(suffix$4.start), current);
+            } else if (suffix instanceof ClassSuffixContext suffix$5) {
+                current = new ClassLiteral(pos(suffix$5.CLASS().getSymbol()), current);
             } else {
                 throw new IllegalStateException("unknown suffix " + suffix.getClass());
             }

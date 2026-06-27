@@ -1086,44 +1086,47 @@ import org.axl.compiler.check.Whens;
             case Expr.MethodRef e$6 -> {
                 return exprIn(e$6.target(), inLambda) + "::" + e$6.name();
             }
-            case Expr.NotNull e$7 -> {
-                return "java.util.Objects.requireNonNull(" + exprIn(e$7.target(), inLambda) + ")";
+            case Expr.ClassLiteral e$7 -> {
+                return classLiteral(e$7);
             }
-            case Expr.Unary e$8 -> {
-                return unary(e$8.op(), exprIn(e$8.operand(), inLambda));
+            case Expr.NotNull e$8 -> {
+                return "java.util.Objects.requireNonNull(" + exprIn(e$8.target(), inLambda) + ")";
             }
-            case Expr.Binary e$9 -> {
-                return binaryCode(e$9, inLambda);
+            case Expr.Unary e$9 -> {
+                return unary(e$9.op(), exprIn(e$9.operand(), inLambda));
             }
-            case Expr.Is e$10 -> {
-                return typeCheck(e$10, inLambda);
+            case Expr.Binary e$10 -> {
+                return binaryCode(e$10, inLambda);
             }
-            case Expr.Conditional e$11 -> {
-                return conditionalCode(e$11, inLambda);
+            case Expr.Is e$11 -> {
+                return typeCheck(e$11, inLambda);
             }
-            case Expr.Throw e$12 -> {
-                throw new IllegalStateException("throw at " + e$12.pos() + " cannot be an expression");
+            case Expr.Conditional e$12 -> {
+                return conditionalCode(e$12, inLambda);
             }
-            case Expr.Elvis e$13 -> {
-                return leftAssociatedCode(e$13, inLambda);
+            case Expr.Throw e$13 -> {
+                throw new IllegalStateException("throw at " + e$13.pos() + " cannot be an expression");
             }
-            case Expr.Paren e$14 -> {
-                return parenCode(e$14, inLambda);
+            case Expr.Elvis e$14 -> {
+                return leftAssociatedCode(e$14, inLambda);
             }
-            case Expr.Attempt e$15 -> {
-                return attemptCode(e$15);
+            case Expr.Paren e$15 -> {
+                return parenCode(e$15, inLambda);
             }
-            case Expr.Lambda e$16 -> {
-                return lambdaCode(e$16);
+            case Expr.Attempt e$16 -> {
+                return attemptCode(e$16);
             }
-            case Expr.Pipe e$17 -> {
-                return pipeCode(exprIn(e$17.source(), inLambda), e$17.source(), e$17.stages(), a -> exprIn(a, inLambda));
+            case Expr.Lambda e$17 -> {
+                return lambdaCode(e$17);
             }
-            case Expr.Try e$18 -> {
-                throw new IllegalStateException("try at " + e$18.pos() + " should have been lifted");
+            case Expr.Pipe e$18 -> {
+                return pipeCode(exprIn(e$18.source(), inLambda), e$18.source(), e$18.stages(), a -> exprIn(a, inLambda));
             }
-            case Expr.When e$19 -> {
-                throw new IllegalStateException("when at " + e$19.pos() + " should have been lifted");
+            case Expr.Try e$19 -> {
+                throw new IllegalStateException("try at " + e$19.pos() + " should have been lifted");
+            }
+            case Expr.When e$20 -> {
+                throw new IllegalStateException("when at " + e$20.pos() + " should have been lifted");
             }
         }
     }
@@ -1637,17 +1640,20 @@ import org.axl.compiler.check.Whens;
             case Expr.MethodRef e$10 -> {
                 return new Lifted(lifted(line, e$10.target()).code() + "::" + e$10.name(), false);
             }
-            case Expr.NotNull e$11 -> {
-                return new Lifted("java.util.Objects.requireNonNull(" + lifted(line, e$11.target()).code() + ")", false);
+            case Expr.ClassLiteral e$11 -> {
+                return new Lifted(classLiteral(e$11), false);
             }
-            case Expr.Pipe e$12 -> {
-                return pipeLifted(line, e$12);
+            case Expr.NotNull e$12 -> {
+                return new Lifted("java.util.Objects.requireNonNull(" + lifted(line, e$12.target()).code() + ")", false);
             }
-            case Expr.Conditional e$13 -> {
-                return new Lifted(conditional(withNullTests(lifted(line, e$13.condition()).code(), e$13.condition()), e$13, false), false);
+            case Expr.Pipe e$13 -> {
+                return pipeLifted(line, e$13);
             }
-            case Expr.Is e$14 -> {
-                return new Lifted(liftedTypeCheck(line, e$14), false);
+            case Expr.Conditional e$14 -> {
+                return new Lifted(conditional(withNullTests(lifted(line, e$14.condition()).code(), e$14.condition()), e$14, false), false);
+            }
+            case Expr.Is e$15 -> {
+                return new Lifted(liftedTypeCheck(line, e$15), false);
             }
             default -> {
                 throw new IllegalStateException("nothing to lift in " + e);
@@ -1792,6 +1798,10 @@ import org.axl.compiler.check.Whens;
         final var texts = list.stream().map(Nulls.nonNull(l -> l.code())).toList();
         return String.join(", ", texts);
     }
+    private String classLiteral(Expr.ClassLiteral e) {
+        final var name = Nulls.or(Expr.pathName(e.target()), () -> "Object");
+        return boxedType(new TypeRef(e.pos(), name, List.of(), false)) + ".class";
+    }
     private boolean isPure(Expr e) {
         switch (e) {
             case Expr.Literal e$1 -> {
@@ -1806,11 +1816,14 @@ import org.axl.compiler.check.Whens;
             case Expr.MethodRef e$4 -> {
                 return isPure(e$4.target()) || isPath(e$4.target());
             }
-            case Expr.Paren e$5 -> {
-                return isPure(e$5.inner());
+            case Expr.ClassLiteral e$5 -> {
+                return true;
             }
-            case Expr.Call e$6 -> {
-                return isPureResult(e$6);
+            case Expr.Paren e$6 -> {
+                return isPure(e$6.inner());
+            }
+            case Expr.Call e$7 -> {
+                return isPureResult(e$7);
             }
             default -> {
                 return false;

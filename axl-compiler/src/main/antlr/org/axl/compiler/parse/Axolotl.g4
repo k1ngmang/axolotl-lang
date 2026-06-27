@@ -236,6 +236,7 @@ postfixExpression
 postfixSuffix
     : {sameLine()}? LPAREN arguments? RPAREN                # callSuffix
     | (DOT | SAFE_DOT) identifier                           # memberSuffix
+    | DOT CLASS                                             # classSuffix
     | COLONCOLON identifier                                 # methodRefSuffix
     | BANGBANG                                              # notNullSuffix
     ;

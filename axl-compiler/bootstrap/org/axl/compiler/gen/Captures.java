@@ -42,59 +42,61 @@ import org.axl.compiler.check.Analysis;
             case Expr.MethodRef expr$6 -> {
                 visit(expr$6.target(), inLambda);
             }
-            case Expr.NotNull expr$7 -> {
-                visit(expr$7.target(), inLambda);
+            case Expr.ClassLiteral expr$7 -> {
             }
-            case Expr.Unary expr$8 -> {
-                visit(expr$8.operand(), inLambda);
+            case Expr.NotNull expr$8 -> {
+                visit(expr$8.target(), inLambda);
             }
-            case Expr.Binary expr$9 -> {
-                visit(expr$9.left(), inLambda);
-                visit(expr$9.right(), inLambda);
+            case Expr.Unary expr$9 -> {
+                visit(expr$9.operand(), inLambda);
             }
-            case Expr.Elvis expr$10 -> {
+            case Expr.Binary expr$10 -> {
                 visit(expr$10.left(), inLambda);
-                visit(expr$10.right(), inLambda || !Lifts.needed(expr$10.right()));
+                visit(expr$10.right(), inLambda);
             }
-            case Expr.Is expr$11 -> {
-                visit(expr$11.target(), inLambda);
+            case Expr.Elvis expr$11 -> {
+                visit(expr$11.left(), inLambda);
+                visit(expr$11.right(), inLambda || !Lifts.needed(expr$11.right()));
             }
-            case Expr.Conditional expr$12 -> {
-                visit(expr$12.condition(), inLambda);
-                visit(expr$12.then(), inLambda);
-                visit(expr$12.otherwise(), inLambda);
+            case Expr.Is expr$12 -> {
+                visit(expr$12.target(), inLambda);
             }
-            case Expr.Throw expr$13 -> {
-                visit(expr$13.value(), inLambda);
+            case Expr.Conditional expr$13 -> {
+                visit(expr$13.condition(), inLambda);
+                visit(expr$13.then(), inLambda);
+                visit(expr$13.otherwise(), inLambda);
             }
-            case Expr.When expr$14 -> {
-                visit(expr$14.subject(), inLambda);
+            case Expr.Throw expr$14 -> {
+                visit(expr$14.value(), inLambda);
+            }
+            case Expr.When expr$15 -> {
+                visit(expr$15.subject(), inLambda);
                 if (lambdaBodies > 0) {
-                    for (final var arm : expr$14.arms()) {
+                    for (final var arm : expr$15.arms()) {
                         statements(arm.body(), inLambda);
                     }
                 }
             }
-            case Expr.Paren expr$15 -> {
-                visit(expr$15.inner(), inLambda);
-            }
-            case Expr.Try expr$16 -> {
+            case Expr.Paren expr$16 -> {
                 visit(expr$16.inner(), inLambda);
             }
-            case Expr.Attempt expr$17 -> {
-                visit(expr$17.body(), true);
-                visit(expr$17.handler(), true);
+            case Expr.Try expr$17 -> {
+                visit(expr$17.inner(), inLambda);
             }
-            case Expr.Lambda expr$18 -> {
+            case Expr.Attempt expr$18 -> {
+                visit(expr$18.body(), true);
+                visit(expr$18.handler(), true);
+            }
+            case Expr.Lambda expr$19 -> {
                 final var before = new LinkedHashSet<String>(names);
                 lambdaBodies += 1;
-                statements(expr$18.body(), inLambda);
+                statements(expr$19.body(), inLambda);
                 lambdaBodies -= 1;
                 names.retainAll(before);
             }
-            case Expr.Pipe expr$19 -> {
-                visit(expr$19.source(), inLambda);
-                for (final var stage : expr$19.stages()) {
+            case Expr.Pipe expr$20 -> {
+                visit(expr$20.source(), inLambda);
+                for (final var stage : expr$20.stages()) {
                     visitAll(stage.args(), inLambda);
                     final var lambda = stage.lambda();
                     if (lambda != null) {

@@ -1,0 +1,2 @@
+AXL001 app/Main.axl:5:15: error: `.class` goes after the name of a type, as in `String.class`; for the class of a value call `getClass()`
+AXL001 app/Main.axl:6:28: error: `.class` goes after the name of a type, as in `String.class`; for the class of a value call `getClass()`

@@ -13,6 +13,21 @@ data class Name(val pos: Pos, val name: String) : Expr
 /** `target.name` or `target?.name`. */
 data class Member(val pos: Pos, val target: Expr, val name: String, val safe: Boolean) : Expr
 
+/** `String.class`: the Class object of a type named by `target`, a name or a dotted path. */
+data class ClassLiteral(val pos: Pos, val target: Expr) : Expr
+
+/** `a.b.C` as text, or null for anything but names joined by `.`. */
+fn pathName(e: Expr) -> String? {
+    if (e is Name) {
+        return e.name()
+    }
+    if (e is Member && !e.safe()) {
+        val target = pathName(e.target())
+        return if (target == null) null else target + "." + e.name()
+    }
+    return null
+}
+
 /** `name(args)` when target is null, otherwise `target.name(args)` or `target?.name(args)`. */
 data class Call(val pos: Pos, val target: Expr?, val name: String, val args: List<Expr>, val safe: Boolean) : Expr
 

@@ -8,6 +8,17 @@ import java.util.List;
     public record Literal(Pos pos, String text) implements Expr {}
     public record Name(Pos pos, String name) implements Expr {}
     public record Member(Pos pos, Expr target, String name, boolean safe) implements Expr {}
+    public record ClassLiteral(Pos pos, Expr target) implements Expr {}
+    public static @Nullable String pathName(Expr e) {
+        if (e instanceof Name e$1) {
+            return e$1.name();
+        }
+        if (e instanceof Member e$2 && !e$2.safe()) {
+            final var target = pathName(e$2.target());
+            return (target == null ? null : target + "." + e$2.name());
+        }
+        return null;
+    }
     public record Call(Pos pos, @Nullable Expr target, String name, List<Expr> args, boolean safe) implements Expr {}
     public record GenericNew(Pos pos, String type, List<TypeRef> typeArgs, List<Expr> args) implements Expr {}
     public record MethodRef(Pos pos, Expr target, String name) implements Expr {}

@@ -707,6 +707,7 @@ class Checker(val file: SourceFile) {
             is Expr.Call -> call(e)
             is Expr.GenericNew -> exprs(e.args())
             is Expr.MethodRef -> expr(e.target())
+            is Expr.ClassLiteral -> classLiteral(e)
             is Expr.NotNull -> {
                 if (isNull(e.target())) {
                     diagnostics.add(AxlDiagnostic.warning(file.path(), e.pos().line(), e.pos().column(), ErrorCode.UNNEEDED,
@@ -1247,6 +1248,20 @@ class Checker(val file: SourceFile) {
         if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
                 "`" + target.name() + "` has the type `" + written.name() + "`, which is never null; " + fix))
+        }
+    }
+
+    /** `.class` follows a type name: `String.class`, `java.util.List.class`, `Shapes.Circle.class`. */
+    private fn classLiteral(e: Expr.ClassLiteral) {
+        val path = Expr.pathName(e.target())
+        val target = e.target()
+        // A lone lowercase name is a value, whose class `getClass()` gives.
+        val value = path != null && !path.contains(".") && Character.isLowerCase(path.charAt(0))
+        if (path == null || value) {
+            error(e.pos(), ErrorCode.SYNTAX, "`.class` goes after the name of a type, as in `String.class`; for the class " +
+                "of a value call `getClass()`")
+        } else if (target is Expr.Name) {
+            staticNames.add(target)
         }
     }
 

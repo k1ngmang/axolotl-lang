@@ -346,6 +346,7 @@ final class Symbols {
             case Expr.Member m -> expr(m.target(), pos, fn, out);
             case Expr.GenericNew g -> g.args().forEach(a -> expr(a, pos, fn, out));
             case Expr.MethodRef r -> expr(r.target(), pos, fn, out);
+            case Expr.ClassLiteral c -> expr(c.target(), pos, fn, out);
             case Expr.NotNull n -> expr(n.target(), pos, fn, out);
             case Expr.Unary u -> expr(u.operand(), pos, fn, out);
             case Expr.Binary b -> {
