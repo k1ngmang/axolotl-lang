@@ -49,7 +49,7 @@ final class Outline {
             case Decl.DataClass data -> symbol(document, data.namePos(), data.name(), SymbolKind.Class,
                     fields(document, data.fields()));
             case Decl.Interface iface -> symbol(document, iface.namePos(), iface.name(), SymbolKind.Interface,
-                    fields(document, iface.members()));
+                    interfaceMembers(document, iface));
         };
     }
 
@@ -99,6 +99,14 @@ final class Outline {
             last = token;
         }
         return last;
+    }
+
+    private static List<DocumentSymbol> interfaceMembers(Document document, Decl.Interface iface) {
+        List<DocumentSymbol> result = new ArrayList<>(fields(document, iface.members()));
+        for (Decl.Function m : iface.methods()) {
+            result.add(symbol(document, m.namePos(), m.name(), SymbolKind.Method, List.of()));
+        }
+        return result;
     }
 
     private static List<DocumentSymbol> members(Document document, Decl.ClassDecl classDecl) {

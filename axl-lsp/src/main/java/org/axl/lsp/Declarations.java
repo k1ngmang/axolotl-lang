@@ -88,7 +88,10 @@ final class Declarations {
     private static Found inType(Document document, Decl decl, String name, Supplier<List<String>> argumentTypes) {
         return switch (decl) {
             case Decl.DataClass data -> field(document, data.fields(), name);
-            case Decl.Interface iface -> field(document, iface.members(), name);
+            case Decl.Interface iface -> {
+                Found value = field(document, iface.members(), name);
+                yield value != null ? value : method(document, iface.methods(), name, argumentTypes);
+            }
             case Decl.ClassDecl classDecl -> classMember(document, classDecl, name, argumentTypes);
             case Decl.EnumDecl enumeration -> constant(document, enumeration, name);
             default -> null;
@@ -115,7 +118,11 @@ final class Declarations {
                 return property(document, property);
             }
         }
-        List<Decl.Function> methods = classDecl.methods().stream().filter(m -> m.name().equals(name)).toList();
+        return method(document, classDecl.methods(), name, argumentTypes);
+    }
+
+    private static Found method(Document document, List<Decl.Function> all, String name, Supplier<List<String>> argumentTypes) {
+        List<Decl.Function> methods = all.stream().filter(m -> m.name().equals(name)).toList();
         if (methods.isEmpty()) {
             return null;
         }
