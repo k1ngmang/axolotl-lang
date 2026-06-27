@@ -4,3 +4,7 @@
 *.cmd text eol=crlf
 *.jar binary
 *.png binary
+# Generated Java: the bootstrap snapshot of the compiler and the golden files of the tests. GitHub's
+# language statistics leave them out.
+axl-compiler/bootstrap/** linguist-generated
+tests/conformance/*/expected/** linguist-generated
