@@ -24,7 +24,13 @@ final class LocalRepository {
     private LocalRepository() {}
 
     static Path find() {
-        return find(Path.of(System.getProperty("user.home")), System.getProperty(PROPERTY), System.getenv("MAVEN_OPTS"));
+        return find(userHome(), System.getProperty(PROPERTY), System.getenv("MAVEN_OPTS"));
+    }
+
+    /** Java takes user.home from the account, not from HOME, which installers and tests set for a run. */
+    private static Path userHome() {
+        String home = System.getenv("HOME");
+        return home != null && !home.isBlank() && Files.isDirectory(Path.of(home)) ? Path.of(home) : Path.of(System.getProperty("user.home"));
     }
 
     /** -Dmaven.repo.local, also in MAVEN_OPTS, then the localRepository of ~/.m2/settings.xml. */
