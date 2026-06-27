@@ -89,6 +89,21 @@ with a capital letter, and `Circle("c", 2.0)` creates one. They are nested in th
 (`Shapes.axl` makes `Shapes.Circle`), so other files import them as `import app.Shapes.Circle`.
 Methods of a record are plain functions that take it: `fn area(c: Circle) -> Double = ...`.
 
+An interface may also require methods, as signatures without a body:
+
+```axl
+interface Notes {
+    val name: String
+    fn add(text: String) -> Int
+    fn find(id: Int) -> String?
+}
+```
+
+Each `class` that implements it writes the methods (`fn add(text: String) -> Int { ... }`), with the
+same parameter types and a result type that fits: `String` where `String?` is required, never the
+other way. A data class has no body, so an interface with methods is implemented by classes; for
+data, write the function at the top level and `when` over the sealed interface.
+
 ## Classes
 
 A `class` has state and methods:

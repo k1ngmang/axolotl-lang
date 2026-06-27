@@ -44,6 +44,7 @@ import java.util.List;
             String name,
             boolean isSealed,
             List<Expr.Param> members,
+            List<Function> methods,
             List<TypeRef> supertypes,
             List<Annotation> annotations) implements Decl {}
     public record ClassDecl(

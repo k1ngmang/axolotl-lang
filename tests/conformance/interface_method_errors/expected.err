@@ -1,0 +1,10 @@
+AXL010 app/Main.axl:7:8: error: `name` is already a value of `Shape`, and a value is read as `name()`; remove one
+AXL010 app/Main.axl:8:8: error: the method `area` of `Shape` is declared twice with as many parameters
+AXL017 app/Main.axl:11:12: error: `Square` is a data class, so it has no methods, but the interface `Shape` requires `fn area() -> Double`; make `Square` a class, or write `area` as a function of the file that takes the `Shape`
+AXL017 app/Main.axl:11:12: error: `Square` is a data class, so it has no methods, but the interface `Shape` requires `fn scaled(factor: Double) -> Shape`; make `Square` a class, or write `scaled` as a function of the file that takes the `Shape`
+AXL017 app/Main.axl:14:16: error: `area` implements a method of the interface `Shape`, so it cannot be private
+AXL017 app/Main.axl:16:8: error: `scaled` returns `Shape?` here, but the interface `Shape` requires `fn scaled(factor: Double) -> Shape`
+AXL017 app/Main.axl:20:8: error: `area` returns `nothing` here, but the interface `Shape` requires `fn area() -> Double`
+AXL017 app/Main.axl:24:15: error: the parameter `factor` is `Int` here, but the interface `Shape` requires `fn scaled(factor: Double) -> Shape`
+AXL010 app/Store.axl:8:4: error: `Store`, the type of this file, requires a method `get` with as many parameters, so a function of the file cannot have its name; rename one
+AXL010 app/Store.axl:10:4: error: `Store`, the type of this file, requires a method `name` with as many parameters, so a function of the file cannot have its name; rename one

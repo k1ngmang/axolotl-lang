@@ -96,6 +96,7 @@ import org.axl.compiler.ast.TypeRef;
                 }
                 case Decl.Interface decl$6 -> {
                     members(decl$6.members(), "member");
+                    interfaceMethods(decl$6);
                 }
             }
         }
@@ -224,8 +225,23 @@ import org.axl.compiler.ast.TypeRef;
                 classFileMembers(decl$1);
             } else if (decl instanceof Decl.DataClass decl$2 && decl$2.name().equals(file.className())) {
                 recordFileMembers(decl$2);
+            } else if (decl instanceof Decl.Interface decl$3 && decl$3.name().equals(file.className())) {
+                interfaceFileMembers(decl$3);
             }
         }
+    }
+    private void interfaceFileMembers(Decl.Interface iface) {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Function decl$1 && hasSignatureLike(iface, decl$1)) {
+                error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + iface.name() + "`, the type of this file, requires a method `" +
+                        decl$1.name() +
+                        "` with as many parameters, so a function of the file cannot have its name; rename one");
+            }
+        }
+    }
+    private boolean hasSignatureLike(Decl.Interface iface, Decl.Function f) {
+        return (iface.methods().stream().anyMatch(m -> m.name().equals(f.name()) && m.params().size() == f.params().size())) ||
+                (f.params().isEmpty() && (iface.members().stream().anyMatch(m -> m.name().equals(f.name()))));
     }
     private void classFileMembers(Decl.ClassDecl c) {
         final var properties = new HashSet<String>();
@@ -373,6 +389,31 @@ import org.axl.compiler.ast.TypeRef;
                 checkReserved(member.pos(), member.name());
             }
             writtenType(member.type(), false);
+        }
+    }
+    private void interfaceMethods(Decl.Interface iface) {
+        final var values = iface.members().stream().map(Nulls.nonNull(m -> m.name())).toList();
+        final var seen = new HashSet<String>();
+        for (final var m : iface.methods()) {
+            annotations(m.annotations());
+            if (m.params().isEmpty() && values.contains(m.name())) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "` is already a value of `" + iface.name() +
+                        "`, and a value is read as `" +
+                        m.name() +
+                        "()`; remove one");
+            } else if (!seen.add(m.name() + "/" + m.params().size())) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "the method `" + m.name() + "` of `" + iface.name() +
+                        "` is declared twice with as many parameters");
+            } else {
+                checkReserved(m.namePos(), m.name());
+            }
+            writtenType(m.returnType(), true);
+            scope = new Scope(scope, false);
+            for (final var p : m.params()) {
+                declare(p.pos(), p.name(), Kind.PARAM, p.type());
+                annotations(p.annotations());
+            }
+            pop();
         }
     }
     private void enumConstants(Decl.EnumDecl e) {

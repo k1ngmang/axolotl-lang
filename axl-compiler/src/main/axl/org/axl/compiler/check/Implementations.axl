@@ -13,9 +13,9 @@ import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.TypeRef
 
 /*
- * A data class or class that implements an interface of its file gives each value the interface
- * requires. Java checks that a method exists, but not the nullness of its type: a `String?` field
- * would let the interface return null where it promises a `String`.
+ * A data class or class that implements an interface of its file gives each value and each method
+ * the interface requires. Java checks that a method exists, but not the nullness of its types: a
+ * `String?` field would let the interface return null where it promises a `String`.
  */
 
 data class Mismatch(val pos: Pos, val message: String)
@@ -37,20 +37,73 @@ fn check(file: SourceFile) -> List<Mismatch> {
 
 private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, supertypes: List<TypeRef>,
                        problems: List<Mismatch>) {
+    val seen = HashSet<String>()
     for (iface in interfaces(file, supertypes, HashSet<String>())) {
         for (member in iface.members()) {
             // The parser requires the type of a member, so it is never missing here.
             val required = member.type()!!
             val field = given.get(member.name())
-            if (field == null) {
+            if (!seen.add(member.name() + "/0")) {
+                // Reported where the interface declares it twice.
+            } else if (field == null) {
                 problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` does not give `val " + member.name() + ": " +
                     text(required) + "`, which the interface `" + iface.name() + "` requires; add it to its parameters"))
             } else {
                 compare(member.name(), field, required, iface, problems)
             }
         }
+        for (method in iface.methods()) {
+            if (!seen.add(method.name() + "/" + method.params().size())) {
+                // Reported where the interface declares it twice.
+            } else if (decl is Decl.ClassDecl) {
+                implementation(decl, method, iface, problems)
+            } else {
+                problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` is a data class, so it has no methods, but the " +
+                    "interface `" + iface.name() + "` requires `" + signature(method) + "`; make `" + decl.name() +
+                    "` a class, or write `" + method.name() + "` as a function of the file that takes the `" + iface.name() + "`"))
+            }
+        }
     }
 }
+
+/** A class gives a method with the name, as many parameters, and types that fit the interface's. */
+private fn implementation(c: Decl.ClassDecl, method: Decl.Function, iface: Decl.Interface, problems: List<Mismatch>) {
+    val own = c.methods() |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
+    if (own == null) {
+        problems.add(Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
+            iface.name() + "` requires; add the method"))
+        return
+    }
+    if (own.isPrivate()) {
+        problems.add(Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
+            "`, so it cannot be private"))
+    }
+    val required = method.returnType()
+    val givenReturn = own.returnType()
+    if ((required == null && givenReturn != null) || (required != null && (givenReturn == null || !fits(givenReturn, required)))) {
+        problems.add(Mismatch(own.namePos(), "`" + own.name() + "` returns `" + returnText(givenReturn) + "` here, but the interface `" +
+            iface.name() + "` requires `" + signature(method) + "`"))
+    }
+    var i = 0
+    while (i < own.params().size()) {
+        val givenParam = own.params().get(i).type()
+        val requiredParam = method.params().get(i).type()
+        // A parameter may accept more than required, `String?` for `String`, but not less.
+        if (givenParam != null && requiredParam != null && !fits(requiredParam, givenParam)) {
+            problems.add(Mismatch(own.params().get(i).pos(), "the parameter `" + own.params().get(i).name() + "` is `" +
+                text(givenParam) + "` here, but the interface `" + iface.name() + "` requires `" + signature(method) + "`"))
+        }
+        i += 1
+    }
+}
+
+private fn signature(method: Decl.Function) -> String {
+    val params = method.params() |> map { p -> p.name() + ": " + text(p.type()!!) }
+    val returnType = method.returnType()
+    return "fn " + method.name() + "(" + String.join(", ", params) + ")" + (if (returnType == null) "" else " -> " + text(returnType))
+}
+
+private fn returnText(type: TypeRef?) -> String = if (type == null) "nothing" else text(type)
 
 private fn compare(name: String, field: Given, required: TypeRef, iface: Decl.Interface, problems: List<Mismatch>) {
     val type = field.type()
@@ -67,6 +120,20 @@ fn requiredValues(file: SourceFile, supertypes: List<TypeRef>) -> List<Expr.Para
         values.addAll(iface.members())
     }
     return values
+}
+
+/** What the interfaces require, as `name/arity`: a value is a method without parameters. */
+fn required(file: SourceFile, supertypes: List<TypeRef>) -> List<String> {
+    val keys = ArrayList<String>()
+    for (iface in interfaces(file, supertypes, HashSet<String>())) {
+        for (member in iface.members()) {
+            keys.add(member.name() + "/0")
+        }
+        for (method in iface.methods()) {
+            keys.add(method.name() + "/" + method.params().size())
+        }
+    }
+    return keys
 }
 
 /** The interfaces of the file among the supertypes, with the interfaces they extend. */

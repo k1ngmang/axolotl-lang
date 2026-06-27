@@ -1,0 +1,10 @@
+package app
+
+interface Store {
+    val name: String
+    fn get(key: String) -> String?
+}
+
+fn get(key: String) -> String? = null
+
+fn name() -> String = "x"

@@ -1,0 +1,25 @@
+package app
+
+interface Shape {
+    val name: String
+    fn area() -> Double
+    fn scaled(factor: Double) -> Shape
+    fn name() -> String
+    fn area() -> Double
+}
+
+data class Square(val name: String, val side: Double) : Shape
+
+class Circle(val name: String, val radius: Double) : Shape {
+    private fn area() -> Double = 3.0 * radius * radius
+
+    fn scaled(factor: Double?) -> Shape? = Circle(name, radius * 2.0)
+}
+
+class Dot(val name: String) : Shape {
+    fn area() {
+        println("no area")
+    }
+
+    fn scaled(factor: Int) -> Shape = this
+}

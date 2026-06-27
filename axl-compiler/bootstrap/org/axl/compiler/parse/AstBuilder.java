@@ -88,6 +88,7 @@ import org.axl.compiler.parse.AxolotlParser.IfStatementContext;
 import org.axl.compiler.parse.AxolotlParser.IfStatementAltContext;
 import org.axl.compiler.parse.AxolotlParser.ImportDeclContext;
 import org.axl.compiler.parse.AxolotlParser.InterfaceDeclContext;
+import org.axl.compiler.parse.AxolotlParser.InterfaceMethodContext;
 import org.axl.compiler.parse.AxolotlParser.IsCheckContext;
 import org.axl.compiler.parse.AxolotlParser.LambdaContext;
 import org.axl.compiler.parse.AxolotlParser.LambdaParamContext;
@@ -177,8 +178,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var iface = top.interfaceDecl();
         if (iface != null) {
             return new Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
-                    nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()), buildTypes(iface.type()),
-                    buildAnnotations(iface.annotation()));
+                    nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()),
+                    iface.interfaceMethod().stream().map(Nulls.nonNull(m -> buildSignature(m))).toList(), buildTypes(iface.type()), buildAnnotations(iface.annotation()));
         }
         final var value = top.valDecl();
         if (value != null) {
@@ -221,10 +222,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return contexts.stream().map(Nulls.nonNull(t -> buildType(t))).toList();
     }
     private static Decl.Function buildFunction(FunctionDeclContext ctx) {
-        final var params = new ArrayList<Expr.Param>();
-        for (final var p : ctx.param()) {
-            params.add(new Param(pos(p.start), nameOf(p.identifier()), buildType(p.type()), buildAnnotations(p.annotation())));
-        }
+        final var params = buildParams(ctx.param());
         final var body = ctx.functionBody();
         final var bodyExpr = body.expression();
         final var bodyBlock = body.block();
@@ -232,6 +230,17 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final Stmt.@Nullable Block block = (bodyBlock == null ? null : buildBlock(bodyBlock));
         return new Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
                 params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()));
+    }
+    private static Decl.Function buildSignature(InterfaceMethodContext ctx) {
+        return new Function(pos(ctx.start), pos(ctx.identifier().start), false, nameOf(ctx.identifier()), buildParams(ctx.param()),
+                typeOrNull(ctx.type()), null, null, buildAnnotations(ctx.annotation()));
+    }
+    private static List<Expr.Param> buildParams(List<ParamContext> contexts) {
+        final var params = new ArrayList<Expr.Param>();
+        for (final var p : contexts) {
+            params.add(new Param(pos(p.start), nameOf(p.identifier()), buildType(p.type()), buildAnnotations(p.annotation())));
+        }
+        return params;
     }
     private static List<Decl.Annotation> buildAnnotations(List<AnnotationContext> contexts) {
         return contexts.stream().map(Nulls.nonNull(a -> new Annotation(pos(a.start), a.qualifiedName().getText(), buildAnnotationArgs(a.annotationArg())))).toList();

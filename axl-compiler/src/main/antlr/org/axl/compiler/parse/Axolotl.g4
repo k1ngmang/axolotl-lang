@@ -143,7 +143,10 @@ classMember
 
 // `sealed interface Shape { val name: String }`
 interfaceDecl
-    : annotation* PRIVATE? SEALED? INTERFACE identifier (COLON type (COMMA type)*)? (LBRACE field* RBRACE)?
+    : annotation* PRIVATE? SEALED? INTERFACE identifier (COLON type (COMMA type)*)? (LBRACE (field | interfaceMethod)* RBRACE)?
+    ;
+interfaceMethod
+    : annotation* FN identifier LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? SEMI?
     ;
 
 functionDecl

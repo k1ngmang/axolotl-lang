@@ -1,0 +1,60 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+/** What a store of notes gives: values and methods that each implementation writes. */
+interface Notes {
+    val name: String
+    fn add(text: String) -> Int
+    fn find(id: Int) -> String?
+    fn clear()
+}
+
+class MemoryNotes(val name: String) : Notes {
+    val items: List<String> = ArrayList<String>()
+
+    fn add(text: String) -> Int {
+        items.add(text)
+        return items.size()
+    }
+
+    fn find(id: Int) -> String? = if (id >= 1 && id <= items.size()) items.get(id - 1) else null
+
+    fn clear() {
+        items.clear()
+    }
+}
+
+class CountingNotes(val inner: Notes) : Notes {
+    var added: Int = 0
+
+    fn name() -> String = inner.name() + " (counted)"
+
+    fn add(text: String) -> Int {
+        added += 1
+        return inner.add(text)
+    }
+
+    fn find(id: Int) -> String? = inner.find(id)
+
+    fn clear() {
+        inner.clear()
+    }
+}
+
+fn describe(notes: Notes) -> String {
+    val id = notes.add("buy milk")
+    val found = notes.find(id)
+    return notes.name() + ": " + id + " " + (found ?: "nothing") + " " + (notes.find(99) ?: "nothing")
+}
+
+fn main() {
+    val memory = MemoryNotes("memory")
+    println(describe(memory))
+    val counting = CountingNotes(memory)
+    println(describe(counting))
+    println(counting.added)
+    counting.clear()
+    println(memory.items.size())
+}

@@ -30,11 +30,13 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static void implementer(SourceFile file, Decl decl, Map<String, Given> given, List<TypeRef> supertypes,
             List<Mismatch> problems) {
+        final var seen = new HashSet<String>();
         for (final var iface : interfaces(file, supertypes, new HashSet<String>())) {
             for (final var member : iface.members()) {
                 final var required = java.util.Objects.requireNonNull(member.type());
                 final var field = given.get(member.name());
-                if (field == null) {
+                if (!seen.add(member.name() + "/0")) {
+                } else if (field == null) {
                     problems.add(new Mismatch(decl.namePos(), "`" + decl.name() + "` does not give `val " + member.name() + ": " +
                             text(required) +
                             "`, which the interface `" +
@@ -44,7 +46,71 @@ import org.axl.compiler.ast.TypeRef;
                     compare(member.name(), field, required, iface, problems);
                 }
             }
+            for (final var method : iface.methods()) {
+                if (!seen.add(method.name() + "/" + method.params().size())) {
+                } else if (decl instanceof Decl.ClassDecl decl$1) {
+                    implementation(decl$1, method, iface, problems);
+                } else {
+                    problems.add(new Mismatch(decl.namePos(), "`" + decl.name() + "` is a data class, so it has no methods, but the " +
+                            "interface `" +
+                            iface.name() +
+                            "` requires `" +
+                            signature(method) +
+                            "`; make `" +
+                            decl.name() +
+                            "` a class, or write `" +
+                            method.name() +
+                            "` as a function of the file that takes the `" +
+                            iface.name() +
+                            "`"));
+                }
+            }
         }
+    }
+    private static void implementation(Decl.ClassDecl c, Decl.Function method, Decl.Interface iface, List<Mismatch> problems) {
+        final var own = Nulls.first(c.methods().stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).iterator());
+        if (own == null) {
+            problems.add(new Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
+                    iface.name() +
+                    "` requires; add the method"));
+            return;
+        }
+        if (own.isPrivate()) {
+            problems.add(new Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
+                    "`, so it cannot be private"));
+        }
+        final var required = method.returnType();
+        final var givenReturn = own.returnType();
+        if ((required == null && givenReturn != null) || (required != null && (givenReturn == null || !fits(givenReturn, required)))) {
+            problems.add(new Mismatch(own.namePos(), "`" + own.name() + "` returns `" + returnText(givenReturn) + "` here, but the interface `" +
+                    iface.name() +
+                    "` requires `" +
+                    signature(method) +
+                    "`"));
+        }
+        var i = 0;
+        while (i < own.params().size()) {
+            final var givenParam = own.params().get(i).type();
+            final var requiredParam = method.params().get(i).type();
+            if (givenParam != null && requiredParam != null && !fits(requiredParam, givenParam)) {
+                problems.add(new Mismatch(own.params().get(i).pos(), "the parameter `" + own.params().get(i).name() + "` is `" +
+                        text(givenParam) +
+                        "` here, but the interface `" +
+                        iface.name() +
+                        "` requires `" +
+                        signature(method) +
+                        "`"));
+            }
+            i += 1;
+        }
+    }
+    private static String signature(Decl.Function method) {
+        final var params = method.params().stream().map(Nulls.nonNull(p -> p.name() + ": " + text(Nulls.sure(p.type())))).toList();
+        final var returnType = method.returnType();
+        return "fn " + method.name() + "(" + String.join(", ", params) + ")" + ((returnType == null ? "" : " -> " + text(returnType)));
+    }
+    private static String returnText(@Nullable TypeRef type) {
+        return (type == null ? "nothing" : text(type));
     }
     private static void compare(String name, Given field, TypeRef required, Decl.Interface iface, List<Mismatch> problems) {
         final var type = field.type();
@@ -64,6 +130,18 @@ import org.axl.compiler.ast.TypeRef;
             values.addAll(iface.members());
         }
         return values;
+    }
+    public static List<String> required(SourceFile file, List<TypeRef> supertypes) {
+        final var keys = new ArrayList<String>();
+        for (final var iface : interfaces(file, supertypes, new HashSet<String>())) {
+            for (final var member : iface.members()) {
+                keys.add(member.name() + "/0");
+            }
+            for (final var method : iface.methods()) {
+                keys.add(method.name() + "/" + method.params().size());
+            }
+        }
+        return keys;
     }
     private static List<Decl.Interface> interfaces(SourceFile file, List<TypeRef> supertypes, Set<String> seen) {
         final var result = new ArrayList<Decl.Interface>();

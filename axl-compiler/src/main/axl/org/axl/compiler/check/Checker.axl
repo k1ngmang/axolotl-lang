@@ -159,7 +159,10 @@ class Checker(val file: SourceFile) {
                 is Decl.ClassDecl -> classDecl(decl)
                 is Decl.EnumDecl -> enumConstants(decl)
                 is Decl.DataClass -> members(decl.fields(), "field")
-                is Decl.Interface -> members(decl.members(), "member")
+                is Decl.Interface -> {
+                    members(decl.members(), "member")
+                    interfaceMethods(decl)
+                }
             }
         }
         checkInitOrder()
@@ -292,9 +295,25 @@ class Checker(val file: SourceFile) {
                 classFileMembers(decl)
             } else if (decl is Decl.DataClass && decl.name().equals(file.className())) {
                 recordFileMembers(decl)
+            } else if (decl is Decl.Interface && decl.name().equals(file.className())) {
+                interfaceFileMembers(decl)
             }
         }
     }
+
+    /** The functions of the file become static methods of its interface, next to the methods it requires. */
+    private fn interfaceFileMembers(iface: Decl.Interface) {
+        for (decl in file.decls()) {
+            if (decl is Decl.Function && hasSignatureLike(iface, decl)) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + iface.name() + "`, the type of this file, requires a method `" +
+                    decl.name() + "` with as many parameters, so a function of the file cannot have its name; rename one")
+            }
+        }
+    }
+
+    private fn hasSignatureLike(iface: Decl.Interface, f: Decl.Function) -> Boolean =
+        (iface.methods() |> anyMatch { m -> m.name().equals(f.name()) && m.params().size() == f.params().size() }) ||
+            (f.params().isEmpty() && (iface.members() |> anyMatch { m -> m.name().equals(f.name()) }))
 
     private fn classFileMembers(c: Decl.ClassDecl) {
         val properties = HashSet<String>()
@@ -428,6 +447,30 @@ class Checker(val file: SourceFile) {
                 checkReserved(member.pos(), member.name())
             }
             writtenType(member.type(), false)
+        }
+    }
+
+    private fn interfaceMethods(iface: Decl.Interface) {
+        val values = iface.members() |> map { m -> m.name() }
+        val seen = HashSet<String>()
+        for (m in iface.methods()) {
+            annotations(m.annotations())
+            if (m.params().isEmpty() && values.contains(m.name())) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "` is already a value of `" + iface.name() +
+                    "`, and a value is read as `" + m.name() + "()`; remove one")
+            } else if (!seen.add(m.name() + "/" + m.params().size())) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "the method `" + m.name() + "` of `" + iface.name() +
+                    "` is declared twice with as many parameters")
+            } else {
+                checkReserved(m.namePos(), m.name())
+            }
+            writtenType(m.returnType(), true)
+            scope = Scope(scope, false)
+            for (p in m.params()) {
+                declare(p.pos(), p.name(), Kind.PARAM, p.type())
+                annotations(p.annotations())
+            }
+            pop()
         }
     }
 

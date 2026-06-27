@@ -272,7 +272,7 @@ class Generator(
             emitConstructor(classDecl)
         }
         val outerOverridden = overridden
-        overridden = Implementations.requiredValues(file, classDecl.supertypes()) |> map { m -> m.name() }
+        overridden = Implementations.required(file, classDecl.supertypes())
         for (method in classDecl.methods()) {
             resetCounters()
             emitFunction(method, false)
@@ -352,7 +352,7 @@ class Generator(
         val line = iface.pos().line()
         val head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
             typeList(" extends ", iface.supertypes())
-        if (iface.members().isEmpty()) {
+        if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}")
             return
         }
@@ -365,6 +365,12 @@ class Generator(
         em.indent()
         for (member in iface.members()) {
             em.line(member.pos().line(), javaType(memberType(member)) + " " + member.name() + "();")
+        }
+        for (method in iface.methods()) {
+            val returnType = method.returnType()
+            val resultType = if (returnType == null) "void" else javaType(returnType)
+            em.line(method.pos().line(), annotations(method.annotations()) + resultType + " " + method.name() + "(" +
+                parameters(method.params(), method.pos().line()) + ");")
         }
         em.dedent()
     }
@@ -408,7 +414,7 @@ class Generator(
         val resultType = if (declaredReturn == null) "void" else javaType(declaredReturn)
         val modifier = if (isStatic) " static " else " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
-        val override = if (!isStatic && !written && f.params().isEmpty() && overridden.contains(f.name())) "@Override " else ""
+        val override = if (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size())) "@Override " else ""
         em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
         resultTypeRef = declaredReturn

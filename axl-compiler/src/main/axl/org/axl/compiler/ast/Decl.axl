@@ -63,6 +63,8 @@ data class Interface(
     val name: String,
     val isSealed: Boolean,
     val members: List<Expr.Param>,
+    /** Signatures without a body: a class that implements the interface writes each. */
+    val methods: List<Function>,
     val supertypes: List<TypeRef>,
     val annotations: List<Annotation>
 ) : Decl

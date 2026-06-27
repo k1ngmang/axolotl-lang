@@ -249,7 +249,7 @@ import org.axl.compiler.check.Whens;
             emitConstructor(classDecl);
         }
         final var outerOverridden = overridden;
-        overridden = Implementations.requiredValues(file, classDecl.supertypes()).stream().map(Nulls.nonNull(m -> m.name())).toList();
+        overridden = Implementations.required(file, classDecl.supertypes());
         for (final var method : classDecl.methods()) {
             resetCounters();
             emitFunction(method, false);
@@ -325,7 +325,7 @@ import org.axl.compiler.check.Whens;
         final var line = iface.pos().line();
         final var head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
                 typeList(" extends ", iface.supertypes());
-        if (iface.members().isEmpty()) {
+        if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}");
             return;
         }
@@ -337,6 +337,13 @@ import org.axl.compiler.check.Whens;
         em.indent();
         for (final var member : iface.members()) {
             em.line(member.pos().line(), javaType(memberType(member)) + " " + member.name() + "();");
+        }
+        for (final var method : iface.methods()) {
+            final var returnType = method.returnType();
+            final var resultType = (returnType == null ? "void" : javaType(returnType));
+            em.line(method.pos().line(), annotations(method.annotations()) + resultType + " " + method.name() + "(" +
+                    parameters(method.params(), method.pos().line()) +
+                    ");");
         }
         em.dedent();
     }
@@ -375,7 +382,7 @@ import org.axl.compiler.check.Whens;
         final var resultType = (declaredReturn == null ? "void" : javaType(declaredReturn));
         final var modifier = (isStatic ? " static " : " ");
         final var written = f.annotations().stream().anyMatch(a -> a.name().equals("Override"));
-        final var override = (!isStatic && !written && f.params().isEmpty() && overridden.contains(f.name()) ? "@Override " : "");
+        final var override = (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size()) ? "@Override " : "");
         em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
         returnType = (declaredReturn == null ? null : nullableType(declaredReturn));
         resultTypeRef = declaredReturn;

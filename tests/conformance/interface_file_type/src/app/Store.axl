@@ -1,0 +1,24 @@
+package app
+
+import java.util.HashMap
+import java.util.Map
+
+/** The type of this file: a store of settings, with the functions of the file as its static methods. */
+interface Store {
+    fn get(key: String) -> String?
+    fn put(key: String, value: String)
+}
+
+class MemoryStore : Store {
+    val values: Map<String, String> = HashMap<String, String>()
+
+    fn get(key: String) -> String? = values.get(key)
+
+    fn put(key: String, value: String) {
+        values.put(key, value)
+    }
+}
+
+fn inMemory() -> Store = MemoryStore()
+
+fn describe(store: Store, key: String) -> String = key + "=" + (store.get(key) ?: "unset")

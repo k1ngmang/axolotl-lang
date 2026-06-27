@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val store = Store.inMemory()
+    println(Store.describe(store, "color"))
+    store.put("color", "red")
+    println(Store.describe(store, "color"))
+}
