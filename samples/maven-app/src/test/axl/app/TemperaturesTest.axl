@@ -1,0 +1,24 @@
+package app
+
+import fn org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
+// A class with @Test methods is a JUnit test class; Maven's surefire finds it like a Java one.
+class TemperaturesTest {
+    @Test
+    fn convertsFahrenheit() {
+        assertEquals(Ok(100.0), Temperatures.celsius(Samples.boiling))
+        assertEquals(Ok(0.0), Temperatures.celsius(Samples.freezing()))
+    }
+
+    @Test
+    fn reportsBadInput() {
+        assertEquals(Err("not a temperature: x"), Temperatures.celsius("x"))
+        assertEquals(Err("not a temperature: "), Temperatures.celsius(null))
+    }
+
+    @Test
+    fn javaSeesAxolotlResults() {
+        assertEquals("100.0 C", Labels.forText("212"))
+    }
+}
