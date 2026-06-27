@@ -148,6 +148,7 @@ public class AxlPlugin implements Plugin<Project> {
             errorprone.check("NullAway", CheckSeverity.ERROR);
             errorprone.check("IdentityBinaryExpression", CheckSeverity.WARN);
             errorprone.check("BadImport", CheckSeverity.OFF);
+            errorprone.check("InlineMeSuggester", CheckSeverity.OFF);
             errorprone.option("NullAway:JSpecifyMode", "true");
             errorprone.option("NullAway:OnlyNullMarked", "true");
         });

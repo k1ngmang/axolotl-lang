@@ -64,7 +64,7 @@
             <arg>-XDcompilePolicy=simple</arg>
             <arg>--should-stop=ifError=FLOW</arg>
             <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
-            <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:BadImport:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
+            <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
             <!-- Set by axl:generate: reports errors in generated code at the .axl lines. -->
             <arg>${symbol_dollar}{axl.javacPlugin}</arg>
           </compilerArgs>
