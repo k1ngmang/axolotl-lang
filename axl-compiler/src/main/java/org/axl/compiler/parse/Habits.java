@@ -49,6 +49,9 @@ final class Habits {
             case AxolotlLexer.COLON -> pythonBlock(tokens, i);
             case AxolotlLexer.ASSIGN -> followedBy(tokens, i, AxolotlLexer.GT) ? fatArrow(tokens, i) : null;
             case AxolotlLexer.UNKNOWN_CHAR -> unknownChar(tokens, i);
+            case AxolotlLexer.AT -> i > 0 && type(tokens, i - 1) == AxolotlLexer.RETURN
+                    ? "Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@" + text(tokens, i + 1) + "`"
+                    : null;
             default -> symbol(tokens, i);
         };
     }
@@ -156,10 +159,6 @@ final class Habits {
     private static String unknownChar(List<Token> tokens, int i) {
         return switch (tokens.get(i).getText()) {
             case "[" -> bracket(tokens, i);
-            case "@" -> !followedBy(tokens, i, AxolotlLexer.IDENTIFIER) ? null
-                    : i > 0 && type(tokens, i - 1) == AxolotlLexer.RETURN
-                    ? "Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@" + text(tokens, i + 1) + "`"
-                    : "Axolotl has no annotations; remove `@" + text(tokens, i + 1) + "`";
             case "`" -> "Axolotl has no template strings; join the parts with `+`: `\"n is \" + n`";
             case "#" -> !alone(tokens, i) && startsLine(tokens, i) ? "comments start with `//`" : null;
             case "|" -> unionType(tokens, i) ? "a parameter has one type; Axolotl has no union types, so take a common "

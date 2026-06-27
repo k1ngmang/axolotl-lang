@@ -145,7 +145,9 @@ import org.axl.compiler.check.Whens;
                 emitClass(decl$3);
             }
             case Decl.EnumDecl decl$4 -> {
-                em.line(decl$4.pos().line(), visibility(decl$4) + " enum " + decl$4.name() + " { " +
+                em.line(decl$4.pos().line(), annotations(decl$4.annotations()) + visibility(decl$4) + " enum " +
+                        decl$4.name() +
+                        " { " +
                         String.join(", ", decl$4.constants()) +
                         " }");
             }
@@ -200,29 +202,30 @@ import org.axl.compiler.check.Whens;
     }
     private void emitFileType(Decl fileType) {
         final var line = fileType.pos().line();
+        final var marked = "@NullMarked " + annotations(fileType.annotations());
         if (fileType instanceof Decl.DataClass fileType$1) {
-            em.line(line, "@NullMarked public record " + fileType$1.name() + "(" + parameters(fileType$1.fields(), line) + ")" +
+            em.line(line, marked + "public record " + fileType$1.name() + "(" + parameters(fileType$1.fields(), line) + ")" +
                     typeList(" implements ", fileType$1.supertypes()) +
                     " {");
         } else if (fileType instanceof Decl.Interface fileType$2) {
-            em.line(line, "@NullMarked public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() +
+            em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() +
                     typeList(" extends ", fileType$2.supertypes()) +
                     " {");
             emitRequiredValues(fileType$2);
         } else if (fileType instanceof Decl.ClassDecl fileType$3) {
-            em.line(line, "@NullMarked public final class " + fileType$3.name() +
+            em.line(line, marked + "public final class " + fileType$3.name() +
                     typeList(" implements ", fileType$3.supertypes()) +
                     " {");
             emitClassMembers(fileType$3);
         } else if (fileType instanceof Decl.EnumDecl fileType$4) {
-            em.line(line, "@NullMarked public enum " + fileType$4.name() + " { " + String.join(", ", fileType$4.constants()) + ";");
+            em.line(line, marked + "public enum " + fileType$4.name() + " { " + String.join(", ", fileType$4.constants()) + ";");
         } else {
             throw new IllegalStateException();
         }
         em.indent();
     }
     private void emitClass(Decl.ClassDecl classDecl) {
-        em.line(classDecl.pos().line(), visibility(classDecl) + " static final class " + classDecl.name() +
+        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
                 typeList(" implements ", classDecl.supertypes()) +
                 " {");
         emitClassMembers(classDecl);
@@ -308,17 +311,19 @@ import org.axl.compiler.check.Whens;
     private String field(Decl.Property p) {
         final var visibility = (p.isPrivate() ? "private" : "public");
         final var modifier = (p.mutable() ? "" : " final");
-        return visibility + modifier + " " + javaType(propertyType(p)) + " " + p.name();
+        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyType(p)) + " " + p.name();
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
-        em.line(line, visibility(dataClass) + " record " + dataClass.name() + "(" + parameters(dataClass.fields(), line) + ")" +
+        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() + "(" +
+                parameters(dataClass.fields(), line) +
+                ")" +
                 typeList(" implements ", dataClass.supertypes()) +
                 " {}");
     }
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
-        final var head = visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
+        final var head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
                 typeList(" extends ", iface.supertypes());
         if (iface.members().isEmpty()) {
             em.line(line, head + " {}");
@@ -349,7 +354,7 @@ import org.axl.compiler.check.Whens;
         final var declared = value.type();
         final var type = (declared != null ? javaType(declared) : valueTypes.getOrDefault(value.name(), "Object"));
         final var line = value.pos().line();
-        final var head = visibility(value) + " static final " + type + " " + value.name();
+        final var head = annotations(value.annotations()) + visibility(value) + " static final " + type + " " + value.name();
         em.line(line, joined(head, " = ", expr(value.init()), line, startLine(value.init())) + ";");
     }
     private void emitProbe() {
@@ -369,8 +374,9 @@ import org.axl.compiler.check.Whens;
         final var declaredReturn = f.returnType();
         final var resultType = (declaredReturn == null ? "void" : javaType(declaredReturn));
         final var modifier = (isStatic ? " static " : " ");
-        final var annotation = (!isStatic && f.params().isEmpty() && overridden.contains(f.name()) ? "@Override " : "");
-        em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
+        final var written = f.annotations().stream().anyMatch(a -> a.name().equals("Override"));
+        final var override = (!isStatic && !written && f.params().isEmpty() && overridden.contains(f.name()) ? "@Override " : "");
+        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
         returnType = (declaredReturn == null ? null : nullableType(declaredReturn));
         resultTypeRef = declaredReturn;
         localTypes.clear();
@@ -2178,6 +2184,9 @@ import org.axl.compiler.check.Whens;
         return typeText(type, true);
     }
     private static String typeText(TypeRef type, boolean generic) {
+        if (type.name().equals(TypeRef.ANY)) {
+            return "?";
+        }
         final var primitive = PRIMITIVE_NAMES.get(type.name());
         var name = type.name();
         if (primitive != null) {
@@ -2276,13 +2285,58 @@ import org.axl.compiler.check.Whens;
     private static Expr withoutParens(Expr e) {
         return (e instanceof Expr.Paren e$1 ? withoutParens(e$1.inner()) : e);
     }
+    private static String annotations(List<Decl.Annotation> list) {
+        final var sb = new StringBuilder();
+        for (final var a : list) {
+            sb.append("@").append(a.name());
+            if (!a.args().isEmpty()) {
+                sb.append("(").append(String.join(", ", a.args().stream().map(Nulls.nonNull(arg -> annotationArg(arg))).toList())).append(")");
+            }
+            sb.append(" ");
+        }
+        return sb.toString();
+    }
+    private static String annotationArg(Decl.AnnotationArg arg) {
+        final var value = arg.value();
+        final var code = (value != null ? annotationValue(value) : "{" + String.join(", ", arg.elements().stream().map(Nulls.nonNull(e -> annotationArg(e))).toList()) + "}");
+        final var name = arg.name();
+        return (name == null ? code : name + " = " + code);
+    }
+    private static String annotationValue(Expr e) {
+        switch (e) {
+            case Expr.Literal e$1 -> {
+                return literal(e$1.text());
+            }
+            case Expr.Name e$2 -> {
+                return e$2.name();
+            }
+            case Expr.Member e$3 -> {
+                return annotationValue(e$3.target()) + "." + e$3.name();
+            }
+            case Expr.ClassLiteral e$4 -> {
+                return boxedType(new TypeRef(e$4.pos(), Nulls.or(Expr.pathName(e$4.target()), () -> "Object"), List.of(), false)) + ".class";
+            }
+            case Expr.Unary e$5 -> {
+                return e$5.op() + annotationValue(e$5.operand());
+            }
+            case Expr.Binary e$6 -> {
+                return annotationValue(e$6.left()) + " " + e$6.op() + " " + annotationValue(e$6.right());
+            }
+            case Expr.Paren e$7 -> {
+                return "(" + annotationValue(e$7.inner()) + ")";
+            }
+            default -> {
+                throw new IllegalStateException("not a constant in an annotation at " + e.pos());
+            }
+        }
+    }
     private static String parameters(List<Expr.Param> params, int declarationLine) {
         final var sb = new StringBuilder();
         var previous = declarationLine;
         var i = 0;
         while (i < params.size()) {
             final var p = params.get(i);
-            final var code = javaType(memberType(p)) + " " + p.name();
+            final var code = annotations(p.annotations()) + javaType(memberType(p)) + " " + p.name();
             if (p.pos().line() > previous) {
                 sb.append((i > 0 ? "," : "")).append(Emitter.continued(p.pos().line(), code));
                 previous = p.pos().line();

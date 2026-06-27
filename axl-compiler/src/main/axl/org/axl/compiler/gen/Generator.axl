@@ -165,8 +165,8 @@ class Generator(
             }
             is Decl.Function -> emitFunction(decl, true)
             is Decl.ClassDecl -> emitClass(decl)
-            is Decl.EnumDecl -> em.line(decl.pos().line(), visibility(decl) + " enum " + decl.name() + " { " +
-                String.join(", ", decl.constants()) + " }")
+            is Decl.EnumDecl -> em.line(decl.pos().line(), annotations(decl.annotations()) + visibility(decl) + " enum " +
+                decl.name() + " { " + String.join(", ", decl.constants()) + " }")
             is Decl.DataClass -> emitDataClass(decl)
             is Decl.Interface -> emitInterface(decl)
         }
@@ -223,20 +223,21 @@ class Generator(
 
     private fn emitFileType(fileType: Decl) {
         val line = fileType.pos().line()
+        val marked = "@NullMarked " + annotations(fileType.annotations())
         if (fileType is Decl.DataClass) {
-            em.line(line, "@NullMarked public record " + fileType.name() + "(" + parameters(fileType.fields(), line) + ")" +
+            em.line(line, marked + "public record " + fileType.name() + "(" + parameters(fileType.fields(), line) + ")" +
                 typeList(" implements ", fileType.supertypes()) + " {")
         } else if (fileType is Decl.Interface) {
-            em.line(line, "@NullMarked public" + interfaceModifier(fileType) + " interface " + fileType.name() +
+            em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() +
                 typeList(" extends ", fileType.supertypes()) + " {")
             emitRequiredValues(fileType)
         } else if (fileType is Decl.ClassDecl) {
-            em.line(line, "@NullMarked public final class " + fileType.name() +
+            em.line(line, marked + "public final class " + fileType.name() +
                 typeList(" implements ", fileType.supertypes()) + " {")
             emitClassMembers(fileType)
         } else if (fileType is Decl.EnumDecl) {
             // The rest of the file follows the constants, which a `;` ends.
-            em.line(line, "@NullMarked public enum " + fileType.name() + " { " + String.join(", ", fileType.constants()) + ";")
+            em.line(line, marked + "public enum " + fileType.name() + " { " + String.join(", ", fileType.constants()) + ";")
         } else {
             throw IllegalStateException()
         }
@@ -244,7 +245,7 @@ class Generator(
     }
 
     private fn emitClass(classDecl: Decl.ClassDecl) {
-        em.line(classDecl.pos().line(), visibility(classDecl) + " static final class " + classDecl.name() +
+        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
             typeList(" implements ", classDecl.supertypes()) + " {")
         emitClassMembers(classDecl)
         em.line(classDecl.pos().line(), "}")
@@ -337,18 +338,19 @@ class Generator(
     private fn field(p: Decl.Property) -> String {
         val visibility = if (p.isPrivate()) "private" else "public"
         val modifier = if (p.mutable()) "" else " final"
-        return visibility + modifier + " " + javaType(propertyType(p)) + " " + p.name()
+        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyType(p)) + " " + p.name()
     }
 
     private fn emitDataClass(dataClass: Decl.DataClass) {
         val line = dataClass.pos().line()
-        em.line(line, visibility(dataClass) + " record " + dataClass.name() + "(" + parameters(dataClass.fields(), line) + ")" +
+        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() + "(" +
+            parameters(dataClass.fields(), line) + ")" +
             typeList(" implements ", dataClass.supertypes()) + " {}")
     }
 
     private fn emitInterface(iface: Decl.Interface) {
         val line = iface.pos().line()
-        val head = visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
+        val head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
             typeList(" extends ", iface.supertypes())
         if (iface.members().isEmpty()) {
             em.line(line, head + " {}")
@@ -383,7 +385,7 @@ class Generator(
         val declared = value.type()
         val type = if (declared != null) javaType(declared) else valueTypes.getOrDefault(value.name(), "Object")
         val line = value.pos().line()
-        val head = visibility(value) + " static final " + type + " " + value.name()
+        val head = annotations(value.annotations()) + visibility(value) + " static final " + type + " " + value.name()
         em.line(line, joined(head, " = ", expr(value.init()), line, startLine(value.init())) + ";")
     }
 
@@ -405,8 +407,9 @@ class Generator(
         val declaredReturn = f.returnType()
         val resultType = if (declaredReturn == null) "void" else javaType(declaredReturn)
         val modifier = if (isStatic) " static " else " "
-        val annotation = if (!isStatic && f.params().isEmpty() && overridden.contains(f.name())) "@Override " else ""
-        em.line(f.pos().line(), annotation + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
+        val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
+        val override = if (!isStatic && !written && f.params().isEmpty() && overridden.contains(f.name())) "@Override " else ""
+        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
         resultTypeRef = declaredReturn
         localTypes.clear()
@@ -2390,6 +2393,9 @@ fn javaType(type: TypeRef) -> String = typeText(type, false)
 private fn boxedType(type: TypeRef) -> String = typeText(type, true)
 
 private fn typeText(type: TypeRef, generic: Boolean) -> String {
+    if (type.name().equals(TypeRef.ANY)) {
+        return "?"
+    }
     val primitive = PRIMITIVE_NAMES.get(type.name())
     var name = type.name()
     if (primitive != null) {
@@ -2501,13 +2507,45 @@ private fn actionOf(statement: Expr) -> Expr {
 private fn withoutParens(e: Expr) -> Expr = if (e is Expr.Paren) withoutParens(e.inner()) else e
 
 /** A parameter on a line of its own keeps that line, so that errors in its type are found there. */
+/** `@Name(x = 1) ` before a declaration. The values are constants, written as Java writes them. */
+private fn annotations(list: List<Decl.Annotation>) -> String {
+    val sb = StringBuilder()
+    for (a in list) {
+        sb.append("@").append(a.name())
+        if (!a.args().isEmpty()) {
+            sb.append("(").append(String.join(", ", a.args() |> map { arg -> annotationArg(arg) })).append(")")
+        }
+        sb.append(" ")
+    }
+    return sb.toString()
+}
+
+private fn annotationArg(arg: Decl.AnnotationArg) -> String {
+    val value = arg.value()
+    val code = if (value != null) annotationValue(value) else "{" + String.join(", ", arg.elements() |> map { e -> annotationArg(e) }) + "}"
+    val name = arg.name()
+    return if (name == null) code else name + " = " + code
+}
+
+/** Literals, names such as `Color.RED`, `Int.class` (as `Integer.class`) and `+`, `-` or `!` over them. */
+private fn annotationValue(e: Expr) -> String = when (e) {
+    is Expr.Literal -> literal(e.text())
+    is Expr.Name -> e.name()
+    is Expr.Member -> annotationValue(e.target()) + "." + e.name()
+    is Expr.ClassLiteral -> boxedType(TypeRef(e.pos(), Expr.pathName(e.target()) ?: "Object", List.of(), false)) + ".class"
+    is Expr.Unary -> e.op() + annotationValue(e.operand())
+    is Expr.Binary -> annotationValue(e.left()) + " " + e.op() + " " + annotationValue(e.right())
+    is Expr.Paren -> "(" + annotationValue(e.inner()) + ")"
+    else -> throw IllegalStateException("not a constant in an annotation at " + e.pos())
+}
+
 private fn parameters(params: List<Expr.Param>, declarationLine: Int) -> String {
     val sb = StringBuilder()
     var previous = declarationLine
     var i = 0
     while (i < params.size()) {
         val p = params.get(i)
-        val code = javaType(memberType(p)) + " " + p.name()
+        val code = annotations(p.annotations()) + javaType(memberType(p)) + " " + p.name()
         if (p.pos().line() > previous) {
             sb.append(if (i > 0) "," else "").append(Emitter.continued(p.pos().line(), code))
             previous = p.pos().line()

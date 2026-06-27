@@ -3,3 +3,6 @@ package org.axl.compiler.ast
 import java.util.List
 
 data class TypeRef(val pos: Pos, val name: String, val args: List<TypeRef>, val nullable: Boolean)
+
+/** The name of the type argument `*`, Java's `?`. */
+val ANY: String = "*"

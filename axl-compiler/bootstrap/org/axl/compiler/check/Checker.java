@@ -197,6 +197,7 @@ import org.axl.compiler.ast.TypeRef;
                 scope.names.putIfAbsent(decl.name(), new Symbol(Kind.TOP_LEVEL, decl.pos(), null));
             }
             checkReserved(decl.namePos(), decl.name());
+            annotations(decl.annotations());
             if (decl instanceof Decl.Function decl$2) {
                 checkFunctionName(decl$2);
             }
@@ -310,8 +311,10 @@ import org.axl.compiler.ast.TypeRef;
         scope = new Scope(scope, false);
         for (final var p : c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type());
+            annotations(p.annotations());
         }
         for (final var p : c.properties()) {
+            annotations(p.annotations());
             if (p.type() == null) {
                 final var keyword = (p.mutable() ? "var " : "val ");
                 error(p.pos(), ErrorCode.TYPE_REQUIRED, "a property needs a type: `" + keyword + p.name() + ": Type = ...`");
@@ -358,6 +361,7 @@ import org.axl.compiler.ast.TypeRef;
     private void members(List<Expr.Param> list, String what) {
         final var seen = new HashSet<String>();
         for (final var member : list) {
+            annotations(member.annotations());
             if (!seen.add(member.name())) {
                 error(member.pos(), ErrorCode.DUPLICATE_NAME, "the " + what + " `" + member.name() + "` is declared twice");
             } else if (OBJECT_METHOD_NAMES.contains(member.name())) {
@@ -396,6 +400,7 @@ import org.axl.compiler.ast.TypeRef;
         scope = new Scope(scope, false);
         for (final var p : f.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type());
+            annotations(p.annotations());
         }
         final var exprBody = f.exprBody();
         final var body = f.body();
@@ -1179,6 +1184,30 @@ import org.axl.compiler.ast.TypeRef;
                     "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
         }
     }
+    private void annotations(List<Decl.Annotation> list) {
+        for (final var a : list) {
+            final var simple = a.name().substring(a.name().lastIndexOf('.') + 1);
+            if (NULLNESS_ANNOTATIONS.contains(simple)) {
+                error(a.pos(), ErrorCode.SYNTAX, "nullness is part of the type: write `T?` for a value that may be null " +
+                        "and `T` for one that may not, instead of `@" +
+                        simple +
+                        "`");
+            }
+            for (final var arg : a.args()) {
+                annotationArg(arg);
+            }
+        }
+    }
+    private void annotationArg(Decl.AnnotationArg arg) {
+        final var value = arg.value();
+        if (value != null && !isConstant(value)) {
+            error(value.pos(), ErrorCode.SYNTAX, "an annotation takes constants: a literal, a name such as `Color.RED`, " +
+                    "`String.class`, or `{ a, b }` for several");
+        }
+        for (final var element : arg.elements()) {
+            annotationArg(element);
+        }
+    }
     private void classLiteral(Expr.ClassLiteral e) {
         final var path = Expr.pathName(e.target());
         final var target = e.target();
@@ -1251,6 +1280,7 @@ import org.axl.compiler.ast.TypeRef;
             "notify", "notifyAll", "wait");
     private static final Map<String, String> JAVA_PRIMITIVES = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
             "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float");
+    private static final Set<String> NULLNESS_ANNOTATIONS = Set.of("Nullable", "NonNull", "NotNull", "Nonnull", "NullMarked", "NullUnmarked");
     private static final Set<String> GENERATED_CODE_PACKAGES = Set.of("axl.lang", "java.lang", "org.jspecify.annotations");
     private static final Set<String> SHADOWED_TYPES = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
             "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",
@@ -1318,6 +1348,34 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static boolean isMain(Decl.Function f) {
         return f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate();
+    }
+    private static boolean isConstant(Expr e) {
+        switch (e) {
+            case Expr.Literal e$1 -> {
+                return true;
+            }
+            case Expr.Name e$2 -> {
+                return true;
+            }
+            case Expr.Member e$3 -> {
+                return !e$3.safe() && isConstant(e$3.target());
+            }
+            case Expr.ClassLiteral e$4 -> {
+                return true;
+            }
+            case Expr.Unary e$5 -> {
+                return isConstant(e$5.operand());
+            }
+            case Expr.Binary e$6 -> {
+                return isConstant(e$6.left()) && isConstant(e$6.right());
+            }
+            case Expr.Paren e$7 -> {
+                return isConstant(e$7.inner());
+            }
+            default -> {
+                return false;
+            }
+        }
     }
     private static boolean isNull(Expr e) {
         final var inner = unparenthesized(e);

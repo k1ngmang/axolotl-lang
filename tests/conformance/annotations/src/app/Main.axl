@@ -1,0 +1,51 @@
+package app
+
+import java.util.List
+
+@Marker("record")
+data class Point(@Marker("x") val x: Int, val y: Int)
+
+@Marker(value = "class", weight = 2, type = Int.class, tags = {"a", "b"})
+class Counter(val start: Int) {
+    @Marker("prop")
+    var count: Int = start
+
+    @Marker(weight = -1)
+    fn next(@Marker("p") step: Int) -> Int {
+        count += step
+        return count
+    }
+
+    @Override
+    fn toString() -> String = "Counter " + count
+}
+
+@Marker("enum")
+enum Color { RED, GREEN }
+
+@Deprecated
+fn old() -> Int = 1
+
+@Marker("value")
+val limit: Int = 3
+
+fn method(c: Class<*>, name: String) -> java.lang.reflect.Method =
+    (List.of(c.getDeclaredMethods()) |> filter { it.getName().equals(name) } |> first)!!
+
+fn field(c: Class<*>, name: String) -> java.lang.reflect.Field =
+    (List.of(c.getDeclaredFields()) |> filter { it.getName().equals(name) } |> first)!!
+
+@Marker("fn")
+fn main() {
+    println(method(Main.class, "main").getAnnotation(Marker.class).value())
+    val counter = Counter.class.getAnnotation(Marker.class)
+    println(counter.value() + " " + counter.weight() + " " + counter.type().getSimpleName() + " " + List.of(counter.tags()))
+    val next = method(Counter.class, "next")
+    println(next.getAnnotation(Marker.class).weight() + " " + List.of(next.getParameters()).get(0).getAnnotation(Marker.class).value())
+    println(field(Counter.class, "count").getAnnotation(Marker.class).value())
+    println(field(Main.class, "limit").getAnnotation(Marker.class).value())
+    println(Point.class.getAnnotation(Marker.class).value() + " " + List.of(Point.class.getRecordComponents()).get(0).getAnnotation(Marker.class).value())
+    println(Color.class.getAnnotation(Marker.class).value())
+    println(method(Main.class, "old").isAnnotationPresent(Deprecated.class))
+    println(Counter(1).next(2) + " " + Counter(3) + " " + old())
+}

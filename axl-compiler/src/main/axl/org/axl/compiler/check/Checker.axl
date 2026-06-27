@@ -65,6 +65,9 @@ private val OBJECT_METHOD_NAMES: Set<String> = Set.of("toString", "hashCode", "g
 private val JAVA_PRIMITIVES: Map<String, String> = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
     "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float")
 
+// Annotations whose meaning `?` carries in Axolotl.
+private val NULLNESS_ANNOTATIONS: Set<String> = Set.of("Nullable", "NonNull", "NotNull", "Nonnull", "NullMarked", "NullUnmarked")
+
 // Where the classes above come from; importing them from there changes nothing.
 private val GENERATED_CODE_PACKAGES: Set<String> = Set.of("axl.lang", "java.lang", "org.jspecify.annotations")
 
@@ -260,6 +263,7 @@ class Checker(val file: SourceFile) {
                 scope.names.putIfAbsent(decl.name(), Symbol(Kind.TOP_LEVEL, decl.pos(), null))
             }
             checkReserved(decl.namePos(), decl.name())
+            annotations(decl.annotations())
             if (decl is Decl.Function) {
                 checkFunctionName(decl)
             }
@@ -364,8 +368,10 @@ class Checker(val file: SourceFile) {
         scope = Scope(scope, false)
         for (p in c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type())
+            annotations(p.annotations())
         }
         for (p in c.properties()) {
+            annotations(p.annotations())
             if (p.type() == null) {
                 val keyword = if (p.mutable()) "var " else "val "
                 error(p.pos(), ErrorCode.TYPE_REQUIRED, "a property needs a type: `" + keyword + p.name() + ": Type = ...`")
@@ -412,6 +418,7 @@ class Checker(val file: SourceFile) {
     private fn members(list: List<Expr.Param>, what: String) {
         val seen = HashSet<String>()
         for (member in list) {
+            annotations(member.annotations())
             if (!seen.add(member.name())) {
                 error(member.pos(), ErrorCode.DUPLICATE_NAME, "the " + what + " `" + member.name() + "` is declared twice")
             } else if (OBJECT_METHOD_NAMES.contains(member.name())) {
@@ -451,6 +458,7 @@ class Checker(val file: SourceFile) {
         scope = Scope(scope, false)
         for (p in f.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type())
+            annotations(p.annotations())
         }
         val exprBody = f.exprBody()
         val body = f.body()
@@ -1251,6 +1259,31 @@ class Checker(val file: SourceFile) {
         }
     }
 
+    /** Nullness is written as `?`; the values of an annotation are constants, as in Java. */
+    private fn annotations(list: List<Decl.Annotation>) {
+        for (a in list) {
+            val simple = a.name().substring(a.name().lastIndexOf('.') + 1)
+            if (NULLNESS_ANNOTATIONS.contains(simple)) {
+                error(a.pos(), ErrorCode.SYNTAX, "nullness is part of the type: write `T?` for a value that may be null " +
+                    "and `T` for one that may not, instead of `@" + simple + "`")
+            }
+            for (arg in a.args()) {
+                annotationArg(arg)
+            }
+        }
+    }
+
+    private fn annotationArg(arg: Decl.AnnotationArg) {
+        val value = arg.value()
+        if (value != null && !isConstant(value)) {
+            error(value.pos(), ErrorCode.SYNTAX, "an annotation takes constants: a literal, a name such as `Color.RED`, " +
+                "`String.class`, or `{ a, b }` for several")
+        }
+        for (element in arg.elements()) {
+            annotationArg(element)
+        }
+    }
+
     /** `.class` follows a type name: `String.class`, `java.util.List.class`, `Shapes.Circle.class`. */
     private fn classLiteral(e: Expr.ClassLiteral) {
         val path = Expr.pathName(e.target())
@@ -1344,6 +1377,17 @@ private fn isTypeDecl(decl: Decl) -> Boolean =
 
 private fn isMain(f: Decl.Function) -> Boolean =
     f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate()
+
+private fn isConstant(e: Expr) -> Boolean = when (e) {
+    is Expr.Literal -> true
+    is Expr.Name -> true
+    is Expr.Member -> !e.safe() && isConstant(e.target())
+    is Expr.ClassLiteral -> true
+    is Expr.Unary -> isConstant(e.operand())
+    is Expr.Binary -> isConstant(e.left()) && isConstant(e.right())
+    is Expr.Paren -> isConstant(e.inner())
+    else -> false
+}
 
 private fn isNull(e: Expr) -> Boolean {
     val inner = unparenthesized(e)

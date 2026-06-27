@@ -1,6 +1,0 @@
-package app
-
-class P(val name: String) {
-    @Override
-    fn toString() -> String = name
-}

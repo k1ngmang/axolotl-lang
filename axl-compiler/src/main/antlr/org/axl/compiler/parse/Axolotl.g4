@@ -98,42 +98,56 @@ topLevel
     | SEMI
     ;
 
+// `@Name(x = 1, "y")` before a declaration, passed to Java as it is; `{ a, b }` is an array element.
+annotation
+    : AT qualifiedName (LPAREN (annotationArg (COMMA annotationArg)*)? RPAREN)?
+    ;
+
+annotationArg
+    : (identifier ASSIGN)? annotationValue
+    ;
+
+annotationValue
+    : LBRACE (annotationValue (COMMA annotationValue)*)? RBRACE
+    | expression
+    ;
+
 // `data class Point(val x: Int, val y: Int) : Shape`; `data` is a word only here.
 dataClassDecl
-    : PRIVATE? {_input.LT(1).getText().equals("data")}? IDENTIFIER CLASS identifier
+    : annotation* PRIVATE? {_input.LT(1).getText().equals("data")}? IDENTIFIER CLASS identifier
       LPAREN (field (COMMA field)*)? RPAREN (COLON type (COMMA type)*)?
     ;
 
 field
-    : VAL identifier COLON type
+    : annotation* VAL identifier COLON type
     ;
 
 enumDecl
-    : PRIVATE? ENUM identifier LBRACE (identifier (COMMA identifier)* COMMA?)? RBRACE
+    : annotation* PRIVATE? ENUM identifier LBRACE (identifier (COMMA identifier)* COMMA?)? RBRACE
     ;
 
 // A class with state: constructor parameters and properties are fields, functions are methods.
 classDecl
-    : PRIVATE? CLASS identifier (LPAREN (classParam (COMMA classParam)*)? RPAREN)? (COLON type (COMMA type)*)?
+    : annotation* PRIVATE? CLASS identifier (LPAREN (classParam (COMMA classParam)*)? RPAREN)? (COLON type (COMMA type)*)?
       (LBRACE classMember* RBRACE)?
     ;
 
 classParam
-    : (VAL | VAR) identifier COLON type
+    : annotation* (VAL | VAR) identifier COLON type
     ;
 
 classMember
-    : PRIVATE? (VAL | VAR) identifier (COLON type)? ASSIGN expression SEMI?   # propertyMember
+    : annotation* PRIVATE? (VAL | VAR) identifier (COLON type)? ASSIGN expression SEMI?   # propertyMember
     | functionDecl                                                            # methodMember
     ;
 
 // `sealed interface Shape { val name: String }`
 interfaceDecl
-    : PRIVATE? SEALED? INTERFACE identifier (COLON type (COMMA type)*)? (LBRACE field* RBRACE)?
+    : annotation* PRIVATE? SEALED? INTERFACE identifier (COLON type (COMMA type)*)? (LBRACE field* RBRACE)?
     ;
 
 functionDecl
-    : PRIVATE? FN identifier LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? functionBody
+    : annotation* PRIVATE? FN identifier LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? functionBody
     ;
 
 functionBody
@@ -142,11 +156,11 @@ functionBody
     ;
 
 param
-    : identifier COLON type
+    : annotation* identifier COLON type
     ;
 
 valDecl
-    : PRIVATE? VAL identifier (COLON type)? ASSIGN expression
+    : annotation* PRIVATE? VAL identifier (COLON type)? ASSIGN expression
     ;
 
 varDecl
@@ -293,7 +307,13 @@ literal
     ;
 
 type
-    : qualifiedName (LT type (COMMA type)* GT)? QUESTION?
+    : qualifiedName (LT typeArg (COMMA typeArg)* GT)? QUESTION?
+    ;
+
+// `Class<*>` is Java's `Class<?>`: a type argument that is not known.
+typeArg
+    : type
+    | STAR
     ;
 
 qualifiedName
@@ -356,6 +376,7 @@ STAR_ASSIGN    : '*=';
 SLASH_ASSIGN   : '/=';
 PERCENT_ASSIGN : '%=';
 ASSIGN         : '=';
+AT             : '@';
 BANGBANG       : '!!';
 BANG           : '!';
 PLUS           : '+';

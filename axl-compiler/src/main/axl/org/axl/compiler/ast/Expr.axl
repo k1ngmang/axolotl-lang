@@ -95,7 +95,7 @@ data class Lambda(
     val end: Pos
 ) : Expr
 
-data class Param(val pos: Pos, val name: String, val type: TypeRef?)
+data class Param(val pos: Pos, val name: String, val type: TypeRef?, val annotations: List<Decl.Annotation>)
 
 /** `source |> stage |> stage`. */
 data class Pipe(val pos: Pos, val source: Expr, val stages: List<Stage>) : Expr

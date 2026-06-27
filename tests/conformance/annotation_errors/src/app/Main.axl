@@ -1,0 +1,15 @@
+package app
+
+import org.jspecify.annotations.Nullable
+
+@Nullable
+fn f() -> String = "x"
+
+@Deprecated(since = f())
+fn g() {}
+
+fn h(@Nullable s: String) {}
+
+fn main() {
+    println(f())
+}

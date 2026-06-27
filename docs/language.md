@@ -34,7 +34,8 @@ an entry point.
 
 `Int`, `Long`, `Boolean`, `Double` are Java's primitives; inside generics and when nullable they are
 the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `java.util.Map<String, Int>`.
-`T?` allows `null`; `T` does not. Nullness is checked by NullAway in JSpecify mode.
+`T?` allows `null`; `T` does not. Nullness is checked by NullAway in JSpecify mode. `Class<*>` and
+`List<*>` are Java's `Class<?>` and `List<?>`: a type argument that is not known.
 A character in single quotes, `'a'`, is a Java `Character`; text in double quotes is a `String`.
 
 ## Statements
@@ -113,6 +114,27 @@ and is created like a data class: `Counter("c", 1)`; it may implement interfaces
 
 A file whose name is a type it declares, such as `Counter.axl` above, is that type. Its other
 declarations are static members: `Counter.start("c")`.
+
+## Annotations
+
+```axl
+import org.junit.jupiter.api.Test
+import fn org.junit.jupiter.api.Assertions.assertEquals
+
+class ParseTest {
+    @Test
+    fn parsesANumber() {
+        assertEquals(Ok(42), Parse.number("42"))
+    }
+}
+```
+
+`@Name` or `@Name(args)` before a function, a value, a class, a data class, an interface, an enum, a
+property, a parameter or a field goes into the generated Java as it is, so JUnit, Jackson, JPA and
+Spring see what they expect. The arguments are constants, as in Java: literals, names such as
+`Color.RED`, `String.class` (`Int.class` is `Integer.class`), `name = value`, and `{ a, b }` for an
+array. `@Override` is allowed and otherwise added where a method overrides one of `Object`. Nullness
+is not an annotation but part of the type, so `@Nullable` and `@NonNull` are rejected in favor of `T?`.
 
 ## Enumerations
 

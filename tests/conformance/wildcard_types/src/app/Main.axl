@@ -1,0 +1,15 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+fn size(xs: List<*>) -> Int = xs.size()
+
+fn main() {
+    val c: Class<*> = String.class
+    println(c.getSimpleName() + " " + size(List.of(1, 2)))
+    val m: Map<String, *> = Map.of("a", 1)
+    println(m)
+    val nested: List<List<*>> = List.of(List.of("x"), List.of(2))
+    println(nested)
+}

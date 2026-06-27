@@ -21,6 +21,8 @@ always gives byte-for-byte the same output.
 | `a ?: 0` (a number) | `Nulls.or(a, 0)`; after `?.`: `final var $t1 = Nulls.map(...); Nulls.or($t1, 0)` |
 | `a!!` | `java.util.Objects.requireNonNull(a)` |
 | `String.class`, `Int.class` | `String.class`, `Integer.class` |
+| `@Test fn f()`, `@Marker(x = 1, tags = { "a" }) class C` | the same annotation before the Java declaration |
+| `Class<*>` | `Class<?>` |
 | `a?.m(x)` | `Nulls.map(a, $n1 -> $n1.m(x))`; the lambda covers the rest of the chain |
 | `f(a?.m())` | `final var $t1 = Nulls.map(a, $n1 -> $n1.m()); f($t1)`; where no statement can go, `f(Nulls.typed(Nulls.map(...)).value())` |
 | `a?.m()` as a statement | `final var $n1 = a; if ($n1 != null) { $n1.m(); }` |

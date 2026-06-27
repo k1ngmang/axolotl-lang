@@ -33,6 +33,9 @@ at a time. Nothing has to be converted before it is useful.
 | `x -> x + 1`, `() -> run()` | `{ x -> x + 1 }`, `{ -> run() }` |
 | `list.stream().filter(x -> x > 0).toList()` | `list \|> filter { it > 0 }` |
 | `import static a.B.f;` | `import fn a.B.f` |
+| `@Override public String toString()` | `@Override fn toString() -> String` |
+| `Class<?>`, `List<?>` | `Class<*>`, `List<*>` |
+| `String.class` | `String.class` (`Int.class` is `Integer.class`) |
 | `try { return Integer.parseInt(s); } catch (NumberFormatException e) { ... }` | `attempt Integer.parseInt(s) else e -> ...` returning `Result` |
 | a method that throws a checked exception to report failure | a function returning `Result<T, E>`; callers use `try` |
 
@@ -40,9 +43,11 @@ at a time. Nothing has to be converted before it is useful.
 
 Axolotl has functions and values only. Keep these in Java and call them from Axolotl:
 
-- classes with state, records, interfaces, enums and annotations;
-- framework entry points that need annotations or instance methods (controllers, beans, entities);
+- classes that extend other classes, generic classes of your own, and annotation types;
 - code that needs `for` loops over indices, arrays, casts, `switch` or `synchronized`.
+
+Framework entry points work in Axolotl: a `class` with annotated methods is a JUnit test class, a
+Spring controller or a JAX-RS resource, and an annotated `data class` is a Jackson or JPA record.
 
 Most loops over collections become pipes; a `while` loop covers the rest.
 

@@ -68,6 +68,10 @@ final class Mistakes {
         }
         String message = switch (at.getType()) {
             case AxolotlLexer.LT -> typeParameters(tokens, previous);
+            case AxolotlLexer.AT -> previous.getType() == AxolotlLexer.RETURN
+                    ? "Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@"
+                    + text(SourceParser.nextToken(tokens, at)) + "`"
+                    : "an annotation goes before a declaration, as in `@Override fn toString()`";
             case AxolotlLexer.LPAREN -> afterName(tokens, at, previous);
             case AxolotlLexer.DOT -> previous.getType() == AxolotlLexer.IDENTIFIER && type(before(tokens, previous)) == AxolotlLexer.FN
                     ? "Axolotl has no extension functions; take the value as the first parameter: `fn "

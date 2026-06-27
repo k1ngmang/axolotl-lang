@@ -6,6 +6,8 @@ import org.antlr.v4.runtime.ParserRuleContext
 import org.antlr.v4.runtime.Token
 import org.antlr.v4.runtime.tree.TerminalNode
 import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Decl.Annotation
+import org.axl.compiler.ast.Decl.AnnotationArg
 import org.axl.compiler.ast.Decl.ClassDecl
 import org.axl.compiler.ast.Decl.DataClass
 import org.axl.compiler.ast.Decl.EnumDecl
@@ -54,6 +56,9 @@ import org.axl.compiler.ast.TypeRef
 import org.axl.compiler.parse.AxolotlParser.AdditiveContext
 import org.axl.compiler.parse.AxolotlParser.ArgumentsContext
 import org.axl.compiler.parse.AxolotlParser.AssignStatementContext
+import org.axl.compiler.parse.AxolotlParser.AnnotationArgContext
+import org.axl.compiler.parse.AxolotlParser.AnnotationContext
+import org.axl.compiler.parse.AxolotlParser.AnnotationValueContext
 import org.axl.compiler.parse.AxolotlParser.AttemptExpressionContext
 import org.axl.compiler.parse.AxolotlParser.BlockContext
 import org.axl.compiler.parse.AxolotlParser.CallSuffixContext
@@ -109,6 +114,7 @@ import org.axl.compiler.parse.AxolotlParser.StatementContext
 import org.axl.compiler.parse.AxolotlParser.ThrowExpressionContext
 import org.axl.compiler.parse.AxolotlParser.TopLevelContext
 import org.axl.compiler.parse.AxolotlParser.TryExpressionContext
+import org.axl.compiler.parse.AxolotlParser.TypeArgContext
 import org.axl.compiler.parse.AxolotlParser.TypeContext
 import org.axl.compiler.parse.AxolotlParser.UnaryExpressionContext
 import org.axl.compiler.parse.AxolotlParser.ValDeclContext
@@ -158,7 +164,7 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
     val data = top.dataClassDecl()
     if (data != null) {
         return DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
-            nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()))
+            nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()))
     }
     val enumeration = top.enumDecl()
     if (enumeration != null) {
@@ -171,12 +177,13 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
     val iface = top.interfaceDecl()
     if (iface != null) {
         return Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
-            nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()), buildTypes(iface.type()))
+            nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()), buildTypes(iface.type()),
+            buildAnnotations(iface.annotation()))
     }
     val value = top.valDecl()
     if (value != null) {
         return Value(pos(value.start), pos(value.identifier().start), value.PRIVATE() != null,
-            nameOf(value.identifier()), typeOrNull(value.type()), buildExpr(value.expression()))
+            nameOf(value.identifier()), typeOrNull(value.type()), buildExpr(value.expression()), buildAnnotations(value.annotation()))
     }
     return null
 }
@@ -184,21 +191,22 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
 private fn buildEnum(enumeration: EnumDeclContext) -> Decl.EnumDecl {
     val constants = enumeration.identifier() |> skip(1) |> map { i -> nameOf(i) }
     return EnumDecl(pos(enumeration.start), pos(enumeration.identifier(0).start), enumeration.PRIVATE() != null,
-        nameOf(enumeration.identifier(0)), constants)
+        nameOf(enumeration.identifier(0)), constants, buildAnnotations(enumeration.annotation()))
 }
 
 private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
     val parameters = ArrayList<Property>()
     for (p in ctx.classParam()) {
         parameters.add(Property(pos(p.start), pos(p.identifier().start), false, nameOf(p.identifier()),
-            buildType(p.type()), null, p.VAR() != null))
+            buildType(p.type()), null, p.VAR() != null, buildAnnotations(p.annotation())))
     }
     val properties = ArrayList<Property>()
     val methods = ArrayList<Decl.Function>()
     for (member in ctx.classMember()) {
         if (member is PropertyMemberContext) {
             properties.add(Property(pos(member.start), pos(member.identifier().start), member.PRIVATE() != null,
-                nameOf(member.identifier()), typeOrNull(member.type()), buildExpr(member.expression()), member.VAR() != null))
+                nameOf(member.identifier()), typeOrNull(member.type()), buildExpr(member.expression()), member.VAR() != null,
+                buildAnnotations(member.annotation())))
         } else if (member is MethodMemberContext) {
             methods.add(buildFunction(member.functionDecl()))
         } else {
@@ -206,18 +214,18 @@ private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
         }
     }
     return ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-        parameters, properties, methods, buildTypes(ctx.type()))
+        parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()))
 }
 
 private fn buildFields(contexts: List<FieldContext>) -> List<Expr.Param> =
-    contexts |> map { f -> Param(pos(f.start), nameOf(f.identifier()), buildType(f.type())) }
+    contexts |> map { f -> Param(pos(f.start), nameOf(f.identifier()), buildType(f.type()), buildAnnotations(f.annotation())) }
 
 private fn buildTypes(contexts: List<TypeContext>) -> List<TypeRef> = contexts |> map { t -> buildType(t) }
 
 private fn buildFunction(ctx: FunctionDeclContext) -> Decl.Function {
     val params = ArrayList<Expr.Param>()
     for (p in ctx.param()) {
-        params.add(Param(pos(p.start), nameOf(p.identifier()), buildType(p.type())))
+        params.add(Param(pos(p.start), nameOf(p.identifier()), buildType(p.type()), buildAnnotations(p.annotation())))
     }
     val body = ctx.functionBody()
     val bodyExpr = body.expression()
@@ -225,7 +233,22 @@ private fn buildFunction(ctx: FunctionDeclContext) -> Decl.Function {
     val exprBody: Expr? = if (bodyExpr == null) null else buildExpr(bodyExpr)
     val block: Stmt.Block? = if (bodyBlock == null) null else buildBlock(bodyBlock)
     return Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-        params, typeOrNull(ctx.type()), exprBody, block)
+        params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()))
+}
+
+private fn buildAnnotations(contexts: List<AnnotationContext>) -> List<Decl.Annotation> =
+    contexts |> map { a -> Annotation(pos(a.start), a.qualifiedName().getText(), buildAnnotationArgs(a.annotationArg())) }
+
+private fn buildAnnotationArgs(contexts: List<AnnotationArgContext>) -> List<Decl.AnnotationArg> =
+    contexts |> map { arg -> annotationValue(if (arg.identifier() == null) null else nameOf(arg.identifier()), arg.annotationValue()) }
+
+private fn annotationValue(name: String?, ctx: AnnotationValueContext) -> Decl.AnnotationArg {
+    val expression = ctx.expression()
+    if (expression != null) {
+        return AnnotationArg(name, buildExpr(expression), List.of())
+    }
+    val elements: List<Decl.AnnotationArg> = ctx.annotationValue() |> map { v -> annotationValue(null, v) }
+    return AnnotationArg(name, null, elements)
 }
 
 private fn buildBlock(ctx: BlockContext) -> Stmt.Block =
@@ -537,7 +560,7 @@ private fn buildCondition(condition: WhenConditionContext) -> Expr.Cond {
 private fn buildLambda(ctx: LambdaContext) -> Expr.Lambda {
     val params = ArrayList<Expr.Param>()
     for (p in ctx.lambdaParam()) {
-        params.add(Param(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())))
+        params.add(Param(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type()), List.of()))
     }
     return Lambda(pos(ctx.start), params, ctx.ARROW() != null, buildStatements(ctx.statement()), pos(ctx.stop))
 }
@@ -550,8 +573,13 @@ private fn typeOrNull(ctx: TypeContext?) -> TypeRef? {
 }
 
 private fn buildType(ctx: TypeContext) -> TypeRef {
-    val args = ctx.type() |> map { t -> buildType(t) }
+    val args = ctx.typeArg() |> map { t -> buildTypeArg(t) }
     return TypeRef(pos(ctx.start), ctx.qualifiedName().getText(), args, ctx.QUESTION() != null)
+}
+
+private fn buildTypeArg(ctx: TypeArgContext) -> TypeRef {
+    val type = ctx.type()
+    return if (type != null) buildType(type) else TypeRef(pos(ctx.start), TypeRef.ANY, List.of(), false)
 }
 
 private fn nameOf(ctx: IdentifierContext) -> String = ctx.getText()

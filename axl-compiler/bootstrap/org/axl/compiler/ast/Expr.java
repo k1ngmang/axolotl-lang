@@ -52,7 +52,7 @@ import java.util.List;
             boolean arrow,
             List<Stmt> body,
             Pos end) implements Expr {}
-    public record Param(Pos pos, String name, @Nullable TypeRef type) {}
+    public record Param(Pos pos, String name, @Nullable TypeRef type, List<Decl.Annotation> annotations) {}
     public record Pipe(Pos pos, Expr source, List<Stage> stages) implements Expr {}
     public record Stage(Pos pos, String name, List<Expr> args, @Nullable Lambda lambda) {}
 }

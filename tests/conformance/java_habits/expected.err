@@ -1,4 +1,3 @@
-AXL001 app/Annotation.axl:4:5: error: Axolotl has no annotations; remove `@Override`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
 AXL001 app/BreakContinue.axl:8:13: error: Axolotl has no `continue`; put the rest of the loop body in an `if`
 AXL001 app/BreakContinue.axl:11:13: error: Axolotl has no `break`; end the loop with its condition, or move the loop into a function and `return`

@@ -7,6 +7,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.axl.compiler.ast.Decl;
+import org.axl.compiler.ast.Decl.Annotation;
+import org.axl.compiler.ast.Decl.AnnotationArg;
 import org.axl.compiler.ast.Decl.ClassDecl;
 import org.axl.compiler.ast.Decl.DataClass;
 import org.axl.compiler.ast.Decl.EnumDecl;
@@ -55,6 +57,9 @@ import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.parse.AxolotlParser.AdditiveContext;
 import org.axl.compiler.parse.AxolotlParser.ArgumentsContext;
 import org.axl.compiler.parse.AxolotlParser.AssignStatementContext;
+import org.axl.compiler.parse.AxolotlParser.AnnotationArgContext;
+import org.axl.compiler.parse.AxolotlParser.AnnotationContext;
+import org.axl.compiler.parse.AxolotlParser.AnnotationValueContext;
 import org.axl.compiler.parse.AxolotlParser.AttemptExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.BlockContext;
 import org.axl.compiler.parse.AxolotlParser.CallSuffixContext;
@@ -110,6 +115,7 @@ import org.axl.compiler.parse.AxolotlParser.StatementContext;
 import org.axl.compiler.parse.AxolotlParser.ThrowExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.TopLevelContext;
 import org.axl.compiler.parse.AxolotlParser.TryExpressionContext;
+import org.axl.compiler.parse.AxolotlParser.TypeArgContext;
 import org.axl.compiler.parse.AxolotlParser.TypeContext;
 import org.axl.compiler.parse.AxolotlParser.UnaryExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.ValDeclContext;
@@ -158,7 +164,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var data = top.dataClassDecl();
         if (data != null) {
             return new DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
-                    nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()));
+                    nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()));
         }
         final var enumeration = top.enumDecl();
         if (enumeration != null) {
@@ -171,32 +177,34 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var iface = top.interfaceDecl();
         if (iface != null) {
             return new Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
-                    nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()), buildTypes(iface.type()));
+                    nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()), buildTypes(iface.type()),
+                    buildAnnotations(iface.annotation()));
         }
         final var value = top.valDecl();
         if (value != null) {
             return new Value(pos(value.start), pos(value.identifier().start), value.PRIVATE() != null,
-                    nameOf(value.identifier()), typeOrNull(value.type()), buildExpr(value.expression()));
+                    nameOf(value.identifier()), typeOrNull(value.type()), buildExpr(value.expression()), buildAnnotations(value.annotation()));
         }
         return null;
     }
     private static Decl.EnumDecl buildEnum(EnumDeclContext enumeration) {
         final var constants = enumeration.identifier().stream().skip(1).map(Nulls.nonNull(i -> nameOf(i))).toList();
         return new EnumDecl(pos(enumeration.start), pos(enumeration.identifier(0).start), enumeration.PRIVATE() != null,
-                nameOf(enumeration.identifier(0)), constants);
+                nameOf(enumeration.identifier(0)), constants, buildAnnotations(enumeration.annotation()));
     }
     private static Decl.ClassDecl buildClass(ClassDeclContext ctx) {
         final var parameters = new ArrayList<Property>();
         for (final var p : ctx.classParam()) {
             parameters.add(new Property(pos(p.start), pos(p.identifier().start), false, nameOf(p.identifier()),
-                    buildType(p.type()), null, p.VAR() != null));
+                    buildType(p.type()), null, p.VAR() != null, buildAnnotations(p.annotation())));
         }
         final var properties = new ArrayList<Property>();
         final var methods = new ArrayList<Decl.Function>();
         for (final var member : ctx.classMember()) {
             if (member instanceof PropertyMemberContext member$1) {
                 properties.add(new Property(pos(member$1.start), pos(member$1.identifier().start), member$1.PRIVATE() != null,
-                        nameOf(member$1.identifier()), typeOrNull(member$1.type()), buildExpr(member$1.expression()), member$1.VAR() != null));
+                        nameOf(member$1.identifier()), typeOrNull(member$1.type()), buildExpr(member$1.expression()), member$1.VAR() != null,
+                        buildAnnotations(member$1.annotation())));
             } else if (member instanceof MethodMemberContext member$2) {
                 methods.add(buildFunction(member$2.functionDecl()));
             } else {
@@ -204,10 +212,10 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             }
         }
         return new ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-                parameters, properties, methods, buildTypes(ctx.type()));
+                parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()));
     }
     private static List<Expr.Param> buildFields(List<FieldContext> contexts) {
-        return contexts.stream().map(Nulls.nonNull(f -> new Param(pos(f.start), nameOf(f.identifier()), buildType(f.type())))).toList();
+        return contexts.stream().map(Nulls.nonNull(f -> new Param(pos(f.start), nameOf(f.identifier()), buildType(f.type()), buildAnnotations(f.annotation())))).toList();
     }
     private static List<TypeRef> buildTypes(List<TypeContext> contexts) {
         return contexts.stream().map(Nulls.nonNull(t -> buildType(t))).toList();
@@ -215,7 +223,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     private static Decl.Function buildFunction(FunctionDeclContext ctx) {
         final var params = new ArrayList<Expr.Param>();
         for (final var p : ctx.param()) {
-            params.add(new Param(pos(p.start), nameOf(p.identifier()), buildType(p.type())));
+            params.add(new Param(pos(p.start), nameOf(p.identifier()), buildType(p.type()), buildAnnotations(p.annotation())));
         }
         final var body = ctx.functionBody();
         final var bodyExpr = body.expression();
@@ -223,7 +231,21 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final @Nullable Expr exprBody = (bodyExpr == null ? null : buildExpr(bodyExpr));
         final Stmt.@Nullable Block block = (bodyBlock == null ? null : buildBlock(bodyBlock));
         return new Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-                params, typeOrNull(ctx.type()), exprBody, block);
+                params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()));
+    }
+    private static List<Decl.Annotation> buildAnnotations(List<AnnotationContext> contexts) {
+        return contexts.stream().map(Nulls.nonNull(a -> new Annotation(pos(a.start), a.qualifiedName().getText(), buildAnnotationArgs(a.annotationArg())))).toList();
+    }
+    private static List<Decl.AnnotationArg> buildAnnotationArgs(List<AnnotationArgContext> contexts) {
+        return contexts.stream().map(Nulls.nonNull(arg -> annotationValue((arg.identifier() == null ? null : nameOf(arg.identifier())), arg.annotationValue()))).toList();
+    }
+    private static Decl.AnnotationArg annotationValue(@Nullable String name, AnnotationValueContext ctx) {
+        final var expression = ctx.expression();
+        if (expression != null) {
+            return new AnnotationArg(name, buildExpr(expression), List.of());
+        }
+        final List<Decl.AnnotationArg> elements = ctx.annotationValue().stream().map(Nulls.nonNull(v -> annotationValue(null, v))).toList();
+        return new AnnotationArg(name, null, elements);
     }
     private static Stmt.Block buildBlock(BlockContext ctx) {
         return new Block(pos(ctx.start), buildStatements(ctx.statement()), pos(ctx.stop));
@@ -558,7 +580,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     private static Expr.Lambda buildLambda(LambdaContext ctx) {
         final var params = new ArrayList<Expr.Param>();
         for (final var p : ctx.lambdaParam()) {
-            params.add(new Param(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())));
+            params.add(new Param(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type()), List.of()));
         }
         return new Lambda(pos(ctx.start), params, ctx.ARROW() != null, buildStatements(ctx.statement()), pos(ctx.stop));
     }
@@ -569,8 +591,12 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return buildType(ctx);
     }
     private static TypeRef buildType(TypeContext ctx) {
-        final var args = ctx.type().stream().map(Nulls.nonNull(t -> buildType(t))).toList();
+        final var args = ctx.typeArg().stream().map(Nulls.nonNull(t -> buildTypeArg(t))).toList();
         return new TypeRef(pos(ctx.start), ctx.qualifiedName().getText(), args, ctx.QUESTION() != null);
+    }
+    private static TypeRef buildTypeArg(TypeArgContext ctx) {
+        final var type = ctx.type();
+        return (type != null ? buildType(type) : new TypeRef(pos(ctx.start), TypeRef.ANY, List.of(), false));
     }
     private static String nameOf(IdentifierContext ctx) {
         return ctx.getText();

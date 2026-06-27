@@ -8,6 +8,9 @@ import java.util.List;
     Pos namePos();
     String name();
     boolean isPrivate();
+    List<Annotation> annotations();
+    public record Annotation(Pos pos, String name, List<AnnotationArg> args) {}
+    public record AnnotationArg(@Nullable String name, @Nullable Expr value, List<AnnotationArg> elements) {}
     public record Function(
             Pos pos,
             Pos namePos,
@@ -16,21 +19,24 @@ import java.util.List;
             List<Expr.Param> params,
             @Nullable TypeRef returnType,
             @Nullable Expr exprBody,
-            Stmt.@Nullable Block body) implements Decl {}
+            Stmt.@Nullable Block body,
+            List<Annotation> annotations) implements Decl {}
     public record Value(
             Pos pos,
             Pos namePos,
             boolean isPrivate,
             String name,
             @Nullable TypeRef type,
-            Expr init) implements Decl {}
+            Expr init,
+            List<Annotation> annotations) implements Decl {}
     public record DataClass(
             Pos pos,
             Pos namePos,
             boolean isPrivate,
             String name,
             List<Expr.Param> fields,
-            List<TypeRef> supertypes) implements Decl {}
+            List<TypeRef> supertypes,
+            List<Annotation> annotations) implements Decl {}
     public record Interface(
             Pos pos,
             Pos namePos,
@@ -38,7 +44,8 @@ import java.util.List;
             String name,
             boolean isSealed,
             List<Expr.Param> members,
-            List<TypeRef> supertypes) implements Decl {}
+            List<TypeRef> supertypes,
+            List<Annotation> annotations) implements Decl {}
     public record ClassDecl(
             Pos pos,
             Pos namePos,
@@ -47,13 +54,15 @@ import java.util.List;
             List<Property> parameters,
             List<Property> properties,
             List<Function> methods,
-            List<TypeRef> supertypes) implements Decl {}
+            List<TypeRef> supertypes,
+            List<Annotation> annotations) implements Decl {}
     public record EnumDecl(
             Pos pos,
             Pos namePos,
             boolean isPrivate,
             String name,
-            List<String> constants) implements Decl {}
+            List<String> constants,
+            List<Annotation> annotations) implements Decl {}
     public record Property(
             Pos pos,
             Pos namePos,
@@ -61,5 +70,6 @@ import java.util.List;
             String name,
             @Nullable TypeRef type,
             @Nullable Expr init,
-            boolean mutable) {}
+            boolean mutable,
+            List<Annotation> annotations) {}
 }

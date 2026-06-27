@@ -11,7 +11,15 @@ sealed interface Decl {
     val name: String
 
     val isPrivate: Boolean
+
+    val annotations: List<Annotation>
 }
+
+/** `@Name(args)` before a declaration; the generated Java carries it as it is. */
+data class Annotation(val pos: Pos, val name: String, val args: List<AnnotationArg>)
+
+/** `name = value` or a bare value; `elements` holds the values of `{ a, b }`, with no value then. */
+data class AnnotationArg(val name: String?, val value: Expr?, val elements: List<AnnotationArg>)
 
 /** Exactly one of exprBody and body is set; returnType is null for void. */
 data class Function(
@@ -22,7 +30,8 @@ data class Function(
     val params: List<Expr.Param>,
     val returnType: TypeRef?,
     val exprBody: Expr?,
-    val body: Stmt.Block?
+    val body: Stmt.Block?,
+    val annotations: List<Annotation>
 ) : Decl
 
 data class Value(
@@ -31,7 +40,8 @@ data class Value(
     val isPrivate: Boolean,
     val name: String,
     val type: TypeRef?,
-    val init: Expr
+    val init: Expr,
+    val annotations: List<Annotation>
 ) : Decl
 
 /** An immutable class: a Java record. supertypes are interfaces of the same file. */
@@ -41,7 +51,8 @@ data class DataClass(
     val isPrivate: Boolean,
     val name: String,
     val fields: List<Expr.Param>,
-    val supertypes: List<TypeRef>
+    val supertypes: List<TypeRef>,
+    val annotations: List<Annotation>
 ) : Decl
 
 /** members are the values it requires, such as `val pos: Pos`. */
@@ -52,7 +63,8 @@ data class Interface(
     val name: String,
     val isSealed: Boolean,
     val members: List<Expr.Param>,
-    val supertypes: List<TypeRef>
+    val supertypes: List<TypeRef>,
+    val annotations: List<Annotation>
 ) : Decl
 
 /**
@@ -67,7 +79,8 @@ data class ClassDecl(
     val parameters: List<Property>,
     val properties: List<Property>,
     val methods: List<Function>,
-    val supertypes: List<TypeRef>
+    val supertypes: List<TypeRef>,
+    val annotations: List<Annotation>
 ) : Decl
 
 /** An enumeration of constants without members. */
@@ -76,7 +89,8 @@ data class EnumDecl(
     val namePos: Pos,
     val isPrivate: Boolean,
     val name: String,
-    val constants: List<String>
+    val constants: List<String>,
+    val annotations: List<Annotation>
 ) : Decl
 
 data class Property(
@@ -86,5 +100,6 @@ data class Property(
     val name: String,
     val type: TypeRef?,
     val init: Expr?,
-    val mutable: Boolean
+    val mutable: Boolean,
+    val annotations: List<Annotation>
 )
