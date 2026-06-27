@@ -490,6 +490,9 @@ final class Habits {
             return "Axolotl has no arrays; use a list, such as `List<" + typeName(before) + ">` or `ArrayList<"
                     + typeName(before) + ">()`";
         }
+        if (afterValue && before.equals("args")) {
+            return "Axolotl has no `[]` indexing, and `args` is a Java array; read it as a list: `List.of(args).get(0)`";
+        }
         if (afterValue) {
             String receiver = type(tokens, previous) == AxolotlLexer.IDENTIFIER ? before : "list";
             return "Axolotl has no `[]` indexing; call `get`: `" + receiver + ".get(0)`";
