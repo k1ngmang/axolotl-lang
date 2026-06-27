@@ -1,5 +1,5 @@
 package app
 
 interface Greeter {
-    fn greet() -> String
+    fn greet() -> String = "hi"
 }

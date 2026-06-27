@@ -76,9 +76,9 @@ final class Mistakes {
             case AxolotlLexer.DOT -> previous.getType() == AxolotlLexer.IDENTIFIER && type(before(tokens, previous)) == AxolotlLexer.FN
                     ? "Axolotl has no extension functions; take the value as the first parameter: `fn "
                     + text(SourceParser.nextToken(tokens, at)) + "(s: " + previous.getText() + ")`" : null;
-            case AxolotlLexer.FN -> inInterface(tokens, at) ? INTERFACE_FUNCTION : null;
             case AxolotlLexer.LBRACE -> text(SourceParser.lineStart(tokens, at)).equals("data")
-                    ? "a data class has no body; write its functions at the top level, taking it as a parameter" : null;
+                    ? "a data class has no body; write its functions at the top level, taking it as a parameter"
+                    : inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
             case AxolotlLexer.ELSE -> previous.getType() != AxolotlLexer.RBRACE && !lineHas(tokens, previous.getLine(), AxolotlLexer.IF)
                     && type(SourceParser.nextToken(tokens, at)) != AxolotlLexer.ARROW
                     ? "`else` needs an `if` before it: `if (c) { ... } else { ... }`" : null;
@@ -104,13 +104,13 @@ final class Mistakes {
         return message == null ? null : new Placed(at, message);
     }
 
-    private static final String INTERFACE_FUNCTION = "an interface lists values (`val name: Type`), not functions; "
-            + "write the function at the top level";
+    private static final String INTERFACE_METHOD_BODY = "a method of an interface has no body; it ends after `)` or its "
+            + "result type, and each class that implements the interface writes the body";
 
     private static String identifier(CommonTokenStream tokens, Token at, Token previous) {
         Token next = SourceParser.nextToken(tokens, at);
         if (next.getType() == AxolotlLexer.LPAREN && inInterface(tokens, at)) {
-            return INTERFACE_FUNCTION;
+            return "a method of an interface is written `fn " + at.getText() + "(name: Type) -> Type`, without a body";
         }
         if (next.getType() == AxolotlLexer.COLON && inInterface(tokens, at)) {
             return "an interface lists values: `val " + at.getText() + ": " + text(SourceParser.nextToken(tokens, next)) + "`";
@@ -349,8 +349,10 @@ final class Mistakes {
         Token paren = enclosingParen(tokens, at);
         if (paren == null) {
             Token brace = enclosingBrace(tokens, at);
-            return brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM)
-                    ? "an enum lists only its constants, as in `{ RED, GREEN }`; it cannot give them values" : null;
+            if (brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM)) {
+                return "an enum lists only its constants, as in `{ RED, GREEN }`; it cannot give them values";
+            }
+            return inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
         }
         Token beforeParen = before(tokens, paren);
         if (type(beforeParen) == AxolotlLexer.IF || type(beforeParen) == AxolotlLexer.WHILE) {

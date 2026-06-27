@@ -1,0 +1,7 @@
+package app
+
+interface Greeter {
+    fn greet() -> String {
+        return "hi"
+    }
+}
