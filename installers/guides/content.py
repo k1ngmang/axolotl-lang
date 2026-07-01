@@ -279,7 +279,7 @@ def commands(t, p):
         ("h2", t("Options", "Параметры")),
         ("table", [
             [t("Option", "Параметр"), t("Commands", "Команды"), t("Meaning", "Значение")],
-            ["`-cp`, `--classpath`", "check, build, retrace",
+            ["`-cp`, `--classpath`", "run, check, build, retrace",
              t(f"Jars and class directories the code uses, separated by `{p.sep}`.",
                f"Jar-файлы и каталоги классов, которые использует код, через `{p.sep}`.")],
             ["`-d <dir>`", "build", t("Where the class files go.", "Куда писать class-файлы.")],

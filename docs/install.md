@@ -106,14 +106,30 @@ The installers put `axl` on the `PATH`. From source:
 export PATH="$PWD/axl-cli/build/install/axl/bin:$PATH"
 
 axl run src/app/Main.axl                 # translate, compile and run one program
+axl run -cp lib/sqlite-jdbc.jar src/app/Main.axl   # with a library
 axl build src -d out/classes             # compile a source tree
 axl check src/main/axl src/main/java     # print errors only
 axl retrace trace.txt -cp out/classes    # rewrite a stack trace to .axl lines
 ```
 
+Libraries besides the Axolotl runtime go on `-cp` (or `--classpath`): jars and class directories
+separated by `:` (`;` on Windows), repeatable. `axl run`, `axl check` and `axl build` take it alike;
+`axl run` has the libraries on the classpath both when it compiles the program and when it runs it.
+
 `axl build` removes the `.java`, `.axlmap` and `.class` files it generated for `.axl` files that
 were deleted since its previous run with the same source directory; it keeps a list of them in
-`.axl-build` in the directory of the generated sources.
+`.axl-build` in the directory of the generated sources. Its classes run with a `java` of your own,
+which needs the Axolotl runtime and the libraries of `-cp` on its classpath:
+
+```
+RT=~/.m2/repository/org/axl/axl-runtime/0.2.0/axl-runtime-0.2.0.jar
+java -cp out/classes:lib/sqlite-jdbc.jar:$RT app.Main
+```
+
+The runtime jar, `axl-runtime-<version>.jar`, is in the `lib` directory of the `axl` zip and of a
+build from source, next to the other jars of an installed `axl` (`lib/app` on Linux, `app` on
+Windows, `Contents/app` of `axl.app` on macOS) and, after `axl setup`, in the local Maven
+repository as above.
 
 Common options: `--no-null-checks` skips Error Prone and NullAway, `--strict-null` turns on
 [strict null mode](language.md#java-code-without-nullness-annotations), `--inline-elvis` expands a
@@ -122,8 +138,7 @@ statement-level `?:` without a lambda. `axl <command> --help` lists the options 
 Options of `axl run` go before the `.axl` file; everything after it, options and `--` included, is
 passed to the program unchanged: `axl run --no-null-checks app/Main.axl --verbose`. The program
 reads them from `args`, the `String[]` that every `fn main()` has; `fn main` itself takes no
-parameters. `axl run` has no `-cp`: a program that needs libraries besides the Axolotl runtime is
-built with `axl build -cp`, Gradle or Maven.
+parameters.
 
 Exit codes: 0 on success; 1 when the sources have errors, or when the program that `axl run`
 started throws; 2 for a wrong command line or a file that cannot be read. A program that calls
