@@ -1,0 +1,57 @@
+package app
+
+/** The type of these Results is known to javac only: an attempt around a Java call, a function of another file. */
+fn viaIf(a: String) -> Int {
+    val x = attempt Integer.parseInt(a) else -1
+    if (x is Ok) {
+        return x.value() + 1
+    }
+    return 0
+}
+
+fn viaWhen(a: String) -> String {
+    val x = attempt Integer.parseInt(a) else -1
+    return when (x) {
+        is Ok -> "ok " + x.value()
+        is Err -> "err " + x.error()
+    }
+}
+
+fn both(a: String, b: String) -> Int {
+    val x = attempt Integer.parseInt(a) else -1
+    val y = attempt Integer.parseInt(b) else -1
+    if (x is Ok && y is Ok) {
+        return x.value() + y.value()
+    }
+    return -1
+}
+
+fn otherFile(s: String) -> String {
+    val r = Parse.number(s)
+    if (r !is Ok) {
+        return "bad"
+    }
+    return "" + (r.value() * 2)
+}
+
+fn whole(s: String) -> String {
+    val r = Parse.number(s)
+    return when (r) {
+        is Ok -> describe(r) + " " + r.value().toString().length()
+        is Err -> describe(r)
+    }
+}
+
+fn describe(r: Result<Int, String>) -> String = if (r is Ok) "value" else "error"
+
+fn main() {
+    println(viaIf("3"))
+    println(viaWhen("4"))
+    println(viaWhen("x"))
+    println(both("1", "2"))
+    println(both("1", "y"))
+    println(otherFile("21"))
+    println(otherFile("z"))
+    println(whole("123"))
+    println(whole("q"))
+}

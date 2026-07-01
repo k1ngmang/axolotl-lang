@@ -11,7 +11,7 @@ import java.util.List;
     public static Result<Integer, String> chain(boolean a, boolean b) {
         final Result<Integer, String> r = (a ? q() : (b ? new Ok<>(1) : new Err<>("x")));
         final Result<Integer, String> s = (a ? ((b ? new Ok<>(1) : new Err<>("x"))) : q());
-        return (r instanceof Ok<Integer, String> r$1 ? s : r);
+        return (r instanceof Ok(var r$1) ? s : r);
     }
     public static Result<List<Integer>, String> positives(List<Integer> xs) {
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();

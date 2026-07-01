@@ -259,7 +259,8 @@ final class Messages {
         String type = (ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1))
                 .replaceAll("@\\S+ ", "").replaceAll("<.*", "");
         if (type.equals("axl.lang.Result")) {
-            return "; a `Result` holds a value only when it is `Ok`: check it with `is Ok` first, or use `try`";
+            return "; a `Result` holds a value only when it is `Ok`: check it with `is Ok` and read it with parentheses, `"
+                    + name + "()`, or use `try`";
         }
         try {
             boolean method = Arrays.stream(Class.forName(type, false, Messages.class.getClassLoader()).getMethods())
@@ -817,7 +818,10 @@ final class Messages {
             if (!inThisFile && constants != null) {
                 return "`" + simpleNames(axlType(owner)) + "` has no constant `" + symbol + "`; its constants are " + constants;
             }
-            Tested tested = inThisFile ? null : testedWithoutNarrowing(location, text, javaLines);
+            // `r.value` after `is Ok`: the narrowing took the record apart, so the whole `r` is still a Result.
+            boolean resultField = unknown.group(1).equals("variable") && location.contains("axl.lang.Result")
+                    && (symbol.equals("value") || symbol.equals("error"));
+            Tested tested = inThisFile || resultField ? null : testedWithoutNarrowing(location, text, javaLines);
             if (tested != null) {
                 return notNarrowed(tested);
             }

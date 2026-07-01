@@ -12,10 +12,10 @@ import java.nio.file.Path;
     public static long safeSize(String path) {
         final var caught = Result.attempt(() -> size(path), e -> "failed: " + e.getMessage());
         switch (caught) {
-            case Ok<Long, String> caught$1 -> {
-                return caught$1.value();
+            case Ok(var caught$1) -> {
+                return caught$1;
             }
-            case Err<Long, String> caught$2 -> {
+            case Err(var caught$2) -> {
                 return -1L;
             }
         }

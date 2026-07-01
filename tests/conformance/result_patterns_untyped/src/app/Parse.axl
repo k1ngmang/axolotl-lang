@@ -1,0 +1,3 @@
+package app
+
+fn number(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "not a number: " + s

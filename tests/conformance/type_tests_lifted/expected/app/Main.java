@@ -25,11 +25,11 @@ import org.jspecify.annotations.*;
     }
     public static int next(Result<Integer, String> r) {
         switch (r) {
-            case Ok<Integer, String> r$1 -> {
-                return r$1.value() + 1;
+            case Ok(var r$1) -> {
+                return r$1 + 1;
             }
-            case Err<Integer, String> r$2 -> {
-                return r$2.error().length();
+            case Err(var r$2) -> {
+                return r$2.length();
             }
         }
     }

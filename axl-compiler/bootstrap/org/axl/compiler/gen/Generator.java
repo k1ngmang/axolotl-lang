@@ -810,8 +810,16 @@ import org.axl.compiler.check.Whens;
                 emitBranch(arm, "case null", Map.of(), form);
             } else {
                 final var variable = patternVariable(narrowedName);
-                final var narrowing = nameBinding(narrowedName, variable);
-                emitBranch(arm, "case " + testedType(conditionType(condition), subjectTypeOf) + " " + variable, narrowing, form);
+                final var type = conditionType(condition);
+                final var accessor = resultAccessor(type);
+                if (accessor != null) {
+                    final var bare = (narrowedName == null ? "" : bareName(narrowedName));
+                    final var narrowing = nameBinding(narrowedName, deconstruction(accessor, variable, bare));
+                    emitBranch(arm, "case " + type.name() + "(var " + variable + ")", narrowing, form);
+                } else {
+                    final var narrowing = nameBinding(narrowedName, variable);
+                    emitBranch(arm, "case " + testedType(type, subjectTypeOf) + " " + variable, narrowing, form);
+                }
             }
         }
     }
@@ -1088,7 +1096,7 @@ import org.axl.compiler.check.Whens;
                 return nameCode(e$2, inLambda);
             }
             case Expr.Member e$3 -> {
-                return chainCode(Chains.flatten(e$3), inLambda);
+                return chainCode(deconstructed(Chains.flatten(e$3)), inLambda);
             }
             case Expr.Call e$4 -> {
                 return callExpr(e$4, inLambda);
@@ -1146,7 +1154,7 @@ import org.axl.compiler.check.Whens;
     private String nameCode(Expr.Name n, boolean inLambda) {
         final var known = smart.get(n.name());
         if (known != null) {
-            return known;
+            return (known.startsWith("@") ? known.substring(known.lastIndexOf(":") + 1) : known);
         }
         if (inLambda && analysis.mutableRefs().contains(n)) {
             return copies.getOrDefault(n.name(), n.name());
@@ -1163,7 +1171,7 @@ import org.axl.compiler.check.Whens;
             return "new " + exprIn(target, inLambda) + "." + c.name() + "(" + argsCode(c.args(), inLambda, c.pos().line()) + ")";
         }
         if (target != null) {
-            return chainCode(Chains.flatten(c), inLambda);
+            return chainCode(deconstructed(Chains.flatten(c)), inLambda);
         }
         return callCode(c, argsCode(widenedArgs(c), inLambda, c.pos().line()));
     }
@@ -1383,9 +1391,54 @@ import org.axl.compiler.check.Whens;
             return (check.negated() ? "!(" + plainTest + ")" : plainTest);
         }
         final var variable = patternVariable(target$1.name());
+        final var accessor = resultAccessor(check.type());
+        if (accessor != null) {
+            patternVariables.put(check, deconstruction(accessor, variable, bareName(target$1.name())));
+            final var test = exprIn(target$1, inLambda) + " instanceof " + check.type().name() + "(var " + variable + ")";
+            return (check.negated() ? "!(" + test + ")" : test);
+        }
         patternVariables.put(check, variable);
         final var test = exprIn(target$1, inLambda) + " instanceof " + type + " " + variable;
         return (check.negated() ? "!(" + test + ")" : test);
+    }
+    private @Nullable String resultAccessor(TypeRef type) {
+        final var name = type.name();
+        if (name.equals("Ok") || name.equals("axl.lang.Ok")) {
+            return "value";
+        }
+        if (name.equals("Err") || name.equals("axl.lang.Err")) {
+            return "error";
+        }
+        return null;
+    }
+    private String deconstruction(String accessor, String variable, String bare) {
+        return "@" + accessor + ":" + variable + ":" + bare;
+    }
+    private String bareName(String name) {
+        final var known = smart.get(name);
+        if (known == null) {
+            return name;
+        }
+        return (known.startsWith("@") ? known.substring(known.lastIndexOf(":") + 1) : known);
+    }
+    private Chains.Chain deconstructed(Chains.Chain chain) {
+        final var base = chain.base();
+        final var steps = chain.steps();
+        if (!(base instanceof Expr.Name base$1) || steps.isEmpty()) {
+            return chain;
+        }
+        final var known = smart.get(base$1.name());
+        if (known == null || !known.startsWith("@")) {
+            return chain;
+        }
+        final var first = steps.getFirst();
+        final var accessor = known.substring(1, known.indexOf(":"));
+        final var args = first.args();
+        if (!first.name().equals(accessor) || args == null || !args.isEmpty() || first.safe()) {
+            return chain;
+        }
+        final var variable = new Expr.Name(base$1.pos(), known.substring(known.indexOf(":") + 1, known.lastIndexOf(":")));
+        return new Chains.Chain(variable, steps.subList(1, steps.size()));
     }
     private String liftedTypeCheck(int line, Expr.Is check) {
         final var test = lifted(line, check.target()).code() + " instanceof " + testedType(check.type(), typeOf(check.target()));
@@ -1649,7 +1702,7 @@ import org.axl.compiler.check.Whens;
                 return liftedCall(line, e$7);
             }
             case Expr.Member e$8 -> {
-                return chainLifted(line, Chains.flatten(e$8));
+                return chainLifted(line, deconstructed(Chains.flatten(e$8)));
             }
             case Expr.GenericNew e$9 -> {
                 return new Lifted(genericNew(e$9, codes(operands(line, e$9.args()))), false);
@@ -1710,7 +1763,7 @@ import org.axl.compiler.check.Whens;
         if (c.target() == null) {
             return new Lifted(callCode(c, codes(operands(line, c.args()))), false);
         }
-        return chainLifted(line, Chains.flatten(c));
+        return chainLifted(line, deconstructed(Chains.flatten(c)));
     }
     private boolean isLocal(Expr target) {
         return target instanceof Expr.Name target$1 && analysis.mutableRefs().contains(target$1);
