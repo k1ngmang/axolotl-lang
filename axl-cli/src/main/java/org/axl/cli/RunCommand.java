@@ -35,6 +35,10 @@ final class RunCommand implements Callable<Integer> {
     @Parameters(index = "1..*", description = "Arguments for the program, passed unchanged, options included.")
     List<String> args = new ArrayList<>();
 
+    @Option(names = {"-cp", "--classpath"}, split = "${sys:path.separator}",
+            description = "Jars and class directories the code uses, separated by `${sys:path.separator}`; repeatable.")
+    List<Path> classpath = new ArrayList<>();
+
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
@@ -63,8 +67,10 @@ final class RunCommand implements Callable<Integer> {
         String className = Translator.className(file.getFileName().toString());
         String packageName = packageOf(className, text);
         Path root = sourceRoot(file.toAbsolutePath().normalize(), packageName);
+        Paths.warnAboutMissingEntries(classpath);
         Path work = WorkDirectories.create(WorkDirectories.RUN);
         AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
+                .classpath(classpath)
                 .display(Paths::display)
                 .skip(Paths::isInWorkDirectory)
                 .nullChecks(!noNullChecks)
@@ -95,8 +101,14 @@ final class RunCommand implements Callable<Integer> {
     }
 
     private int runMain(Path classes, Path generated, String mainClass) throws IOException {
+        // The parent loader has the Axolotl runtime; the libraries of -cp come after the program's own classes.
+        List<URL> urls = new ArrayList<>();
+        urls.add(classes.toUri().toURL());
+        for (Path entry : classpath) {
+            urls.add(entry.toUri().toURL());
+        }
         // Not closed: threads the program starts may still load classes after main returns.
-        var loader = new URLClassLoader(new URL[] {classes.toUri().toURL()}, getClass().getClassLoader());
+        var loader = new URLClassLoader(urls.toArray(URL[]::new), getClass().getClassLoader());
         Method main;
         try {
             main = loader.loadClass(mainClass).getMethod("main", String[].class);

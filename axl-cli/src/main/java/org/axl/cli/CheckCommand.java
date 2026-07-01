@@ -18,7 +18,8 @@ final class CheckCommand implements Callable<Integer> {
     @Parameters(arity = "1..*", description = "Source directories.")
     List<Path> sourceDirs = new ArrayList<>();
 
-    @Option(names = {"-cp", "--classpath"}, split = "${sys:path.separator}", description = "Classpath of the sources.")
+    @Option(names = {"-cp", "--classpath"}, split = "${sys:path.separator}",
+            description = "Jars and class directories the code uses, separated by `${sys:path.separator}`; repeatable.")
     List<Path> classpath = new ArrayList<>();
 
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")

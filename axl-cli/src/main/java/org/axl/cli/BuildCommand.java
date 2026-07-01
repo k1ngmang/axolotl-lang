@@ -24,7 +24,8 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "-s", description = "Output directory for generated .java and .axlmap files (default: the -d directory).")
     Path generatedDir;
 
-    @Option(names = {"-cp", "--classpath"}, split = "${sys:path.separator}", description = "Extra classpath entries.")
+    @Option(names = {"-cp", "--classpath"}, split = "${sys:path.separator}",
+            description = "Jars and class directories the code uses, separated by `${sys:path.separator}`; repeatable.")
     List<Path> classpath = new ArrayList<>();
 
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")

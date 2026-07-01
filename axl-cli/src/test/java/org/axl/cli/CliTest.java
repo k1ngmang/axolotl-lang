@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -12,6 +13,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.jar.JarOutputStream;
+import java.util.zip.ZipEntry;
+import javax.tools.ToolProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -422,6 +426,45 @@ class CliTest {
                 "-cp", missing.toString(), "--no-null-checks"), err.toString());
         assertTrue(err.toString(StandardCharsets.UTF_8).contains("axl: warning: classpath entry not found: " + missing),
                 err.toString());
+    }
+
+    @Test
+    void runFindsClassesOfTheClasspathWhenCompilingAndRunning(@TempDir Path tmp) throws Exception {
+        Path jar = libraryJar(tmp);
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Path main = Files.writeString(app.resolve("Main.axl"),
+                "package app\n\nimport lib.Greeter\n\nfn main() {\n    println(Greeter.greet(\"Ann\"))\n}\n");
+        assertEquals(1, axl("run", main.toString()));
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("unknown package `lib`"), err.toString());
+
+        err.reset();
+        assertEquals(0, axl("run", "-cp", jar.toString(), main.toString(), "ignored"), err.toString());
+        assertEquals("Hello, Ann\n", out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n"));
+    }
+
+    @Test
+    void checkFindsClassesOfTheClasspath(@TempDir Path tmp) throws Exception {
+        Path jar = libraryJar(tmp);
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"),
+                "package app\n\nimport lib.Greeter\n\nfn main() {\n    println(Greeter.greet(\"Ann\"))\n}\n");
+        assertEquals(0, axl("check", "--classpath", jar.toString(), tmp.resolve("src").toString()), out.toString());
+        assertEquals("", out.toString(StandardCharsets.UTF_8));
+    }
+
+    /** A jar with `lib.Greeter`, a class no source directory of the test has. */
+    private static Path libraryJar(Path tmp) throws IOException {
+        Path source = Files.createDirectories(tmp.resolve("lib-src/lib")).resolve("Greeter.java");
+        Files.writeString(source, "package lib;\npublic class Greeter { public static String greet(String name) { return \"Hello, \" + name; } }\n");
+        Path classes = tmp.resolve("lib-classes");
+        assertEquals(0, ToolProvider.getSystemJavaCompiler().run(null, null, null, "-d", classes.toString(), source.toString()));
+        Path jar = tmp.resolve("greeter.jar");
+        try (JarOutputStream out = new JarOutputStream(Files.newOutputStream(jar))) {
+            out.putNextEntry(new ZipEntry("lib/Greeter.class"));
+            out.write(Files.readAllBytes(classes.resolve("lib/Greeter.class")));
+            out.closeEntry();
+        }
+        return jar;
     }
 
     @Test
