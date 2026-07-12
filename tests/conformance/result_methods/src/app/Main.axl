@@ -1,0 +1,15 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "bad " + s
+
+fn main() {
+    val good = parse("20")
+    val bad = parse("x")
+    println(good.isOk())
+    println(bad.isOk())
+    println(bad.isErr())
+    println(good.map({ n -> n + 1 }).getOrElse(0))
+    println(bad.map({ n -> n + 1 }).getOrElse(-1))
+    println(good.map({ n -> "n=" + n }).getOrElse("none"))
+    println(bad.mapErr({ m -> m.length() }).isErr())
+}
