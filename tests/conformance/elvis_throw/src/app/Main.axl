@@ -1,0 +1,26 @@
+package app
+
+import java.util.HashMap
+import java.util.Map
+
+fn lookup(m: Map<String, String>, key: String) -> String =
+    m.get(key) ?: throw IllegalArgumentException("no entry for " + key)
+
+fn lengthOf(s: String?) -> Int {
+    val text = s ?: throw IllegalStateException("missing")
+    return text.length()
+}
+
+fn first(m: Map<String, String>, a: String, b: String) -> String =
+    m.get(a) ?: m.get(b) ?: throw IllegalArgumentException("neither " + a + " nor " + b)
+
+fn main() {
+    val m = HashMap<String, String>()
+    m.put("a", "alpha")
+    println(lookup(m, "a"))
+    println(lengthOf("four"))
+    println(first(m, "x", "a"))
+    println(attempt lookup(m, "z") else e -> e.getMessage())
+    println(attempt first(m, "x", "y") else e -> e.getMessage())
+    println(attempt lengthOf(null) else e -> e.getMessage())
+}

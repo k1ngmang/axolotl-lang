@@ -1,3 +1,0 @@
-package app
-
-fn f(s: String?) -> String = s ?: throw IllegalArgumentException("x")

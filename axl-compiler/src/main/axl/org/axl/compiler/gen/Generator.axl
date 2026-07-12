@@ -1173,6 +1173,9 @@ class Generator(
         if (inner is Expr.NotNull) {
             return "() -> Nulls.sure(" + exprIn(inner.target(), true) + ")"
         }
+        if (inner is Expr.Throw) {
+            return "() -> { throw " + exprIn(inner.value(), true) + "; }"
+        }
         return "() -> " + exprIn(right, true)
     }
 

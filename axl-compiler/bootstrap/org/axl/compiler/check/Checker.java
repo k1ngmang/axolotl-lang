@@ -742,49 +742,53 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.Elvis e$11 -> {
                 warnNeverNull(e$11.left(), "remove `?:` and its fallback");
                 expr(e$11.left());
+                final var fallback = unparenthesized(e$11.right());
+                if (fallback instanceof Expr.Throw fallback$12) {
+                    allowedThrows.add(fallback$12);
+                }
                 expr(e$11.right());
             }
-            case Expr.Is e$12 -> {
-                expr(e$12.target());
+            case Expr.Is e$13 -> {
+                expr(e$13.target());
             }
-            case Expr.Conditional e$13 -> {
-                expr(e$13.condition());
-                checkBranchTypes(e$13.pos(), "`if`", List.of(e$13.then(), e$13.otherwise()));
-                checkAllNull(e$13.pos(), "`if`", List.of(e$13.then(), e$13.otherwise()));
+            case Expr.Conditional e$14 -> {
+                expr(e$14.condition());
+                checkBranchTypes(e$14.pos(), "`if`", List.of(e$14.then(), e$14.otherwise()));
+                checkAllNull(e$14.pos(), "`if`", List.of(e$14.then(), e$14.otherwise()));
                 conditionalDepth = conditionalDepth + 1;
-                expr(e$13.then());
-                expr(e$13.otherwise());
+                expr(e$14.then());
+                expr(e$14.otherwise());
                 conditionalDepth = conditionalDepth - 1;
             }
-            case Expr.Throw e$14 -> {
-                if (!allowedThrows.contains(e$14)) {
-                    error(e$14.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement, as a branch of a `when` or as " +
+            case Expr.Throw e$15 -> {
+                if (!allowedThrows.contains(e$15)) {
+                    error(e$15.pos(), ErrorCode.SYNTAX, "`throw` can stand as a statement, as a branch of a `when` or as " +
                             "the handler of an `attempt`, not inside an expression");
                 }
-                expr(e$14.value());
+                expr(e$15.value());
             }
-            case Expr.When e$15 -> {
-                whenExpr(e$15);
+            case Expr.When e$16 -> {
+                whenExpr(e$16);
             }
-            case Expr.Paren e$16 -> {
-                expr(e$16.inner());
-            }
-            case Expr.Try e$17 -> {
-                checkTryPlace(e$17.pos(), "`try`");
-                if (buildsResult(e$17.inner())) {
-                    error(e$17.pos(), ErrorCode.TYPE_REQUIRED, "`try` needs the type of these `Ok` and `Err` branches: " +
-                            "compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`");
-                }
+            case Expr.Paren e$17 -> {
                 expr(e$17.inner());
             }
-            case Expr.Attempt e$18 -> {
-                attemptExpr(e$18);
+            case Expr.Try e$18 -> {
+                checkTryPlace(e$18.pos(), "`try`");
+                if (buildsResult(e$18.inner())) {
+                    error(e$18.pos(), ErrorCode.TYPE_REQUIRED, "`try` needs the type of these `Ok` and `Err` branches: " +
+                            "compute them in a `val` with a type first, such as `val r: Result<Int, String> = ...`");
+                }
+                expr(e$18.inner());
             }
-            case Expr.Pipe e$19 -> {
-                pipeExpr(e$19);
+            case Expr.Attempt e$19 -> {
+                attemptExpr(e$19);
             }
-            case Expr.Lambda e$20 -> {
-                lambdaExpr(e$20, false);
+            case Expr.Pipe e$20 -> {
+                pipeExpr(e$20);
+            }
+            case Expr.Lambda e$21 -> {
+                lambdaExpr(e$21, false);
             }
         }
     }

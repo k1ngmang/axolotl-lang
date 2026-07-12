@@ -166,7 +166,8 @@ is narrowed as in a statement.
 fn sign(n: Int) -> String = if (n < 0) "negative" else if (n == 0) "zero" else "positive"
 ```
 
-`throw e` stands as a statement or as the value of a branch of a `when`: `else -> throw IllegalStateException("x")`.
+`throw e` stands as a statement, as the value of a branch of a `when`: `else -> throw IllegalStateException("x")`,
+or as the fallback of `?:`: `val user = users.get(id) ?: throw NotFound(id)` gives a `User` that is not null.
 
 ## Type tests and `when`
 

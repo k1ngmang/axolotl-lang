@@ -793,6 +793,10 @@ class Checker(val file: SourceFile) {
             is Expr.Elvis -> {
                 warnNeverNull(e.left(), "remove `?:` and its fallback")
                 expr(e.left())
+                val fallback = unparenthesized(e.right())
+                if (fallback is Expr.Throw) {
+                    allowedThrows.add(fallback)
+                }
                 expr(e.right())
             }
             is Expr.Is -> expr(e.target())

@@ -137,8 +137,11 @@ import org.axl.compiler.ast.TypeRef;
         return (numbers.indexOf(left.name()) >= numbers.indexOf(right.name()) ? nonNull(left) : nonNull(right));
     }
     private @Nullable TypeRef elvis(Expr.Elvis e) {
-        final var right = of(e.right());
         final var left = of(e.left());
+        if (isThrow(e.right())) {
+            return (left == null ? null : new TypeRef(left.pos(), left.name(), left.args(), false));
+        }
+        final var right = of(e.right());
         return (right != null && left != null && sameType(left, right) ? right : null);
     }
     private @Nullable TypeRef call(Expr.Call c) {

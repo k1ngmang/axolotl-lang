@@ -9,7 +9,6 @@ AXL001 app/DefaultParameter.axl:3:41: error: parameters have no default values i
 AXL001 app/Destructuring.axl:4:9: error: Axolotl has no destructuring; declare each value: `val a = p.a()`
 AXL001 app/ElvisReturn.axl:4:15: error: `return` cannot be the fallback of `?:`; check first: `if (s == null) { return 0 }`, and `s` is not null after it
 AXL001 app/ElvisReturnCall.axl:6:24: error: `return` cannot be the fallback of `?:`; keep the value in a `val` and check that: `val v = m.get("k")`, then `if (v == null) { return -1 }`
-AXL001 app/ElvisThrow.axl:3:32: error: `throw` cannot be the fallback of `?:`; check first: `if (s == null) { throw IllegalArgumentException("x") }`, and `s` is not null after it
 AXL001 app/EnumClass.axl:3:6: error: write `enum Color { ... }` without `class`
 AXL001 app/EnumConstructor.axl:3:11: error: an enum lists its constants only: `enum Color { RED, GREEN }`
 AXL001 app/Extension.axl:3:10: error: Axolotl has no extension functions; take the value as the first parameter: `fn shout(s: String)`

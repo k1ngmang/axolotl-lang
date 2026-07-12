@@ -1027,6 +1027,9 @@ import org.axl.compiler.check.Whens;
         if (inner instanceof Expr.NotNull inner$1) {
             return "() -> Nulls.sure(" + exprIn(inner$1.target(), true) + ")";
         }
+        if (inner instanceof Expr.Throw inner$2) {
+            return "() -> { throw " + exprIn(inner$2.value(), true) + "; }";
+        }
         return "() -> " + exprIn(right, true);
     }
     private void withCopies(int line, Expr e, Runnable emit) {

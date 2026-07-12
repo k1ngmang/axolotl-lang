@@ -114,8 +114,11 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
 
     /** `a ?: b` has the type of `b` when both sides agree; otherwise javac decides. */
     private fn elvis(e: Expr.Elvis) -> TypeRef? {
-        val right = of(e.right())
         val left = of(e.left())
+        if (isThrow(e.right())) {
+            return if (left == null) null else TypeRef(left.pos(), left.name(), left.args(), false)
+        }
+        val right = of(e.right())
         return if (right != null && left != null && sameType(left, right)) right else null
     }
 
