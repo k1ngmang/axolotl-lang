@@ -1,9 +1,12 @@
 package org.axl.intellij.java;
 
+import com.intellij.lang.java.JavaLanguage;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.PsiAnnotation;
+import com.intellij.psi.PsiAnnotationParameterList;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
@@ -15,6 +18,7 @@ import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
+import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiReferenceList;
@@ -22,6 +26,9 @@ import com.intellij.psi.PsiType;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.impl.light.LightFieldBuilder;
 import com.intellij.psi.impl.light.LightMethodBuilder;
+import com.intellij.psi.impl.light.LightModifierList;
+import com.intellij.psi.impl.light.LightParameter;
+import com.intellij.psi.impl.light.LightParameterListBuilder;
 import com.intellij.psi.impl.light.LightPsiClassBuilder;
 import com.intellij.psi.impl.source.resolve.FileContextUtil;
 import com.intellij.psi.util.CachedValueProvider;
@@ -47,8 +54,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The Java view of an .axl file, without building it: the file is translated in memory, and the
- * classes of the generated Java PSI are copied with their nested classes, constructors, methods and
- * fields. Every member navigates to its .axl declaration.
+ * classes of the generated Java PSI are copied with their nested classes, constructors, methods,
+ * fields and annotations. Every member navigates to its .axl declaration.
  */
 public final class AxlLightClasses {
 
@@ -144,8 +151,8 @@ public final class AxlLightClasses {
         }
 
         AxlLightClass of(PsiClass generated, String qualifiedName, @Nullable AxlTypeDeclaration declaration, @Nullable PsiClass outer) {
-            AxlLightClass light = new AxlLightClass(file, generated, qualifiedName, declaration != null ? declaration : file);
-            copyModifiers(generated, light.getModifierList()::addModifier);
+            AxlLightClass light = new AxlLightClass(file, generated, qualifiedName, declaration != null ? declaration : file,
+                    modifiers(generated));
             light.setContainingClass(outer);
             references(generated.getExtendsList(), light.getExtendsList()::addReference);
             references(generated.getImplementsList(), light.getImplementsList()::addReference);
@@ -164,16 +171,17 @@ public final class AxlLightClasses {
         }
 
         private PsiMethod method(PsiMethod method, PsiClass owner, @Nullable AxlTypeDeclaration declaration, boolean fileLevel) {
-            LightMethodBuilder builder = new LightMethodBuilder(manager, method.getName());
+            LightMethodBuilder builder = new LightMethodBuilder(manager, JavaLanguage.INSTANCE, method.getName(),
+                    new LightParameterListBuilder(manager, JavaLanguage.INSTANCE), modifiers(method));
             builder.setContainingClass(owner);
             builder.setConstructor(method.isConstructor());
             if (!method.isConstructor()) {
                 builder.setMethodReturnType(type(method.getReturnType()));
             }
             for (PsiParameter parameter : method.getParameterList().getParameters()) {
-                builder.addParameter(parameter.getName(), type(parameter.getType()), parameter.isVarArgs());
+                builder.addParameter(new LightParameter(parameter.getName(), type(parameter.getType()), builder, JavaLanguage.INSTANCE,
+                        modifiers(parameter), parameter.isVarArgs()));
             }
-            copyModifiers(method, builder::addModifier);
             PsiElement source = method.isConstructor() ? declaration : methodSource(method, declaration, fileLevel);
             builder.setNavigationElement(source != null ? source : declaration != null ? declaration : file);
             return builder;
@@ -182,12 +190,32 @@ public final class AxlLightClasses {
         private PsiField field(PsiField field, PsiClass owner, @Nullable AxlTypeDeclaration declaration, boolean fileLevel) {
             LightFieldBuilder builder = new LightFieldBuilder(manager, field.getName(), type(field.getType()));
             builder.setContainingClass(owner);
-            List<String> modifiers = new ArrayList<>();
-            copyModifiers(field, modifiers::add);
-            builder.setModifiers(modifiers.toArray(String[]::new));
+            builder.setModifierList(modifiers(field));
             PsiElement source = variable(declaration, fileLevel, field.getName());
             builder.setNavigationElement(source != null ? source : declaration != null ? declaration : file);
             return builder;
+        }
+
+        /**
+         * The modifiers and annotations of a generated element. An annotation is written again by the
+         * qualified name it resolves to in the generated file, so that `@Test` is JUnit's wherever the
+         * light element is looked at, and with the .axl file as its context, so that it resolves there.
+         */
+        private AxlLightModifierList modifiers(PsiModifierListOwner generated) {
+            List<PsiAnnotation> annotations = new ArrayList<>();
+            PsiModifierList list = generated.getModifierList();
+            for (PsiAnnotation annotation : list == null ? PsiAnnotation.EMPTY_ARRAY : list.getAnnotations()) {
+                String name = annotation.getQualifiedName();
+                if (name == null) {
+                    continue;
+                }
+                PsiAnnotationParameterList arguments = annotation.getParameterList();
+                String text = "@" + name + (arguments.getAttributes().length == 0 ? "" : arguments.getText());
+                annotations.add(factory.createAnnotationFromText(text, file));
+            }
+            AxlLightModifierList modifiers = new AxlLightModifierList(manager, annotations);
+            copyModifiers(generated, modifiers::addModifier);
+            return modifiers;
         }
 
         /** A method of the type, the accessor of a field, or a function of the file for its own class. */
@@ -337,6 +365,43 @@ public final class AxlLightClasses {
         return member.getParent() instanceof AxlFile file ? classOf(file) : null;
     }
 
+    /** A modifier list with the annotations given to it; the platform's own rejects added annotations. */
+    static final class AxlLightModifierList extends LightModifierList {
+        private final List<PsiAnnotation> annotations;
+
+        AxlLightModifierList(PsiManager manager, List<PsiAnnotation> annotations) {
+            super(manager, JavaLanguage.INSTANCE);
+            this.annotations = annotations;
+        }
+
+        @Override
+        public PsiAnnotation @NotNull [] getAnnotations() {
+            return annotations.toArray(PsiAnnotation.EMPTY_ARRAY);
+        }
+
+        @Override
+        public PsiAnnotation @NotNull [] getApplicableAnnotations() {
+            return getAnnotations();
+        }
+
+        @Override
+        public @Nullable PsiAnnotation findAnnotation(@NotNull String qualifiedName) {
+            return annotations.stream().filter(a -> qualifiedName.equals(a.getQualifiedName())).findFirst().orElse(null);
+        }
+
+        @Override
+        public boolean hasAnnotation(@NotNull String qualifiedName) {
+            return findAnnotation(qualifiedName) != null;
+        }
+
+        @Override
+        public String getText() {
+            StringBuilder text = new StringBuilder();
+            annotations.forEach(a -> text.append(a.getText()).append(' '));
+            return text.append(super.getText()).toString();
+        }
+    }
+
     /** A light class with the qualified name of its generated class, which navigates to its declaration. */
     static final class AxlLightClass extends LightPsiClassBuilder {
         private final AxlFile file;
@@ -344,21 +409,28 @@ public final class AxlLightClasses {
         private final PsiElement declaration;
         private final boolean isInterface;
         private final boolean isEnum;
+        private final AxlLightModifierList modifiers;
         private final List<PsiField> fields = new ArrayList<>();
         private final List<PsiClass> inner = new ArrayList<>();
 
-        AxlLightClass(AxlFile file, PsiClass generated, String qualifiedName, PsiElement declaration) {
+        AxlLightClass(AxlFile file, PsiClass generated, String qualifiedName, PsiElement declaration, AxlLightModifierList modifiers) {
             super(file, String.valueOf(generated.getName()));
             this.file = file;
             this.qualifiedName = qualifiedName;
             this.declaration = declaration;
             this.isInterface = generated.isInterface();
             this.isEnum = generated.isEnum();
+            this.modifiers = modifiers;
         }
 
         @Override
         public String getQualifiedName() {
             return qualifiedName;
+        }
+
+        @Override
+        public @NotNull LightModifierList getModifierList() {
+            return modifiers;
         }
 
         @Override

@@ -3,6 +3,7 @@ package org.axl.intellij;
 import com.intellij.lang.annotation.HighlightSeverity;
 import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.psi.JavaPsiFacade;
+import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiField;
@@ -163,6 +164,60 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(findClass("app.Shapes.Shape").isInterface());
         assertTrue(findClass("app.Shapes.Color").isEnum());
         assertSame(shapes, findClass("app.Shapes.Circle").getContainingClass());
+    }
+
+    public void testCopiesTheAnnotationsOfTheGeneratedClasses() {
+        myFixture.addFileToProject("app/Marker.java", """
+                package app;
+                @java.lang.annotation.Target({java.lang.annotation.ElementType.METHOD, java.lang.annotation.ElementType.TYPE,
+                        java.lang.annotation.ElementType.FIELD, java.lang.annotation.ElementType.PARAMETER,
+                        java.lang.annotation.ElementType.RECORD_COMPONENT})
+                public @interface Marker {
+                    String value() default "";
+                    int weight() default 0;
+                    Class<?> type() default Object.class;
+                }
+                """);
+        myFixture.addFileToProject("app/T.axl", "package app\n\nclass T { @Deprecated fn x() {} }\n");
+        PsiMethod x = findClass("app.T").findMethodsByName("x", false)[0];
+        assertTrue(x.getModifierList().getText(), x.getModifierList().hasAnnotation("java.lang.Deprecated"));
+        assertEquals("java.lang.Deprecated", x.getModifierList().getAnnotations()[0].getQualifiedName());
+        assertTrue(x.isDeprecated());
+
+        myFixture.addFileToProject("app/Marked.axl", """
+                package app
+
+                @Marker(value = "class", weight = 2, type = Int.class)
+                class Counter(@Marker("x") val start: Int) {
+                    @Marker("prop")
+                    var count: Int = start
+
+                    @Marker(weight = -1)
+                    fn next(@Marker("p") step: Int) -> Int = count + step
+                }
+
+                @Marker("record")
+                data class Point(@Marker("x") val x: Int, val y: Int)
+                """);
+        PsiClass counter = findClass("app.Marked.Counter");
+        PsiAnnotation onClass = counter.getModifierList().findAnnotation("app.Marker");
+        assertNotNull(counter.getModifierList().getText(), onClass);
+        assertEquals("\"class\"", onClass.findAttributeValue("value").getText());
+        assertEquals("2", onClass.findAttributeValue("weight").getText());
+        assertEquals("Integer.class", onClass.findAttributeValue("type").getText());
+        PsiMethod next = counter.findMethodsByName("next", false)[0];
+        assertEquals("-1", next.getModifierList().findAnnotation("app.Marker").findAttributeValue("weight").getText());
+        assertEquals("\"p\"", next.getParameterList().getParameters()[0].getModifierList().findAnnotation("app.Marker")
+                .findAttributeValue("value").getText());
+        assertEquals("\"prop\"", counter.findFieldByName("count", false).getModifierList().findAnnotation("app.Marker")
+                .findAttributeValue("value").getText());
+        assertEquals("\"x\"", counter.findFieldByName("start", false).getModifierList().findAnnotation("app.Marker")
+                .findAttributeValue("value").getText());
+        PsiClass point = findClass("app.Marked.Point");
+        assertEquals("\"record\"", point.getModifierList().findAnnotation("app.Marker").findAttributeValue("value").getText());
+        assertEquals("\"x\"", point.findFieldByName("x", false).getModifierList().findAnnotation("app.Marker")
+                .findAttributeValue("value").getText());
+        assertNotNull(findClass("app.Marked").getModifierList().findAnnotation("org.jspecify.annotations.NullMarked"));
     }
 
     public void testMembersNavigateToTheirDeclarations() {
@@ -349,6 +404,7 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of("Shape", "Circle", "Square", "Color"), types);
         assertEquals(List.of("RED", "GREEN", "BLUE"), highlighted(text, AxlSyntaxHighlighter.ENUM_CONSTANT));
     }
+
 
     private List<String> highlighted(String text, TextAttributesKey key) {
         return myFixture.doHighlighting().stream().filter(h -> h.forcedTextAttributesKey == key)
