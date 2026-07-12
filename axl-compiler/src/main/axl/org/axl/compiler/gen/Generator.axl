@@ -558,6 +558,8 @@ class Generator(
             statement(If(exprStmt.pos(), condition, thenBlock, null))
         } else if (e is Expr.Try) {
             withCopies(line, e.inner(), { -> unwrapTry(line, e) })
+        } else if (e is Expr.Attempt) {
+            withCopies(line, e, { -> attemptStatement(line, e) })
         } else if (Chains.hasSafeStep(e)) {
             val chain = Chains.flatten(e)
             withCopiesOf(line, Captures.inStatementChain(chain, analysis), { -> safeChainStatement(line, chain) })
@@ -1558,6 +1560,29 @@ class Generator(
             return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler.value(), true) + ")"
         }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")"
+    }
+
+    /**
+     * `attempt conn.commit() else e -> throw X` on a line of its own: the value is not used, so a call
+     * that returns nothing is allowed, and the handler runs as a statement.
+     */
+    private fn attemptStatement(line: Int, a: Expr.Attempt) {
+        val errorName = a.errorName()
+        val error = if (errorName != null) errorName else "$ex" + nextException()
+        val handler = withoutParens(a.handler())
+        em.line(line, "try {")
+        em.indent()
+        em.line(line, exprIn(a.body(), true) + ";")
+        em.dedent()
+        em.line(line, "} catch (Exception " + error + ") {")
+        em.indent()
+        if (handler is Expr.Throw) {
+            em.line(startLine(handler), "throw " + exprIn(handler.value(), true) + ";")
+        } else {
+            em.line(startLine(handler), exprIn(handler, true) + ";")
+        }
+        em.dedent()
+        em.line(line, "}")
     }
 
     private fn nextException() -> Int {

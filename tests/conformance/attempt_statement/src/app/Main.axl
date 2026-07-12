@@ -1,0 +1,46 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+class Connection {
+    val log: List<String> = ArrayList<String>()
+    var open: Boolean = true
+
+    fn commit() {
+        if (!open) {
+            throw IllegalStateException("closed")
+        }
+        log.add("commit")
+    }
+
+    fn close() {
+        open = false
+        log.add("close")
+    }
+}
+
+fn finish(c: Connection) {
+    attempt c.commit() else e -> println("commit failed: " + e.getMessage())
+    attempt c.close() else println("close failed")
+}
+
+fn mustCommit(c: Connection) {
+    attempt c.commit() else e -> throw IllegalStateException("cannot commit", e)
+}
+
+fn pause() {
+    attempt Thread.sleep(1L) else e -> throw IllegalStateException(e)
+    println("rested")
+}
+
+fn main() {
+    val c = Connection()
+    finish(c)
+    finish(c)
+    println(c.log)
+    pause()
+    val broken = Connection()
+    broken.close()
+    attempt mustCommit(broken) else e -> println("main: " + e.getMessage())
+}

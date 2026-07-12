@@ -305,6 +305,10 @@ fn doubled(s: String) -> Result<Int, String> {
   a bug here, so `Y`, a `RuntimeException`, is thrown instead. This is how a Java method that
   declares a checked exception is called where no `Result` is wanted, such as in a test:
   `val response = attempt client.send(request, handler) else e -> throw IllegalStateException(e)`.
+- On a line of its own, `attempt` runs a call and handles its failure: `attempt conn.commit() else
+  e -> throw IllegalStateException(e)` or `attempt stream.close() else e -> println(e.getMessage())`.
+  There is no value, so the call may return nothing, which is how `commit()`, `close()` and
+  `Thread.sleep(1L)` are called when they declare a checked exception. The handler is a call or a `throw`.
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
   `Result`. The error types must match; convert them first with `mapErr`:
   `try parse(s).mapErr({ code -> "error " + code })`.

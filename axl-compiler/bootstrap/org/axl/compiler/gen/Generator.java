@@ -530,6 +530,8 @@ import org.axl.compiler.check.Whens;
             statement(new If(exprStmt.pos(), condition, thenBlock, null));
         } else if (e instanceof Expr.Try e$3) {
             withCopies(line, e$3.inner(), () -> unwrapTry(line, e$3));
+        } else if (e instanceof Expr.Attempt e$4) {
+            withCopies(line, e$4, () -> attemptStatement(line, e$4));
         } else if (Chains.hasSafeStep(e)) {
             final var chain = Chains.flatten(e);
             withCopiesOf(line, Captures.inStatementChain(chain, analysis), () -> safeChainStatement(line, chain));
@@ -1378,6 +1380,24 @@ import org.axl.compiler.check.Whens;
             return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler$1.value(), true) + ")";
         }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")";
+    }
+    private void attemptStatement(int line, Expr.Attempt a) {
+        final var errorName = a.errorName();
+        final var error = (errorName != null ? errorName : "$ex" + nextException());
+        final var handler = withoutParens(a.handler());
+        em.line(line, "try {");
+        em.indent();
+        em.line(line, exprIn(a.body(), true) + ";");
+        em.dedent();
+        em.line(line, "} catch (Exception " + error + ") {");
+        em.indent();
+        if (handler instanceof Expr.Throw handler$1) {
+            em.line(startLine(handler$1), "throw " + exprIn(handler$1.value(), true) + ";");
+        } else {
+            em.line(startLine(handler), exprIn(handler, true) + ";");
+        }
+        em.dedent();
+        em.line(line, "}");
     }
     private int nextException() {
         exceptionCount += 1;

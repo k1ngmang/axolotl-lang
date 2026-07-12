@@ -664,6 +664,9 @@ class Checker(val file: SourceFile) {
         if (e is Expr.Throw) {
             allowedThrows.add(e)
         }
+        if (inner is Expr.Attempt) {
+            attemptStatementShape(inner)
+        }
         if (e is Expr.Lambda) {
             error(e.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces")
         } else if (inner is Expr.Conditional && !stmt.equals(lastInLambda)) {
@@ -676,6 +679,20 @@ class Checker(val file: SourceFile) {
             statementTry(e)
         } else {
             expr(e)
+        }
+    }
+
+    /** On a line of its own `attempt` becomes a `try`, so its call and its handler must be statements in Java. */
+    private fn attemptStatementShape(a: Expr.Attempt) {
+        val body = unparenthesized(a.body())
+        if (body !is Expr.Call && body !is Expr.GenericNew) {
+            error(a.body().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own runs a call: " +
+                "`attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`")
+        }
+        val handler = unparenthesized(a.handler())
+        if (handler !is Expr.Call && handler !is Expr.GenericNew && handler !is Expr.Throw) {
+            error(a.handler().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own needs a handler that does something: " +
+                "a call such as `println(e)`, or `throw IllegalStateException(e)`")
         }
     }
 

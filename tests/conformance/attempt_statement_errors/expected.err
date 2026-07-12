@@ -1,0 +1,2 @@
+AXL001 app/Main.axl:4:13: error: `attempt` on a line of its own runs a call: `attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`
+AXL001 app/Main.axl:5:40: error: `attempt` on a line of its own needs a handler that does something: a call such as `println(e)`, or `throw IllegalStateException(e)`

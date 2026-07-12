@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    attempt 1 + 2 else e -> println(e)
+    attempt Integer.parseInt("1") else "ignored"
+}

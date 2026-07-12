@@ -610,18 +610,33 @@ import org.axl.compiler.ast.TypeRef;
         if (e instanceof Expr.Throw e$2) {
             allowedThrows.add(e$2);
         }
-        if (e instanceof Expr.Lambda e$3) {
-            error(e$3.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces");
-        } else if (inner instanceof Expr.Conditional inner$4 && !stmt.equals(lastInLambda)) {
+        if (inner instanceof Expr.Attempt inner$3) {
+            attemptStatementShape(inner$3);
+        }
+        if (e instanceof Expr.Lambda e$4) {
+            error(e$4.pos(), ErrorCode.SYNTAX, "a lambda on its own does nothing; to run these statements, remove the braces");
+        } else if (inner instanceof Expr.Conditional inner$5 && !stmt.equals(lastInLambda)) {
             error(e.pos(), ErrorCode.SYNTAX, "an `if` statement needs braces: `if (c) { ... } else { ... }`");
         } else if (!doesSomething(e)) {
             final var hint = (stmt.equals(lastInLambda) ? "to return it from the lambda, write `return` before it" : "use its value, for example in a `val`, or remove it");
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint);
         }
-        if (e instanceof Expr.Try e$5) {
-            statementTry(e$5);
+        if (e instanceof Expr.Try e$6) {
+            statementTry(e$6);
         } else {
             expr(e);
+        }
+    }
+    private void attemptStatementShape(Expr.Attempt a) {
+        final var body = unparenthesized(a.body());
+        if (!(body instanceof Expr.Call body$1) && !(body instanceof Expr.GenericNew body$2)) {
+            error(a.body().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own runs a call: " +
+                    "`attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`");
+        }
+        final var handler = unparenthesized(a.handler());
+        if (!(handler instanceof Expr.Call handler$3) && !(handler instanceof Expr.GenericNew handler$4) && !(handler instanceof Expr.Throw handler$5)) {
+            error(a.handler().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own needs a handler that does something: " +
+                    "a call such as `println(e)`, or `throw IllegalStateException(e)`");
         }
     }
     private String assignmentProblem(String name, Symbol symbol) {
