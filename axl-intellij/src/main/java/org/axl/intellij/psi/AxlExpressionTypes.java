@@ -55,6 +55,9 @@ final class AxlExpressionTypes {
         if (kind == AxlElementTypes.GENERIC_NEW) {
             return genericNew(expression);
         }
+        if (kind == AxlElementTypes.CLASS_LITERAL) {
+            return classLiteral(expression);
+        }
         if (kind == AxlElementTypes.PIPE) {
             return pipeType(expression);
         }
@@ -67,6 +70,18 @@ final class AxlExpressionTypes {
             return target == null ? null : callType(callee, target, expression.getLastChild());
         }
         return null;
+    }
+
+    /** `String.class` is a `Class<String>`, `Int.class` a `Class<Integer>`. */
+    private static @Nullable PsiType classLiteral(PsiElement literal) {
+        PsiElement name = literal.getFirstChild();
+        PsiClass cls = name instanceof AxlReferenceExpression ref && ref.getReference() != null
+                ? AxlResolver.asClass(ref.getReference().resolve()) : null;
+        PsiClass classClass = JavaPsiFacade.getInstance(literal.getProject()).findClass("java.lang.Class", literal.getResolveScope());
+        if (cls == null || classClass == null) {
+            return null;
+        }
+        return factory(literal).createType(classClass, factory(literal).createType(cls));
     }
 
     private static @Nullable PsiType referenceType(AxlReferenceExpression ref, PsiElement target) {

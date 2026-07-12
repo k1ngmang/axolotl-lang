@@ -82,24 +82,70 @@ public final class AxlParser implements PsiParser {
     }
 
     private void topLevel() {
+        PsiBuilder.Marker m = b.mark();
+        annotations();
         if (at(FN) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(FN)) {
-            function();
+            function(m);
         } else if (at(VAL) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(VAL)) {
-            variable();
+            variable(m, false);
             consume(SEMI);
         } else if (atDataClass()) {
-            dataClass();
+            dataClass(m);
         } else if (at(CLASS) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(CLASS)) {
-            classDeclaration();
+            classDeclaration(m);
         } else if (at(ENUM) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(ENUM)) {
-            enumDeclaration();
+            enumDeclaration(m);
         } else if (atInterface()) {
-            interfaceDeclaration();
+            interfaceDeclaration(m);
         } else if (at(SEMI)) {
+            m.drop();
             b.advanceLexer();
         } else {
+            m.drop();
             skip("`fn`, `val`, `data class`, `class`, `enum` or `interface` expected");
         }
+    }
+
+    /**
+     * `@Name` or `@Name(x = 1, "y", { a, b })` before a declaration: a Java annotation, whose
+     * arguments are expressions and braced arrays. They go inside the declaration's node.
+     */
+    private void annotations() {
+        while (at(AT)) {
+            PsiBuilder.Marker m = b.mark();
+            b.advanceLexer();
+            referenceChain();
+            if (at(LPAREN) && !newlineBefore()) {
+                b.advanceLexer();
+                if (!at(RPAREN)) {
+                    do {
+                        if (at(IDENTIFIER) && b.lookAhead(1) == AxlTokenTypes.of(ASSIGN)) {
+                            b.advanceLexer();
+                            b.advanceLexer();
+                        }
+                        annotationValue();
+                    } while (consume(COMMA));
+                }
+                expect(RPAREN, "`)` expected");
+            }
+            m.done(AxlElementTypes.ANNOTATION);
+        }
+    }
+
+    private void annotationValue() {
+        if (!at(LBRACE)) {
+            expression();
+            return;
+        }
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        if (!at(RBRACE)) {
+            do {
+                annotationValue();
+            } while (consume(COMMA));
+        }
+        expect(RBRACE, "`}` expected");
+        m.done(AxlElementTypes.ANNOTATION_ARRAY);
     }
 
     /** `data` is a word only before `class`; an identifier followed by `class` cannot be anything else. */
@@ -116,8 +162,7 @@ public final class AxlParser implements PsiParser {
         return b.lookAhead(modifiers) == AxlTokenTypes.of(INTERFACE);
     }
 
-    private void dataClass() {
-        PsiBuilder.Marker m = b.mark();
+    private void dataClass(PsiBuilder.Marker m) {
         consume(PRIVATE);
         if ("data".equals(b.getTokenText())) {
             b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
@@ -140,8 +185,7 @@ public final class AxlParser implements PsiParser {
     }
 
     /** `class Counter(val name: String, var step: Int) : Named { var count: Int = 0; fn next() -> Int { ... } }` */
-    private void classDeclaration() {
-        PsiBuilder.Marker m = b.mark();
+    private void classDeclaration(PsiBuilder.Marker m) {
         consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "class name expected");
@@ -164,20 +208,22 @@ public final class AxlParser implements PsiParser {
     }
 
     private void classMember() {
+        PsiBuilder.Marker m = b.mark();
+        annotations();
         int word = at(PRIVATE) ? 1 : 0;
         if (b.lookAhead(word) == AxlTokenTypes.of(FN)) {
-            function();
+            function(m);
         } else if (b.lookAhead(word) == AxlTokenTypes.of(VAL) || b.lookAhead(word) == AxlTokenTypes.of(VAR)) {
-            variable(true);
+            variable(m, true);
             consume(SEMI);
         } else {
+            m.drop();
             skip("`val`, `var` or `fn` expected");
         }
     }
 
     /** `enum Color { RED, GREEN }`: constants only, a trailing comma is fine. */
-    private void enumDeclaration() {
-        PsiBuilder.Marker m = b.mark();
+    private void enumDeclaration(PsiBuilder.Marker m) {
         consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "enum name expected");
@@ -195,8 +241,7 @@ public final class AxlParser implements PsiParser {
         m.done(AxlElementTypes.ENUM);
     }
 
-    private void interfaceDeclaration() {
-        PsiBuilder.Marker m = b.mark();
+    private void interfaceDeclaration(PsiBuilder.Marker m) {
         consume(PRIVATE);
         consume(SEALED);
         b.advanceLexer();
@@ -204,7 +249,7 @@ public final class AxlParser implements PsiParser {
         supertypes();
         if (consume(LBRACE)) {
             while (!at(RBRACE) && !b.eof()) {
-                if (at(VAL)) {
+                if (at(VAL) || at(AT)) {
                     field(false);
                 } else {
                     skip("`val` expected");
@@ -227,6 +272,7 @@ public final class AxlParser implements PsiParser {
     /** `val name: Type`, a component of a data class or a value an interface requires; a class takes `var` too. */
     private void field(boolean allowVar) {
         PsiBuilder.Marker m = b.mark();
+        annotations();
         if (!consume(VAL) && !(allowVar && consume(VAR))) {
             b.error(allowVar ? "`val` or `var` expected" : "`val` expected");
             m.drop();
@@ -239,8 +285,7 @@ public final class AxlParser implements PsiParser {
         m.done(AxlElementTypes.FIELD);
     }
 
-    private void function() {
-        PsiBuilder.Marker m = b.mark();
+    private void function(PsiBuilder.Marker m) {
         consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "function name expected");
@@ -276,6 +321,7 @@ public final class AxlParser implements PsiParser {
 
     private void parameter() {
         PsiBuilder.Marker param = b.mark();
+        annotations();
         if (!expect(IDENTIFIER, "parameter name expected")) {
             param.drop();
             return;
@@ -292,9 +338,9 @@ public final class AxlParser implements PsiParser {
         if (at(LT)) {
             PsiBuilder.Marker args = b.mark();
             b.advanceLexer();
-            type();
+            typeArgument();
             while (consume(COMMA)) {
-                type();
+                typeArgument();
             }
             expect(GT, "`>` expected");
             args.done(AxlElementTypes.TYPE_ARGUMENTS);
@@ -303,13 +349,19 @@ public final class AxlParser implements PsiParser {
         m.done(AxlElementTypes.TYPE);
     }
 
+    /** A type, or `*` for a type argument that is not known, Java's `?`. */
+    private void typeArgument() {
+        if (!consume(STAR)) {
+            type();
+        }
+    }
+
     private void variable() {
-        variable(false);
+        variable(b.mark(), false);
     }
 
     /** A `private` before `var` is only a class property, not a local or a top-level value. */
-    private void variable(boolean property) {
-        PsiBuilder.Marker m = b.mark();
+    private void variable(PsiBuilder.Marker m, boolean property) {
         if (consume(PRIVATE) && !at(VAL) && !(property && at(VAR))) {
             b.error("`val` expected");
         }
@@ -587,7 +639,12 @@ public final class AxlParser implements PsiParser {
     private void postfix() {
         PsiBuilder.Marker expr = primary();
         while (expr != null) {
-            if (at(DOT) || at(SAFE_DOT)) {
+            if (at(DOT) && b.lookAhead(1) == AxlTokenTypes.of(CLASS)) {
+                expr = expr.precede();
+                b.advanceLexer();
+                b.advanceLexer();
+                expr.done(AxlElementTypes.CLASS_LITERAL);
+            } else if (at(DOT) || at(SAFE_DOT)) {
                 expr = expr.precede();
                 b.advanceLexer();
                 expect(IDENTIFIER, "name expected");
@@ -780,7 +837,7 @@ public final class AxlParser implements PsiParser {
             } else if (t == AxlTokenTypes.of(GT) && depth > 0) {
                 depth--;
             } else if (t != AxlTokenTypes.IDENTIFIER && t != AxlTokenTypes.of(DOT) && t != AxlTokenTypes.of(QUESTION)
-                    && !(t == AxlTokenTypes.of(COMMA) && depth > 0)) {
+                    && !((t == AxlTokenTypes.of(COMMA) || t == AxlTokenTypes.of(STAR)) && depth > 0)) {
                 return i;
             }
         }

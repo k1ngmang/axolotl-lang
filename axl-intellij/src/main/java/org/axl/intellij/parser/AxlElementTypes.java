@@ -54,6 +54,9 @@ public final class AxlElementTypes {
     public static final IElementType IS_CHECK = type("IS_CHECK");
     public static final IElementType WHEN = type("WHEN");
     public static final IElementType WHEN_ARM = type("WHEN_ARM");
+    public static final IElementType ANNOTATION = type("ANNOTATION");
+    public static final IElementType ANNOTATION_ARRAY = type("ANNOTATION_ARRAY");
+    public static final IElementType CLASS_LITERAL = type("CLASS_LITERAL");
 
     private AxlElementTypes() {}
 

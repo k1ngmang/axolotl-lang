@@ -27,9 +27,9 @@ final class Keywords {
             AxolotlLexer.ELVIS, AxolotlLexer.BANG, AxolotlLexer.BANGBANG, AxolotlLexer.PLUS_ASSIGN, AxolotlLexer.MINUS_ASSIGN,
             AxolotlLexer.STAR_ASSIGN, AxolotlLexer.SLASH_ASSIGN, AxolotlLexer.PERCENT_ASSIGN, AxolotlLexer.ELSE, AxolotlLexer.TRY);
 
-    /** Tokens of the type arguments written before the cursor: names, dots, commas and `?`. */
+    /** Tokens of the type arguments written before the cursor: names, dots, commas, `?` and `*`. */
     private static final Set<Integer> TYPE_ARGUMENT_TOKENS = Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.DOT, AxolotlLexer.COMMA,
-            AxolotlLexer.QUESTION);
+            AxolotlLexer.QUESTION, AxolotlLexer.STAR);
 
     /** Keywords in a header that tell what kind of braces follow. */
     private static final Set<Integer> HEADS = Set.of(AxolotlLexer.CLASS, AxolotlLexer.INTERFACE, AxolotlLexer.ENUM,

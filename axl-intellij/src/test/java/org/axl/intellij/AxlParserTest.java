@@ -1,6 +1,7 @@
 package org.axl.intellij;
 
 import com.intellij.lang.annotation.HighlightSeverity;
+import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
@@ -8,10 +9,13 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
+import org.axl.intellij.psi.AxlFunction;
+import org.axl.intellij.psi.AxlTypeDeclaration;
 
 /** Syntax errors in IntelliJ are the ones the compiler reports. */
 public class AxlParserTest extends BasePlatformTestCase {
@@ -143,7 +147,8 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "is_smart_cast/src/app/Main", "when_expressions/src/app/Main", "classes/src/app/Counter",
                 "classes/src/app/Main", "enums/src/app/Main", "conditional_and_throw/src/app/Main",
                 "if_expression_braces/src/app/Main", "when_subjects/src/app/Main", "class_members/src/app/Main",
-                "interface_members/src/app/Main", "value_branches/src/app/Main")) {
+                "interface_members/src/app/Main", "value_branches/src/app/Main", "annotations/src/app/Main",
+                "class_literals/src/app/Main", "wildcard_types/src/app/Main", "attempt_throws/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -176,6 +181,37 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.THROW).length);
         assertEquals(1, PsiTreeUtil.collectElements(file,
                 e -> e.getNode().getElementType() == AxlElementTypes.CONDITIONAL).length);
+    }
+
+    public void testReadsAnnotationsIntoTheirDeclarationsWithClassLiteralsAndStarArguments() {
+        PsiFile file = myFixture.configureByText("Marked.axl", """
+                package app
+
+                @Marker(value = "class", weight = -1, type = Int.class, tags = {"a", {"b"}})
+                class Counter(@Marker("x") val start: Int) {
+                    @Deprecated
+                    var count: Int = start
+
+                    @Override
+                    fn toString() -> String = "Counter " + count
+                }
+
+                @org.junit.jupiter.api.Test
+                fn check(@Marker("p") c: Class<*>, m: java.util.Map<String, *>) -> Class<*> = String.class
+
+                interface Named {
+                    @Marker val name: String
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        PsiElement[] annotations = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ANNOTATION);
+        assertEquals(List.of(AxlElementTypes.CLASS, AxlElementTypes.FIELD, AxlElementTypes.VARIABLE, AxlElementTypes.FUNCTION,
+                AxlElementTypes.FUNCTION, AxlElementTypes.PARAMETER, AxlElementTypes.FIELD),
+                Arrays.stream(annotations).map(a -> a.getParent().getNode().getElementType()).toList());
+        assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ANNOTATION_ARRAY).length);
+        assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.CLASS_LITERAL).length);
+        assertEquals("Counter", ((AxlTypeDeclaration) annotations[0].getParent()).getName());
+        assertEquals("check", ((AxlFunction) annotations[4].getParent()).getName());
     }
 
     public void testReadsAnIfWithBracesAsAStatement() {

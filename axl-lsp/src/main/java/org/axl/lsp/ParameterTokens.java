@@ -93,7 +93,7 @@ final class ParameterTokens {
             } else if (type == AxolotlLexer.GT && depth > 0) {
                 depth--;
             } else if (type != AxolotlLexer.IDENTIFIER && type != AxolotlLexer.DOT && type != AxolotlLexer.QUESTION
-                    && !(type == AxolotlLexer.COMMA && depth > 0)) {
+                    && !((type == AxolotlLexer.COMMA || type == AxolotlLexer.STAR) && depth > 0)) {
                 return k;
             }
         }
