@@ -25,6 +25,7 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
         new AttributesDescriptor("Function declaration", AxlSyntaxHighlighter.FUNCTION_DECLARATION),
         new AttributesDescriptor("Type declaration", AxlSyntaxHighlighter.TYPE_DECLARATION),
         new AttributesDescriptor("Enum constant", AxlSyntaxHighlighter.ENUM_CONSTANT),
+        new AttributesDescriptor("Annotation", AxlSyntaxHighlighter.ANNOTATION),
         new AttributesDescriptor("Bad character", AxlSyntaxHighlighter.BAD_CHARACTER),
     };
 
@@ -60,6 +61,9 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
                         count += step
                         return count
                     }
+
+                    <annotation>@Override</annotation>
+                    fn toString() -> String = name + " " + count
                 }
 
                 fn <fn>area</fn>(shape: Shape) -> Double = when (shape) {
@@ -81,7 +85,7 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
     @Override
     public Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap() {
         return Map.of("fn", AxlSyntaxHighlighter.FUNCTION_DECLARATION, "type", AxlSyntaxHighlighter.TYPE_DECLARATION,
-                "const", AxlSyntaxHighlighter.ENUM_CONSTANT);
+                "const", AxlSyntaxHighlighter.ENUM_CONSTANT, "annotation", AxlSyntaxHighlighter.ANNOTATION);
     }
 
     @Override

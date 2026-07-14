@@ -406,6 +406,13 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
     }
 
 
+    public void testHighlightsAnnotationsWithoutTheirArguments() {
+        myFixture.configureByText("Marked.axl", COUNTER.replace("class Counter", "@Deprecated\n@java.lang.SuppressWarnings({\"unused\"})\nclass Counter")
+                .replace("    fn next()", "    @Override fn toString() -> String = name\n    fn next()"));
+        String text = myFixture.getFile().getText();
+        assertEquals(List.of("@Deprecated", "@java.lang.SuppressWarnings", "@Override"), highlighted(text, AxlSyntaxHighlighter.ANNOTATION));
+    }
+
     private List<String> highlighted(String text, TextAttributesKey key) {
         return myFixture.doHighlighting().stream().filter(h -> h.forcedTextAttributesKey == key)
                 .map(h -> text.substring(h.getStartOffset(), h.getEndOffset())).toList();

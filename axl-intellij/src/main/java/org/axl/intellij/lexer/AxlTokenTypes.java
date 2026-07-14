@@ -30,6 +30,7 @@ public final class AxlTokenTypes {
     public static final IElementType RBRACE = of(AxolotlLexer.RBRACE);
     public static final IElementType LPAREN = of(AxolotlLexer.LPAREN);
     public static final IElementType RPAREN = of(AxolotlLexer.RPAREN);
+    public static final IElementType AT = of(AxolotlLexer.AT);
 
     /** `data` before `class` and `in` of `for`: words only where the parser finds them, names elsewhere. */
     public static final IElementType CONTEXTUAL_KEYWORD = new IElementType("CONTEXTUAL_KEYWORD", AxlLanguage.INSTANCE);

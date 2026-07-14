@@ -1,6 +1,7 @@
 package org.axl.intellij.annotate;
 
 import com.intellij.codeInsight.intention.CommonIntentionAction;
+import com.intellij.lang.ASTNode;
 import com.intellij.lang.annotation.AnnotationHolder;
 import com.intellij.lang.annotation.Annotator;
 import com.intellij.lang.annotation.HighlightSeverity;
@@ -56,6 +57,13 @@ public final class AxlAnnotator implements Annotator {
         if (element.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD) {
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(element)
                     .textAttributes(AxlSyntaxHighlighter.KEYWORD).create();
+        }
+        if (element.getNode().getElementType() == AxlElementTypes.ANNOTATION) {
+            // The `@` and the name, not the arguments: `@Marker(value = "x")`.
+            ASTNode name = element.getNode().findChildByType(AxlElementTypes.REFERENCE);
+            int end = name == null ? element.getTextRange().getEndOffset() : name.getTextRange().getEndOffset();
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(new TextRange(element.getTextRange().getStartOffset(), end))
+                    .textAttributes(AxlSyntaxHighlighter.ANNOTATION).create();
         }
         if (!(element instanceof AxlFile file)) {
             return;

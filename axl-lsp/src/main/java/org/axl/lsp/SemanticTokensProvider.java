@@ -17,7 +17,7 @@ import org.eclipse.lsp4j.SemanticTokensLegend;
 final class SemanticTokensProvider {
 
     static final List<String> TYPES = List.of("keyword", "function", "variable", "parameter", "type", "string",
-            "number", "comment", "operator", "property", "namespace", "enumMember");
+            "number", "comment", "operator", "property", "namespace", "enumMember", "decorator");
     static final SemanticTokensLegend LEGEND = new SemanticTokensLegend(TYPES, List.of());
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
@@ -126,6 +126,7 @@ final class SemanticTokensProvider {
             case AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL -> TYPES.indexOf("string");
             case AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL -> TYPES.indexOf("number");
             case AxolotlLexer.LINE_COMMENT, AxolotlLexer.BLOCK_COMMENT -> TYPES.indexOf("comment");
+            case AxolotlLexer.AT -> TYPES.indexOf("decorator");
             case AxolotlLexer.IDENTIFIER -> TYPES.indexOf(name(tokens, index, enums, names));
             default -> -1;
         };
@@ -136,6 +137,9 @@ final class SemanticTokensProvider {
         Token previous = neighbour(tokens, index, -1);
         if (isContextualKeyword(tokens, index, next, previous)) {
             return "keyword";
+        }
+        if (isAnnotationName(tokens, index)) {
+            return "decorator";
         }
         if (enums.isConstant(tokens, index, previous)) {
             return "enumMember";
@@ -193,6 +197,16 @@ final class SemanticTokensProvider {
             }
         }
         return false;
+    }
+
+    /** A segment of the name after `@`, as `Test` in `@Test` and both of `@org.Marker`, colored with the `@`. */
+    private static boolean isAnnotationName(List<? extends Token> tokens, int index) {
+        int first = index;
+        while (type(tokens, previousIndex(tokens, first)) == AxolotlLexer.DOT
+                && type(tokens, previousIndex(tokens, previousIndex(tokens, first))) == AxolotlLexer.IDENTIFIER) {
+            first = previousIndex(tokens, previousIndex(tokens, first));
+        }
+        return type(tokens, previousIndex(tokens, first)) == AxolotlLexer.AT;
     }
 
     /** `data` before `class`, and `in` in `for (x in xs)`; both are ordinary names elsewhere. */

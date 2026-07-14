@@ -28,6 +28,7 @@ public final class AxlSyntaxHighlighter extends SyntaxHighlighterBase {
     public static final TextAttributesKey FUNCTION_DECLARATION = createTextAttributesKey("AXL_FUNCTION_DECLARATION", DefaultLanguageHighlighterColors.FUNCTION_DECLARATION);
     public static final TextAttributesKey TYPE_DECLARATION = createTextAttributesKey("AXL_TYPE_DECLARATION", DefaultLanguageHighlighterColors.CLASS_NAME);
     public static final TextAttributesKey ENUM_CONSTANT = createTextAttributesKey("AXL_ENUM_CONSTANT", DefaultLanguageHighlighterColors.CONSTANT);
+    public static final TextAttributesKey ANNOTATION = createTextAttributesKey("AXL_ANNOTATION", DefaultLanguageHighlighterColors.METADATA);
     public static final TextAttributesKey BAD_CHARACTER = createTextAttributesKey("AXL_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER);
 
     @Override
@@ -60,6 +61,9 @@ public final class AxlSyntaxHighlighter extends SyntaxHighlighterBase {
         }
         if (type == AxlTokenTypes.LPAREN || type == AxlTokenTypes.RPAREN) {
             return pack(PARENTHESES);
+        }
+        if (type == AxlTokenTypes.AT) {
+            return pack(ANNOTATION);
         }
         if (type == AxlTokenTypes.of(AxolotlLexer.ARROW) || type == AxlTokenTypes.of(AxolotlLexer.PIPE)
                 || type == AxlTokenTypes.of(AxolotlLexer.BANGBANG)

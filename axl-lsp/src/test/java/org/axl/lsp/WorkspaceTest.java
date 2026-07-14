@@ -1027,6 +1027,21 @@ class WorkspaceTest {
     }
 
     @Test
+    void classifiesAnnotationsAsDecoratorsWithoutTheirArguments() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                @Deprecated
+                @java.lang.SuppressWarnings(value = {"unused"})
+                fn f(@Deprecated n: Int) -> Int = n
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("2:0:1:decorator", "2:1:10:decorator", "3:0:1:decorator", "3:1:4:decorator",
+                "3:6:4:decorator", "3:11:16:decorator", "3:28:5:variable", "3:37:8:string", "4:5:1:decorator", "4:6:10:decorator",
+                "4:17:1:parameter")), tokens.toString());
+    }
+
+    @Test
     void classifiesConstantsAndParametersOfFunctions() throws Exception {
         String uri = open("Main.axl", """
                 package app

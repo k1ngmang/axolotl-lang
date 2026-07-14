@@ -7,6 +7,7 @@
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#numbers" },
+    { "include": "#annotations" },
     { "include": "#declarations" },
     { "include": "#keywords" },
     { "include": "#operators" },
@@ -35,6 +36,17 @@
       "patterns": [
         { "name": "constant.numeric.hex.axl", "match": "\\b0[xX][0-9a-fA-F][0-9a-fA-F_]*[lL]?\\b" },
         { "name": "constant.numeric.decimal.axl", "match": "\\b[0-9][0-9_]*(\\.[0-9][0-9_]*)?([eE][+-]?[0-9][0-9_]*)?[lLfFdD]?\\b" }
+      ]
+    },
+    "annotations": {
+      "patterns": [
+        {
+          "match": "(@)\\s*([\\p{L}_$][\\p{L}\\p{N}_$]*(\\.[\\p{L}_$][\\p{L}\\p{N}_$]*)*)",
+          "captures": {
+            "1": { "name": "punctuation.definition.annotation.axl" },
+            "2": { "name": "storage.type.annotation.axl" }
+          }
+        }
       ]
     },
     "declarations": {
@@ -107,6 +119,7 @@
     },
     "keywords": {
       "patterns": [
+        { "name": "keyword.other.class-literal.axl", "match": "(?<=\\.)class\\b" },
         { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|throw|try|attempt)\\b" },
         { "name": "keyword.control.axl", "match": "^\\s*in\\b(?=\\s+[\\p{L}_$(])" },
         { "name": "keyword.declaration.function.axl", "match": "\\bfn\\b" },
