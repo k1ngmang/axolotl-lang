@@ -1,0 +1,6 @@
+<idea-plugin>
+  <extensions defaultExtensionNs="com.intellij">
+    <runLineMarkerContributor language="Axolotl" implementationClass="org.axl.intellij.run.AxlTestRunLineMarkerContributor"/>
+    <runConfigurationProducer implementation="org.axl.intellij.run.AxlJUnitConfigurationProducer"/>
+  </extensions>
+</idea-plugin>

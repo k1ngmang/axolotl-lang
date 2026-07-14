@@ -12,7 +12,7 @@
       <li>Errors while typing; javac, Error Prone and NullAway errors on save</li>
       <li>Completion, go to declaration, find usages and rename across <code>.axl</code> and Java</li>
       <li>Java code sees <code>.axl</code> functions without a build</li>
-      <li>Run <code>fn main()</code> from the gutter, breakpoints and stepping in <code>.axl</code> files</li>
+      <li>Run <code>fn main()</code> and classes with <code>@Test</code> methods from the gutter, breakpoints and stepping in <code>.axl</code> files</li>
       <li>Show Generated Java, Convert Java File to Axolotl, quick fixes</li>
     </ul>
   ]]></description>
@@ -21,6 +21,7 @@
   <depends>com.intellij.modules.java</depends>
   <depends optional="true" config-file="axl-lsp.xml">com.intellij.modules.ultimate</depends>
   <depends optional="true" config-file="axl-maven.xml">org.jetbrains.idea.maven</depends>
+  <depends optional="true" config-file="axl-junit.xml">JUnit</depends>
 
   <extensions defaultExtensionNs="com.intellij">
     <fileType name="Axolotl" implementationClass="org.axl.intellij.AxlFileType" fieldName="INSTANCE"

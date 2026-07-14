@@ -19,6 +19,7 @@ dependencies {
         intellijIdeaUltimate("2024.2.6")
         bundledPlugin("com.intellij.java")
         bundledPlugin("org.jetbrains.idea.maven")
+        bundledPlugin("JUnit")
         testFramework(TestFrameworkType.Platform)
         testFramework(TestFrameworkType.Plugin.Java)
         pluginVerifier()
