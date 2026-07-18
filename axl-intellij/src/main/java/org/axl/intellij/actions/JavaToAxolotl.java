@@ -2,9 +2,12 @@ package org.axl.intellij.actions;
 
 import com.intellij.codeInsight.ExceptionUtil;
 import com.intellij.psi.PsiAnnotation;
+import com.intellij.psi.PsiAnnotationMemberValue;
+import com.intellij.psi.PsiArrayInitializerMemberValue;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiBlockStatement;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiClassObjectAccessExpression;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiCaseLabelElement;
@@ -30,7 +33,9 @@ import com.intellij.psi.PsiMember;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiMethodCallExpression;
 import com.intellij.psi.PsiModifier;
+import com.intellij.psi.PsiModifierList;
 import com.intellij.psi.PsiModifierListOwner;
+import com.intellij.psi.PsiNameValuePair;
 import com.intellij.psi.PsiNewExpression;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiParenthesizedExpression;
@@ -53,6 +58,7 @@ import com.intellij.psi.PsiTypeTestPattern;
 import com.intellij.psi.PsiTypes;
 import com.intellij.psi.PsiUnaryExpression;
 import com.intellij.psi.PsiVariable;
+import com.intellij.psi.PsiWildcardType;
 import com.intellij.psi.PsiWhileStatement;
 import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.JavaRecursiveElementVisitor;
@@ -74,9 +80,9 @@ import org.axl.compiler.Translator;
 
 /**
  * Converts the subset of Java that maps one to one: a class with static methods and fields and
- * nested records, enums, interfaces and classes, or one record, enum, interface or class. Bodies
- * use locals, `if`, `while`, `for` over a collection, `return`, `throw`, `switch` with arrows,
- * `instanceof` and `?:`.
+ * nested records, enums, interfaces and classes, or one record, enum, interface or class, with
+ * their annotations. Bodies use locals, `if`, `while`, `for` over a collection, `return`, `throw`,
+ * `switch` with arrows, `instanceof`, `?:` and class literals.
  */
 final class JavaToAxolotl {
 
@@ -163,7 +169,6 @@ final class JavaToAxolotl {
         if (cls.getInitializers().length > 0) {
             throw new Unsupported("initializer blocks have no Axolotl form");
         }
-        nullable(cls);
         source = file;
         packageName = file.getPackageName();
         // Comments of the file and of the class describe the .axl file, so they go first.
@@ -206,6 +211,9 @@ final class JavaToAxolotl {
         }
         int importsEnd = out.length();
         if (isStaticHolder(cls)) {
+            if (!annotations(cls, "").isEmpty()) {
+                throw new Unsupported("the class of a file takes no annotations in Axolotl");
+            }
             staticMembers(cls, true);
         } else {
             typeDeclaration(cls);
@@ -261,10 +269,9 @@ final class JavaToAxolotl {
         if (type.getContainingClass() != null && !type.hasModifierProperty(PsiModifier.STATIC)) {
             throw new Unsupported("inner classes have no Axolotl form; make them static");
         }
-        nullable(type);
         out.append("\n");
         leadingComments(type);
-        out.append(visibility(type));
+        out.append(annotations(type, "\n")).append(visibility(type));
         if (type.isRecord()) {
             record(type);
         } else if (type.isEnum()) {
@@ -289,8 +296,8 @@ final class JavaToAxolotl {
         out.append("data class ").append(name(type.getName())).append("(");
         PsiRecordComponent[] components = type.getRecordComponents();
         for (int i = 0; i < components.length; i++) {
-            out.append(i == 0 ? "" : ", ").append("val ").append(name(components[i].getName())).append(": ")
-                    .append(withNullable(type(components[i].getType()), nullable(components[i])));
+            out.append(i == 0 ? "" : ", ").append(annotations(components[i], " ")).append("val ").append(name(components[i].getName()))
+                    .append(": ").append(withNullable(type(components[i].getType()), nullable(components[i])));
         }
         out.append(")").append(supertypes(type.getImplementsListTypes())).append("\n");
     }
@@ -310,6 +317,9 @@ final class JavaToAxolotl {
             if (!(field instanceof PsiEnumConstant constant) || constant.getInitializingClass() != null
                     || constant.getArgumentList() != null && !constant.getArgumentList().isEmpty()) {
                 throw new Unsupported("enum constants with arguments or bodies have no Axolotl form");
+            }
+            if (!annotations(constant, " ").isEmpty()) {
+                throw new Unsupported("enum constants take no annotations in Axolotl");
             }
             constants.add(name(constant.getName()));
         }
@@ -334,7 +344,7 @@ final class JavaToAxolotl {
                 throw new Unsupported("interfaces have only values in Axolotl: methods without parameters or a body");
             }
             leadingComments(method);
-            out.append("    val ").append(name(method.getName())).append(": ")
+            out.append("    ").append(annotations(method, " ")).append("val ").append(name(method.getName())).append(": ")
                     .append(withNullable(type(method.getReturnType()), nullable(method))).append("\n");
         }
         out.append("}\n");
@@ -352,7 +362,10 @@ final class JavaToAxolotl {
             if (field.hasModifierProperty(PsiModifier.PRIVATE)) {
                 throw new Unsupported("the fields a constructor sets are public in Axolotl: " + field.getName());
             }
-            out.append(i == 0 ? "" : ", ").append(field.hasModifierProperty(PsiModifier.FINAL) ? "val " : "var ")
+            // The field and the constructor parameter are one declaration in Axolotl, which takes both their annotations.
+            PsiParameter parameter = type.getConstructors()[0].getParameterList().getParameters()[i];
+            out.append(i == 0 ? "" : ", ").append(annotations(field, " ")).append(annotations(parameter, " "))
+                    .append(field.hasModifierProperty(PsiModifier.FINAL) ? "val " : "var ")
                     .append(name(field.getName())).append(": ").append(type(field, type));
         }
         out.append(")").append(supertypes(type.getImplementsListTypes())).append(" {\n");
@@ -432,7 +445,8 @@ final class JavaToAxolotl {
             throw new Unsupported("a field initializer that reads other fields has no Axolotl form");
         }
         leadingComments(field);
-        out.append("    ").append(visibility(field)).append(field.hasModifierProperty(PsiModifier.FINAL) ? "val " : "var ")
+        out.append("    ").append(annotations(field, "\n    ")).append(visibility(field))
+                .append(field.hasModifierProperty(PsiModifier.FINAL) ? "val " : "var ")
                 .append(name(field.getName())).append(": ").append(type(field, type)).append(" = ")
                 .append(expression(field.getInitializer())).append("\n");
     }
@@ -451,7 +465,7 @@ final class JavaToAxolotl {
         }
         out.append("\n");
         leadingComments(field);
-        out.append(visibility(field)).append("val ")
+        out.append(annotations(field, "\n")).append(visibility(field)).append("val ")
                 .append(name(field.getName())).append(": ").append(type(field, cls)).append(" = ")
                 .append(expression(field.getInitializer())).append("\n");
     }
@@ -481,11 +495,12 @@ final class JavaToAxolotl {
         String indent = "    ".repeat(depth);
         out.append("\n");
         leadingComments(method, indent);
-        out.append(indent).append(visibility(method)).append("fn ").append(name(method.getName())).append("(");
+        out.append(indent).append(annotations(method, "\n" + indent)).append(visibility(method)).append("fn ")
+                .append(name(method.getName())).append("(");
         if (!main) {
             PsiParameter[] params = method.getParameterList().getParameters();
             for (int i = 0; i < params.length; i++) {
-                out.append(i == 0 ? "" : ", ").append(name(params[i].getName())).append(": ")
+                out.append(i == 0 ? "" : ", ").append(annotations(params[i], " ")).append(name(params[i].getName())).append(": ")
                         .append(withNullable(type(params[i].getType()), nullable(params[i])));
             }
         }
@@ -501,6 +516,54 @@ final class JavaToAxolotl {
         out.append(" ");
         block(method.getBody(), depth);
         out.append("\n");
+    }
+
+    /**
+     * The annotations of a declaration as Axolotl writes them, each followed by the separator: a
+     * line break for members, a space in a parameter list. Nullness annotations are left out, since
+     * the types say what they say.
+     */
+    private String annotations(PsiModifierListOwner owner, String separator) {
+        StringBuilder result = new StringBuilder();
+        PsiModifierList list = owner.getModifierList();
+        for (PsiAnnotation annotation : list == null ? PsiAnnotation.EMPTY_ARRAY : list.getAnnotations()) {
+            if (!NULLNESS.contains(simpleName(annotation))) {
+                result.append(annotation(annotation)).append(separator);
+            }
+        }
+        return result.toString();
+    }
+
+    /** `@Marker(value = "x", tags = {"a", "b"})` with the annotation by its simple name, imported when needed. */
+    private String annotation(PsiAnnotation annotation) {
+        PsiClass type = annotation.resolveAnnotationType();
+        if (type == null) {
+            throw new Unsupported("unknown annotation: " + annotation.getText());
+        }
+        StringBuilder result = new StringBuilder("@").append(className(type));
+        PsiNameValuePair[] attributes = annotation.getParameterList().getAttributes();
+        if (attributes.length == 0) {
+            return result.toString();
+        }
+        result.append("(");
+        for (int i = 0; i < attributes.length; i++) {
+            result.append(i == 0 ? "" : ", ");
+            if (attributes[i].getName() != null) {
+                result.append(name(attributes[i].getName())).append(" = ");
+            }
+            result.append(annotationValue(attributes[i].getValue()));
+        }
+        return result.append(")").toString();
+    }
+
+    /** A constant, a class literal or a braced array; a nested annotation has no Axolotl form. */
+    private String annotationValue(PsiAnnotationMemberValue value) {
+        return switch (value) {
+            case PsiArrayInitializerMemberValue array -> Arrays.stream(array.getInitializers()).map(this::annotationValue)
+                    .collect(Collectors.joining(", ", "{", "}"));
+            case PsiExpression expression -> expression(expression);
+            case null, default -> throw new Unsupported("unsupported annotation argument: " + (value == null ? "" : value.getText()));
+        };
     }
 
     /** Javadoc and the comments right before a declaration, which Java's PSI places inside it. */
@@ -786,6 +849,7 @@ final class JavaToAxolotl {
             case PsiConditionalExpression conditional -> "if (" + expression(conditional.getCondition()) + ") "
                     + expression(conditional.getThenExpression()) + " else " + expression(conditional.getElseExpression());
             case PsiSwitchExpression select -> when(select);
+            case PsiClassObjectAccessExpression literal -> classLiteral(literal.getOperand().getType());
             case PsiMethodCallExpression call when call.getMethodExpression().getText().equals("System.out.println") ->
                     "println" + arguments(call.getArgumentList());
             case PsiMethodCallExpression call -> expression(call.getMethodExpression()) + arguments(call.getArgumentList());
@@ -819,6 +883,18 @@ final class JavaToAxolotl {
             return name(ref.getReferenceName());
         }
         return expression(qualifier) + "." + name(ref.getReferenceName());
+    }
+
+    /** `String.class`, and `Integer.class` as `Int.class`; `int.class` is another class, which Axolotl cannot name. */
+    private String classLiteral(PsiType type) {
+        String boxed = BOXED.get(type.getCanonicalText());
+        if (boxed != null) {
+            return boxed.substring(0, boxed.length() - 1) + ".class";
+        }
+        if (!(type instanceof PsiClassType classType)) {
+            throw new Unsupported("unsupported class literal: " + type.getPresentableText() + ".class");
+        }
+        return classType(classType) + ".class";
     }
 
     /** `Name<T>(...)` takes a simple name in Axolotl. */
@@ -869,22 +945,28 @@ final class JavaToAxolotl {
         return nullable && !type.endsWith("?") ? type + "?" : type;
     }
 
+    /** Whether a declaration's annotations say its value may be null; its other annotations are kept. */
     private static boolean nullable(PsiModifierListOwner owner) {
-        return owner.getModifierList() != null && nullable(owner.getModifierList().getAnnotations());
+        return owner.getModifierList() != null
+                && Arrays.stream(owner.getModifierList().getAnnotations()).anyMatch(a -> simpleName(a).equals("Nullable"));
     }
 
-    /** Whether annotations say a value may be null; other annotations have no Axolotl form. */
+    /** Whether the annotations of a type argument say it may be null; other annotations have no Axolotl form there. */
     private static boolean nullable(PsiAnnotation[] annotations) {
         boolean nullable = false;
         for (PsiAnnotation annotation : annotations) {
-            String name = String.valueOf(annotation.getQualifiedName());
-            name = name.substring(name.lastIndexOf('.') + 1);
+            String name = simpleName(annotation);
             if (!NULLNESS.contains(name)) {
-                throw new Unsupported("annotations have no Axolotl form: @" + name);
+                throw new Unsupported("annotations of type arguments have no Axolotl form: @" + name);
             }
             nullable |= name.equals("Nullable");
         }
         return nullable;
+    }
+
+    private static String simpleName(PsiAnnotation annotation) {
+        String name = String.valueOf(annotation.getQualifiedName());
+        return name.substring(name.lastIndexOf('.') + 1);
     }
 
     private String type(PsiType type) {
@@ -911,13 +993,34 @@ final class JavaToAxolotl {
         return classType(classType);
     }
 
-    /** A class by its simple name; one that is not visible without an import gets one. */
+    /** A class by its simple name with its type arguments; `?` is `*`. */
     private String classType(PsiClassType type) {
         PsiClass cls = type.resolve();
         if (cls == null || cls.getQualifiedName() == null) {
             throw new Unsupported("unknown type: " + type.getPresentableText());
         }
+        List<String> arguments = new ArrayList<>();
+        for (PsiType argument : type.getParameters()) {
+            if (argument instanceof PsiWildcardType wildcard) {
+                if (wildcard.isBounded()) {
+                    throw new Unsupported("bounded wildcards have no Axolotl form: " + wildcard.getPresentableText());
+                }
+                arguments.add("*");
+                continue;
+            }
+            // A type argument keeps its class name: `Int?` there would declare nullable elements.
+            String text = argument instanceof PsiClassType c ? classType(c) : type(argument);
+            arguments.add(withNullable(text, nullable(argument.getAnnotations())));
+        }
+        return className(cls) + (arguments.isEmpty() ? "" : "<" + String.join(", ", arguments) + ">");
+    }
+
+    /** A class by its simple name; one that is not visible without an import gets one. */
+    private String className(PsiClass cls) {
         String qualified = cls.getQualifiedName();
+        if (qualified == null) {
+            throw new Unsupported("unknown type: " + cls.getName());
+        }
         String pkg = PsiUtil.getPackageName(cls);
         boolean declaredHere = cls.getContainingFile() == source;
         boolean visible = declaredHere || cls.getContainingClass() == null && ("java.lang".equals(pkg) || packageName.equals(pkg));
@@ -927,13 +1030,7 @@ final class JavaToAxolotl {
         } else if (known != null && !known.equals(qualified)) {
             throw new Unsupported("two types are named " + cls.getName());
         }
-        List<String> arguments = new ArrayList<>();
-        for (PsiType argument : type.getParameters()) {
-            // A type argument keeps its class name: `Int?` there would declare nullable elements.
-            String text = argument instanceof PsiClassType c ? classType(c) : type(argument);
-            arguments.add(withNullable(text, nullable(argument.getAnnotations())));
-        }
-        return cls.getName() + (arguments.isEmpty() ? "" : "<" + String.join(", ", arguments) + ">");
+        return cls.getName();
     }
 
     private static String name(String name) {

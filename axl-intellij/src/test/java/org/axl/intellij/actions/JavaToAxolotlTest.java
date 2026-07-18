@@ -30,7 +30,9 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Generic.java", inClass("public static <T> T id(T x) { return x; }"));
         assertRefused("Init.java", inClass("static { System.out.println(\"loaded\"); }"));
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
-        assertRefused("Old.java", inClass("@Deprecated public static int f() { return 1; }"));
+        assertRefused("Prim.java", inClass("public static Class<?> f() { return int.class; }"));
+        assertRefused("Wrapped.java", inClass("@SuppressWarnings(value = {\"a\"}) @java.lang.annotation.Target("
+                + "@java.lang.annotation.Documented) public static int f() { return 1; }"));
         assertRefused("Read.java", inClass("public static String read(java.nio.file.Path p) throws java.io.IOException "
                 + "{ return java.nio.file.Files.readString(p); }"));
     }
@@ -306,6 +308,85 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(axl, axl.contains("    if (o !is String) {\n        throw IllegalArgumentException(\"not text\")\n    }\n"
                 + "    return o.length()\n"));
         assertTrue(axl, axl.contains("return o is String\n"));
+    }
+
+    public void testKeepsAnnotationsClassLiteralsAndStarArguments() {
+        myFixture.addFileToProject("util/Marker.java", """
+                package util;
+                @java.lang.annotation.Target({java.lang.annotation.ElementType.METHOD, java.lang.annotation.ElementType.TYPE,
+                        java.lang.annotation.ElementType.FIELD, java.lang.annotation.ElementType.PARAMETER,
+                        java.lang.annotation.ElementType.RECORD_COMPONENT})
+                public @interface Marker {
+                    String value() default "";
+                    int weight() default 0;
+                    Class<?> type() default Object.class;
+                    String[] tags() default {};
+                }
+                """);
+        myFixture.addFileToProject("org/junit/jupiter/api/Test.java",
+                "package org.junit.jupiter.api;\npublic @interface Test {}\n");
+        String axl = convert("Marked.java", """
+                package util;
+
+                import java.util.List;
+                import org.junit.jupiter.api.Test;
+
+                public final class Marked {
+                    private Marked() {}
+
+                    @Marker("record")
+                    public record Point(@Marker("x") int x, int y) {}
+
+                    @Marker(value = "class", weight = 2, type = Integer.class, tags = {"a", "b"})
+                    public static final class Counter {
+                        public final int start;
+                        @Marker("prop")
+                        public int count = 0;
+
+                        public Counter(@Marker("c") int start) {
+                            this.start = start;
+                        }
+
+                        @Marker(weight = -1)
+                        public int next(@Marker("p") int step) {
+                            count += step;
+                            return count;
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "Counter " + count;
+                        }
+                    }
+
+                    @Deprecated
+                    public static int old() {
+                        return 1;
+                    }
+
+                    @Test
+                    @Marker("value")
+                    public static final int LIMIT = 3;
+
+                    public static String name(Class<?> c, List<?> xs) {
+                        return c.getSimpleName() + xs.size() + String.class.getName() + Marked.class.getSimpleName();
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("\n@Marker(\"record\")\ndata class Point(@Marker(\"x\") val x: Int, val y: Int)\n"));
+        assertTrue(axl, axl.contains("\n@Marker(value = \"class\", weight = 2, type = Int.class, tags = {\"a\", \"b\"})\n"
+                + "class Counter(@Marker(\"c\") val start: Int) {\n    @Marker(\"prop\")\n    var count: Int = 0\n"));
+        assertTrue(axl, axl.contains("    @Marker(weight = -1)\n    fn next(@Marker(\"p\") step: Int) -> Int {\n"));
+        assertTrue(axl, axl.contains("    @Override\n    fn toString() -> String {\n"));
+        assertTrue(axl, axl.contains("\n@Deprecated\nfn old() -> Int {\n"));
+        assertTrue(axl, axl.contains("\n@Test\n@Marker(\"value\")\nval LIMIT: Int = 3\n"));
+        assertTrue(axl, axl.contains("fn name(c: Class<*>, xs: List<*>) -> String {\n"
+                + "    return c.getSimpleName() + xs.size() + String.class.getName() + Marked.class.getSimpleName()\n"));
+        assertTrue(axl, axl.startsWith("package util\nimport java.util.List\nimport org.junit.jupiter.api.Test\n"));
+        String imported = convert("Keep.java", "package util;\npublic final class Keep {\n"
+                + "    @java.lang.annotation.Documented public static int f() { return 1; }\n}\n");
+        assertTrue(imported, imported.startsWith("package util\nimport java.lang.annotation.Documented\n"));
+        assertTrue(imported, imported.contains("\n@Documented\nfn f() -> Int {\n"));
     }
 
     public void testRefusesTypesAndPatternsWithoutAOneToOneForm() {
