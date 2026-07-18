@@ -148,7 +148,9 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "classes/src/app/Main", "enums/src/app/Main", "conditional_and_throw/src/app/Main",
                 "if_expression_braces/src/app/Main", "when_subjects/src/app/Main", "class_members/src/app/Main",
                 "interface_members/src/app/Main", "value_branches/src/app/Main", "annotations/src/app/Main",
-                "class_literals/src/app/Main", "wildcard_types/src/app/Main", "attempt_throws/src/app/Main")) {
+                "class_literals/src/app/Main", "wildcard_types/src/app/Main", "attempt_throws/src/app/Main",
+                "interface_methods/src/app/Main", "interface_file_type/src/app/Store", "interface_file_type/src/app/Main",
+                "interface_method_errors/src/app/Main", "attempt_statement/src/app/Main", "elvis_throw/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -212,6 +214,49 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.CLASS_LITERAL).length);
         assertEquals("Counter", ((AxlTypeDeclaration) annotations[0].getParent()).getName());
         assertEquals("check", ((AxlFunction) annotations[4].getParent()).getName());
+    }
+
+    public void testReadsTheMethodsOfAnInterfaceAsFunctionsWithoutBodies() {
+        PsiFile file = myFixture.configureByText("Notes.axl", """
+                package app
+
+                interface Notes : Named {
+                    val name: String
+                    @Marker fn add(text: String, at: Int) -> Int
+                    fn find(id: Int) -> String?;
+                    fn clear()
+                    fn size() -> Int
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        AxlTypeDeclaration notes = ((org.axl.intellij.psi.AxlFile) file).typeDeclarations().getFirst();
+        assertEquals(List.of("add", "find", "clear", "size"), notes.methods().stream().map(AxlFunction::getName).toList());
+        assertEquals(List.of("name"), notes.fields().stream().map(f -> f.getName()).toList());
+        assertTrue(notes.methods().stream().allMatch(AxlFunction::isAbstract));
+        assertTrue(notes.methods().stream().allMatch(m -> m.body() == null));
+        assertEquals(List.of(2, 1, 0, 0), notes.methods().stream().map(m -> m.parameters().size()).toList());
+        assertEquals(List.of("Int", "String?", "", "Int"),
+                notes.methods().stream().map(m -> m.returnType() == null ? "" : m.returnType().getText()).toList());
+        assertEquals(1, PsiTreeUtil.collectElements(notes.methods().getFirst(),
+                e -> e.getNode().getElementType() == AxlElementTypes.ANNOTATION).length);
+    }
+
+    public void testReadsAThrowAfterAnElvisAndAnAttemptStatementWithAVoidCall() {
+        PsiFile file = myFixture.configureByText("Throws.axl", """
+                package app
+
+                fn f(s: String?, m: Map<String, String>) -> String {
+                    val a = s ?: throw IllegalStateException("missing")
+                    attempt close() else e -> throw IllegalStateException("cannot close", e)
+                    attempt close() else e -> println(e.getMessage())
+                    attempt close() else println("failed")
+                    return m.get("a") ?: m.get("b") ?: throw IllegalArgumentException("none")
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(3, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ELVIS).length);
+        assertEquals(3, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ATTEMPT).length);
+        assertEquals(3, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.THROW).length);
     }
 
     public void testReadsAnIfWithBracesAsAStatement() {

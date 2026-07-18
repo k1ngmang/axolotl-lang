@@ -249,15 +249,37 @@ public final class AxlParser implements PsiParser {
         supertypes();
         if (consume(LBRACE)) {
             while (!at(RBRACE) && !b.eof()) {
-                if (at(VAL) || at(AT)) {
-                    field(false);
-                } else {
-                    skip("`val` expected");
-                }
+                interfaceMember();
             }
             expect(RBRACE, "`}` expected");
         }
         m.done(AxlElementTypes.INTERFACE);
+    }
+
+    /** `val name: Type` or `fn name(params) -> Type` without a body, each maybe after annotations. */
+    private void interfaceMember() {
+        PsiBuilder.Marker m = b.mark();
+        annotations();
+        if (at(VAL)) {
+            fieldRest(m, false);
+        } else if (at(FN)) {
+            abstractFunction(m);
+        } else {
+            m.drop();
+            skip("`val` or `fn` expected");
+        }
+    }
+
+    /** A method an interface requires: the signature of a function and an optional `;`. */
+    private void abstractFunction(PsiBuilder.Marker m) {
+        b.advanceLexer();
+        expect(IDENTIFIER, "function name expected");
+        parameters();
+        if (consume(ARROW)) {
+            type();
+        }
+        consume(SEMI);
+        m.done(AxlElementTypes.FUNCTION);
     }
 
     /** `: Shape, Other` after the name of a data class or an interface. */
@@ -273,6 +295,10 @@ public final class AxlParser implements PsiParser {
     private void field(boolean allowVar) {
         PsiBuilder.Marker m = b.mark();
         annotations();
+        fieldRest(m, allowVar);
+    }
+
+    private void fieldRest(PsiBuilder.Marker m, boolean allowVar) {
         if (!consume(VAL) && !(allowVar && consume(VAR))) {
             b.error(allowVar ? "`val` or `var` expected" : "`val` expected");
             m.drop();

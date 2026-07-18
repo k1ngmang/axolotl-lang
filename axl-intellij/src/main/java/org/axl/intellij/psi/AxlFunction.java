@@ -27,7 +27,15 @@ public final class AxlFunction extends AxlNamedElement {
         return findChildByClass(AxlType.class);
     }
 
+    /** A method an interface requires, which has no body. */
+    public boolean isAbstract() {
+        return getParent() instanceof AxlTypeDeclaration declaration && declaration.isInterface();
+    }
+
     public @Nullable PsiElement body() {
+        if (isAbstract()) {
+            return null;
+        }
         PsiElement block = findChildByType(AxlElementTypes.BLOCK);
         return block != null ? block : getLastChild();
     }
