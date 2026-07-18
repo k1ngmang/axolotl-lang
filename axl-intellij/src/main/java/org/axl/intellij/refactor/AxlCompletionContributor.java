@@ -34,7 +34,7 @@ public final class AxlCompletionContributor extends CompletionContributor {
                     return;
                 }
                 if (position.getParent() instanceof AxlReferenceExpression ref && ref.qualifier() != null
-                        || AxlReference.isInType(position)) {
+                        || AxlReference.isInType(position) || AxlReference.isAnnotationName(position)) {
                     return;
                 }
                 AxlKeywords.at(position).forEach(k -> result.addElement(LookupElementBuilder.create(k).bold()));

@@ -22,6 +22,8 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import org.axl.intellij.lexer.AxlTokenTypes;
+import org.axl.intellij.parser.AxlElementTypes;
 import org.jetbrains.annotations.NotNull;
 
 /** Resolves names with the same rules as the translator, plus Java classes for qualified access. */
@@ -67,6 +69,9 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         AxlReferenceExpression ref = getElement();
         PsiElement qualifier = ref.qualifier();
         Map<String, LookupElement> variants = new LinkedHashMap<>();
+        if (qualifier == null && isAnnotationName(ref)) {
+            return annotationTypes(ref);
+        }
         if (qualifier == null) {
             boolean typeOnly = isInType(ref);
             for (PsiElement visible : AxlResolver.visibleDeclarations(ref)) {
@@ -127,6 +132,43 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
     /** In a written type, such as after `:` or `->` in a declaration, or after `is`. */
     public static boolean isInType(PsiElement element) {
         return PsiTreeUtil.getParentOfType(element, AxlType.class) != null;
+    }
+
+    /** In the name right after `@`, not in the arguments of the annotation. */
+    public static boolean isAnnotationName(PsiElement element) {
+        PsiElement child = element;
+        while (child.getParent() != null && child.getParent().getNode().getElementType() != AxlElementTypes.ANNOTATION) {
+            if (!(child.getParent() instanceof AxlReferenceExpression)) {
+                return false;
+            }
+            child = child.getParent();
+        }
+        PsiElement before = child.getParent() == null ? null : PsiTreeUtil.skipWhitespacesAndCommentsBackward(child);
+        return before != null && before.getNode().getElementType() == AxlTokenTypes.AT;
+    }
+
+    /** The annotation types a file can name: its imports, the classes of its package and those of java.lang. */
+    private static Object[] annotationTypes(AxlReferenceExpression ref) {
+        Map<String, LookupElement> variants = new LinkedHashMap<>();
+        if (!(ref.getContainingFile() instanceof AxlFile file)) {
+            return new Object[0];
+        }
+        for (AxlImport imp : file.imports()) {
+            PsiClass cls = imp.kind() == AxlImport.Kind.TYPE ? AxlResolver.findClass(ref, imp.qualifiedName()) : null;
+            if (cls != null && cls.isAnnotationType()) {
+                variants.putIfAbsent(imp.simpleName(), LookupElementBuilder.create(cls, imp.simpleName()));
+            }
+        }
+        JavaPsiFacade facade = JavaPsiFacade.getInstance(ref.getProject());
+        for (String name : List.of(file.packageName(), "java.lang")) {
+            PsiPackage pkg = facade.findPackage(name);
+            for (PsiClass cls : pkg == null ? new PsiClass[0] : pkg.getClasses(ref.getResolveScope())) {
+                if (cls.getName() != null && cls.isAnnotationType() && cls.hasModifierProperty(PsiModifier.PUBLIC)) {
+                    variants.putIfAbsent(cls.getName(), LookupElementBuilder.create(cls, cls.getName()));
+                }
+            }
+        }
+        return variants.values().toArray();
     }
 
     private static boolean isType(PsiElement declaration) {

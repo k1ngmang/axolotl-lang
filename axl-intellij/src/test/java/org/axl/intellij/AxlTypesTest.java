@@ -379,6 +379,13 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(complete(main.formatted("attempt Integer.parseInt(\"1\") else e -> e.<caret>")).contains("getMessage"));
     }
 
+    public void testOffersAnnotationTypesAfterAnAt() {
+        List<String> found = complete(SHAPES.replace("package app\n", "package app\nimport org.jspecify.annotations.NullMarked\nimport java.util.List\n")
+                .replace("fn main() {", "@<caret>\nfn main() {"));
+        assertTrue(found.toString(), found.containsAll(List.of("Deprecated", "Override", "NullMarked")));
+        assertTrue(found.toString(), found.stream().noneMatch(List.of("List", "fn", "Circle", "println", "if")::contains));
+    }
+
     public void testOffersOnlyTypesWhereADeclarationNamesOne() {
         for (String type : List.of("    val z: <caret>\n    val color = Color.RED", "fn g(a: <caret>) = 1\nfn main() {",
                 "fn h() -> <caret> = 1\nfn main() {")) {

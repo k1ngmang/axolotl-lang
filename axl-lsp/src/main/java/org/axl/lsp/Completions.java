@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +31,9 @@ final class Completions {
     private static final Pattern PIPE_STAGE = Pattern.compile("\\|>\\s*\\w*$");
     // An import being typed, with the qualifier before the last segment as group 1.
     private static final Pattern IMPORT = Pattern.compile("^\\s*import\\s+(?:(?:fn|val)\\s+)?((?:\\w+\\.)*)\\w*$");
+    /** The name right after `@`; a qualified one is completed after its dots like any member. */
+    private static final Pattern ANNOTATION = Pattern.compile("@\\s*\\w*$");
+    private static final Pattern IMPORTED_TYPE = Pattern.compile("^\\s*import\\s+([\\w.]+)\\s*$", Pattern.MULTILINE);
 
     private final Workspace workspace;
 
@@ -58,6 +62,9 @@ final class Completions {
         Matcher imported = IMPORT.matcher(prefix);
         if (imported.matches()) {
             return imported(current, imported.group(1).isEmpty() ? "" : imported.group(1).substring(0, imported.group(1).length() - 1));
+        }
+        if (ANNOTATION.matcher(prefix).find()) {
+            return annotationTypes(current);
         }
         Token dot = memberDot(current, line, character);
         if (dot != null) {
@@ -223,6 +230,36 @@ final class Completions {
             items.add(item);
         }
         items.addAll(items(new ArrayList<>(java.classesOf(qualifier, pkg))));
+        return items;
+    }
+
+    /**
+     * After `@`: the annotation types among the imports, in the file's package and in java.lang. The
+     * imports are read from the text, since a bare `@` keeps the file from parsing.
+     */
+    private List<CompletionItem> annotationTypes(Document document) {
+        String pkg = Workspace.packageName(document.text);
+        JavaModel java = workspace.javaModel(document.module);
+        List<TypeElement> types = new ArrayList<>();
+        Matcher imports = IMPORTED_TYPE.matcher(document.text);
+        while (imports.find()) {
+            TypeElement type = java.type(imports.group(1));
+            if (type != null) {
+                types.add(type);
+            }
+        }
+        types.addAll(java.classesOf(pkg, pkg));
+        types.addAll(java.classesOf("java.lang", pkg));
+        Set<String> seen = new HashSet<>();
+        List<CompletionItem> items = new ArrayList<>();
+        for (TypeElement type : types) {
+            if (type.getKind() == ElementKind.ANNOTATION_TYPE && seen.add(type.getSimpleName().toString())) {
+                CompletionItem item = new CompletionItem(type.getSimpleName().toString());
+                item.setKind(CompletionItemKind.Interface);
+                item.setDetail(type.getQualifiedName().toString());
+                items.add(item);
+            }
+        }
         return items;
     }
 

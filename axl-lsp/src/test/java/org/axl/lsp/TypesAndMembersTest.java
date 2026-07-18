@@ -237,6 +237,16 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void offersAnnotationTypesAfterAnAt() throws Exception {
+        String text = SHAPES.replace("package app\n", "package app\n\nimport java.lang.annotation.Documented\nimport java.util.List\n")
+                .replace("fn make()", "@\nfn make()");
+        String uri = open("Shapes.axl", text);
+        List<String> found = labelsAt(uri, text, "@|\nfn make()");
+        assertTrue(found.containsAll(List.of("Deprecated", "Override", "FunctionalInterface", "Documented")), found.toString());
+        assertTrue(found.stream().noneMatch(List.of("List", "fn", "Circle", "println")::contains), found.toString());
+    }
+
+    @Test
     void listsEnumMembersOnce() throws Exception {
         String text = SHAPES.replace("val color = Color.RED", "val color = Color.R");
         String uri = open("Shapes.axl", text);
