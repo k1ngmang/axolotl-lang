@@ -1,0 +1,63 @@
+package app
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.LocalDate
+import java.util.ArrayList
+import java.util.List
+import java.util.Map
+import java.util.Optional
+import java.util.SortedMap
+import java.util.TreeMap
+import java.util.regex.Pattern
+import java.util.stream.Collectors
+
+enum Level { LOW, HIGH }
+
+// Strict mode trusts the JDK methods that never return null, so ordinary collection, file and time
+// code needs no `!!`.
+fn levels(counts: SortedMap<String, Integer>) -> String {
+    val names = ArrayList<String>()
+    for (entry in counts.entrySet()) {
+        names.add(entry.getKey() + "=" + entry.getValue())
+    }
+    for (key in counts.keySet()) {
+        names.add(key.toUpperCase())
+    }
+    val total = counts.values() |> map { it + 0 } |> count
+    return String.join(",", names) + " " + total + " " + counts.headMap("m").size()
+}
+
+fn main() {
+    val counts = TreeMap<String, Integer>()
+    counts.put("a", 1)
+    counts.put("z", 2)
+    println(levels(counts))
+    val words = List.of("x", "y", "z")
+    println(String.join("-", words.subList(1, 3)))
+    println(words.iterator().next().length())
+    println(Level.HIGH.name().toLowerCase() + Level.valueOf("LOW").name().length())
+    println(words.getClass().getSimpleName().length() > 0)
+    println(Level.HIGH.getDeclaringClass().getSimpleName())
+    val file = attempt Files.createTempFile("axl", ".txt") else e -> throw IllegalStateException(e)
+    val written = attempt Files.writeString(file, "one\ntwo\n") else e -> throw IllegalStateException(e)
+    val lines = attempt Files.readAllLines(written) else e -> throw IllegalStateException(e)
+    val text = attempt Files.readString(file) else e -> throw IllegalStateException(e)
+    println(lines.get(1).length() + text.strip().length())
+    println(file.toAbsolutePath().normalize().getFileName()?.toString()?.endsWith(".txt"))
+    val deleted = attempt Files.deleteIfExists(file) else e -> throw IllegalStateException(e)
+    println(deleted)
+    val date = LocalDate.of(2026, 10, 20)
+    println(date.plusDays(30).getDayOfWeek().name())
+    println(Optional.ofNullable(System.getProperty("axl.none")).orElse("v").length() + Optional.ofNullable(counts.get("missing")).orElse(7))
+    val sb = StringBuilder()
+    sb.append("a").append(1)
+    println(sb.reverse().toString())
+    val matcher = Pattern.compile("(\\d+)").matcher("n=42")
+    if (matcher.find()) {
+        println(matcher.group(1) ?: "none")
+    }
+    println(words.stream().collect(Collectors.joining("+")).length())
+    println(Map.entry("k", 3).getValue() + Map.of("k", 4).entrySet().size())
+    println(Thread.currentThread().getName().isEmpty())
+}

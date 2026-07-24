@@ -66,9 +66,74 @@ final class PlatformValues {
         return !trusted(element) && !annotated(element, type, List.of("NonNull", "NotNull", "Nonnull", "Nullable"));
     }
 
+    // JDK classes none of whose methods return null: strings, numbers, immutable values, factories and
+    // helpers. A method of one that does return null is listed in NULLABLE_IN_TRUSTED.
+    private static final Set<String> NEVER_NULL_CLASSES = Set.of(
+            "java.lang.String", "java.lang.StringBuilder", "java.lang.StringBuffer", "java.lang.CharSequence",
+            "java.lang.Math", "java.lang.StrictMath", "java.lang.Object", "java.lang.Enum", "java.lang.Record",
+            "java.lang.Runtime", "java.lang.Process", "java.lang.StackTraceElement", "java.lang.StackWalker",
+            "java.util.Arrays", "java.util.Collections", "java.util.Objects", "java.util.Optional", "java.util.OptionalInt",
+            "java.util.OptionalLong", "java.util.OptionalDouble", "java.util.UUID", "java.util.Locale", "java.util.Random",
+            "java.util.Scanner", "java.util.StringJoiner", "java.util.StringTokenizer", "java.util.BitSet", "java.util.HexFormat",
+            "java.util.Currency", "java.util.Formatter", "java.util.ServiceLoader", "java.util.Base64", "java.util.Base64.Encoder",
+            "java.util.Base64.Decoder", "java.util.concurrent.Executors", "java.util.concurrent.TimeUnit",
+            "java.util.concurrent.CompletableFuture", "java.util.regex.Pattern", "java.util.regex.Matcher",
+            "java.util.regex.MatchResult",
+            "java.io.PrintStream", "java.io.PrintWriter", "java.io.StringWriter", "java.io.StringReader",
+            "java.io.ByteArrayOutputStream", "java.io.ByteArrayInputStream", "java.io.InputStream", "java.io.OutputStream",
+            "java.io.Reader", "java.io.Writer", "java.io.BufferedReader", "java.io.BufferedWriter", "java.io.InputStreamReader",
+            "java.io.OutputStreamWriter", "java.io.File",
+            "java.nio.file.Files", "java.nio.file.Path", "java.nio.file.Paths", "java.nio.file.FileSystems", "java.nio.file.FileSystem",
+            "java.nio.charset.Charset", "java.nio.charset.StandardCharsets", "java.net.URLEncoder", "java.net.URLDecoder");
+    // Packages none of whose methods return null: values of java.time and java.math, formats of java.text.
+    private static final Set<String> NEVER_NULL_PACKAGES = Set.of("java.time", "java.time.format", "java.time.temporal",
+            "java.time.chrono", "java.time.zone", "java.text", "java.math", "java.net.http");
+    // The methods of those classes and packages that do return null when there is nothing to give.
+    private static final Set<String> NULLABLE_IN_TRUSTED = Set.of(
+            "java.util.Scanner.findInLine", "java.util.Scanner.findWithinHorizon",
+            "java.util.regex.Matcher.group", "java.util.regex.MatchResult.group", "java.io.BufferedReader.readLine",
+            "java.io.File.getParent", "java.io.File.getParentFile", "java.io.File.list", "java.io.File.listFiles",
+            "java.nio.file.Files.probeContentType", "java.nio.file.Files.getAttribute", "java.nio.file.Path.getFileName",
+            "java.nio.file.Path.getParent", "java.nio.file.Path.getRoot",
+            "java.time.format.DateTimeFormatter.getZone", "java.time.format.DateTimeFormatter.getResolverFields",
+            "java.time.chrono.Chronology.getCalendarType", "java.time.zone.ZoneRules.getTransition",
+            "java.time.zone.ZoneRules.nextTransition", "java.time.zone.ZoneRules.previousTransition");
+    // Collection views, iterators and copies, which every implementation gives; found through the supertypes.
+    private static final Set<String> NEVER_NULL_MEMBERS = Set.of("java.util.Map.entrySet/0", "java.util.Map.keySet/0",
+            "java.util.Map.values/0", "java.lang.Iterable.iterator/0", "java.lang.Iterable.spliterator/0",
+            "java.util.Collection.toArray/0", "java.util.Collection.toArray/1", "java.util.Collection.stream/0",
+            "java.util.Collection.parallelStream/0", "java.util.List.subList/2", "java.util.List.listIterator/0",
+            "java.util.List.listIterator/1", "java.util.SequencedCollection.reversed/0", "java.util.SequencedMap.reversed/0",
+            "java.util.SequencedMap.sequencedKeySet/0", "java.util.SequencedMap.sequencedValues/0",
+            "java.util.SequencedMap.sequencedEntrySet/0", "java.util.SortedMap.headMap/1", "java.util.SortedMap.tailMap/1",
+            "java.util.SortedMap.subMap/2", "java.util.NavigableMap.headMap/2", "java.util.NavigableMap.tailMap/2",
+            "java.util.NavigableMap.subMap/4", "java.util.NavigableMap.descendingMap/0", "java.util.NavigableMap.navigableKeySet/0",
+            "java.util.NavigableMap.descendingKeySet/0", "java.util.SortedSet.headSet/1", "java.util.SortedSet.tailSet/1",
+            "java.util.SortedSet.subSet/2", "java.util.NavigableSet.headSet/2", "java.util.NavigableSet.tailSet/2",
+            "java.util.NavigableSet.subSet/4", "java.util.NavigableSet.descendingSet/0", "java.util.NavigableSet.descendingIterator/0",
+            "java.util.Deque.descendingIterator/0");
+    // The getters of Class and the reflection classes that the specification makes non-null; the others,
+    // such as getAnnotation, getSuperclass, getEnumConstants or getRecordComponents, return null for a class
+    // that has no such thing.
+    private static final Set<String> CLASS_GETTERS = Set.of("getName", "getSimpleName", "getTypeName", "getPackageName",
+            "descriptorString", "toGenericString", "getMethods", "getDeclaredMethods", "getFields", "getDeclaredFields",
+            "getConstructors", "getDeclaredConstructors", "getInterfaces", "getGenericInterfaces", "getTypeParameters",
+            "getAnnotations", "getDeclaredAnnotations", "getAnnotationsByType", "getDeclaredAnnotationsByType", "getMethod",
+            "getDeclaredMethod", "getField", "getDeclaredField", "getConstructor", "getDeclaredConstructor", "arrayType",
+            "getNestHost", "getNestMembers", "getModule", "asSubclass");
+    private static final Set<String> REFLECTION_GETTERS = Set.of("getName", "getType", "getGenericType", "getReturnType",
+            "getGenericReturnType", "getParameterTypes", "getGenericParameterTypes", "getExceptionTypes",
+            "getGenericExceptionTypes", "getDeclaringClass", "getAccessor", "getParameters", "getParameterizedType",
+            "getAnnotations", "getDeclaredAnnotations", "getAnnotationsByType", "getDeclaredAnnotationsByType",
+            "getTypeParameters", "newInstance", "toGenericString", "getActualTypeArguments", "getRawType", "getBounds",
+            "getUpperBounds", "getLowerBounds", "getGenericComponentType");
+
     /**
-     * JDK methods that never return null although nothing says so: string and number methods and the
-     * immutable collection factories. Without them strict mode would flag `s.trim().length()`.
+     * JDK methods that never return null although nothing says so: string, number and time values,
+     * collection views and factories, files and reflection getters that the specification makes
+     * non-null. Without them strict mode would flag `s.trim().length()` and `for (e in m.entrySet())`.
+     * Methods that return null for a missing value stay untrusted: `Map.get`, `Queue.poll`,
+     * `System.getProperty`, `Class.getAnnotation`, `BufferedReader.readLine`, `Matcher.group`...
      */
     private static boolean neverNull(Element element) {
         if (!(element instanceof ExecutableElement method) || !(method.getEnclosingElement() instanceof TypeElement owner)) {
@@ -76,18 +141,47 @@ final class PlatformValues {
         }
         String type = owner.getQualifiedName().toString();
         String name = method.getSimpleName().toString();
-        if (name.equals("toString") && method.getParameters().isEmpty()) {
+        int arity = method.getParameters().size();
+        if (name.equals("toString") && arity == 0) {
             return true;
         }
+        if (NULLABLE_IN_TRUSTED.contains(type + "." + name)) {
+            return false;
+        }
+        String pkg = packageOf(owner);
+        if (NEVER_NULL_PACKAGES.contains(pkg)) {
+            // `TemporalAccessor.query` gives what the query finds, and a format parsed at a position gives null when it fails.
+            return !(pkg.startsWith("java.time") && name.equals("query")) && !(pkg.equals("java.text") && name.startsWith("parse") && arity == 2);
+        }
+        if (NEVER_NULL_CLASSES.contains(type) || listed(NEVER_NULL_MEMBERS, owner, name + "/" + arity)) {
+            return true;
+        }
+        boolean isStatic = method.getModifiers().contains(Modifier.STATIC);
         return switch (type) {
-            case "java.lang.String", "java.lang.StringBuilder", "java.lang.Math" -> true;
             // Integer.getInteger and Long.getLong read system properties and return null when one is missing.
             case "java.lang.Integer", "java.lang.Long", "java.lang.Double", "java.lang.Boolean", "java.lang.Character",
                  "java.lang.Short", "java.lang.Byte", "java.lang.Float" -> !name.startsWith("get");
-            case "java.util.List", "java.util.Set", "java.util.Map" ->
-                    method.getModifiers().contains(Modifier.STATIC) && (name.equals("of") || name.equals("copyOf"));
-            default -> false;
+            // `List.of`, `Map.copyOf`, `Map.entry` and the like.
+            case "java.util.List", "java.util.Set", "java.util.Map", "java.net.URI", "java.net.URL" -> isStatic;
+            // Comparators and functions are made and combined, never null; what they compute is their own business.
+            case "java.util.Comparator", "java.util.Map.Entry" -> isStatic || method.isDefault();
+            case "java.lang.Class" -> CLASS_GETTERS.contains(name);
+            case "java.lang.System" -> Set.of("lineSeparator", "getProperties", "getLogger").contains(name);
+            case "java.lang.Thread" -> Set.of("currentThread", "getName", "getStackTrace", "ofPlatform", "ofVirtual",
+                    "startVirtualThread").contains(name);
+            case "java.lang.Throwable" -> Set.of("getStackTrace", "getSuppressed", "fillInStackTrace", "initCause").contains(name);
+            default -> pkg.equals("java.util.function") && (isStatic || method.isDefault())
+                    || pkg.equals("java.lang.reflect") && REFLECTION_GETTERS.contains(name);
         };
+    }
+
+    private static String packageOf(Element element) {
+        for (Element e = element; e != null; e = e.getEnclosingElement()) {
+            if (e instanceof PackageElement pkg) {
+                return pkg.getQualifiedName().toString();
+            }
+        }
+        return "";
     }
 
     static boolean isJdk(Element element) {

@@ -1,0 +1,19 @@
+package app
+
+import java.nio.file.Path
+import java.util.ArrayDeque
+import java.util.Map
+import java.util.regex.Pattern
+
+// JDK methods that return null when there is nothing to give stay untrusted in strict mode.
+fn main() {
+    val m = Map.of("a", 1)
+    println(m.get("b").intValue())
+    val queue = ArrayDeque<String>()
+    println(queue.poll().length())
+    println(System.getProperty("axl.missing").length())
+    println(Path.of("x").getParent().toString())
+    val matcher = Pattern.compile("(a)?").matcher("")
+    println(matcher.group(1).length())
+    println(String.class.getAnnotation(Deprecated.class).toString())
+}

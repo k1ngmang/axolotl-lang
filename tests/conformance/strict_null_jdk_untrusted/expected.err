@@ -1,0 +1,6 @@
+AXL102 app/Main.axl:11:24: error: `m.get("b")` may be null: copy it to a `val` and check that, or use `?.`, `?:` or `!!`
+AXL102 app/Main.axl:13:26: error: the result of `poll()` may be null: the JDK method returns null when there is no value; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:14:47: error: the result of `getProperty()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:15:38: error: `Path.of("x").getParent()` may be null: copy it to a `val` and check that, or use `?.`, `?:` or `!!`
+AXL104 app/Main.axl:17:30: error: the result of `group()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`
+AXL104 app/Main.axl:18:58: error: the result of `getAnnotation()` comes from Java code without nullness annotations and may be null; use `?.`, `?:`, a null check or `!!`

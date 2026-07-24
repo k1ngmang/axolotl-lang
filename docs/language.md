@@ -274,11 +274,33 @@ a method reference passed to such code must accept null: not `Main::print` with 
 `?`, `String::length` or `ys::add` on an `ArrayList<String>`.
 
 Trusted in strict mode: static final fields of the JDK such as `System.out`, constants, the Axolotl
-runtime, `Objects.requireNonNull`, the methods of `String`, `StringBuilder`, `Math` and the number
-classes (except `Integer.getInteger` and `Long.getLong`), `List.of`, `Set.of`, `Map.of`, `toString()`,
-the stream operations that pipes expand to, code in a `@NullMarked` scope, and what a JDK class
+runtime, code in a `@NullMarked` scope, the stream operations that pipes expand to, what a JDK class
 gives out of a type argument written in Axolotl without `?`, such as `get` on an `ArrayList<String>`,
-except the methods above that return null when there is no value.
+and the JDK methods whose specification never returns null although nothing in the code says so:
+
+- `toString()`, and the methods of `String`, `StringBuilder`, `CharSequence`, `Math`, `Object`
+  (`getClass`), `Enum` (`name`, `getDeclaringClass`), `Record`, `Runtime`, `Thread.currentThread`,
+  `Throwable.getStackTrace` and the number classes (except `Integer.getInteger` and `Long.getLong`,
+  which read system properties);
+- the collection factories `List.of`, `Set.of`, `Map.of`, `Map.copyOf`, `Map.entry`, the views and
+  copies `entrySet`, `keySet`, `values`, `subList`, `iterator`, `toArray`, `headMap`, `descendingSet`
+  and the like, `Arrays`, `Collections`, `Optional`, `Objects.requireNonNull`, the combinators of
+  `Comparator`, `Map.Entry` and `java.util.function`, and the results of `Collectors`;
+- `UUID`, `Locale`, `Random`, `Scanner`, `StringJoiner`, `Base64`, `Executors`, `CompletableFuture`,
+  `Pattern` and `Matcher` (except `group`, which is null for a group that did not match);
+- `Files` (except `probeContentType` and `getAttribute`), `Path` (except `getFileName`, `getParent`
+  and `getRoot`), `File` (except `getParent`, `getParentFile`, `list` and `listFiles`), `Paths`,
+  `Charset`, `StandardCharsets`, the readers, writers and streams of `java.io` (except
+  `BufferedReader.readLine`), `java.net.http` and the factories of `URI` and `URL`;
+- `java.time`, `java.text` (except a `parse` at a `ParsePosition`) and `java.math`;
+- the getters of `Class` and `java.lang.reflect` that always have a value, such as `getName`,
+  `getSimpleName`, `getMethods` and `getDeclaredConstructors`; `getRecordComponents`,
+  `getAnnotation`, `getSuperclass` and `getEnumConstants` are null for a class without them and
+  stay untrusted.
+
+Everything else from Java code without annotations may be null, in particular the methods that give
+null for a missing value: `Map.get`, `Map.put`, `Queue.poll` and `peek`, `System.getProperty` and
+`getenv`, `Class.getAnnotation`, `BufferedReader.readLine`, `Matcher.group`, `Path.getParent`.
 The elements of a `List<String>` returned by unannotated Java code may be null, also after `!!`, and
 so may what `get` of an unannotated generic Java class returns. Such a list cannot be stored where
 Axolotl writes `List<String>` (a local, a parameter, a property, a top-level value, a result type,
