@@ -250,6 +250,65 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertFalse(axl, axl.contains("import util.Shapes"));
     }
 
+    public void testConvertsAbstractMethodsOfAnInterfaceToSignaturesAndKeepsValues() {
+        myFixture.addFileToProject("org/jspecify/annotations/Nullable.java",
+                "package org.jspecify.annotations;\n@java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE)\n"
+                        + "public @interface Nullable {}\n");
+        String axl = convert("Notes.java", """
+                package util;
+
+                import org.jspecify.annotations.Nullable;
+
+                public interface Notes {
+                    String name();
+
+                    @Nullable String label();
+
+                    /** Adds a note. */
+                    int add(String text, int at);
+
+                    @Nullable String find(int id);
+
+                    void clear();
+
+                    void rename(@Nullable String name);
+
+                    java.util.List<String> all(boolean sorted);
+                }
+                """);
+        assertTrue(axl, axl.contains("interface Notes {\n    val name: String\n    val label: String?\n"));
+        assertTrue(axl, axl.contains("    /** Adds a note. */\n    fn add(text: String, at: Int) -> Int\n"));
+        assertTrue(axl, axl.contains("    fn find(id: Int) -> String?\n    fn clear()\n    fn rename(name: String?)\n"));
+        assertTrue(axl, axl.contains("    fn all(sorted: Boolean) -> List<String>\n}\n"));
+        assertTrue(axl, axl.contains("import java.util.List\n"));
+
+        String nested = convert("Stores.java", """
+                package util;
+
+                public final class Stores {
+                    private Stores() {}
+
+                    public interface Store {
+                        String get(String key);
+                        void put(String key, String value);
+                    }
+                }
+                """);
+        assertTrue(nested, nested.contains("interface Store {\n    fn get(key: String) -> String\n    fn put(key: String, value: String)\n}\n"));
+    }
+
+    public void testRefusesInterfacesWithMethodsThatHaveNoAxolotlForm() {
+        assertRefused("Default.java", "package util;\npublic interface Default {\n    default int one() { return 1; }\n}\n");
+        assertRefused("Static.java", "package util;\npublic interface Static {\n    static int one() { return 1; }\n}\n");
+        assertRefused("Private.java", "package util;\npublic interface Private {\n    int f();\n    private int one() { return 1; }\n}\n");
+        assertRefused("Generic.java", "package util;\npublic interface Generic {\n    <T> T id(T x);\n}\n");
+        assertRefused("Checked.java", "package util;\npublic interface Checked {\n    void close() throws java.io.IOException;\n}\n");
+        assertRefused("Constant.java", "package util;\npublic interface Constant {\n    int LIMIT = 3;\n    int f();\n}\n");
+        assertRefused("Nested.java", "package util;\npublic interface Nested {\n    class Inner {}\n}\n");
+        assertTrue(JavaToAxolotl.isConvertible(configure("Fine.java",
+                "package util;\npublic interface Fine {\n    int f(int a);\n    void g();\n    String name();\n}\n")));
+    }
+
     public void testConvertsATopLevelRecordAndEnum() {
         assertEquals("package util\n\ndata class Point(val x: Int, val y: Int)\n",
                 convert("Point.java", "package util;\npublic record Point(int x, int y) {}\n"));

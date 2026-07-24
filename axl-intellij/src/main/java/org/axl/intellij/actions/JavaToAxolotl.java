@@ -339,13 +339,26 @@ final class JavaToAxolotl {
                 .append(supertypes(type.getExtendsList() == null ? PsiClassType.EMPTY_ARRAY : type.getExtendsList().getReferencedTypes()))
                 .append(" {\n");
         for (PsiElement member : PsiTreeUtil.getChildrenOfAnyType(type, PsiMethod.class, PsiField.class, PsiClass.class)) {
-            if (!(member instanceof PsiMethod method) || method.getBody() != null || !method.getParameterList().isEmpty()
-                    || method.hasTypeParameters() || PsiTypes.voidType().equals(method.getReturnType())) {
-                throw new Unsupported("interfaces have only values in Axolotl: methods without parameters or a body");
+            if (!(member instanceof PsiMethod method) || method.getBody() != null) {
+                throw new Unsupported("interfaces have only values and abstract methods in Axolotl: "
+                        + "no default, static or private methods, constants or nested types");
             }
-            leadingComments(method);
-            out.append("    ").append(annotations(method, " ")).append("val ").append(name(method.getName())).append(": ")
-                    .append(withNullable(type(method.getReturnType()), nullable(method))).append("\n");
+            if (method.hasTypeParameters()) {
+                throw new Unsupported("generic methods have no Axolotl form");
+            }
+            if (Arrays.stream(method.getThrowsList().getReferencedTypes()).anyMatch(t -> !ExceptionUtil.isUncheckedException(t))) {
+                throw new Unsupported("functions cannot throw checked exceptions; return a Result instead");
+            }
+            leadingComments(method, "    ");
+            // A method that takes nothing and gives a result is read as a value, which a property or such a method satisfies.
+            boolean value = method.getParameterList().isEmpty() && !PsiTypes.voidType().equals(method.getReturnType());
+            out.append("    ").append(annotations(method, " "));
+            if (value) {
+                out.append("val ").append(name(method.getName())).append(": ")
+                        .append(withNullable(type(method.getReturnType()), nullable(method))).append("\n");
+            } else {
+                abstractMethod(method);
+            }
         }
         out.append("}\n");
     }
@@ -468,6 +481,23 @@ final class JavaToAxolotl {
         out.append(annotations(field, "\n")).append(visibility(field)).append("val ")
                 .append(name(field.getName())).append(": ").append(type(field, cls)).append(" = ")
                 .append(expression(field.getInitializer())).append("\n");
+    }
+
+    /** The signature of a method an interface requires: `fn add(text: String) -> Int`. */
+    private void abstractMethod(PsiMethod method) {
+        out.append("fn ").append(name(method.getName())).append("(");
+        PsiParameter[] params = method.getParameterList().getParameters();
+        for (int i = 0; i < params.length; i++) {
+            out.append(i == 0 ? "" : ", ").append(annotations(params[i], " ")).append(name(params[i].getName())).append(": ")
+                    .append(withNullable(type(params[i].getType()), nullable(params[i])));
+        }
+        out.append(")");
+        String returns = type(method.getReturnType());
+        if (!returns.isEmpty()) {
+            out.append(" -> ").append(method.getReturnType() instanceof PsiPrimitiveType ? returns
+                    : withNullable(returns, nullable(method)));
+        }
+        out.append("\n");
     }
 
     /** A static method as a function, at depth 0; a method of a class, at depth 1. */
