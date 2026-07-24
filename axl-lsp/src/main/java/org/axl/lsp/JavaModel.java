@@ -509,9 +509,9 @@ final class JavaModel {
         return member.getSimpleName().toString();
     }
 
+    /** The type of a field or the result of a method as Axolotl writes it, `String?` for one that may be null. */
     static String typeOf(Element member) {
-        TypeMirror type = member instanceof ExecutableElement method ? method.getReturnType() : member.asType();
-        return simple(type.toString());
+        return display(member instanceof ExecutableElement method ? method.getReturnType() : member.asType());
     }
 
     /** The name Axolotl writes a type with, without type arguments: `Int` for `int` and `Integer`; null if unknown. */

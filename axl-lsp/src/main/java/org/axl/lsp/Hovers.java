@@ -115,7 +115,7 @@ final class Hovers {
                     .map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(data.supertypes());
             case Decl.Interface iface -> visibility + (iface.isSealed() ? "sealed " : "") + "interface " + iface.name()
-                    + supertypes(iface.supertypes());
+                    + supertypes(iface.supertypes()) + interfaceBody(iface);
             case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + classDecl.parameters().stream()
                     .map(p -> (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(classDecl.supertypes());
@@ -123,6 +123,17 @@ final class Hovers {
             case Decl.Function fn -> signature(fn);
             case Decl.Value value -> "val " + value.name();
         };
+    }
+
+    /** The values and methods an interface requires, one to a line; nothing for an interface that requires none. */
+    private static String interfaceBody(Decl.Interface iface) {
+        if (iface.members().isEmpty() && iface.methods().isEmpty()) {
+            return "";
+        }
+        List<String> lines = new ArrayList<>();
+        iface.members().forEach(m -> lines.add("val " + m.name() + ": " + typeText(m.type())));
+        iface.methods().forEach(m -> lines.add(signature(m)));
+        return lines.stream().map(l -> "    " + l).collect(Collectors.joining("\n", " {\n", "\n}"));
     }
 
     private static String supertypes(List<TypeRef> supertypes) {

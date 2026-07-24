@@ -102,10 +102,15 @@ final class ParameterTokens {
 
     /**
      * Where the body of a function ends that follows a position: its `}`, or for `= expression`
-     * the token before the next declaration or before the `}` of the class around it.
+     * the token before the next declaration or before the `}` of the class around it. A method of
+     * an interface has none: it ends before the next member or the `}` of the interface.
      */
     private int bodyEnd(int k) {
         while (k < code.size() && type(k) != AxolotlLexer.LBRACE && type(k) != AxolotlLexer.ASSIGN) {
+            if (DECLARATIONS.contains(type(k)) || type(k) == AxolotlLexer.AT || type(k) == AxolotlLexer.RBRACE
+                    || type(k) == AxolotlLexer.SEMI) {
+                return k - 1;
+            }
             k++;
         }
         if (type(k) == AxolotlLexer.LBRACE) {

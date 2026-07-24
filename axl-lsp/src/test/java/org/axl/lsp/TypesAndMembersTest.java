@@ -74,6 +74,35 @@ class TypesAndMembersTest {
             }
             """;
 
+    static final String NOTES = """
+            package app
+
+            /** What a store of notes gives. */
+            interface Notes {
+                val name: String
+                fn add(text: String) -> Int
+                fn find(id: Int) -> String?
+                fn clear()
+            }
+
+            class MemoryNotes(val name: String) : Notes {
+                fn add(text: String) -> Int = 1
+
+                fn find(id: Int) -> String? = null
+
+                fn clear() {
+                }
+            }
+
+            fn describe(notes: Notes) -> String {
+                val id = notes.add("buy milk")
+                notes.clear()
+                return notes.name() + " " + id + " " + (notes.find(id) ?: "nothing")
+            }
+
+            fn text() -> String = "text"
+            """;
+
     static final String COUNTER = """
             package app
             import java.util.ArrayList
@@ -323,6 +352,72 @@ class TypesAndMembersTest {
         List<String> tokens = WorkspaceTest.semanticTokens(workspace.document(uri));
         assertTrue(tokens.containsAll(List.of("9:13:3:enumMember", "9:18:5:enumMember", "35:22:3:enumMember")), tokens.toString());
         assertTrue(tokens.contains("9:5:5:type"), tokens.toString());
+    }
+
+    @Test
+    void listsTheMembersOfAnInterfaceInItsHover() throws Exception {
+        String uri = open("Notes.axl", NOTES);
+        String hover = hoverAt(uri, NOTES, "interface |Notes {");
+        assertContains(hover, "interface Notes {\n    val name: String\n    fn add(text: String) -> Int\n"
+                + "    fn find(id: Int) -> String?\n    fn clear()\n}");
+        assertContains(hoverAt(uri, NOTES, "fn describe(notes: |Notes)"), "fn clear()");
+        assertContains(hoverAt(uri, NOTES, "class MemoryNotes(val name: String) : |Notes"), "fn add(text: String) -> Int");
+    }
+
+    @Test
+    void hoversAndGoesToTheMethodsOfAnInterface() throws Exception {
+        String uri = open("Notes.axl", NOTES);
+        assertContains(hoverAt(uri, NOTES, "notes.|add(\"buy milk\")"), "fn add(text: String) -> Int");
+        assertContains(hoverAt(uri, NOTES, "(notes.|find(id)"), "fn find(id: Int) -> String?");
+        assertContains(hoverAt(uri, NOTES, "notes.|clear()"), "fn clear()");
+        assertContains(hoverAt(uri, NOTES, "    fn |find(id: Int) -> String?\n    fn clear()"), "fn find(id: Int) -> String?");
+        assertEquals(List.of("Notes.axl:5:7"), definitionsAt(uri, NOTES, "notes.|add(\"buy milk\")"));
+        assertEquals(List.of("Notes.axl:7:7"), definitionsAt(uri, NOTES, "notes.|clear()"));
+        assertEquals(List.of("Notes.axl:4:8"), definitionsAt(uri, NOTES, "return notes.|name()"));
+    }
+
+    @Test
+    void completesTheMethodsOfAnInterfaceTypedValueWithTheirSignatures() throws Exception {
+        String text = NOTES.replace("notes.clear()", "notes.cl");
+        String uri = open("Notes.axl", text);
+        int[] position = at(text, "    notes.cl|\n");
+        List<org.eclipse.lsp4j.CompletionItem> items = new Completions(workspace).complete(uri, position[0], position[1]);
+        assertTrue(items.stream().map(i -> i.getInsertText()).toList().containsAll(List.of("add", "find", "clear", "name")),
+                items.toString());
+        org.eclipse.lsp4j.CompletionItem add = items.stream().filter(i -> "add".equals(i.getInsertText())).findFirst().orElseThrow();
+        assertEquals("add(String text)", add.getLabel());
+        assertEquals("Int", add.getDetail());
+        assertEquals(org.eclipse.lsp4j.CompletionItemKind.Method, add.getKind());
+        org.eclipse.lsp4j.CompletionItem find = items.stream().filter(i -> "find".equals(i.getInsertText())).findFirst().orElseThrow();
+        assertEquals("find(int id)", find.getLabel());
+        assertEquals("String?", find.getDetail());
+    }
+
+    @Test
+    void colorsTheNamesOfInterfaceMethodsAsMethodsAndKeepsTheirParametersToThemselves() throws Exception {
+        String uri = open("Notes.axl", NOTES);
+        List<String> tokens = WorkspaceTest.semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("5:7:3:method", "6:7:4:method", "7:7:5:method")), tokens.toString());
+        assertTrue(tokens.containsAll(List.of("5:11:4:parameter", "11:7:3:function", "13:7:4:function")), tokens.toString());
+        assertTrue(SemanticTokensProvider.TYPES.contains("method"));
+
+        String text = "package app\n\ninterface Sink {\n    fn put(text: String)\n}\n\nfn show(s: Sink) -> String {\n"
+                + "    val text = \"x\"\n    return text\n}\n";
+        tokens = WorkspaceTest.semanticTokens(workspace.document(open("Sink.axl", text)));
+        assertTrue(tokens.containsAll(List.of("3:7:3:method", "3:11:4:parameter", "7:8:4:variable", "8:11:4:variable")), tokens.toString());
+    }
+
+    @Test
+    void readsMethodsOfInterfacesWithoutThrowingWhereverTheCursorIs() throws Exception {
+        String uri = open("Notes.axl", NOTES);
+        for (int line = 0; line < 9; line++) {
+            for (int character = 0; character < 40; character++) {
+                new Hovers(workspace).hover(uri, line, character);
+                new Definitions(workspace).definition(uri, line, character);
+                new Completions(workspace).complete(uri, line, character);
+            }
+        }
+        assertEquals(5, new Outline(workspace).symbols(uri).getFirst().getChildren().size() + 1);
     }
 
     private void assertMembers(String file, String text, String snippet, String member) throws Exception {

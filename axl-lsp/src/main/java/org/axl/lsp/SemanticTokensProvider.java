@@ -17,7 +17,7 @@ import org.eclipse.lsp4j.SemanticTokensLegend;
 final class SemanticTokensProvider {
 
     static final List<String> TYPES = List.of("keyword", "function", "variable", "parameter", "type", "string",
-            "number", "comment", "operator", "property", "namespace", "enumMember", "decorator");
+            "number", "comment", "operator", "property", "namespace", "enumMember", "decorator", "method");
     static final SemanticTokensLegend LEGEND = new SemanticTokensLegend(TYPES, List.of());
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
@@ -60,7 +60,7 @@ final class SemanticTokensProvider {
     }
 
     /** The parameter tokens of a file, and the names it declares for values, which are not packages. */
-    private record Names(Set<Integer> parameters, Set<String> declared) {
+    private record Names(Set<Integer> parameters, Set<String> declared, Set<Integer> interfaceMethods) {
 
         static Names of(List<? extends Token> tokens) {
             Set<Integer> parameters = ParameterTokens.of(tokens);
@@ -74,7 +74,41 @@ final class SemanticTokensProvider {
                     declared.add(tokens.get(i).getText());
                 }
             }
-            return new Names(parameters, declared);
+            return new Names(parameters, declared, interfaceMethods(tokens));
+        }
+
+        /** The names of the methods declared inside the braces of an interface. */
+        private static Set<Integer> interfaceMethods(List<? extends Token> tokens) {
+            Set<Integer> result = new HashSet<>();
+            List<Boolean> braces = new ArrayList<>();
+            for (int i = 0; i < tokens.size(); i++) {
+                int kind = tokens.get(i).getType();
+                if (kind == AxolotlLexer.LBRACE) {
+                    braces.add(opensInterface(tokens, i));
+                } else if (kind == AxolotlLexer.RBRACE && !braces.isEmpty()) {
+                    braces.removeLast();
+                } else if (kind == AxolotlLexer.IDENTIFIER && type(tokens, previousIndex(tokens, i)) == AxolotlLexer.FN
+                        && !braces.isEmpty() && braces.getLast()) {
+                    result.add(i);
+                }
+            }
+            return result;
+        }
+
+        /** Whether the header before a brace is `interface Name : Supertypes`, which holds nothing but names and type punctuation. */
+        private static boolean opensInterface(List<? extends Token> tokens, int brace) {
+            Set<Integer> inHeader = Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.DOT, AxolotlLexer.COMMA, AxolotlLexer.COLON,
+                    AxolotlLexer.LT, AxolotlLexer.GT, AxolotlLexer.QUESTION, AxolotlLexer.STAR);
+            for (int i = previousIndex(tokens, brace); i >= 0; i = previousIndex(tokens, i)) {
+                int kind = tokens.get(i).getType();
+                if (kind == AxolotlLexer.INTERFACE) {
+                    return true;
+                }
+                if (!inHeader.contains(kind)) {
+                    return false;
+                }
+            }
+            return false;
         }
     }
 
@@ -151,6 +185,9 @@ final class SemanticTokensProvider {
         boolean upperCase = Character.isUpperCase(text.charAt(0));
         // A name in capitals, such as `MAX_SIZE`, is a constant and not a type.
         boolean type = upperCase && !text.matches("\\p{Lu}[\\p{Lu}\\p{N}_]+");
+        if (names.interfaceMethods().contains(index)) {
+            return "method";
+        }
         String qualified = inDeclaredName(tokens, index, next);
         if (qualified != null) {
             return qualified;
