@@ -1,0 +1,17 @@
+package app
+
+import java.sql.ResultSet
+
+// `getMessage()` may return null, so the `else` branch gives a `String?` where the error type is `String`.
+fn next(rows: ResultSet) -> Result<Boolean, String> = attempt rows.next() else e -> e.getMessage()
+
+fn value(rows: ResultSet, index: Int) -> Result<Object?, String> {
+    return attempt rows.getInt(index) else e -> e.getMessage()
+}
+
+fn count(rows: ResultSet) -> Result<Int, String> {
+    val r: Result<Int, String> = attempt rows.getInt(1) else e -> e.getMessage()
+    return r
+}
+
+fn message(rows: ResultSet) -> Result<Boolean, String> = attempt rows.next() else e -> e.getMessage() ?: "unknown error"

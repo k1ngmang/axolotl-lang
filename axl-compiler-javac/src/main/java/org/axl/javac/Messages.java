@@ -76,7 +76,8 @@ final class Messages {
     private static final Pattern NULLABLE_TYPE = Pattern.compile("@(?:org\\.jspecify\\.annotations\\.)?Nullable ([\\w.]+(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?)");
     // Axolotl names only these; `float`, `short` and `byte` keep Java's names, since `Float` would mean the boxed class.
     private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|char|Integer)\\b");
-    private static final Pattern GENERATED = Pattern.compile("\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|requireNonNull");
+    private static final Pattern GENERATED = Pattern.compile(
+            "\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|^(?:unwrap|propagate)\\(\\)$|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
     // `is` becomes a type pattern in a switch or after instanceof.
     private static final Pattern TYPE_PATTERN = Pattern.compile("\\bcase [\\w.<>]+ \\w+(?:\\$\\d+)? ->|\\binstanceof\\b");
@@ -401,10 +402,38 @@ final class Messages {
     }
 
     /**
-     * `Result.attempt(() -> value, e -> error)` or `Result.orThrow(...)` in a Java line, with the text of
-     * both lambda bodies and where they start in the line (0-based).
+     * NullAway reports a lambda of `attempt` that may return null as a method returning null. The
+     * value or the error side is named, with its type argument when the `Result` type is written.
      */
-    record Attempt(String value, String error, int valueStart, int errorStart, int end) {
+    private static String attemptSideNullable(Attempt attempt, boolean error, String resultType) {
+        List<String> arguments = resultType == null ? List.of() : splitTopLevel(typeArgumentList(resultType));
+        String type = arguments.size() == 2 && !arguments.get(error ? 1 : 0).contains("@Nullable") ? axlType(arguments.get(error ? 1 : 0)) : null;
+        String expression = (error ? attempt.error() : attempt.value()).replaceFirst("^new ", "");
+        String side = error ? "the error of `attempt` may be null: `" + expression + "`"
+                : "the value of `attempt` may be null: `" + expression + "`";
+        if (type == null) {
+            return side + " may be null, but the " + (error ? "error" : "value") + " type has no `?`; give a fallback with `?:`";
+        }
+        String fallback = type.equals("String") && error ? "give a fallback with `?:`, as in `" + expression + " ?: \"unknown error\"`"
+                : "give a fallback with `?:`, or write `" + type + "?` as the " + (error ? "error" : "value") + " type";
+        return side + " gives a `" + type + "?`, but the " + (error ? "error" : "value") + " type is `" + type + "`; " + fallback;
+    }
+
+    /** The `Result` type a line's `attempt` must fit: of the local it is stored in, or of the function it is returned from. */
+    private static String resultTypeOf(String text, String[] javaLines, int javaLine) {
+        Matcher declared = Pattern.compile("^\\s*(?:final )?(Result<.+>) \\w+ = ").matcher(text);
+        if (declared.find()) {
+            return declared.group(1);
+        }
+        String returned = text.strip().startsWith("return ") ? enclosingReturnType(javaLines, javaLine) : null;
+        return returned != null && returned.startsWith("Result<") ? returned : null;
+    }
+
+    /**
+     * `Result.attempt(() -> value, e -> error)` or `Result.orThrow(...)` in a Java line, with the text of
+     * both lambda bodies and where the value, the comma, the error and the closing parenthesis are (0-based).
+     */
+    record Attempt(String value, String error, int valueStart, int comma, int errorStart, int end) {
 
         private static final Pattern CALL = Pattern.compile("\\bResult\\.(?:<[^>]*>)?(?:attempt|orThrow)\\(\\(\\) -> ");
         private static final Pattern ERROR_LAMBDA = Pattern.compile("^\\s*\\(?(\\w+)\\)? -> ");
@@ -440,17 +469,17 @@ final class Messages {
             Matcher error = ERROR_LAMBDA.matcher(javaText.substring(comma + 1, i));
             int errorStart = error.find() ? comma + 1 + error.end() : comma + 1;
             return new Attempt(javaText.substring(valueStart, comma).strip(), javaText.substring(errorStart, i).strip(),
-                    valueStart, errorStart, i);
+                    valueStart, comma, errorStart, i);
         }
 
         /** Whether a 1-based column of the line is inside the call `attempt` tries. */
         boolean inValue(long javaColumn) {
-            return javaColumn > valueStart && javaColumn <= errorStart;
+            return javaColumn > valueStart && javaColumn <= comma;
         }
 
-        /** Whether a 1-based column of the line is inside the error the `else` branch gives. */
+        /** Whether a 1-based column of the line is inside the `else` branch, from its lambda on. */
         boolean inError(long javaColumn) {
-            return javaColumn > errorStart && javaColumn <= end;
+            return javaColumn > comma + 1 && javaColumn <= end;
         }
     }
 
@@ -552,7 +581,7 @@ final class Messages {
             return new Translated(ErrorCode.JAVAC, NO_RESULT_TYPE + "`-> " + returnType + "`");
         }
         if (message.startsWith("[NullAway] ")) {
-            return nullAway(message, text, javaLines, javaColumn);
+            return nullAway(message, text, javaLines, javaLine, javaColumn);
         }
         if (message.equals("constant string too long")) {
             // Java joins constant strings at compile time, so `+` does not get past the limit.
@@ -624,7 +653,7 @@ final class Messages {
         return subject + " may be null" + message.substring(GENERATED_VALUE.length());
     }
 
-    private static Translated nullAway(String message, String text, String[] javaLines, long javaColumn) {
+    private static Translated nullAway(String message, String text, String[] javaLines, int javaLine, long javaColumn) {
         Matcher dereference = DEREFERENCE.matcher(message);
         if (dereference.find()) {
             String value = dereference.group(1);
@@ -675,6 +704,11 @@ final class Messages {
                     + "needs something to go through; use `?:`, a null check or `!!`");
         }
         if (plain.startsWith("returning @Nullable expression from method with @NonNull return type")) {
+            Attempt attempt = Attempt.in(text);
+            if (attempt != null && (attempt.inValue(javaColumn) || attempt.inError(javaColumn))) {
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, attemptSideNullable(attempt, attempt.inError(javaColumn),
+                        resultTypeOf(text, javaLines, javaLine)));
+            }
             if (text.contains("Nulls.or(")) {
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "the fallback of `?:` may be null, but the value "
                         + "is not nullable; give a fallback that is not null or add `?` to the type");

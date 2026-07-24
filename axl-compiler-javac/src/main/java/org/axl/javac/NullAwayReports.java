@@ -29,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 
 /**
@@ -67,8 +68,12 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
         if (diagnostic.getType() == DiagnosticType.ERROR && diagnostic.getSource() != null && message.startsWith("[NullAway]")) {
             long start = diagnostic.getStartPosition() < 0 ? diagnostic.getPosition() : diagnostic.getStartPosition();
             URI file = diagnostic.getSource().toUri();
-            if (addsQuestionMarks(message) && units.containsKey(file) && fromUnannotated(storedValue(units.get(file), start))) {
-                return;
+            if (addsQuestionMarks(message) && units.containsKey(file)) {
+                TreePath stored = storedValue(units.get(file), start);
+                // `attempt` whose `else` gives a nullable error: NullAway then also doubts the value side, which only widens.
+                if (fromUnannotated(stored) || isAttempt(stored)) {
+                    return;
+                }
             }
             reported.add(new Reported(file, start));
         }
@@ -126,6 +131,13 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
             default -> reported.getLeaf();
         };
         return value == null ? null : new TreePath(reported, value);
+    }
+
+    /** `Result.attempt(...)`, which `attempt` becomes. */
+    private boolean isAttempt(TreePath path) {
+        return path != null && path.getLeaf() instanceof MethodInvocationTree
+                && trees.getElement(path) instanceof ExecutableElement method && method.getSimpleName().contentEquals("attempt")
+                && method.getEnclosingElement() instanceof TypeElement owner && owner.getQualifiedName().contentEquals("axl.lang.Result");
     }
 
     /** A call or field of Java code without nullness annotations, also behind `!!` or `?:`. */
