@@ -353,6 +353,8 @@ final class NullChecker implements TaskListener {
         private final Set<Element> reassigned = new HashSet<>();
         // Locals whose written type has `?`; javac drops it from their element.
         private final Set<Element> nullableLocals = new HashSet<>();
+        // The first value of each local, to name what `try` was applied to behind the translator's temporaries.
+        private final Map<Element, ExpressionTree> initializers = new HashMap<>();
         // `val` locals that hold a collection of `List.of` and the like.
         private final Set<Element> immutableLocals = new HashSet<>();
         // The receivers of the `val` properties narrowed as `a.b`, by property.
@@ -413,6 +415,9 @@ final class NullChecker implements TaskListener {
             }
             if (element == null || init == null) {
                 return null;
+            }
+            if (element.getKind() == ElementKind.LOCAL_VARIABLE) {
+                initializers.put(element, init);
             }
             if (element.getKind() == ElementKind.LOCAL_VARIABLE && element.getModifiers().contains(Modifier.FINAL)
                     && immutable(init)) {
@@ -2209,6 +2214,15 @@ final class NullChecker implements TaskListener {
                 return origin == Origin.PLATFORM ? "the value of `?:` may be null, since its fallback comes from Java "
                         + "code without nullness annotations" : "the value of `?:` may be null, since its fallback may be null";
             }
+            ExpressionTree tried = tried(e);
+            if (tried != null) {
+                String name = triedName(tried) + " may be null";
+                return switch (origin) {
+                    case PLATFORM -> name + ": the value of the `Result` comes from Java code without nullness annotations";
+                    case HIDDEN -> name + ": the value type of the `Result` is written with `?`";
+                    default -> name;
+                };
+            }
             if (e instanceof MethodInvocationTree || e instanceof MemberSelectTree) {
                 Element element = element(e);
                 String name = element != null && element.getKind() == ElementKind.FIELD
@@ -2245,10 +2259,86 @@ final class NullChecker implements TaskListener {
             }
             if (reporting) {
                 String prefix = origin == Origin.PLATFORM ? STRICT_PREFIX : PREFIX;
+                String unknown = origin == Origin.HIDDEN && tree instanceof ExpressionTree e ? triedUnknownType(e) : null;
                 Tree at = position(tree);
-                reports.add(new Report(prefix + message, at, tree, unit));
+                reports.add(new Report(prefix + (unknown != null ? unknown : message), at, tree, unit));
             }
             return true;
+        }
+
+        /**
+         * The `Result` that `try` was applied to: `try r` becomes `Result.unwrap($t1)` after
+         * `final var $t1 = r`, and `Result.propagate($t1)` passes its error on. Null for anything else.
+         */
+        private ExpressionTree tried(ExpressionTree e) {
+            if (!(unwrap(e) instanceof MethodInvocationTree call) || call.getArguments().size() != 1
+                    || !(element(call) instanceof ExecutableElement method) || !isRuntime(method)
+                    || !method.getSimpleName().contentEquals("unwrap") && !method.getSimpleName().contentEquals("propagate")) {
+                return null;
+            }
+            ExpressionTree result = unwrap(call.getArguments().getFirst());
+            Element temporary = result instanceof IdentifierTree id && id.getName().toString().startsWith("$") ? element(result) : null;
+            return temporary != null && initializers.containsKey(temporary) ? unwrap(initializers.get(temporary)) : result;
+        }
+
+        /** `try r` for a named `Result`, `try f()` for one a call gives, or the `try` of an `attempt`. */
+        private String triedName(ExpressionTree result) {
+            if (result instanceof IdentifierTree || result instanceof MemberSelectTree) {
+                return "`try " + name(result) + "`";
+            }
+            return isAttempt(result) ? "the `try` of this `attempt`" : "`try " + name(result) + "`";
+        }
+
+        private boolean isAttempt(ExpressionTree e) {
+            return e instanceof MethodInvocationTree call && element(call) instanceof ExecutableElement method
+                    && method.getSimpleName().contentEquals("attempt") && isRuntime(method);
+        }
+
+        /**
+         * `try` on a `Result` whose value type javac could not name, as from `Constructor<*>.newInstance`:
+         * the message says where the type was lost and how to write it, instead of talking about `?`.
+         */
+        private String triedUnknownType(ExpressionTree e) {
+            ExpressionTree result = tried(e);
+            if (result == null || !(typeOf(result) instanceof DeclaredType type) || type.getTypeArguments().isEmpty()
+                    || !unknownType(type.getTypeArguments().getFirst())) {
+                return null;
+            }
+            ExpressionTree source = result instanceof IdentifierTree id && element(id) != null
+                    ? initializers.getOrDefault(element(id), result) : result;
+            ExpressionTree body = isAttempt(source) && ((MethodInvocationTree) source).getArguments().getFirst() instanceof LambdaExpressionTree lambda
+                    && lambda.getBody() instanceof ExpressionTree value ? unwrap(value) : null;
+            String reason = "the `Result` holds a value of unknown type";
+            if (body instanceof MethodInvocationTree call && call.getMethodSelect() instanceof MemberSelectTree select
+                    && !isTypeName(select.getExpression())) {
+                reason = "`" + select.getIdentifier() + "` on a `" + typeName(typeOf(select.getExpression())).replace("?", "*")
+                        + "` gives an unknown type";
+            } else if (body != null) {
+                reason = "`" + name(body) + "` gives an unknown type";
+            }
+            String written = writtenType(type);
+            String fix = result instanceof IdentifierTree id && initializers.containsKey(element(id))
+                    ? "write the type: `val " + id.getName() + ": " + written + " = ...`"
+                    : "write the type of the `Result`, as in `val r: " + written + " = ...`";
+            return triedName(result) + " may be null: " + reason + "; " + fix;
+        }
+
+        /** The type as Axolotl would write it, with `Object` for a type argument javac could not name. */
+        private static String writtenType(DeclaredType type) {
+            List<String> args = new ArrayList<>();
+            for (TypeMirror arg : type.getTypeArguments()) {
+                TypeMirror bound = arg instanceof WildcardType wildcard ? wildcard.getExtendsBound()
+                        : arg instanceof TypeVariable variable && unknownType(variable) ? variable.getUpperBound() : null;
+                args.add(unknownType(arg) ? (bound == null || bound.toString().equals("java.lang.Object") ? "Object" : typeName(bound))
+                        : typeName(arg));
+            }
+            return type.asElement().getSimpleName() + (args.isEmpty() ? "" : "<" + String.join(", ", args) + ">");
+        }
+
+        /** A wildcard, or the type variable javac makes of one, which it names `capture#1 of ?`. */
+        private static boolean unknownType(TypeMirror type) {
+            return type != null && (type.getKind() == TypeKind.WILDCARD
+                    || type.getKind() == TypeKind.TYPEVAR && type.toString().startsWith("capture#"));
         }
 
         /**

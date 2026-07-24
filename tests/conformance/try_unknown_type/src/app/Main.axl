@@ -1,0 +1,19 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.lang.reflect.Constructor
+
+// `newInstance` on a `Constructor<*>` gives a value of unknown type, so `try` on the `attempt` may be null.
+fn build(c: Constructor<*>, args: List<Object>) -> Result<Object, String> {
+    val built = attempt c.newInstance(args.toArray()) else e -> "cannot build: " + e
+    val out = ArrayList<Object>()
+    out.add(try built)
+    return Ok(out.get(0))
+}
+
+fn direct(c: Constructor<*>) -> Result<Object, String> {
+    val out = ArrayList<Object>()
+    out.add(try (attempt c.newInstance() else e -> "cannot build"))
+    return Ok(out.get(0))
+}

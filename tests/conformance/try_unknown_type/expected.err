@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:11:5: error: `try built` may be null: `newInstance` on a `Constructor<*>` gives an unknown type; write the type: `val built: Result<Object, String> = ...`
+AXL102 app/Main.axl:17:5: error: the `try` of this `attempt` may be null: `newInstance` on a `Constructor<*>` gives an unknown type; write the type of the `Result`, as in `val r: Result<Object, String> = ...`
