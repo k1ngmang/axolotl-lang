@@ -98,6 +98,38 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
             }
             """;
 
+    static final String NOTES = """
+            package app
+
+            interface Notes {
+                val name: String
+                fn add(text: String) -> Int
+                fn find(id: Int) -> String?
+                fn clear()
+            }
+
+            class MemoryNotes(val name: String) : Notes {
+                val items: java.util.List<String> = java.util.ArrayList<String>()
+
+                fn add(text: String) -> Int {
+                    items.add(text)
+                    return items.size()
+                }
+
+                fn find(id: Int) -> String? = if (id >= 1 && id <= items.size()) items.get(id - 1) else null
+
+                fn clear() {
+                    items.clear()
+                }
+            }
+
+            fn describe(notes: Notes) -> String {
+                val id = notes.add("buy milk")
+                notes.clear()
+                return notes.name() + " " + id + " " + (notes.find(id) ?: "nothing")
+            }
+            """;
+
     @Override
     protected @NotNull LightProjectDescriptor getProjectDescriptor() {
         return JAVA_21;
@@ -164,6 +196,62 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(findClass("app.Shapes.Shape").isInterface());
         assertTrue(findClass("app.Shapes.Color").isEnum());
         assertSame(shapes, findClass("app.Shapes.Circle").getContainingClass());
+    }
+
+    public void testJavaSeesTheMethodsOfAnInterfaceAsAbstractAndTheirImplementations() {
+        myFixture.addFileToProject("app/Notes.axl", NOTES);
+        PsiClass notes = findClass("app.Notes");
+        assertTrue(notes.isInterface());
+        assertEquals(List.of("add", "clear", "describe", "find", "name"),
+                Arrays.stream(notes.getMethods()).map(PsiMethod::getName).sorted().toList());
+        PsiMethod add = notes.findMethodsByName("add", false)[0];
+        assertTrue(add.hasModifierProperty(PsiModifier.ABSTRACT));
+        assertEquals("int", add.getReturnType().getPresentableText());
+        assertEquals("String", add.getParameterList().getParameters()[0].getType().getPresentableText());
+        assertEquals("text", add.getParameterList().getParameters()[0].getName());
+        PsiMethod find = notes.findMethodsByName("find", false)[0];
+        assertEquals("String", find.getReturnType().getPresentableText());
+        assertTrue(find.getReturnType().getAnnotations().length > 0 || find.getModifierList().getAnnotations().length > 0);
+        assertEquals("void", notes.findMethodsByName("clear", false)[0].getReturnType().getPresentableText());
+
+        PsiClass memory = findClass("app.Notes.MemoryNotes");
+        assertTrue(memory.isInheritor(notes, false));
+        assertNotNull(memory.findMethodsByName("find", false)[0].getModifierList().findAnnotation("java.lang.Override"));
+        myFixture.configureByText("UseFromJava.java", """
+                package app;
+
+                class UseFromJava implements Notes {
+                    public String name() { return "j"; }
+                    public int add(String text) { return 1; }
+                    public String find(int id) { return null; }
+                    public void clear() {}
+
+                    int f(Notes notes) {
+                        notes.clear();
+                        return notes.add("x") + notes.find(1).length();
+                    }
+                }
+                """);
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testJavaSeesTheMethodsOfTheInterfaceThatIsTheTypeOfItsFile() {
+        myFixture.addFileToProject("app/Store.axl", """
+                package app
+
+                interface Store {
+                    fn get(key: String) -> String?
+                    fn put(key: String, value: String)
+                }
+
+                fn describe(store: Store, key: String) -> String = key + "=" + (store.get(key) ?: "unset")
+                """);
+        PsiClass store = findClass("app.Store");
+        assertTrue(store.isInterface());
+        assertTrue(store.findMethodsByName("get", false)[0].hasModifierProperty(PsiModifier.ABSTRACT));
+        assertTrue(store.findMethodsByName("describe", false)[0].hasModifierProperty(PsiModifier.STATIC));
+        assertEquals(2, store.findMethodsByName("put", false)[0].getParameterList().getParametersCount());
     }
 
     public void testCopiesTheAnnotationsOfTheGeneratedClasses() {
@@ -256,6 +344,48 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals("name", ((PsiMethod) resolveAt("color.|name()")).getName());
     }
 
+    public void testInterfaceMethodsNavigateToTheirDeclarationsAndResolve() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Notes.axl", NOTES);
+        AxlTypeDeclaration notes = file.typeDeclarations().getFirst();
+        AxlTypeDeclaration memory = file.typeDeclarations().get(1);
+        PsiClass light = findClass("app.Notes");
+        assertSame(notes.methods().getFirst(), light.findMethodsByName("add", false)[0].getNavigationElement());
+        assertSame(notes.methods().get(2), light.findMethodsByName("clear", false)[0].getNavigationElement());
+        assertSame(notes.fields().getFirst(), light.findMethodsByName("name", false)[0].getNavigationElement());
+        assertSame(notes.methods().getFirst(), resolveAt("val id = notes.|add(\"buy milk\")"));
+        assertSame(notes.methods().get(2), resolveAt("notes.|clear()"));
+        assertSame(notes.methods().get(1), resolveAt("(notes.|find(id)"));
+        assertSame(notes.fields().getFirst(), resolveAt("return notes.|name()"));
+        assertSame(notes.methods().getFirst(), org.axl.intellij.java.AxlLightClasses.methodOf(notes.methods().getFirst()).getNavigationElement());
+        assertEquals("add", memory.methods().getFirst().getName());
+    }
+
+    public void testShowsNoErrorsForInterfaceMethodsElvisThrowAndAttemptStatements() {
+        for (String name : List.of("interface_methods", "elvis_throw", "attempt_statement")) {
+            myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
+            assertEquals(name, List.of(), myFixture.doHighlighting().stream()
+                    .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+        }
+    }
+
+    public void testShowsTheErrorsOfInterfaceMethods() {
+        myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "interface_method_errors", "src", "app", "Main.axl")));
+        List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
+                .map(h -> h.getDescription()).toList();
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("requires `fn area() -> Double`")));
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("is declared twice")));
+    }
+
+    public void testFindsAndRenamesInterfaceMethods() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Notes.axl", NOTES);
+        AxlTypeDeclaration notes = file.typeDeclarations().getFirst();
+        assertEquals(1, myFixture.findUsages(notes.methods().getFirst()).size());
+        assertEquals(1, myFixture.findUsages(notes.methods().get(2)).size());
+        myFixture.renameElement(notes.methods().get(1), "lookup");
+        String text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("fn lookup(id: Int) -> String?") && text.contains("notes.lookup(id)"));
+    }
+
     public void testNarrowsAfterTestsThatLeaveAndRightOfAnd() {
         AxlFile file = (AxlFile) myFixture.configureByText("Tests.axl", SHAPES + """
 
@@ -319,6 +449,10 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertCompletes(SHAPES.replace("val color = Color.RED", "val color = Color.<caret>"), "RED", "values");
         assertCompletes(SHAPES.replace("3.14 * shape.radius()", "3.14 * shape.<caret>"), "radius");
         assertCompletes(COUNTER.replace("println(d.count)", "println(d.<caret>)"), "count", "next");
+    }
+
+    public void testCompletesTheMethodsOfAnInterfaceTypedValue() {
+        assertCompletes(NOTES.replace("notes.clear()", "notes.<caret>"), "add", "find", "clear", "name");
     }
 
     public void testKeepsTheMembersOfTypesWhileTheFileHasErrors() {
