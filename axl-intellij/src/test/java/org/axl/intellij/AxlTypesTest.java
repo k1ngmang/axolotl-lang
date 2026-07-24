@@ -455,6 +455,38 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertCompletes(NOTES.replace("notes.clear()", "notes.<caret>"), "add", "find", "clear", "name");
     }
 
+    public void testTypesAnElvisThrowAsTheTypeOfItsLeftSide() {
+        String main = """
+                package app
+
+                import java.util.Map
+
+                fn lookup(m: Map<String, String>, key: String, s: String?) -> Int {
+                    val text = s ?: throw IllegalStateException("missing")
+                    val value = m.get(key) ?: m.get("other") ?: throw IllegalArgumentException("none " + key)
+                    return text.length() + value.length() + (s ?: throw IllegalStateException("x")).length()
+                }
+                """;
+        myFixture.configureByText("Lookup.axl", main);
+        assertEquals("length", ((PsiMethod) resolveAt("return text.|length()")).getName());
+        assertEquals("java.lang.String", ((PsiMethod) resolveAt("return text.|length()")).getContainingClass().getQualifiedName());
+        assertEquals("java.lang.String", ((PsiMethod) resolveAt("+ value.|length()")).getContainingClass().getQualifiedName());
+        assertEquals("java.lang.String", ((PsiMethod) resolveAt("(s ?: throw IllegalStateException(\"x\")).|length()")).getContainingClass().getQualifiedName());
+        assertCompletes(main.replace("return text.length()", "return text.<caret>"), "length", "isEmpty", "substring");
+        assertCompletes(main.replace("+ value.length()", "+ value.<caret>"), "length", "trim");
+    }
+
+    public void testCompletesTheMembersOfAResultFromTheRuntimeClass() {
+        String main = read(Path.of("..", "tests", "conformance", "result_methods", "src", "app", "Main.axl"));
+        myFixture.configureByText("Main.axl", main);
+        assertEquals("axl.lang.Result", ((PsiMethod) resolveAt("good.|isOk()")).getContainingClass().getQualifiedName());
+        assertEquals("axl.lang.Result", ((PsiMethod) resolveAt("good.|map({ n -> n + 1 })")).getContainingClass().getQualifiedName());
+        assertEquals("axl.lang.Result", ((PsiMethod) resolveAt("bad.|mapErr(")).getContainingClass().getQualifiedName());
+        assertEquals("axl.lang.Result", ((PsiMethod) resolveAt("map({ n -> n + 1 }).|getOrElse(0)")).getContainingClass().getQualifiedName());
+        assertCompletes(main.replace("println(good.isOk())", "good.<caret>"), "isOk", "isErr", "map", "getOrElse", "mapErr");
+        assertCompletes(main.replace("println(bad.isErr())", "bad.map({ n -> n }).<caret>"), "isOk", "isErr", "map", "getOrElse", "mapErr");
+    }
+
     public void testKeepsTheMembersOfTypesWhileTheFileHasErrors() {
         for (String error : List.of("fn g() = \"x\"\n\n", "fn g() -> Int = 1 +\n\n", "fn g(a: Int) {\n    val a = 2\n}\n\n")) {
             String text = SHAPES.replace("fn main() {", error + "fn main() {");

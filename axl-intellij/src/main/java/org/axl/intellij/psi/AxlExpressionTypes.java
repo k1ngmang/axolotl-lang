@@ -61,6 +61,9 @@ final class AxlExpressionTypes {
         if (kind == AxlElementTypes.PIPE) {
             return pipeType(expression);
         }
+        if (kind == AxlElementTypes.ELVIS) {
+            return elvisType(expression);
+        }
         if (expression instanceof AxlReferenceExpression ref) {
             PsiElement target = ref.getReference() == null ? null : ref.getReference().resolve();
             return target == null ? null : referenceType(ref, target);
@@ -70,6 +73,15 @@ final class AxlExpressionTypes {
             return target == null ? null : callType(callee, target, expression.getLastChild());
         }
         return null;
+    }
+
+    /**
+     * `x ?: y` has the type of `x` without its `?`: written types carry no nullability here, so it
+     * is the type of `x`, also when `y` is a `throw` and gives no value.
+     */
+    private static @Nullable PsiType elvisType(PsiElement elvis) {
+        AxlPsiElement left = PsiTreeUtil.getChildOfType(elvis, AxlPsiElement.class);
+        return left == null ? null : typeOf(left);
     }
 
     /** `String.class` is a `Class<String>`, `Int.class` a `Class<Integer>`. */
