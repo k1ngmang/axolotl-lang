@@ -5,6 +5,7 @@ AXL100 app/ExtendsClass.axl:4:31: error: a class cannot extend another class; it
 AXL100 app/ForOverNumber.axl:4:15: error: `for` needs a list or another collection, found `Int`
 AXL100 app/ForOverNumber.axl:7:15: error: `for` needs a list or another collection, found `String`; for the characters of a string, use `s.toCharArray()`
 AXL100 app/ImpossibleIs.axl:4:5: error: a value of type `String` can never be `Int`; remove the `is` test
+AXL100 app/ListNarrowing.axl:12:56: error: type mismatch: expected `List<Created>`, found `List<Event>`
 AXL100 app/MissingMethod.axl:5:7: error: `Task` must give `fn run()`, which `Runnable` requires
 AXL100 app/MixedList.axl:7:21: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
 AXL100 app/MixedTypes.axl:5:18: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
@@ -19,3 +20,5 @@ AXL100 app/StaticContext.axl:11:13: error: `this` can only be used inside a clas
 AXL100 app/ThrowChecked.axl:4:5: error: `Exception` is a checked exception and cannot be thrown here; throw a `RuntimeException`, such as `IllegalStateException`, or return an `Err`
 AXL100 app/UnaryOperators.axl:5:13: error: `!` cannot be applied to `Int`
 AXL100 app/UnaryOperators.axl:6:13: error: `-` cannot be applied to `String`
+AXL100 app/VoidAttempt.axl:4:18: error: `attempt` around a call that returns nothing is a statement, not a value; write it on a line of its own: `attempt Thread.sleep(1L) else e -> ...`
+AXL100 app/VoidAttempt.axl:5:19: error: `attempt` around a call that returns nothing is a statement, not a value; write it on a line of its own: `attempt System.out.flush() else e -> ...`

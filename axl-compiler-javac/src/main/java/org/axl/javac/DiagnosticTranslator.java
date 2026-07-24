@@ -47,23 +47,28 @@ public final class DiagnosticTranslator {
         if (source == null) {
             // Hand-written Java gets every warning; only generated code has a shape of its own.
             return new AxlDiagnostic(javaDisplay.apply(javaFile), javaLine, (int) diagnostic.getColumnNumber(),
-                    severity, ErrorCode.JAVAC, message);
+                    Messages.alwaysFailsUnhandled(message, "") ? AxlDiagnostic.Severity.ERROR : severity, ErrorCode.JAVAC, message);
         }
         String[] javaLines = source.unit().javaSource().split("\n", -1);
         String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
-        if (Messages.ignored(message, javaText, String.join("\n", source.axlLines()))) {
+        long javaColumn = Columns.javaColumn(javaLines, javaLine, diagnostic);
+        if (Messages.ignored(message, javaText, String.join("\n", source.axlLines()), javaColumn)) {
             return null;
         }
-        Messages.Translated translated = Messages.translate(message, javaLines, javaLine);
+        if (Messages.alwaysFailsUnhandled(message, javaText)) {
+            severity = AxlDiagnostic.Severity.ERROR;
+        }
+        Messages.Translated translated = Messages.translate(message, javaLines, javaLine, javaColumn);
         int reportedLine = Messages.javaLine(translated.message(), javaLines, javaLine);
         if (reportedLine != javaLine) {
             javaLine = reportedLine;
             javaText = javaLines[javaLine - 1];
+            javaColumn = Columns.javaColumn(javaLines, javaLine, diagnostic);
         }
         int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
         int line = Math.max(axlLine, 1);
         String axlText = line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
-        int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, Columns.javaColumn(javaLines, javaLine, diagnostic),
+        int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, javaColumn,
                 axlText, Messages.placement(translated.message(), javaText));
         return new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(),
                 otherFiles.reword(translated.message()));

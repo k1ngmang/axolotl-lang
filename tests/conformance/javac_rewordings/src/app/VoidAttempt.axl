@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val paused = attempt Thread.sleep(1L) else e -> "interrupted"
+    val flushed = attempt System.out.flush() else e -> throw IllegalStateException(e)
+    println("" + paused + flushed)
+}

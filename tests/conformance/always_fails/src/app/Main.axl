@@ -1,0 +1,7 @@
+package app
+
+import java.time.LocalDate
+
+fn main() {
+    println(LocalDate.parse("2026-13-40"))
+}

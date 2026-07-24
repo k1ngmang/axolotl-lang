@@ -108,6 +108,8 @@ final class Messages {
     private static final Pattern ABSTRACT = Pattern.compile("^([\\w.$]+) is abstract; cannot be instantiated$");
     private static final Pattern ELVIS_FALLBACK = Pattern.compile("\\?:\\s*(\\S)");
     private static final Pattern ATTEMPT_FALLBACK = Pattern.compile("\\belse\\s+(?:\\w+\\s*->\\s*)?(\\S)");
+    private static final Pattern ATTEMPT = Pattern.compile("\\battempt\\b");
+    private static final String ATTEMPT_STATEMENT = "`attempt` around a call that returns nothing is a statement, not a value; ";
     private static final Pattern IMPORTED_NESTED = Pattern.compile("^import (?:[a-z]\\w*\\.)*([A-Z]\\w*)\\.([A-Z]\\w*);$");
     private static final Pattern IMPORTED_MEMBER = Pattern.compile("^`[\\w.]+` has no function or value `(\\w+)`$");
     private static final Pattern PIPE = Pattern.compile("(\"(?:[^\"\\\\]|\\\\.)*\"|[\\w.()]+)\\s*\\|>");
@@ -175,6 +177,9 @@ final class Messages {
         if (translated.contains("` has no result type, so it cannot return a value")
                 || translated.startsWith(LAMBDA_RETURN_VALUE)) {
             return RETURN;
+        }
+        if (translated.startsWith(ATTEMPT_STATEMENT)) {
+            return ATTEMPT;
         }
         if (!translated.startsWith("type mismatch")) {
             return null;
@@ -362,6 +367,93 @@ final class Messages {
         return loopVariable || inTemplate || ignored(message);
     }
 
+    /**
+     * Also an unreported exception inside the call of `attempt`: javac gives up on the call because it
+     * returns nothing, which the error about the `attempt` itself already explains. javaColumn is where
+     * javac points in javaText, if known.
+     */
+    static boolean ignored(String message, String javaText, String axlSource, long javaColumn) {
+        Attempt attempt = Attempt.in(javaText);
+        if (attempt != null && UNREPORTED.matcher(message).find() && attempt.inValue(javaColumn)) {
+            return true;
+        }
+        return ignored(message, javaText, axlSource);
+    }
+
+    /**
+     * Error Prone's finding that a call always fails is only a warning, so that `attempt`, which handles
+     * the failure, compiles; anywhere else it is the error it would have been.
+     */
+    static boolean alwaysFailsUnhandled(String message, String javaText) {
+        return message.startsWith("[" + ErrorProneMessages.ALWAYS_THROWS + "]") && Attempt.in(javaText) == null;
+    }
+
+    /**
+     * Whether javac points at a type test: `is` becomes `x instanceof T x$1`, reported at `x`, or a
+     * `case T x$1 ->` label, reported at `T`. Without a position, any type test on the line counts.
+     */
+    private static boolean pointsAtTypeTest(String javaText, long javaColumn) {
+        if (javaColumn <= 0 || javaColumn > javaText.length()) {
+            return TYPE_PATTERN.matcher(javaText).find();
+        }
+        String rest = javaText.substring((int) javaColumn - 1);
+        return rest.matches("^(?:[\\w.$]+|\\([^()]*\\)) instanceof\\b.*") || rest.matches("^(?:case )?[\\w.<>]+ \\w+(?:\\$\\d+)? ->.*");
+    }
+
+    /**
+     * `Result.attempt(() -> value, e -> error)` or `Result.orThrow(...)` in a Java line, with the text of
+     * both lambda bodies and where they start in the line (0-based).
+     */
+    record Attempt(String value, String error, int valueStart, int errorStart, int end) {
+
+        private static final Pattern CALL = Pattern.compile("\\bResult\\.(?:<[^>]*>)?(?:attempt|orThrow)\\(\\(\\) -> ");
+        private static final Pattern ERROR_LAMBDA = Pattern.compile("^\\s*\\(?(\\w+)\\)? -> ");
+
+        static Attempt in(String javaText) {
+            Matcher call = CALL.matcher(javaText);
+            if (!call.find()) {
+                return null;
+            }
+            int valueStart = call.end();
+            int comma = -1;
+            int depth = 0;
+            int i = valueStart;
+            for (; i < javaText.length(); i++) {
+                char c = javaText.charAt(i);
+                Matcher literal = c == '"' ? STRING_LITERAL.matcher(javaText).region(i, javaText.length()) : null;
+                if (literal != null && literal.lookingAt()) {
+                    i = literal.end() - 1;
+                } else if (c == '(' || c == '[' || c == '{') {
+                    depth++;
+                } else if (c == ')' || c == ']' || c == '}') {
+                    if (depth == 0) {
+                        break;
+                    }
+                    depth--;
+                } else if (c == ',' && depth == 0 && comma < 0) {
+                    comma = i;
+                }
+            }
+            if (comma < 0 || i >= javaText.length()) {
+                return null;
+            }
+            Matcher error = ERROR_LAMBDA.matcher(javaText.substring(comma + 1, i));
+            int errorStart = error.find() ? comma + 1 + error.end() : comma + 1;
+            return new Attempt(javaText.substring(valueStart, comma).strip(), javaText.substring(errorStart, i).strip(),
+                    valueStart, errorStart, i);
+        }
+
+        /** Whether a 1-based column of the line is inside the call `attempt` tries. */
+        boolean inValue(long javaColumn) {
+            return javaColumn > valueStart && javaColumn <= errorStart;
+        }
+
+        /** Whether a 1-based column of the line is inside the error the `else` branch gives. */
+        boolean inError(long javaColumn) {
+            return javaColumn > errorStart && javaColumn <= end;
+        }
+    }
+
     /** Warnings about the shape of generated code, which the author cannot change. */
     static boolean ignored(String message) {
         // javac reports an unknown type a second time when it is thrown.
@@ -380,7 +472,12 @@ final class Messages {
      * @param javaLine  1-based line of the diagnostic
      */
     static Translated translate(String message, String[] javaLines, int javaLine) {
-        Translated translated = rewrite(withoutFileClass(message, javaLines), javaLines, javaLine);
+        return translate(message, javaLines, javaLine, -1);
+    }
+
+    /** @param javaColumn 1-based column javac points at in the line, or a non-positive value if unknown */
+    static Translated translate(String message, String[] javaLines, int javaLine, long javaColumn) {
+        Translated translated = rewrite(withoutFileClass(message, javaLines), javaLines, javaLine, javaColumn);
         String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
         if (translated.message().contains("`Comparable<") && text.contains("Comparator.naturalOrder()")) {
             return new Translated(translated.code(), "`sorted` needs elements that can be compared, and these cannot; "
@@ -424,7 +521,7 @@ final class Messages {
         return result;
     }
 
-    private static Translated rewrite(String message, String[] javaLines, int javaLine) {
+    private static Translated rewrite(String message, String[] javaLines, int javaLine, long javaColumn) {
         String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
         if (message.startsWith(NullChecker.STRICT_PREFIX)) {
             return new Translated(ErrorCode.STRICT_NULL, message.substring(NullChecker.STRICT_PREFIX.length()));
@@ -455,7 +552,7 @@ final class Messages {
             return new Translated(ErrorCode.JAVAC, NO_RESULT_TYPE + "`-> " + returnType + "`");
         }
         if (message.startsWith("[NullAway] ")) {
-            return nullAway(message, text, javaLines);
+            return nullAway(message, text, javaLines, javaColumn);
         }
         if (message.equals("constant string too long")) {
             // Java joins constant strings at compile time, so `+` does not get past the limit.
@@ -512,7 +609,7 @@ final class Messages {
                     + clash.group(3) + "(" + argumentList(clash.group(4)) + ")` differ only in type arguments, which Java "
                     + "does not keep at run time; give one of them another name");
         }
-        return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines)).replaceAll(""));
+        return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines, javaColumn)).replaceAll(""));
     }
 
     /**
@@ -527,7 +624,7 @@ final class Messages {
         return subject + " may be null" + message.substring(GENERATED_VALUE.length());
     }
 
-    private static Translated nullAway(String message, String text, String[] javaLines) {
+    private static Translated nullAway(String message, String text, String[] javaLines, long javaColumn) {
         Matcher dereference = DEREFERENCE.matcher(message);
         if (dereference.find()) {
             String value = dereference.group(1);
@@ -603,7 +700,7 @@ final class Messages {
                     + "it builds cannot hold nulls; add `?` to the element type or return values that are not null");
         }
         return new Translated(plain.startsWith("incompatible types: ") ? ErrorCode.NULLABLE_DEREFERENCE : ErrorCode.JAVAC,
-                javacMessage(plain, text, javaLines));
+                javacMessage(plain, text, javaLines, javaColumn));
     }
 
     /** `n + 1` and `if (b)` with a nullable `n` or `b`, which Java unboxes. */
@@ -648,8 +745,12 @@ final class Messages {
         return !value.contains(".") || Arrays.stream(javaLines).noneMatch(l -> varField.matcher(l).find());
     }
 
-    /** Plain javac errors, in Axolotl's words and type names. */
     private static String javacMessage(String message, String text, String[] javaLines) {
+        return javacMessage(message, text, javaLines, -1);
+    }
+
+    /** Plain javac errors, in Axolotl's words and type names; javaColumn is where javac points in text, if known. */
+    private static String javacMessage(String message, String text, String[] javaLines, long javaColumn) {
         Matcher lambdaReturn = LAMBDA_RETURN.matcher(message);
         if (lambdaReturn.find()) {
             return "the lambda returns `" + axlType(lambdaReturn.group(1)) + "`, but `" + axlType(lambdaReturn.group(2))
@@ -669,8 +770,10 @@ final class Messages {
         if (missingReturnValue || message.startsWith("incompatible types: lambda body is not compatible with a void functional interface")) {
             return LAMBDA_VALUE;
         }
-        if (voidResult && text.contains("Result.attempt(")) {
-            return "`attempt` needs a call that returns a value; this one returns nothing";
+        Attempt attempt = Attempt.in(text);
+        if (voidResult && attempt != null) {
+            return ATTEMPT_STATEMENT + "write it on a line of its own: `attempt " + attempt.value().replaceFirst("^new ", "")
+                    + " else e -> ...`";
         }
         if (text.contains("Nulls.or(") && message.endsWith(" is not a functional interface)")) {
             return "the right side of `?:` returns nothing, so it cannot be the value when the left side is null";
@@ -714,7 +817,7 @@ final class Messages {
             return lossyConversion(lossy.group(1), lossy.group(2));
         }
         Matcher incompatible = INCOMPATIBLE.matcher(message);
-        if (incompatible.find() && TYPE_PATTERN.matcher(text).find()) {
+        if (incompatible.find() && pointsAtTypeTest(text, javaColumn)) {
             return "a value of type `" + axlType(incompatible.group(1)) + "` can never be `" + axlType(incompatible.group(2))
                     + "`; remove the `is` test";
         }
@@ -889,7 +992,7 @@ final class Messages {
         if (unreported.find(0)) {
             String throwsIt = "this call can throw `" + axlType(unreported.group(1)) + "`";
             // Inside `attempt` the call is already wrapped; javac only gives up on it because the call returns nothing.
-            return text.contains("Result.attempt(") ? throwsIt + "; `attempt` catches it only around a call that returns a value"
+            return Attempt.in(text) != null ? throwsIt + "; `attempt` catches it only around a call that returns a value"
                     : throwsIt + ", which Axolotl functions cannot pass on; wrap it in `attempt ... else ...` to turn it into a `Result`";
         }
         if (message.equals("static methods cannot be annotated with @Override")) {

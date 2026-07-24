@@ -1,0 +1,10 @@
+package app
+
+import java.time.LocalDate
+
+// Error Prone sees that the date can never parse; inside `attempt` that is a warning, since the
+// `else` branch handles the failure.
+fn main() {
+    val parsed = attempt LocalDate.parse("2026-13-40") else e -> "bad date"
+    println(parsed)
+}

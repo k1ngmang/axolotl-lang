@@ -20,7 +20,11 @@ final class ErrorProneMessages {
     static final String BOXED_EQUALITY = "`==` compares these numbers as objects, not by value, since they may be null "
             + "or come from a collection; use `java.util.Objects.equals(a, b)`";
 
+    /** The check that evaluates a call with constant arguments, such as `LocalDate.parse("2026-13-40")`. */
+    static final String ALWAYS_THROWS = "AlwaysThrows";
+
     private static final Pattern TAG = Pattern.compile("^\\[(\\w+)] ");
+    private static final Pattern ALWAYS_FAILS = Pattern.compile("^\\[AlwaysThrows] This call will fail at runtime with an? (\\w+)(?:: (.*))?$");
     private static final Pattern DIVISION_BY_ZERO = Pattern.compile("[/%]\\s*0[lL]?\\b(?!\\.)");
     private static final Pattern IDENTITY = Pattern.compile("^\\[IdentityBinaryExpression] .*equivalent to `(.+?)`");
     private static final Pattern OBJECT_TO_STRING = Pattern.compile("^\\[ObjectToString] ([\\w.$]+) is final and does not override");
@@ -103,8 +107,21 @@ final class ErrorProneMessages {
             case "NullNeedsCastForVarargs" -> "a lone `null` here is taken as the whole list of values, which fails when "
                     + "the call runs; keep it in a typed value first, such as `val none: String? = null`";
             case "SubstringOfZero" -> "`substring(0)` gives the same string; remove it";
+            case ALWAYS_THROWS -> alwaysFails(message, text);
             default -> arrayOrOldApi(message);
         };
+    }
+
+    /** A call with constant arguments that always throws; inside `attempt` the failure is handled, so it is a warning. */
+    private static String alwaysFails(String message, String text) {
+        Matcher fails = ALWAYS_FAILS.matcher(message);
+        if (!fails.find()) {
+            return null;
+        }
+        String reason = fails.group(2) == null ? "" : ": " + fails.group(2).replaceFirst("\\.$", "");
+        String always = "this call always fails with `" + fails.group(1) + "`" + reason;
+        return Messages.Attempt.in(text) != null ? always + "; `attempt` catches it, so its `else` branch always runs"
+                : always + "; fix the value, or handle the failure with `attempt ... else ...`";
     }
 
     private static String arrayOrOldApi(String message) {

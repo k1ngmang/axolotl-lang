@@ -149,13 +149,15 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         int javaLine = (int) diagnostic.getLineNumber();
         int axlLine = Math.max(1, mapping.lineMap().nearestAxlLine(javaLine));
         String message = DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT));
-        String translated = Messages.translate(message, mapping.javaLines(), javaLine).message();
+        long javaColumn = Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic);
+        String translated = Messages.translate(message, mapping.javaLines(), javaLine, javaColumn).message();
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
         String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
-        int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic),
-                axlText, Messages.placement(translated, javaText));
-        JCDiagnostic moved = factory.create(type, new DiagnosticSource(axl, log),
+        int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, javaColumn, axlText,
+                Messages.placement(translated, javaText));
+        DiagnosticType severity = Messages.alwaysFailsUnhandled(message, javaText) ? DiagnosticType.ERROR : type;
+        JCDiagnostic moved = factory.create(severity, new DiagnosticSource(axl, log),
                 new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager", translated);
         // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.
         moved.setFlag(JCDiagnostic.DiagnosticFlag.API);
@@ -167,7 +169,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         Mapping mapping = mapping(Path.of(diagnostic.getSource().toUri()).toAbsolutePath().normalize());
         int line = (int) diagnostic.getLineNumber();
         String javaText = line >= 1 && line <= mapping.javaLines().length ? mapping.javaLines()[line - 1] : "";
-        return Messages.ignored(DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT)), javaText, mapping.axl().text);
+        return Messages.ignored(DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT)), javaText, mapping.axl().text,
+                Columns.javaColumn(mapping.javaLines(), line, diagnostic));
     }
 
 
