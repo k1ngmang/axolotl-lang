@@ -185,6 +185,14 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - `Ok`/`Err` branches in `else if` chains, `mapResult` and `map` lambdas get their types.
   - Long `?:` chains and deeply nested `if` values compile in linear time.
   - The language server compiles one module at a time.
+- Eighth audit:
+  - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.
+  - `attempt` around a call that returns nothing, also with `else e -> throw`, says that it is a statement, and the exception inside the call is not reported a second time.
+  - A call that always fails, such as `LocalDate.parse("2026-13-40")`, is a warning inside `attempt` and an error elsewhere, in Axolotl's words.
+  - `try` on a `Result` whose value type javac could not name, as from `Constructor<*>.newInstance`, names what was written and the type to write, not the runtime's `unwrap()`.
+  - `attempt ... else e -> e.getMessage()` returned as a `Result<T, String>` gets one message, about the error that may be null and its `?:` fallback.
+  - Strict null mode trusts the JDK methods that never return null: collection views and factories, `Arrays`, `Collections`, `Optional`, `Enum.name`, `Object.getClass`, `Files`, `Path`, `java.time`, `java.text`, `java.math`, the `java.io` readers and writers and the reflection getters that always have a value.
+  - `for ((k, v) in m.entrySet())` is explained as destructuring, `parts[0]` on an array suggests `List.of(parts).get(0)`, casts to number types and `n.toDouble()` say how to convert numbers, and `"""raw"""` is explained as a raw string once.
 - Language: annotations (`@Test fn ...`, `@Marker(x = 1) data class ...`), which go into the generated Java as they are, so JUnit tests, Jackson and JPA records and Spring entry points can be written in Axolotl; class literals `String.class` (`Int.class` is `Integer.class`); the type argument `*` for Java's `?`. `@Nullable` is rejected in favor of `T?`.
 - Language: `attempt X else e -> throw Y` gives the value of `X` and throws `Y` when it fails, for checked exceptions where no `Result` is wanted.
 - `is Ok` and `is Err` take the record apart in the generated Java, `x instanceof Ok(var x$1)`, so a `Result` whose type the translator does not know (an `attempt` around a Java call, a function of another file, a method of a class) is narrowed correctly instead of reading its value as `Object`.
