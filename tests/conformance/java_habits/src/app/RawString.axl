@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val t = """multi
+line"""
+    println(t)
+}

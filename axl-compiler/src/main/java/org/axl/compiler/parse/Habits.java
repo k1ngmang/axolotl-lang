@@ -1,5 +1,6 @@
 package org.axl.compiler.parse;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import org.antlr.v4.runtime.Token;
@@ -33,6 +34,9 @@ final class Habits {
 
     private static final String NO_TRY_CATCH = "Axolotl has no `try`-`catch`; turn the exception into a `Result` "
             + "with `attempt f() else e -> ...`";
+
+    private static final String TEXT_BLOCKS = "Axolotl has no raw strings or text blocks (`\"\"\"`); write one string with "
+            + "`\\n`, or join the lines with `+`";
 
     private Habits() {}
 
@@ -73,8 +77,7 @@ final class Habits {
                     ? "compare with `==` to test for null: `s == null`" : null;
             case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN ? elvisJump(tokens, i) : null;
             case AxolotlLexer.STRING_LITERAL -> tokens.get(i).getText().equals("\"\"")
-                    && followedBy(tokens, i, AxolotlLexer.STRING_LITERAL)
-                    ? "Axolotl has no text blocks (`\"\"\"`); join the lines with `+` and `\\n`" : null;
+                    && followedBy(tokens, i, AxolotlLexer.STRING_LITERAL) ? TEXT_BLOCKS : null;
             default -> null;
         };
     }
@@ -159,6 +162,9 @@ final class Habits {
     private static String unknownChar(List<Token> tokens, int i) {
         return switch (tokens.get(i).getText()) {
             case "[" -> bracket(tokens, i);
+            // `"""` reads as the empty string `""` and an unclosed `"`.
+            case "\"" -> i > 0 && type(tokens, i - 1) == AxolotlLexer.STRING_LITERAL && text(tokens, i - 1).equals("\"\"")
+                    && adjacent(tokens, i - 1) ? TEXT_BLOCKS : null;
             case "`" -> "Axolotl has no template strings; join the parts with `+`: `\"n is \" + n`";
             case "#" -> !alone(tokens, i) && startsLine(tokens, i) ? "comments start with `//`" : null;
             case "|" -> unionType(tokens, i) ? "a parameter has one type; Axolotl has no union types, so take a common "
@@ -242,7 +248,24 @@ final class Habits {
         }
         String value = type(tokens, previous) == AxolotlLexer.IDENTIFIER && operandStart(tokens, previous) == previous
                 ? text(tokens, previous) : "x";
+        String conversion = numberConversion(text(tokens, typeName));
+        if (conversion != null) {
+            return conversion;
+        }
         return "Axolotl has no casts; test the type with `is`: `if (" + value + " is " + text(tokens, typeName) + ") { ... }`";
+    }
+
+    /** A cast to a number type, `(Int) x` or `x as Int`, which converts: how Axolotl converts numbers, or null. */
+    static String numberConversion(String type) {
+        return switch (type) {
+            case "Int", "Integer", "int" -> "Axolotl has no casts; a `Double` becomes an `Int` with `Math.toIntExact(Math.round(x))`, "
+                    + "a `Long` with `Math.toIntExact(x)`";
+            case "Long", "long" -> "Axolotl has no casts; an `Int` fits a `Long` as it is, as in `val l: Long = n`, and a `Double` "
+                    + "becomes one with `Math.round(x)`";
+            case "Double", "double", "Float", "float" -> "Axolotl has no casts; an `Int` becomes a `Double` in arithmetic with a "
+                    + "`Double`, as in `1.0 * n`, or with `Double.valueOf(n)`";
+            default -> null;
+        };
     }
 
     /** Kotlin's `1 to 2` outside a call; in a call, the parser explains it as the arguments of `Map.of`. */
@@ -275,11 +298,39 @@ final class Habits {
         if (loop || !VALUE_ENDS.contains(type(tokens, previous)) || type(tokens, nextIndex) != AxolotlLexer.IDENTIFIER) {
             return null;
         }
+        String destructured = destructuringLoop(tokens, previous, nextIndex);
+        if (destructured != null) {
+            return destructured;
+        }
         // Python's `3 not in xs`.
         boolean not = text(tokens, previous).equals("not")
                 && VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, previous)));
         int end = not ? SourceParser.previousCode(tokens, previous) : previous;
         return "Axolotl has no `in` operator; write `" + contains(tokens, operandStart(tokens, end), end, nextIndex, not) + "`";
+    }
+
+    /** Kotlin's `for ((k, v) in m.entrySet())`: close is the `)` of the pair, collection the first token after `in`. */
+    private static String destructuringLoop(List<Token> tokens, int close, int collection) {
+        if (type(tokens, close) != AxolotlLexer.RPAREN) {
+            return null;
+        }
+        int open = matching(tokens, close, -1);
+        int beforeOpen = SourceParser.previousCode(tokens, open);
+        if (type(tokens, beforeOpen) != AxolotlLexer.LPAREN
+                || type(tokens, SourceParser.previousCode(tokens, beforeOpen)) != AxolotlLexer.FOR) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (int j = SourceParser.nextCode(tokens, open); j < close; j = SourceParser.nextCode(tokens, j)) {
+            if (type(tokens, j) == AxolotlLexer.IDENTIFIER) {
+                names.add(text(tokens, j));
+            }
+        }
+        String key = names.isEmpty() ? "k" : names.getFirst();
+        String value = names.size() < 2 ? "v" : names.get(1);
+        return "Axolotl has no destructuring; loop over the entries and read each one: `for (entry in "
+                + source(tokens, collection, operandEnd(tokens, collection)) + ") { val " + key + " = entry.getKey(); val "
+                + value + " = entry.getValue() ... }`";
     }
 
     /** Kotlin's `x !in xs`. */
@@ -489,17 +540,59 @@ final class Habits {
             return "Axolotl has no arrays; use a list, such as `List<" + typeName(before) + ">` or `ArrayList<"
                     + typeName(before) + ">()`";
         }
-        if (afterValue && before.equals("args")) {
-            return "Axolotl has no `[]` indexing, and `args` is a Java array; read it as a list: `List.of(args).get(0)`";
+        int indexToken = SourceParser.nextCode(tokens, i);
+        String index = text(tokens, SourceParser.nextCode(tokens, indexToken)).equals("]")
+                && (type(tokens, indexToken) == AxolotlLexer.INT_LITERAL || type(tokens, indexToken) == AxolotlLexer.IDENTIFIER)
+                ? text(tokens, indexToken) : "0";
+        Boolean array = afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER ? holdsArray(tokens, i, before) : null;
+        if (afterValue && (before.equals("args") || Boolean.TRUE.equals(array))) {
+            return "Axolotl has no `[]` indexing, and `" + before + "` is a Java array; read it as a list: `List.of(" + before
+                    + ").get(" + index + ")`";
+        }
+        if (afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER && array == null) {
+            return "Axolotl has no `[]` indexing; call `get`: `" + before + ".get(" + index + ")` for a list, `List.of(" + before
+                    + ").get(" + index + ")` for a Java array";
         }
         if (afterValue) {
             String receiver = type(tokens, previous) == AxolotlLexer.IDENTIFIER ? before : "list";
-            return "Axolotl has no `[]` indexing; call `get`: `" + receiver + ".get(0)`";
+            return "Axolotl has no `[]` indexing; call `get`: `" + receiver + ".get(" + index + ")`";
         }
         String source = comprehensionSource(tokens, i);
         return source != null ? "Axolotl has no list comprehensions; use a pipe: `" + source + " |> map { ... }`"
                 : "Axolotl has no list literals; write `List.of(1, 2, 3)`";
     }
+
+    /**
+     * Whether the local named name, declared before the token at i, holds a Java array: its value
+     * comes from `split`, `toCharArray` or another array-giving method. False for another value,
+     * null when no declaration is found, as for a parameter.
+     */
+    private static Boolean holdsArray(List<Token> tokens, int i, String name) {
+        for (int j = i - 1; j >= 0; j--) {
+            boolean declared = type(tokens, j) == AxolotlLexer.IDENTIFIER && text(tokens, j).equals(name)
+                    && type(tokens, SourceParser.nextCode(tokens, j)) == AxolotlLexer.ASSIGN
+                    && (type(tokens, SourceParser.previousCode(tokens, j)) == AxolotlLexer.VAL
+                    || type(tokens, SourceParser.previousCode(tokens, j)) == AxolotlLexer.VAR);
+            if (!declared) {
+                continue;
+            }
+            int line = tokens.get(j).getLine();
+            for (int k = SourceParser.nextCode(tokens, j); type(tokens, k) != Token.EOF && tokens.get(k).getLine() == line;
+                    k = SourceParser.nextCode(tokens, k)) {
+                if (type(tokens, k) == AxolotlLexer.IDENTIFIER && ARRAY_METHODS.contains(text(tokens, k))
+                        && type(tokens, SourceParser.previousCode(tokens, k)) == AxolotlLexer.DOT
+                        && type(tokens, SourceParser.nextCode(tokens, k)) == AxolotlLexer.LPAREN) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        return null;
+    }
+
+    private static final Set<String> ARRAY_METHODS = Set.of("split", "toCharArray", "toArray", "getBytes",
+            "getDeclaredConstructors", "getConstructors", "getDeclaredMethods", "getMethods", "getDeclaredFields", "getFields",
+            "getRecordComponents", "getEnumConstants", "getStackTrace", "listFiles");
 
     /** `xs` of Python's `[x * 2 for x in xs]`, or null for a list literal. */
     private static String comprehensionSource(List<Token> tokens, int open) {

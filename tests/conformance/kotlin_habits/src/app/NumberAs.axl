@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val x = 3.7
+    val n = x as Int
+    println(n)
+}

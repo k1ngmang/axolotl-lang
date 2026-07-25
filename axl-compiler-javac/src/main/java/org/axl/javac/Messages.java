@@ -63,6 +63,7 @@ final class Messages {
     private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
     private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
+    private static final Pattern KOTLIN_CONVERSION = Pattern.compile("\\b(\\w+)\\.(toDouble|toInt|toLong)\\(\\)");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
@@ -277,10 +278,22 @@ final class Messages {
         }
     }
 
-    /** `n.toString()` and `c.equals("a")` on a primitive value, which Kotlin allows. */
+    /** `n.toString()`, `n.toDouble()` and `c.equals("a")` on a primitive value, which Kotlin allows. */
     private static String primitiveHint(String javaType, String text) {
         if (text.contains(".toString()")) {
             return "; for its text, write `String.valueOf(x)`";
+        }
+        Matcher conversion = KOTLIN_CONVERSION.matcher(text);
+        if (conversion.find()) {
+            String value = conversion.group(1);
+            return switch (conversion.group(2) + " of " + javaType) {
+                case "toDouble of int", "toDouble of long" -> "; for a `Double`, write `1.0 * " + value + "` or `Double.valueOf(" + value + ")`";
+                case "toInt of double" -> "; for an `Int`, write `Math.toIntExact(Math.round(" + value + "))`";
+                case "toInt of long" -> "; for an `Int`, write `Math.toIntExact(" + value + ")`";
+                case "toLong of double" -> "; for a `Long`, write `Math.round(" + value + ")`";
+                case "toLong of int" -> "; an `Int` fits a `Long` as it is: `val l: Long = " + value + "`";
+                default -> "";
+            };
         }
         return javaType.equals("char") && text.contains(".equals(") ? "; compare it with `==`, as in `c == 'a'`" : "";
     }

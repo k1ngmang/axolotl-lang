@@ -262,8 +262,9 @@ public final class SourceParser {
         if (beforeClose != null && beforeClose.getType() == AxolotlLexer.IDENTIFIER
                 && previousToken(tokens, beforeClose).getType() == AxolotlLexer.LPAREN
                 && Character.isUpperCase(beforeClose.getText().charAt(0))) {
-            return error(path, previousToken(tokens, beforeClose), "Axolotl has no casts; test the type with `is`: "
-                    + "`if (x is " + beforeClose.getText() + ") { ... }`");
+            String conversion = Habits.numberConversion(beforeClose.getText());
+            return error(path, previousToken(tokens, beforeClose), conversion != null ? conversion
+                    : "Axolotl has no casts; test the type with `is`: `if (x is " + beforeClose.getText() + ") { ... }`");
         }
         String control = controlLike(tokens, first, last, next);
         if (control != null) {

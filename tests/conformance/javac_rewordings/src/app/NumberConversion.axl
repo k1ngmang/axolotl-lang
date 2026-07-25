@@ -1,0 +1,9 @@
+package app
+
+fn main() {
+    val weight = 3
+    val d: Double = weight.toDouble()
+    val x = 3.7
+    val i = x.toInt()
+    println(d + i)
+}

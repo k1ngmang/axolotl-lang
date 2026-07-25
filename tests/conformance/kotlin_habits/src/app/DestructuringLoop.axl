@@ -1,0 +1,10 @@
+package app
+
+import java.util.Map
+
+fn main() {
+    val m = Map.of("a", 1)
+    for ((k, v) in m.entrySet()) {
+        println(k + v)
+    }
+}

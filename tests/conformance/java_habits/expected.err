@@ -1,3 +1,4 @@
+AXL001 app/ArrayIndex.axl:5:18: error: Axolotl has no `[]` indexing, and `parts` is a Java array; read it as a list: `List.of(parts).get(1)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
 AXL001 app/BreakContinue.axl:8:13: error: Axolotl has no `continue`; put the rest of the loop body in an `if`
 AXL001 app/BreakContinue.axl:11:13: error: Axolotl has no `break`; end the loop with its condition, or move the loop into a function and `return`
@@ -11,6 +12,7 @@ AXL001 app/ExtendsClass.axl:4:37: error: a class cannot extend another class; it
 AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?
 AXL001 app/Implements.axl:5:26: error: a class names its interfaces after `:`: `class C(...) : I, J`
 AXL001 app/Index.axl:7:15: error: Axolotl has no `[]` indexing; call `get`: `xs.get(0)`
+AXL001 app/IndexUnknown.axl:6:17: error: Axolotl has no `[]` indexing; call `get`: `items.get(0)` for a list, `List.of(items).get(0)` for a Java array
 AXL001 app/InstanceOf.axl:5:11: error: Axolotl tests types with `is`: `if (x is String) { ... }`
 AXL001 app/JavaLambda.axl:6:28: error: lambdas are written in braces: `{ x -> ... }`
 AXL001 app/JavaType.axl:4:5: error: declare a local with its type after the name: `val count: Int = ...`
@@ -19,8 +21,10 @@ AXL001 app/ListLiteral.axl:4:13: error: Axolotl has no list literals; write `Lis
 AXL001 app/MissingArrow.axl:6:11: error: missing `->` before `println`
 AXL001 app/New.axl:4:14: error: Axolotl creates objects without `new`: `StringBuilder(...)`
 AXL001 app/NewArray.axl:4:20: error: Axolotl has no arrays; use a list, such as `List<Int>` or `ArrayList<Int>()`
+AXL001 app/NumberCast.axl:4:13: error: Axolotl has no casts; a `Double` becomes an `Int` with `Math.toIntExact(Math.round(x))`, a `Long` with `Math.toIntExact(x)`
 AXL001 app/ParenCast.axl:5:13: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
 AXL001 app/PublicStatic.axl:3:1: error: declarations are public by default; remove `public`
+AXL001 app/RawString.axl:4:15: error: Axolotl has no raw strings or text blocks (`"""`); write one string with `\n`, or join the lines with `+`
 AXL001 app/StaticFn.axl:3:1: error: Axolotl has no `static`; remove it: functions and values at the top of a file need no object
 AXL001 app/StaticImport.axl:3:1: error: Axolotl has no `import static`; import a function with `import fn java.lang.Math.max`, and a constant with `import val`
 AXL001 app/Switch.axl:5:5: error: Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`
