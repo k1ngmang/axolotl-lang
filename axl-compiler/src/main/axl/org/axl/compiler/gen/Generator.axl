@@ -2362,6 +2362,7 @@ class Generator(
         val sb = StringBuilder(parenthesized(source, sourceExpr)).append(".stream()")
         var terminal = false
         var previousLine = startLine(sourceExpr)
+        var index = 0
         for (stage in stages) {
             val stageBody = stage.lambda()
             val lambdaText = if (stageBody == null) "" else lambdaCode(stageBody)
@@ -2369,7 +2370,9 @@ class Generator(
                 sb.append(Emitter.continued(stage.pos().line(), ""))
                 previousLine = stage.pos().line()
             }
-            appendStage(sb, stage, lambdaText, arg)
+            val next = if (index + 1 < stages.size()) stages.get(index + 1) else null
+            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next))
+            index += 1
             if (Checker.TERMINAL_STAGES.contains(stage.name())) {
                 terminal = true
             }
@@ -2377,7 +2380,8 @@ class Generator(
         return if (terminal) sb.toString() else sb.append(".toList()").toString()
     }
 
-    private fn appendStage(sb: StringBuilder, stage: Expr.Stage, lambdaText: String, arg: Function<Expr, String>) {
+    private fn appendStage(sb: StringBuilder, stage: Expr.Stage, lambdaText: String, arg: Function<Expr, String>,
+                           nullsDropped: Boolean) {
         val name = stage.name()
         when (name) {
             "limit", "skip" -> sb.append('.').append(name).append('(').append(arg.apply(stage.args().getFirst())).append(')')
@@ -2387,7 +2391,8 @@ class Generator(
             "map" -> {
                 val element = analysis.mapResultTypes().get(stage)
                 val witness = if (element == null) "" else "<" + boxedType(element) + ">"
-                sb.append(".").append(witness).append("map(Nulls.nonNull(").append(lambdaText).append("))")
+                val wrap = if (nullsDropped) "Nulls.nullable(" else "Nulls.nonNull("
+                sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))")
             }
             // naturalOrder makes javac check that the elements can be compared; sorted() would throw.
             "sorted" -> sb.append(".sorted(").append(if (lambdaText.isEmpty()) "java.util.Comparator.naturalOrder()" else lambdaText).append(')')
@@ -2396,9 +2401,33 @@ class Generator(
                 if (dropsNulls(stage)) {
                     sb.insert(0, "Nulls.nonNulls(").append(')')
                 }
+                val kept = keptType(stage)
+                if (kept != null) {
+                    sb.append(".<").append(kept).append(">map(").append(kept).append(".class::cast)")
+                }
             }
             else -> sb.append('.').append(name).append('(').append(lambdaText).append(')')
         }
+    }
+
+    /**
+     * `filter { it is Circle }` keeps only circles, so the elements become `Circle`s, which the next
+     * stages and the list that is built can use as such. Ok and Err have type arguments to keep, so they are left.
+     */
+    private fn keptType(stage: Expr.Stage) -> String? {
+        val lambda = stage.lambda()
+        if (lambda == null || lambda.params().size() > 1 || (lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda))) {
+            return null
+        }
+        val param = if (lambda.params().isEmpty()) "it" else lambda.params().getFirst().name()
+        val body = lambdaExpression(lambda.body())
+        if (body !is Expr.Is || body.negated() || !isName(body.target(), param)) {
+            return null
+        }
+        val tested = body.type()
+        val name = tested.name()
+        val hasArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err")
+        return if (hasArguments) null else boxedType(tested)
     }
 
     /** `filter { it != null }`: Nulls.nonNulls tells NullAway too that the elements are not null. */

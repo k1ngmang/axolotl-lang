@@ -8,5 +8,5 @@ sealed interface Event {
 data class Created(val id: Int, val name: String) : Event
 data class Deleted(val id: Int) : Event
 
-// The `is` test is fine; the pipe still gives a `List<Event>`.
-fn onlyCreated(events: List<Event>) -> List<Created> = events |> filter { it is Created } |> map { it }
+// The `is` tests are fine; a test that is not alone does not narrow, so the pipe gives a `List<Event>`.
+fn onlyCreated(events: List<Event>) -> List<Created> = events |> filter { it is Created || it is Deleted }

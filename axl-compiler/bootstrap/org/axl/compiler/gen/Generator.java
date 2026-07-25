@@ -2114,6 +2114,7 @@ import org.axl.compiler.check.Whens;
         final var sb = new StringBuilder(parenthesized(source, sourceExpr)).append(".stream()");
         var terminal = false;
         var previousLine = startLine(sourceExpr);
+        var index = 0;
         for (final var stage : stages) {
             final var stageBody = stage.lambda();
             final var lambdaText = (stageBody == null ? "" : lambdaCode(stageBody));
@@ -2121,14 +2122,17 @@ import org.axl.compiler.check.Whens;
                 sb.append(Emitter.continued(stage.pos().line(), ""));
                 previousLine = stage.pos().line();
             }
-            appendStage(sb, stage, lambdaText, arg);
+            final var next = (index + 1 < stages.size() ? stages.get(index + 1) : null);
+            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next));
+            index += 1;
             if (Checker.TERMINAL_STAGES.contains(stage.name())) {
                 terminal = true;
             }
         }
         return (terminal ? sb.toString() : sb.append(".toList()").toString());
     }
-    private void appendStage(StringBuilder sb, Expr.Stage stage, String lambdaText, Function<Expr, String> arg) {
+    private void appendStage(StringBuilder sb, Expr.Stage stage, String lambdaText, Function<Expr, String> arg,
+            boolean nullsDropped) {
         final var name = stage.name();
         switch (name) {
             case "limit", "skip" -> {
@@ -2146,7 +2150,8 @@ import org.axl.compiler.check.Whens;
             case "map" -> {
                 final var element = analysis.mapResultTypes().get(stage);
                 final var witness = (element == null ? "" : "<" + boxedType(element) + ">");
-                sb.append(".").append(witness).append("map(Nulls.nonNull(").append(lambdaText).append("))");
+                final var wrap = (nullsDropped ? "Nulls.nullable(" : "Nulls.nonNull(");
+                sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))");
             }
             case "sorted" -> {
                 sb.append(".sorted(").append((lambdaText.isEmpty() ? "java.util.Comparator.naturalOrder()" : lambdaText)).append(')');
@@ -2156,11 +2161,30 @@ import org.axl.compiler.check.Whens;
                 if (dropsNulls(stage)) {
                     sb.insert(0, "Nulls.nonNulls(").append(')');
                 }
+                final var kept = keptType(stage);
+                if (kept != null) {
+                    sb.append(".<").append(kept).append(">map(").append(kept).append(".class::cast)");
+                }
             }
             case null, default -> {
                 sb.append('.').append(name).append('(').append(lambdaText).append(')');
             }
         }
+    }
+    private @Nullable String keptType(Expr.Stage stage) {
+        final var lambda = stage.lambda();
+        if (lambda == null || lambda.params().size() > 1 || (lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda))) {
+            return null;
+        }
+        final var param = (lambda.params().isEmpty() ? "it" : lambda.params().getFirst().name());
+        final var body = lambdaExpression(lambda.body());
+        if (!(body instanceof Expr.Is body$1) || body$1.negated() || !isName(body$1.target(), param)) {
+            return null;
+        }
+        final var tested = body$1.type();
+        final var name = tested.name();
+        final var hasArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err");
+        return (hasArguments ? null : boxedType(tested));
     }
     private boolean dropsNulls(Expr.Stage stage) {
         final var lambda = stage.lambda();

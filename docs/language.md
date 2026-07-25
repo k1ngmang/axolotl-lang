@@ -369,6 +369,11 @@ numbers |> forEach { println(it) }
 | `forEach { }`, `anyMatch { }`, `allMatch { }`, `noneMatch { }`, `count`, `first` | End the pipe; `first` is the first element or `null`. |
 | `mapResult { }` | Maps every element to a `Result`; the first `Err` is returned from the function. |
 
+`filter { it is Circle }` keeps the circles and the elements after it are `Circle`s: `shapes |> filter { it is
+Circle } |> map { it.radius() }` is a `List<Double>`, and `filter { it is Circle }` alone is a `List<Circle>`.
+A `map` that gives null may be followed by `filter { it != null }`, which drops the nulls and gives a list
+without them.
+
 Without an ending stage the result is a `List`. `mapResult` needs a function that returns `Result`
 and the element type of the list it builds: either the lambda calls a function of the same file
 that returns `Result<T, E>`, or the result initializes `val name: List<T> = ...`.

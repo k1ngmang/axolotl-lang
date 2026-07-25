@@ -44,6 +44,9 @@ import org.jspecify.annotations.Nullable;
     // stage must not put nulls into a List<T>.
     @FunctionalInterface public interface NonNullFunction<T extends @Nullable Object, R> { R apply(T value); }
     public static <T extends @Nullable Object, R> Function<T, R> nonNull(NonNullFunction<T, R> f) { return f::apply; }
+    // A `map` whose next stage is `filter { it != null }`: the nulls it produces are dropped there.
+    @FunctionalInterface public interface NullableFunction<T extends @Nullable Object, R> { @Nullable R apply(T value); }
+    public static <T extends @Nullable Object, R> Function<T, @Nullable R> nullable(NullableFunction<T, R> f) { return f::apply; }
     // findFirst throws on a null element; a pipe's `first` gives null for it as for an empty pipe.
     // It takes the stream's iterator, not the stream: the argument then has its type before Java picks
     // an overload for the call around `first`, such as println(char[]) or println(String).

@@ -1,0 +1,26 @@
+package app
+
+import java.util.List
+
+sealed interface Shape {
+    val name: String
+}
+
+data class Circle(val name: String, val radius: Double) : Shape
+data class Square(val name: String, val side: Double) : Shape
+
+data class Member(val name: String, val email: String?)
+
+fn circles(shapes: List<Shape>) -> List<Circle> = shapes |> filter { it is Circle }
+
+fn radii(shapes: List<Shape>) -> List<Double> = shapes |> filter { it is Circle } |> map { it.radius() }
+
+fn emails(members: List<Member>) -> List<String> = members |> map { it.email() } |> filter { it != null }
+
+fn main() {
+    val shapes: List<Shape> = List.of(Circle("a", 1.5), Square("b", 2.0), Circle("c", 2.5))
+    println(circles(shapes).size())
+    println(radii(shapes))
+    val members = List.of(Member("x", "x@e.org"), Member("y", null), Member("z", "z@e.org"))
+    println(emails(members))
+}
