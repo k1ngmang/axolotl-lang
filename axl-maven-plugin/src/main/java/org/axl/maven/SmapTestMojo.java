@@ -6,7 +6,7 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
-/** Adds SMAPs to `target/test-classes`. */
+/** The same for `target/test-classes`. */
 @Mojo(name = "smap-test", defaultPhase = LifecyclePhase.PROCESS_TEST_CLASSES, threadSafe = true)
 public class SmapTestMojo extends AbstractSmapMojo {
 

@@ -7,7 +7,10 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.axl.smap.SmapInjector;
 
-/** Adds a JSR-45 SMAP (stratum `Axolotl`) to classes compiled from generated sources. */
+/**
+ * Rewrites classes compiled from generated sources to report .axl files and lines, and adds a JSR-45
+ * SMAP (stratum `Axolotl`).
+ */
 abstract class AbstractSmapMojo extends AbstractMojo {
 
     @Parameter(property = "axl.smap", defaultValue = "true")
@@ -27,7 +30,7 @@ abstract class AbstractSmapMojo extends AbstractMojo {
         }
         try {
             int changed = SmapInjector.inject(classesDirectory(), generatedDirectory());
-            getLog().info("Added SMAP to " + changed + " class file(s)");
+            getLog().info("Rewrote " + changed + " class file(s) to .axl lines");
         } catch (IOException e) {
             throw new MojoExecutionException("Adding SMAP failed", e);
         }

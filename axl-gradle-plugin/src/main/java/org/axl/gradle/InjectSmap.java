@@ -10,8 +10,8 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.compile.JavaCompile;
 
 /**
- * Runs as the last action of a compile task, so the classes it writes stay outputs of that task
- * and are cached with their SMAP.
+ * Runs as the last action of a compile task, so the classes it rewrites to .axl lines and gives a
+ * SMAP stay outputs of that task and are cached that way.
  */
 final class InjectSmap implements Action<Task> {
 
@@ -32,7 +32,7 @@ final class InjectSmap implements Action<Task> {
         try {
             int changed = SmapInjector.inject(compile.getDestinationDirectory().get().getAsFile().toPath(),
                     generatedDir.get().getAsFile().toPath());
-            task.getLogger().info("Added SMAP to {} class file(s)", changed);
+            task.getLogger().info("Rewrote {} class file(s) to .axl lines", changed);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

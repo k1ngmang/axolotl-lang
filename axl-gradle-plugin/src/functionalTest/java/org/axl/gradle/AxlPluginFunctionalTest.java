@@ -300,6 +300,28 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void exceptionsOfABuiltProgramNameAxlFilesAndLines() throws IOException {
+        Path main = project.resolve("app/src/main/axl/app/Main.axl");
+        Files.writeString(main, "package app\n\nfn parse(text: String) -> Int = Integer.parseInt(text)\n\n"
+                + "fn main() {\n    println(\"start\")\n    println(parse(\"x\"))\n}\n");
+        BuildResult result = gradle(":app:run").buildAndFail();
+        assertTrue(result.getOutput().contains("at app.Main.parse(Main.axl:3)"), result.getOutput());
+        assertTrue(result.getOutput().contains("at app.Main.main(Main.axl:7)"), result.getOutput());
+        assertTrue(!result.getOutput().contains("Main.java:"), result.getOutput());
+    }
+
+    @Test
+    void withoutSmapExceptionsKeepGeneratedJavaLines() throws IOException {
+        Path build = project.resolve("app/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + "\naxl {\n    smap = false\n}\n");
+        Files.writeString(project.resolve("app/src/main/axl/app/Main.axl"),
+                "package app\n\nfn main() {\n    println(Integer.parseInt(\"x\"))\n}\n");
+        BuildResult result = gradle(":app:run").buildAndFail();
+        assertTrue(result.getOutput().contains("at app.Main.main(Main.java:"), result.getOutput());
+        assertTrue(!result.getOutput().contains("Main.axl:"), result.getOutput());
+    }
+
+    @Test
     void writesLanguageServerConfig() throws IOException {
         gradle(":core:axlLspConfig").build();
         String json = Files.readString(project.resolve("core/build/axl/axl.json"));

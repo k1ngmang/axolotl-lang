@@ -17,7 +17,10 @@ public abstract class AxlExtension {
     /** Expands statement-level `?:` without a lambda. */
     public abstract Property<Boolean> getInlineElvis();
 
-    /** Adds a JSR-45 SMAP to compiled classes so that debuggers show .axl lines. */
+    /**
+     * Makes compiled classes name the .axl file and its lines in stack traces and debuggers, and adds
+     * a JSR-45 SMAP. When off, the classes keep the lines of the generated .java files.
+     */
     public abstract Property<Boolean> getSmap();
 
     /** Treats values from Java code without nullness annotations as nullable. */

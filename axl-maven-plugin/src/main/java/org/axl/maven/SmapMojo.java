@@ -6,7 +6,7 @@ import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 
-/** Adds SMAPs to `target/classes`, so debuggers and stack traces can show .axl lines. */
+/** Makes the classes in `target/classes` report .axl files and lines in stack traces and debuggers. */
 @Mojo(name = "smap", defaultPhase = LifecyclePhase.PROCESS_CLASSES, threadSafe = true)
 public class SmapMojo extends AbstractSmapMojo {
 

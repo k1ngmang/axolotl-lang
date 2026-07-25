@@ -1,0 +1,5 @@
+package app
+
+fn number(text: String) -> Int {
+    return Integer.parseInt(text)
+}
