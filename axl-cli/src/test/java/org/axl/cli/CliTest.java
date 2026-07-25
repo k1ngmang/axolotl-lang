@@ -16,6 +16,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import javax.tools.ToolProvider;
+import org.axl.compiler.LineMap;
+import org.axl.javac.RuntimeClasspath;
+import org.axl.smap.Smap;
+import org.axl.smap.SmapInjector;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
@@ -234,15 +238,78 @@ class CliTest {
     }
 
     @Test
-    void retraceRewritesFramesFromClassesWithSmap(@TempDir Path tmp) throws Exception {
+    void buildMakesPlainStackTracesNameAxlFilesAndLines(@TempDir Path tmp) throws Exception {
+        Path src = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(src.resolve("Main.axl"),
+                "package app\n\nfn parse(s: String) -> Int = Integer.parseInt(s)\n\nfn main() {\n    println(\"start\")\n    println(parse(\"x\"))\n}\n");
+        assertEquals(0, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("classes").toString(),
+                "-s", tmp.resolve("gen").toString()), err.toString());
+
+        String trace = runJava(tmp.resolve("classes"), "app.Main");
+        assertTrue(trace.contains("java.lang.NumberFormatException: For input string: \"x\""), trace);
+        assertTrue(trace.contains("at app.Main.parse(Main.axl:3)"), trace);
+        assertTrue(trace.contains("at app.Main.main(Main.axl:7)"), trace);
+        assertTrue(!trace.contains("Main.java"), trace);
+    }
+
+    @Test
+    void buildWithoutSmapKeepsGeneratedJavaLines(@TempDir Path tmp) throws Exception {
+        Path src = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(src.resolve("Main.axl"),
+                "package app\n\nfn main() {\n    println(Integer.parseInt(\"x\"))\n}\n");
+        assertEquals(0, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("classes").toString(),
+                "-s", tmp.resolve("gen").toString(), "--no-smap"), err.toString());
+
+        String trace = runJava(tmp.resolve("classes"), "app.Main");
+        assertTrue(trace.contains("at app.Main.main(Main.java:"), trace);
+        assertTrue(!trace.contains("Main.axl"), trace);
+
+        // Such a trace is what `axl retrace` is for.
+        Path file = Files.writeString(tmp.resolve("trace.txt"), trace);
+        out.reset();
+        assertEquals(0, axl("retrace", "--map-dir", tmp.resolve("gen").toString(), file.toString()));
+        assertTrue(out.toString(StandardCharsets.UTF_8).contains("at app.Main.main(Main.axl:4)"), out.toString());
+    }
+
+    @Test
+    void retraceLeavesTracesThatNameAxlFilesAsTheyAre(@TempDir Path tmp) throws Exception {
         assertEquals(0, axl("build", CASES.resolve("hello/src").toString(), "-d", tmp.resolve("classes").toString(),
                 "-s", tmp.resolve("gen").toString()));
+        String trace = "java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.axl:9)\n";
+        Path file = Files.writeString(tmp.resolve("trace.txt"), trace);
+        out.reset();
+        assertEquals(0, axl("retrace", "--map-dir", tmp.resolve("gen").toString(), "--classpath",
+                tmp.resolve("classes").toString(), file.toString()));
+        assertEquals(trace, out.toString(StandardCharsets.UTF_8));
+    }
+
+    @Test
+    void retraceRewritesFramesFromClassesWithAnOlderSmap(@TempDir Path tmp) throws Exception {
+        assertEquals(0, axl("build", CASES.resolve("hello/src").toString(), "-d", tmp.resolve("classes").toString(),
+                "-s", tmp.resolve("gen").toString(), "--no-smap"));
+        // What earlier versions of the build added: the SMAP only, with the Java lines kept.
+        LineMap lineMap = LineMap.fromJson(Files.readString(tmp.resolve("gen/util/Parse.axlmap")));
+        Path parse = tmp.resolve("classes/util/Parse.class");
+        Files.write(parse, SmapInjector.withSmap(Files.readAllBytes(parse), Smap.of(lineMap, "Parse.java").format()));
         Path trace = tmp.resolve("trace.txt");
         Files.writeString(trace, "java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.java:15)\n");
         out.reset();
         assertEquals(0, axl("retrace", "--classpath", tmp.resolve("classes").toString(), trace.toString()));
         assertEquals("java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.axl:9)\n",
                 out.toString(StandardCharsets.UTF_8));
+    }
+
+    /** Runs a class in its own JVM, as `java -cp` would, and returns what it printed to standard error. */
+    private static String runJava(Path classes, String mainClass) throws Exception {
+        String classpath = classes + File.pathSeparator + RuntimeClasspath.entries().getFirst();
+        Process process = new ProcessBuilder(Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+                "-cp", classpath, mainClass)
+                .redirectErrorStream(false)
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .start();
+        String stderr = new String(process.getErrorStream().readAllBytes(), StandardCharsets.UTF_8);
+        assertEquals(1, process.waitFor(), stderr);
+        return stderr;
     }
 
     @Test

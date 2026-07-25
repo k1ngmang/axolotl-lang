@@ -147,8 +147,8 @@ public final class SmapInjector {
         return writer.toByteArray();
     }
 
-    /** Adds only the SMAP; the line numbers stay as they are. For classes of older builds in tests. */
-    static byte[] withSmap(byte[] classBytes, String smap) {
+    /** Adds only the SMAP and keeps SourceFile and line numbers: what earlier versions did. */
+    public static byte[] withSmap(byte[] classBytes, String smap) {
         ClassReader reader = new ClassReader(classBytes);
         ClassWriter writer = new ClassWriter(reader, 0);
         reader.accept(new ClassVisitor(Opcodes.ASM9, writer) {

@@ -37,7 +37,9 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
     boolean inlineElvis;
 
-    @Option(names = "--no-smap", description = "Do not add SMAP line information for debuggers to the classes.")
+    @Option(names = "--no-smap", description = {
+            "Keep the line numbers of the generated .java files in the classes.",
+            "By default the classes name the .axl file and its lines in stack traces and debuggers."})
     boolean noSmap;
 
     @Override
