@@ -24,8 +24,10 @@ import org.jetbrains.annotations.NotNull;
 
 /**
  * Maps between .axl lines and bytecode through the JSR-45 stratum `Axolotl` that the build adds to
- * generated classes. Stepping stays on an .axl line until the debugger reaches another one, because
- * the debugger compares positions this manager returns.
+ * generated classes. The class files already carry .axl lines, so the stratum maps each line to
+ * itself; asking for it, rather than for the default stratum, keeps classes built by older versions
+ * (which have generated Java lines) working. Stepping stays on an .axl line until the debugger
+ * reaches another one, because the debugger compares positions this manager returns.
  */
 final class AxlPositionManager implements PositionManager {
 
@@ -37,24 +39,33 @@ final class AxlPositionManager implements PositionManager {
         this.process = process;
     }
 
+    /** A place in an .axl file; the path is the one in the SMAP, e.g. `app/Main.axl`. */
+    record AxlLocation(String path, int line) {}
+
     @Override
     public SourcePosition getSourcePosition(Location location) throws NoDataException {
+        AxlLocation axl = axlLocation(location);
+        String className = location.declaringType().name();
+        PsiFile file = ReadAction.compute(() -> findFile(axl.path(), className));
+        if (file == null) {
+            throw NoDataException.INSTANCE;
+        }
+        return SourcePosition.createFromLine(file, axl.line() - 1);
+    }
+
+    static AxlLocation axlLocation(Location location) throws NoDataException {
         if (location == null || !location.declaringType().availableStrata().contains(STRATUM)) {
             throw NoDataException.INSTANCE;
         }
         int line = location.lineNumber(STRATUM);
-        String path;
         try {
-            path = location.sourcePath(STRATUM);
+            if (line <= 0) {
+                throw NoDataException.INSTANCE;
+            }
+            return new AxlLocation(location.sourcePath(STRATUM), line);
         } catch (AbsentInformationException e) {
             throw NoDataException.INSTANCE;
         }
-        String className = location.declaringType().name();
-        PsiFile file = ReadAction.compute(() -> findFile(path, className));
-        if (file == null || line <= 0) {
-            throw NoDataException.INSTANCE;
-        }
-        return SourcePosition.createFromLine(file, line - 1);
     }
 
     /**
