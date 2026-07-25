@@ -1,6 +1,8 @@
 package org.axl.smap;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.axl.compiler.LineMap;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,30 @@ class SmapTest {
                 5#1:7
                 *E
                 """, smap.format());
+    }
+
+    @Test
+    void rewrittenSmapMapsAxlLinesToThemselves() {
+        Smap smap = Smap.rewritten(new LineMap("app/Main.axl", new int[] {0, 1, 1, 0, 4, 5, 6, 9, 0}));
+        assertEquals("""
+                SMAP
+                Main.axl
+                Java
+                *S Axolotl
+                *F
+                + 1 Main.axl
+                app/Main.axl
+                *L
+                1#1:1
+                4#1,3:4
+                9#1:9
+                *E
+                """, smap.format());
+        assertTrue(smap.isRewritten());
+        assertEquals(smap, Smap.parse(smap.format()));
+        assertEquals(5, Smap.parse(smap.format()).axlLine(5));
+        assertEquals(0, Smap.parse(smap.format()).axlLine(2));
+        assertFalse(Smap.of(new LineMap("app/Main.axl", new int[] {1}), "Main.java").isRewritten());
     }
 
     @Test

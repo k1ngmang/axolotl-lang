@@ -6,9 +6,10 @@ import org.axl.compiler.LineMap;
 
 /**
  * A JSR-45 source map for one generated class with the stratum `Axolotl`. The default stratum stays
- * `Java`, so tools without Axolotl support keep showing the generated .java lines.
+ * `Java`, which is whatever the class file itself says: the generated .java lines of a class as javac
+ * wrote it, or the .axl lines of a class whose line numbers were {@linkplain SmapInjector rewritten}.
  *
- * @param javaLineToAxl .java line to .axl line
+ * @param javaLineToAxl line in the class file to .axl line
  */
 public record Smap(String javaFileName, String axlFileName, String axlPath, Map<Integer, Integer> javaLineToAxl) {
 
@@ -26,12 +27,37 @@ public record Smap(String javaFileName, String axlFileName, String axlPath, Map<
         return new Smap(javaFileName, path.substring(path.lastIndexOf('/') + 1), path, lines);
     }
 
+    /**
+     * The SMAP of a class whose SourceFile and LineNumberTable already name the .axl file: the output
+     * file is the .axl file and the stratum maps every mapped .axl line to itself.
+     */
+    public static Smap rewritten(LineMap lineMap) {
+        Map<Integer, Integer> lines = new HashMap<>();
+        for (int javaLine = 1; javaLine <= lineMap.javaLineCount(); javaLine++) {
+            int axlLine = lineMap.axlLine(javaLine);
+            if (axlLine > 0) {
+                lines.put(axlLine, axlLine);
+            }
+        }
+        String path = lineMap.source();
+        String name = path.substring(path.lastIndexOf('/') + 1);
+        return new Smap(name, name, path, lines);
+    }
+
+    /** True for the SMAP of a class whose line numbers are .axl lines, see {@link #rewritten}. */
+    public boolean isRewritten() {
+        return javaFileName.equals(axlFileName);
+    }
+
     /** The .axl line of a .java line, or 0. */
     public int axlLine(int javaLine) {
         return javaLineToAxl.getOrDefault(javaLine, 0);
     }
 
-    /** Consecutive .java lines from the same .axl line become one `*L` entry `axl#1:java,count`. */
+    /**
+     * Consecutive .java lines from the same .axl line become one `*L` entry `axl#1:java,count`;
+     * consecutive .java lines from consecutive .axl lines become `axl#1,count:java`.
+     */
     public String format() {
         StringBuilder sb = new StringBuilder();
         sb.append("SMAP\n").append(javaFileName).append("\nJava\n*S ").append(STRATUM).append('\n');
@@ -49,12 +75,20 @@ public record Smap(String javaFileName, String axlFileName, String axlPath, Map<
             while (axlLine(javaLine + count) == axl) {
                 count++;
             }
-            sb.append(axl).append("#1:").append(javaLine);
+            int run = 1;
+            while (count == 1 && axlLine(javaLine + run) == axl + run) {
+                run++;
+            }
+            sb.append(axl).append("#1");
+            if (run > 1) {
+                sb.append(',').append(run);
+            }
+            sb.append(':').append(javaLine);
             if (count > 1) {
                 sb.append(',').append(count);
             }
             sb.append('\n');
-            javaLine += count;
+            javaLine += Math.max(count, run);
         }
         return sb.append("*E\n").toString();
     }

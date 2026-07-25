@@ -22,7 +22,10 @@ import java.util.zip.ZipException;
 import java.util.zip.ZipFile;
 import org.axl.compiler.LineMap;
 
-/** Rewrites stack frames of generated classes from .java lines to .axl lines. */
+/**
+ * Rewrites stack frames of generated classes from .java lines to .axl lines. Frames that already
+ * name an .axl file are never touched, and neither are classes whose line numbers are .axl lines.
+ */
 public final class Retracer {
 
     /** Finds the SMAP of a top-level class by its binary name, or returns null. */
@@ -169,7 +172,9 @@ public final class Retracer {
         }
     }
 
-    private static Smap parse(String smap) {
-        return smap == null ? null : Smap.parse(smap);
+    /** The SMAP of a class built without the rewrite; the lines of the others are .axl lines already. */
+    private static Smap parse(String text) {
+        Smap smap = text == null ? null : Smap.parse(text);
+        return smap == null || smap.isRewritten() ? null : smap;
     }
 }

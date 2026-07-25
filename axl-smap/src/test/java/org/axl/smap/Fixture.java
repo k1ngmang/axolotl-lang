@@ -3,6 +3,7 @@ package org.axl.smap;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.axl.compiler.LineMap;
 import org.axl.javac.AxlBuild;
 
 /** Compiles a small program and adds SMAPs, as the build plugins do. */
@@ -51,5 +52,15 @@ final class Fixture {
 
     int inject() throws IOException {
         return SmapInjector.inject(classes, generated);
+    }
+
+    /** Adds a SMAP the way earlier versions did, with the generated Java lines in the class. */
+    void injectSmapOnly() throws IOException {
+        LineMap lineMap = LineMap.fromJson(Files.readString(generated.resolve("app/Main.axlmap")));
+        String smap = Smap.of(lineMap, "Main.java").format();
+        for (String name : new String[] {"app/Main.class", "app/Main$Joiner.class"}) {
+            Path classFile = classes.resolve(name);
+            Files.write(classFile, SmapInjector.withSmap(Files.readAllBytes(classFile), smap));
+        }
     }
 }

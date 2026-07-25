@@ -35,7 +35,7 @@ class RetracerTest {
     @Test
     void retracesThrowablesUsingSmapsOfLoadedClasses(@TempDir Path tmp) throws Exception {
         Fixture fixture = new Fixture(tmp);
-        fixture.inject();
+        fixture.injectSmapOnly();
         try (var loader = new URLClassLoader(new URL[] {fixture.classes.toUri().toURL()}, getClass().getClassLoader())) {
             Throwable thrown = null;
             try {
@@ -48,6 +48,36 @@ class RetracerTest {
                     .filter(e -> e.getClassName().equals("app.Main")).findFirst().orElseThrow();
             assertEquals("Main.axl", frame.getFileName());
             assertEquals(3, frame.getLineNumber());
+        }
+    }
+
+    @Test
+    void leavesTracesOfRewrittenClassesAlone(@TempDir Path tmp) throws Exception {
+        Fixture fixture = new Fixture(tmp);
+        fixture.inject();
+        String trace = "\tat app.Main.parse(Main.axl:3)\n\tat app.Main.main(Main.axl:15)\n";
+        assertEquals(trace, Retracer.of(List.of(fixture.generated), List.of(fixture.classes)).retrace(trace));
+
+        // A .java line of a class that has .axl lines cannot be mapped back by its SMAP.
+        String old = "\tat app.Main.parse(Main.java:3)\n";
+        assertEquals(old, Retracer.of(List.of(), List.of(fixture.classes)).retrace(old));
+    }
+
+    @Test
+    void doesNotRewriteFramesOfRewrittenClassesLoadedByAClassLoader(@TempDir Path tmp) throws Exception {
+        Fixture fixture = new Fixture(tmp);
+        fixture.inject();
+        try (var loader = new URLClassLoader(new URL[] {fixture.classes.toUri().toURL()}, getClass().getClassLoader())) {
+            Throwable thrown = null;
+            try {
+                loader.loadClass("app.Main").getMethod("parse", String.class).invoke(null, "x");
+            } catch (InvocationTargetException e) {
+                thrown = e.getCause();
+            }
+            String before = Arrays.toString(thrown.getStackTrace());
+            Retracer.of(loader).retrace(thrown);
+            assertEquals(before, Arrays.toString(thrown.getStackTrace()));
+            assertTrue(before.contains("Main.axl:3"), before);
         }
     }
 

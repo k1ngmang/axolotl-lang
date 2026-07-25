@@ -25,7 +25,7 @@ import org.axl.javac.RuntimeClasspath;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** A debugger sees the Axolotl stratum and can stop at an .axl line. */
+/** A debugger sees the Axolotl stratum and can stop at an .axl line; one without it sees the same line. */
 class JdiTest {
 
     @Test
@@ -86,7 +86,11 @@ class JdiTest {
             }
             assertEquals(axlLine, stoppedAt.lineNumber("Axolotl"));
             assertEquals("Main.axl", stoppedAt.sourceName("Axolotl"));
-            assertEquals("Main.java", stoppedAt.sourceName("Java"));
+            // A debugger that knows nothing of Axolotl sees the same file and line.
+            assertEquals("Main.axl", stoppedAt.sourceName("Java"));
+            assertEquals("Main.axl", stoppedAt.sourceName());
+            assertEquals(axlLine, stoppedAt.lineNumber("Java"));
+            assertEquals(axlLine, stoppedAt.lineNumber());
         } finally {
             vm.process().destroy();
         }
