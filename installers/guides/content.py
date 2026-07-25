@@ -270,8 +270,8 @@ def commands(t, p):
                                         "проверка; её же вызывают редакторы.")],
             ["`axl build -d <dir> <src>`", t("Translates and compiles a source directory into class files.",
                                              "Переводит и компилирует каталог исходников в class-файлы.")],
-            ["`axl retrace [file]`", t("Rewrites the `.java` lines of a stack trace to `.axl` lines.",
-                                       "Заменяет в стеке вызовов строки `.java` на строки `.axl`.")],
+            ["`axl retrace [file]`", t("Rewrites the `.java` lines of an old stack trace to `.axl` lines.",
+                                       "Заменяет в старом стеке вызовов строки `.java` на строки `.axl`.")],
             ["`axl setup`", t("Installs the libraries and plugins into the local Maven repository.",
                               "Устанавливает библиотеки и плагины в локальный Maven-репозиторий.")],
             ["`axl help [command]`", t("Describes the commands.", "Описывает команды.")],
@@ -295,8 +295,8 @@ def commands(t, p):
                "Отключает Error Prone и NullAway: быстрее, но null не проверяется.")],
             ["`--inline-elvis`", "run, check, build",
              t("Expands `?:` at statement level without a lambda.", "Раскрывает `?:` в операторах без лямбды.")],
-            ["`--no-smap`", "build", t("Leaves out the line table for debuggers.",
-                                       "Не добавляет таблицу строк для отладчиков.")],
+            ["`--no-smap`", "build", t("Keeps the line numbers of the generated `.java` files in the classes.",
+                                       "Оставляет в классах номера строк сгенерированных `.java`-файлов.")],
             ["`-m`, `--map-dir`", "retrace", t("A directory with generated `.java` and `.axlmap` files; repeatable.",
                                                "Каталог со сгенерированными `.java` и `.axlmap`; можно повторять.")],
             ["`--repository`", "setup", t("The local Maven repository to install into.",
@@ -359,23 +359,25 @@ def compiled(t, system, v, p):
 
 
 def stack_traces(t, p):
-    trace_java = ("Exception in thread \"main\" java.lang.IndexOutOfBoundsException: Index: 5 Size: 1\n"
-                  "    ...\n    at app.Main.first(Main.java:9)\n    at app.Main.main(Main.java:12)")
-    trace_axl = "    at app.Main.first(Main.axl:5)\n    at app.Main.main(Main.axl:8)"
-    pipe = f'java -cp "{p.classes}{p.sep}{p.runtime_var}" app.Main 2>&1 | axl retrace -cp {p.classes}'
+    trace_axl = ("Exception in thread \"main\" java.lang.IndexOutOfBoundsException: Index: 5 Size: 1\n"
+                 "    ...\n    at app.Main.first(Main.axl:5)\n    at app.Main.main(Main.axl:8)")
+    trace_java = "    at app.Main.first(Main.java:9)\n    at app.Main.main(Main.java:12)"
+    trace_frames = "    at app.Main.first(Main.axl:5)\n    at app.Main.main(Main.axl:8)"
     return [
-        ("h1", t("9. Stack traces: axl retrace", "9. Стек вызовов: axl retrace")),
-        ("p", t("`axl run` already prints `.axl` lines. A program started with `java` prints the lines of the "
-                "generated Java:",
-                "`axl run` сразу печатает строки `.axl`. Программа, запущенная через `java`, печатает строки "
-                "сгенерированного Java:")),
+        ("h1", t("9. Stack traces", "9. Стек вызовов")),
+        ("p", t("Classes built by `axl build` name the `.axl` file and line themselves, so a program started with "
+                "`java` prints them in every stack trace and log:",
+                "Классы, собранные `axl build`, сами называют файл `.axl` и строку, поэтому программа, запущенная "
+                "через `java`, печатает их в каждом стеке вызовов и логе:")),
+        ("code", trace_axl),
+        ("p", t("`axl retrace` is for traces that still name the generated Java, such as old logs or classes built "
+                "with `--no-smap`. It reads a trace from a file or from standard input and points it at the `.axl` "
+                f"lines using the `.axlmap` files (`-m {p.gen}`):",
+                "`axl retrace` нужен для стеков, где ещё указан сгенерированный Java: старых логов или классов, "
+                "собранных с `--no-smap`. Он читает стек из файла или со стандартного ввода и переводит его на "
+                f"строки `.axl` по файлам `.axlmap` (`-m {p.gen}`):")),
         ("code", trace_java),
-        ("p", t("`axl retrace` reads such a trace from a file or from standard input and points it at the `.axl` "
-                "lines, using the line table in the classes (`-cp`) or the `.axlmap` files (`-m`):",
-                "`axl retrace` читает такой стек из файла или со стандартного ввода и переводит его на строки "
-                "`.axl` по таблице строк в классах (`-cp`) или по файлам `.axlmap` (`-m`):")),
-        ("code", p.cmd(f"axl retrace -cp {p.classes} trace.txt") + "\n" + trace_axl),
-        ("code", p.cmd(pipe)),
+        ("code", p.cmd(f"axl retrace -m {p.gen} trace.txt") + "\n" + trace_frames),
     ]
 
 

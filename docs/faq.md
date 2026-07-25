@@ -40,9 +40,10 @@ compiler arguments. Please report messages that still talk about generated names
 
 ## How do I debug Axolotl code?
 
-Classes carry a JSR-45 SMAP, so IntelliJ IDEA and any JDI debugger stop at `.axl` lines. Stack
-traces of failing tests and of `axl run` show `.axl` lines; `axl retrace` rewrites any other trace.
-See [debugging](debugging.md).
+Compiled classes report the `.axl` file and line, so stack traces, logs and any debugger show
+`Main.axl:12`, and a JSR-45 SMAP lets IntelliJ IDEA and JDI debuggers stop at `.axl` lines. Old
+traces that still name generated `.java` files can be rewritten with `axl retrace`. See
+[debugging](debugging.md).
 
 ## Is there a runtime cost?
 

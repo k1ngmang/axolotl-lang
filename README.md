@@ -51,7 +51,7 @@ and the archetype are Maven projects, installed with `./mvnw install` as
 | `axl-runtime` | `Result`, `Ok`, `Err`, `Nulls`: the only runtime dependency. |
 | `axl-compiler` | Parser, checks and Java generator. |
 | `axl-compiler-javac` | Compilation with javac, Error Prone and NullAway; the `AxlDiagnostics` javac plugin. |
-| `axl-smap` | JSR-45 SMAPs for debuggers and stack trace retracing. |
+| `axl-smap` | Makes classes report `.axl` files and lines; JSR-45 SMAPs for debuggers and stack trace retracing. |
 | `axl-cli` | The `axl` command. |
 | `axl-gradle-plugin` | Gradle plugin `org.axl.lang`. |
 | `axl-maven-plugin` | Maven plugin and the `axl-archetype-quickstart` archetype. |

@@ -41,11 +41,12 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
   with `java-library`). In a multi-project build every project depends on the same artifact.
 - Source sets other than `main`, such as `test`, custom source sets and JVM test suites, get the same
   `axl` directory (`src/<name>/axl`), a `generate<Name>Axl` task, the runtime and, with `smap`,
-  `org.axl:axl-smap` in `runtimeOnly` for `.axl` lines in stack traces of failing tests.
+  `org.axl:axl-smap` in `runtimeOnly`, which rewrites stack traces of tests against classes built
+  by older versions.
 - Applies `net.ltgt.errorprone` and turns on NullAway in JSpecify mode for every `JavaCompile`.
 - Reports errors of `compileJava` in generated files at their `.axl` file and line.
-- Adds a JSR-45 SMAP to compiled classes and rewrites stack traces of failing tests to
-  `.axl` lines (see [debugging](debugging.md)).
+- Rewrites compiled classes to report the `.axl` file and lines in every stack trace, and adds a
+  JSR-45 SMAP for debuggers (see [debugging](debugging.md)).
 - Registers `axlLspConfig`, which writes `build/axl/axl.json` for [the language server](lsp.md):
   a module for every source set, with its `.axl` and Java source directories, its compile
   classpath and `strictNull`. A source set that compiles against another, as `test` does against
@@ -62,7 +63,7 @@ axl {
     nullAway = true      // Error Prone + NullAway on compileJava
     javaRelease = 21     // --release, unless the task sets its own
     inlineElvis = false  // expand statement-level ?: without a lambda
-    smap = true          // add a JSR-45 SMAP to classes (debuggers show .axl lines)
+    smap = true          // classes report .axl files and lines (stack traces, debuggers); false keeps the Java lines
     strictNull = false   // treat values from unannotated Java code as nullable
 }
 ```

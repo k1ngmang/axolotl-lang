@@ -17,4 +17,7 @@ debugger can stop on an `.axl` line. This scenario checks the IDE side by hand.
 9. The Variables view shows `raw`; locals created by the translator appear as `Axolotl internal $t1`.
 10. Stop on a line after `val slug = try title(raw)` and check that `slug` shows its value.
 
+11. Make `Main.axl` throw (`Integer.parseInt("x")`) and run it with *Run 'Main'*. The console
+    prints `at app.Main.main(Main.axl:N)` and the link opens `Main.axl` at line N.
+
 Expected result: every stop is shown in an `.axl` file at the line of the breakpoint or step.
