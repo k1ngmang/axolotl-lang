@@ -335,6 +335,8 @@ fn doubled(s: String) -> Result<Int, String> {
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
   `Result`. The error types must match; convert them first with `mapErr`:
   `try parse(s).mapErr({ code -> "error " + code })`.
+- After `if (r is Err) { ...; return }` the `r` is an `Ok` and `r.value()` reads its value; after `if (r is Ok) { return }`
+  it is an `Err` and `r.error()` reads the error. (`r` must be a `val` or a parameter.)
 - A `Result` also has `isOk()`, `isErr()`, `map({ v -> ... })`, which changes the value of an `Ok`, and
   `getOrElse(fallback)`.
 - `try` binds like a unary operator and works anywhere in an expression:

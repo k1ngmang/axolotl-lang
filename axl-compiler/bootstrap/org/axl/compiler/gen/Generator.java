@@ -632,12 +632,26 @@ import org.axl.compiler.check.Whens;
         em.line(ifStmt.then().end().line(), "}");
         smart = union(smart, whenFalse(b.right()));
     }
+    private Map<String, String> otherCase(Expr condition) {
+        final var test = withoutParens(condition);
+        if (!(test instanceof Expr.Is test$1) || test$1.negated() || !(test$1.target() instanceof Expr.Name)) {
+            return Map.of();
+        }
+        final var target = test$1.target();
+        final var accessor = resultAccessor(test$1.type());
+        if (!(target instanceof Expr.Name target$2) || accessor == null || !neverChanges(target$2)) {
+            return Map.of();
+        }
+        final var remaining = (accessor.equals("value") ? "error" : "value");
+        return Map.of(target$2.name(), "!" + remaining + ":" + bareName(target$2.name()));
+    }
     private Map<String, String> narrowedAfter(Stmt.If ifStmt) {
         final var thenExits = exits(ifStmt.then());
         final var elseBranch = ifStmt.elseBranch();
         final var elseExits = elseBranch != null && exits(elseBranch);
         if (thenExits && !elseExits) {
-            return whenFalse(ifStmt.condition());
+            final var other = otherCase(ifStmt.condition());
+            return (other.isEmpty() ? whenFalse(ifStmt.condition()) : other);
         }
         if (elseExits && !thenExits) {
             return whenTrue(ifStmt.condition());
@@ -1159,7 +1173,7 @@ import org.axl.compiler.check.Whens;
     private String nameCode(Expr.Name n, boolean inLambda) {
         final var known = smart.get(n.name());
         if (known != null) {
-            return (known.startsWith("@") ? known.substring(known.lastIndexOf(":") + 1) : known);
+            return (known.startsWith("@") || known.startsWith("!") ? known.substring(known.lastIndexOf(":") + 1) : known);
         }
         if (inLambda && analysis.mutableRefs().contains(n)) {
             return copies.getOrDefault(n.name(), n.name());
@@ -1442,7 +1456,7 @@ import org.axl.compiler.check.Whens;
         if (known == null) {
             return name;
         }
-        return (known.startsWith("@") ? known.substring(known.lastIndexOf(":") + 1) : known);
+        return (known.startsWith("@") || known.startsWith("!") ? known.substring(known.lastIndexOf(":") + 1) : known);
     }
     private Chains.Chain deconstructed(Chains.Chain chain) {
         final var base = chain.base();
@@ -1451,7 +1465,7 @@ import org.axl.compiler.check.Whens;
             return chain;
         }
         final var known = smart.get(base$1.name());
-        if (known == null || !known.startsWith("@")) {
+        if (known == null || !(known.startsWith("@") || known.startsWith("!"))) {
             return chain;
         }
         final var first = steps.getFirst();
@@ -1459,6 +1473,10 @@ import org.axl.compiler.check.Whens;
         final var args = first.args();
         if (!first.name().equals(accessor) || args == null || !args.isEmpty() || first.safe()) {
             return chain;
+        }
+        if (known.startsWith("!")) {
+            final var read = (accessor.equals("value") ? "Result.unwrap(" : "Result.unwrapError(");
+            return new Chains.Chain(new Expr.Name(base$1.pos(), read + known.substring(known.lastIndexOf(":") + 1) + ")"), steps.subList(1, steps.size()));
         }
         final var variable = new Expr.Name(base$1.pos(), known.substring(known.indexOf(":") + 1, known.lastIndexOf(":")));
         return new Chains.Chain(variable, steps.subList(1, steps.size()));

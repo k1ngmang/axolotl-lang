@@ -1,0 +1,37 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "not a number: " + s
+
+fn twice(s: String) -> String {
+    val r = parse(s)
+    if (r is Err) {
+        return "error " + r.error()
+    }
+    return "double " + (r.value() * 2)
+}
+
+fn describe(s: String) -> String {
+    val r = parse(s)
+    if (r is Ok) {
+        return "fine"
+    }
+    return r.error().toUpperCase()
+}
+
+fn show(s: String) {
+    val r = parse(s)
+    if (r is Err) {
+        println("skip " + r.error())
+        return
+    }
+    println(r.value() + 1)
+}
+
+fn main() {
+    println(twice("21"))
+    println(twice("x"))
+    println(describe("5"))
+    println(describe("y"))
+    show("9")
+    show("z")
+}

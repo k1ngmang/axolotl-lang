@@ -681,12 +681,32 @@ class Generator(
     }
 
     /** After `if (x !is T) { return }` the names stay narrowed, as Java introduces them. */
+    /**
+     * After `if (r is Err) { ...; return }` a Result can only be an Ok, and after `r is Ok` an Err:
+     * `r.value()` then reads the value through the runtime, which javac types from `r`. The entry is
+     * `!value:r` or `!error:r`.
+     */
+    private fn otherCase(condition: Expr) -> Map<String, String> {
+        val test = withoutParens(condition)
+        if (test !is Expr.Is || test.negated() || test.target() !is Expr.Name) {
+            return Map.of()
+        }
+        val target = test.target()
+        val accessor = resultAccessor(test.type())
+        if (target !is Expr.Name || accessor == null || !neverChanges(target)) {
+            return Map.of()
+        }
+        val remaining = if (accessor.equals("value")) "error" else "value"
+        return Map.of(target.name(), "!" + remaining + ":" + bareName(target.name()))
+    }
+
     private fn narrowedAfter(ifStmt: Stmt.If) -> Map<String, String> {
         val thenExits = exits(ifStmt.then())
         val elseBranch = ifStmt.elseBranch()
         val elseExits = elseBranch != null && exits(elseBranch)
         if (thenExits && !elseExits) {
-            return whenFalse(ifStmt.condition())
+            val other = otherCase(ifStmt.condition())
+            return if (other.isEmpty()) whenFalse(ifStmt.condition()) else other
         }
         if (elseExits && !thenExits) {
             return whenTrue(ifStmt.condition())
@@ -1276,7 +1296,7 @@ class Generator(
         val known = smart.get(n.name())
         if (known != null) {
             // A taken-apart `Ok` or `Err` is still the `Result` where it is used whole.
-            return if (known.startsWith("@")) known.substring(known.lastIndexOf(":") + 1) else known
+            return if (known.startsWith("@") || known.startsWith("!")) known.substring(known.lastIndexOf(":") + 1) else known
         }
         if (inLambda && analysis.mutableRefs().contains(n)) {
             return copies.getOrDefault(n.name(), n.name())
@@ -1639,7 +1659,7 @@ class Generator(
         if (known == null) {
             return name
         }
-        return if (known.startsWith("@")) known.substring(known.lastIndexOf(":") + 1) else known
+        return if (known.startsWith("@") || known.startsWith("!")) known.substring(known.lastIndexOf(":") + 1) else known
     }
 
     /** `x.value()` on a taken-apart `Ok` is its pattern variable; the rest of the chain follows it. */
@@ -1650,7 +1670,7 @@ class Generator(
             return chain
         }
         val known = smart.get(base.name())
-        if (known == null || !known.startsWith("@")) {
+        if (known == null || !(known.startsWith("@") || known.startsWith("!"))) {
             return chain
         }
         val first = steps.getFirst()
@@ -1658,6 +1678,10 @@ class Generator(
         val args = first.args()
         if (!first.name().equals(accessor) || args == null || !args.isEmpty() || first.safe()) {
             return chain
+        }
+        if (known.startsWith("!")) {
+            val read = if (accessor.equals("value")) "Result.unwrap(" else "Result.unwrapError("
+            return Chains.Chain(Expr.Name(base.pos(), read + known.substring(known.lastIndexOf(":") + 1) + ")"), steps.subList(1, steps.size()))
         }
         val variable = Expr.Name(base.pos(), known.substring(known.indexOf(":") + 1, known.lastIndexOf(":")))
         return Chains.Chain(variable, steps.subList(1, steps.size()))
