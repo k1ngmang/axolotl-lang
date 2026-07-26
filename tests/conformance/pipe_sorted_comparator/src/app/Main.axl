@@ -1,0 +1,15 @@
+package app
+
+import java.util.Comparator
+import java.util.List
+
+data class Person(val name: String, val age: Int)
+
+val byAge: Comparator<Person> = Comparator.comparingInt({ p -> p.age() })
+
+fn main() {
+    val people = List.of(Person("ann", 41), Person("bob", 29), Person("cid", 35))
+    println(people |> sorted(byAge) |> map { it.name() })
+    println(people |> sorted(Comparator.comparing({ p: Person -> p.name() }).reversed()) |> map { it.name() })
+    println(people |> sorted { a, b -> b.age() - a.age() } |> map { it.age() })
+}

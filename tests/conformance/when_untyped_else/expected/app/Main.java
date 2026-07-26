@@ -31,12 +31,12 @@ import java.util.HashMap;
     public static void main(String[] args) {
         final var counts = new HashMap<String, Integer>();
         counts.put("one", 1);
-        final var r = switch (Nulls.box(counts.get("x"))) {
+        final var r = switch (counts.get("x")) {
             case 1 -> "one";
             case null, default -> "other";
         };
         System.out.println(r);
-        switch (Nulls.box(counts.get("one"))) {
+        switch (counts.get("one")) {
             case 1 -> {
                 System.out.println("one");
             }

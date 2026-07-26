@@ -1,0 +1,21 @@
+package app
+
+import java.util.Map
+
+sealed interface Shape
+data class Known(val v: Int) : Shape
+data class Named(val name: String) : Shape
+
+fn look(m: Map<String, Int>, s: Shape) -> Result<Int, String> {
+    return when (s) {
+        is Known -> Ok(s.v())
+        is Named -> {
+            val v = m.get(s.name())
+            if (v == null) {
+                Err("unknown " + s.name())
+            } else {
+                Ok(v)
+            }
+        }
+    }
+}

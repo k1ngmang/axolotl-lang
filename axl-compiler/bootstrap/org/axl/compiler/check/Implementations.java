@@ -32,7 +32,7 @@ import org.axl.compiler.ast.TypeRef;
     private static void implementer(SourceFile file, Decl decl, Map<String, Given> given, List<TypeRef> supertypes,
             List<Mismatch> problems) {
         final var seen = new HashSet<String>();
-        for (final var implemented : interfaces(file, supertypes, new HashSet<String>())) {
+        for (final var implemented : interfaces(file, List.of(), supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
             for (final var member : iface.members()) {
                 final var required = substitute(Nulls.sure(member.type()), iface.typeParams(), implemented.args());
@@ -129,9 +129,9 @@ import org.axl.compiler.ast.TypeRef;
                     "`"));
         }
     }
-    public static List<Expr.Param> requiredValues(SourceFile file, List<TypeRef> supertypes) {
+    public static List<Expr.Param> requiredValues(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         final var values = new ArrayList<Expr.Param>();
-        for (final var implemented : interfaces(file, supertypes, new HashSet<String>())) {
+        for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             values.addAll(implemented.iface().members());
         }
         return values;
@@ -151,9 +151,9 @@ import org.axl.compiler.ast.TypeRef;
         final var substituted = type.args().stream().map(Nulls.nonNull(a -> substitute(a, params, args))).toList();
         return new TypeRef(type.pos(), type.name(), substituted, type.nullable());
     }
-    public static List<String> required(SourceFile file, List<TypeRef> supertypes) {
+    public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         final var keys = new ArrayList<String>();
-        for (final var implemented : interfaces(file, supertypes, new HashSet<String>())) {
+        for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
             for (final var member : iface.members()) {
                 keys.add(member.name() + "/0");
@@ -164,18 +164,41 @@ import org.axl.compiler.ast.TypeRef;
         }
         return keys;
     }
-    private static List<Implemented> interfaces(SourceFile file, List<TypeRef> supertypes, Set<String> seen) {
+    private static List<Implemented> interfaces(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes, Set<String> seen) {
         final var result = new ArrayList<Implemented>();
         for (final var type : supertypes) {
-            for (final var decl : file.decls()) {
-                if (decl instanceof Decl.Interface decl$1 && decl$1.name().equals(type.name()) && seen.add(decl$1.name())) {
-                    result.add(new Implemented(decl$1, type.args()));
-                    final var parents = decl$1.supertypes().stream().map(Nulls.nonNull(p -> substitute(p, decl$1.typeParams(), type.args()))).toList();
-                    result.addAll(interfaces(file, parents, seen));
-                }
+            final var decl = interfaceNamed(file, siblings, type.name());
+            if (decl != null && seen.add(decl.name())) {
+                result.add(new Implemented(decl, type.args()));
+                final var parents = decl.supertypes().stream().map(Nulls.nonNull(p -> substitute(p, decl.typeParams(), type.args()))).toList();
+                result.addAll(interfaces(file, siblings, parents, seen));
             }
         }
         return result;
+    }
+    private static Decl.@Nullable Interface interfaceNamed(SourceFile file, List<SourceFile> siblings, String name) {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Interface decl$1 && decl$1.name().equals(name)) {
+                return decl$1;
+            }
+        }
+        Decl.@Nullable Interface found = null;
+        for (final var sibling : siblings) {
+            for (final var decl : sibling.decls()) {
+                if (decl instanceof Decl.Interface decl$2 && decl$2.name().equals(name) && samePackage(file, sibling)) {
+                    if (found != null) {
+                        return null;
+                    }
+                    found = decl$2;
+                }
+            }
+        }
+        return found;
+    }
+    private static boolean samePackage(SourceFile file, SourceFile other) {
+        final var own = file.packageName();
+        final var theirs = other.packageName();
+        return (own == null ? Boolean.valueOf(theirs == null) : own.equals(theirs));
     }
     private static boolean fits(TypeRef given, TypeRef required) {
         if (given.nullable() && !required.nullable()) {

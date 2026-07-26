@@ -1,0 +1,20 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val xs = List.of("a", "b")
+    xs |> forEach {
+        attempt Thread.sleep(1L) else e -> println("interrupted " + it)
+    }
+    val worker = Thread({ -> attempt Thread.sleep(1L) else e -> println("interrupted") })
+    worker.start()
+    attempt worker.join() else e -> throw IllegalStateException(e)
+    val task: Runnable = { -> attempt Thread.sleep(1L) else e -> throw IllegalStateException(e) }
+    task.run()
+    val values = xs |> map { attempt Integer.parseInt(it) else e -> fallback(it) }
+    println(values)
+    println("done")
+}
+
+fn fallback(s: String) -> Int = s.length()

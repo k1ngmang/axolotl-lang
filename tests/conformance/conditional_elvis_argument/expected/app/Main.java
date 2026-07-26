@@ -22,6 +22,6 @@ import java.util.Map;
         show(Nulls.inferred((c ? Nulls.or(Nulls.map(s, $n6 -> $n6.length()), () -> 5) : "ab".length())).value());
         System.out.println(new Ok<>(Nulls.inferred(((c ? Nulls.or(Nulls.map(s, $n7 -> $n7.length()), () -> 5) : "ab".length()))).value()));
         final Map<String, Integer> m = Map.of();
-        System.out.println(Nulls.inferred((!c ? Nulls.or(Nulls.map(s, $n8 -> $n8.length()), () -> 5) : m.get("k"))).value());
+        System.out.println(Nulls.inferred((!c ? Nulls.box(Nulls.or(Nulls.map(s, $n8 -> $n8.length()), () -> 5)) : m.get("k"))).value());
     }
 }

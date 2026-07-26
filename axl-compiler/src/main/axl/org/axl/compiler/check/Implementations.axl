@@ -41,7 +41,7 @@ fn check(file: SourceFile) -> List<Mismatch> {
 private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, supertypes: List<TypeRef>,
                        problems: List<Mismatch>) {
     val seen = HashSet<String>()
-    for (implemented in interfaces(file, supertypes, HashSet<String>())) {
+    for (implemented in interfaces(file, List.of(), supertypes, HashSet<String>())) {
         val iface = implemented.iface()
         for (member in iface.members()) {
             // The parser requires the type of a member, so it is never missing here.
@@ -120,10 +120,10 @@ private fn compare(name: String, field: Given, required: TypeRef, iface: Decl.In
     }
 }
 
-/** The values the interfaces of the file among the supertypes require. */
-fn requiredValues(file: SourceFile, supertypes: List<TypeRef>) -> List<Expr.Param> {
+/** The values the interfaces of the build among the supertypes require. */
+fn requiredValues(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<Expr.Param> {
     val values = ArrayList<Expr.Param>()
-    for (implemented in interfaces(file, supertypes, HashSet<String>())) {
+    for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
         values.addAll(implemented.iface().members())
     }
     return values
@@ -147,9 +147,9 @@ private fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<Ty
 }
 
 /** What the interfaces require, as `name/arity`: a value is a method without parameters. */
-fn required(file: SourceFile, supertypes: List<TypeRef>) -> List<String> {
+fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<String> {
     val keys = ArrayList<String>()
-    for (implemented in interfaces(file, supertypes, HashSet<String>())) {
+    for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
         val iface = implemented.iface()
         for (member in iface.members()) {
             keys.add(member.name() + "/0")
@@ -161,20 +161,48 @@ fn required(file: SourceFile, supertypes: List<TypeRef>) -> List<String> {
     return keys
 }
 
-/** The interfaces of the file among the supertypes, with the interfaces they extend and the type arguments each gets. */
-private fn interfaces(file: SourceFile, supertypes: List<TypeRef>, seen: Set<String>) -> List<Implemented> {
+/**
+ * The interfaces among the supertypes declared in the file or in another file of the build in the
+ * same package, with the interfaces they extend and the type arguments each gets.
+ */
+private fn interfaces(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>, seen: Set<String>) -> List<Implemented> {
     val result = ArrayList<Implemented>()
     for (type in supertypes) {
-        for (decl in file.decls()) {
-            if (decl is Decl.Interface && decl.name().equals(type.name()) && seen.add(decl.name())) {
-                result.add(Implemented(decl, type.args()))
-                // `interface A<T> : B<List<T>>` passes its own arguments on to B.
-                val parents = decl.supertypes() |> map { p -> substitute(p, decl.typeParams(), type.args()) }
-                result.addAll(interfaces(file, parents, seen))
-            }
+        val decl = interfaceNamed(file, siblings, type.name())
+        if (decl != null && seen.add(decl.name())) {
+            result.add(Implemented(decl, type.args()))
+            // `interface A<T> : B<List<T>>` passes its own arguments on to B.
+            val parents = decl.supertypes() |> map { p -> substitute(p, decl.typeParams(), type.args()) }
+            result.addAll(interfaces(file, siblings, parents, seen))
         }
     }
     return result
+}
+
+private fn interfaceNamed(file: SourceFile, siblings: List<SourceFile>, name: String) -> Decl.Interface? {
+    for (decl in file.decls()) {
+        if (decl is Decl.Interface && decl.name().equals(name)) {
+            return decl
+        }
+    }
+    var found: Decl.Interface? = null
+    for (sibling in siblings) {
+        for (decl in sibling.decls()) {
+            if (decl is Decl.Interface && decl.name().equals(name) && samePackage(file, sibling)) {
+                if (found != null) {
+                    return null
+                }
+                found = decl
+            }
+        }
+    }
+    return found
+}
+
+private fn samePackage(file: SourceFile, other: SourceFile) -> Boolean {
+    val own = file.packageName()
+    val theirs = other.packageName()
+    return if (own == null) theirs == null else own.equals(theirs)
 }
 
 /** A value may be narrower than required, `String` for `String?`, but its type arguments must match. */

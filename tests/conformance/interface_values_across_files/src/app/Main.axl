@@ -1,0 +1,18 @@
+package app
+
+class Polite(val name: String) : Greeter {
+    fn greet(who: String) -> String = "Dear " + who + ", " + name
+}
+
+class Terse : Greeter {
+    val name: String = "terse"
+
+    fn greet(who: String) -> String = who
+}
+
+fn main() {
+    val greeters: java.util.List<Greeter> = java.util.List.of(Polite("ann"), Terse())
+    for (g in greeters) {
+        println(g.name() + ": " + g.greet("bob"))
+    }
+}

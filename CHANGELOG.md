@@ -186,6 +186,16 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - Long `?:` chains and deeply nested `if` values compile in linear time.
   - The language server compiles one module at a time.
 - Ninth audit, four more programs (an expression language with a REPL, a shop with pricing strategies, a concurrent job runner, an HTTP service with JUnit tests):
+  - `==` on strings, data classes and other values with their own `equals` is an error, as for boxed numbers, since the program would compare the objects and be wrong.
+  - A `when` that is returned reports a branch that ends with an `if` statement holding its values, at the `if`, instead of javac's "does not return a value" at the end of the function.
+  - `m.get(k) ?: List.of()` keeps the element type of the map's values.
+  - A property whose value tells its type needs none: `val items = ArrayList<String>()`, `var count = 0`.
+  - The `else` of `if (r is Err)` knows the `Ok` and reads `r.value()`, and the other way round.
+  - A lone `attempt conn.commit() else e -> log(e)` is the body of a lambda too, as in `Thread({ -> ... })`.
+  - `sorted(byAge)` takes a `Comparator`.
+  - `print(x)` and `readLine()` next to `println`.
+  - A class implementing an interface of another file of the build gets the accessors of the interface's values.
+  - No warning about `Integer` in the methods of a class that implements a Java interface such as `Supplier<Int>`, where Java needs the box, and a method named like a Java keyword gets the same error as a function.
   - `is Ok` and `is Err` inside an `if` body no longer crash Error Prone: its AlreadyChecked check, which cannot read the pattern variables, is off, and the Gradle and Maven builds run the same checks as `axl build`.
 - Eighth audit:
   - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.

@@ -1,0 +1,6 @@
+package app
+
+interface Greeter {
+    val name: String
+    fn greet(who: String) -> String
+}

@@ -1,0 +1,24 @@
+package app
+
+import java.util.Comparator
+import java.util.List
+import java.util.function.Function
+import java.util.function.Supplier
+
+class Seven : Supplier<Int> {
+    fn get() -> Integer = 7
+}
+
+class Inc : Function<Int, Int> {
+    fn apply(x: Integer) -> Integer = x + 1
+}
+
+class Desc : Comparator<Int> {
+    fn compare(a: Integer, b: Integer) -> Int = b.compareTo(a)
+}
+
+fn main() {
+    println(Seven().get())
+    println(Inc().apply(1))
+    println(List.of(1, 3, 2) |> sorted(Desc()))
+}

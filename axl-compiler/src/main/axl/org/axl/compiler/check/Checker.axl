@@ -140,6 +140,10 @@ class Checker(val file: SourceFile) {
     var lambdaDepth: Int = 0
     var safeTailDepth: Int = 0
     var attemptDepth: Int = 0
+    /** Inside the methods of a class that implements a Java interface, where `Integer` is Java's box. */
+    var integerAllowed: Boolean = false
+    /** Inside the lambda of a pipe stage that gives a value, where a lone `attempt` is the value. */
+    var valueStage: Boolean = false
     var currentClass: Decl.ClassDecl? = null
     // The written type of the `val` whose initializer is being checked, for `mapResult`.
     var declaredType: TypeRef? = null
@@ -392,11 +396,12 @@ class Checker(val file: SourceFile) {
         }
         for (p in c.properties()) {
             annotations(p.annotations())
-            if (p.type() == null) {
+            val type = propertyType(p)
+            if (type == null) {
                 val keyword = if (p.mutable()) "var " else "val "
                 error(p.pos(), ErrorCode.TYPE_REQUIRED, "a property needs a type: `" + keyword + p.name() + ": Type = ...`")
             }
-            declare(p.namePos(), p.name(), fieldKind(p), p.type())
+            declare(p.namePos(), p.name(), fieldKind(p), type)
         }
         for (p in c.properties()) {
             val init = p.init()
@@ -404,12 +409,28 @@ class Checker(val file: SourceFile) {
                 expr(init)
             }
         }
+        // A class implementing a Java interface such as Supplier<Int> must write `Integer` where Java has the box.
+        integerAllowed = c.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
         for (m in c.methods()) {
+            checkReserved(m.namePos(), m.name())
             typeParams(m)
             function(m)
         }
+        integerAllowed = false
         pop()
         currentClass = null
+    }
+
+    private fn declaresType(name: String) -> Boolean = file.decls() |> anyMatch { d -> isTypeDecl(d) && d.name().equals(name) }
+
+    /** The written type of a property, or the one its value tells: `val items = ArrayList<String>()`. */
+    private fn propertyType(p: Decl.Property) -> TypeRef? {
+        val written = p.type()
+        if (written != null) {
+            return written
+        }
+        val init = p.init()
+        return if (init == null) null else TypeInference.typeOf(file, init)
     }
 
     /** `<T>` and `<K : Comparable<K>>`: names of types, distinct and new in this file. */
@@ -1018,6 +1039,10 @@ class Checker(val file: SourceFile) {
         if (gives && !endsWithValue(arm.body())) {
             error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value")
         }
+        if (returns && endsWithIfOfValues(arm.body())) {
+            error(arm.body().getLast().pos(), ErrorCode.SYNTAX, "this `if` ends a branch of a `when` that is returned, so the " +
+                "branch gives no value; write the `if` as a value, `if (c) a else b` without braces, or `return` in each of its branches")
+        }
         if (gives) {
             valueArm(body)
         } else {
@@ -1026,6 +1051,35 @@ class Checker(val file: SourceFile) {
     }
 
     private fn endsWithValue(body: List<Stmt>) -> Boolean = !body.isEmpty() && body.getLast() is Stmt.ExprStmt
+
+    /** `if (c) { Err("x") } else { Ok(v) }` as the last statement: its branches end with values that go nowhere. */
+    private fn endsWithIfOfValues(body: List<Stmt>) -> Boolean {
+        if (body.isEmpty()) {
+            return false
+        }
+        val last = body.getLast()
+        return last is Stmt.If && branchesGiveValues(last)
+    }
+
+    private fn branchesGiveValues(ifStmt: Stmt.If) -> Boolean {
+        val elseBranch = ifStmt.elseBranch()
+        if (elseBranch == null || !endsWithPlainValue(ifStmt.then().statements())) {
+            return false
+        }
+        if (elseBranch is Stmt.If) {
+            return branchesGiveValues(elseBranch)
+        }
+        return elseBranch is Stmt.Block && endsWithPlainValue(elseBranch.statements())
+    }
+
+    /** A last statement that is an expression, such as `Ok(v)`, which would be the value of a branch. */
+    private fn endsWithPlainValue(body: List<Stmt>) -> Boolean {
+        if (body.isEmpty()) {
+            return false
+        }
+        val last = body.getLast()
+        return last is Stmt.ExprStmt && last.expr() !is Expr.Throw
+    }
 
     /** All but the last statement are statements; the last is the value. */
     private fn valueArm(body: List<Stmt>) {
@@ -1145,7 +1199,10 @@ class Checker(val file: SourceFile) {
             exprs(stage.args())
             if (lambda != null) {
                 // Every stage but `sorted` passes one element, so a lambda without parameters takes `it`.
+                val outerStage = valueStage
+                valueStage = !stage.name().equals("forEach") && !stage.name().equals("peek")
                 lambdaExpr(lambda, !stage.name().equals("sorted"))
+                valueStage = outerStage
             }
             i += 1
         }
@@ -1164,7 +1221,9 @@ class Checker(val file: SourceFile) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes a lambda: `|> " + name + " { ... }`")
         } else if (STAGES_WITH_ARGUMENT.contains(name) && (hasLambda || stage.args().size() != 1)) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes one argument: `|> " + name + "(n)`")
-        } else if (((noArguments || name.equals("sorted")) && !stage.args().isEmpty()) || (noArguments && hasLambda)) {
+        } else if (name.equals("sorted") && (stage.args().size() > 1 || (hasLambda && !stage.args().isEmpty()))) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "`sorted` takes a comparator, `sorted(byName)`, or a lambda, `sorted { a, b -> ... }`")
+        } else if ((noArguments && !stage.args().isEmpty()) || (noArguments && hasLambda)) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes no arguments")
         } else if (TERMINAL_STAGES.contains(name) && !isLast) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` ends a pipe and must be its last stage")
@@ -1214,7 +1273,12 @@ class Checker(val file: SourceFile) {
         declareIt(l, takesElement)
         val body = l.body()
         val single = onlyExpression(body)
-        if (single != null) {
+        val lone = if (single == null) null else unparenthesized(single)
+        if (lone is Expr.Attempt && isAttemptStatement(lone, valueStage)) {
+            // `{ -> attempt conn.commit() else e -> log(e) }` runs the call; its try is the body of the lambda.
+            attemptStatementShape(lone)
+            statements(body)
+        } else if (single != null) {
             // A lambda of one expression returns its value, so the expression need not do anything.
             expressionLambdas = expressionLambdas + 1
             if (single is Expr.Throw) {
@@ -1420,7 +1484,7 @@ class Checker(val file: SourceFile) {
             error(type.pos(), ErrorCode.SYNTAX, "a function that returns nothing has no result type; remove `-> " + name + "`")
         } else if (name.equals("void")) {
             error(type.pos(), ErrorCode.SYNTAX, "`void` is not the type of a value; only Java functions return it")
-        } else if (name.equals("Integer")) {
+        } else if (name.equals("Integer") && !integerAllowed) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), type.pos().line(), type.pos().column(), ErrorCode.SYNTAX,
                 "write `Int` instead of `Integer`; they are the same type, and `Int?` allows null"))
         }
@@ -1442,6 +1506,20 @@ fn check(file: SourceFile, diagnostics: List<AxlDiagnostic>) -> Analysis {
 private fn isNullConstant(c: Expr.Cond) -> Boolean {
     val constant = c.constant()
     return constant != null && constant.text().equals("null")
+}
+
+/**
+ * A lone `attempt` whose handler does something, a call or a `throw`, is a statement: `{ -> attempt
+ * conn.commit() else e -> log(e) }` is the body of a Runnable. In a pipe stage that gives a value, such
+ * as `map`, it is the value instead.
+ */
+fn isAttemptStatement(e: Expr, valueStage: Boolean) -> Boolean {
+    val inner = unparenthesized(e)
+    if (valueStage || inner !is Expr.Attempt) {
+        return false
+    }
+    val handler = unparenthesized(inner.handler())
+    return handler is Expr.Call || handler is Expr.GenericNew || handler is Expr.Throw
 }
 
 /** An `if` or `when` with a branch `Ok(...)` or `Err(...)`, which Java cannot type on its own. */

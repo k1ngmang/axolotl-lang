@@ -14,7 +14,7 @@ import java.util.Map;
         return text.length();
     }
     public static String first(Map<String, String> m, String a, String b) {
-        return Nulls.or(m.get(a), () -> Nulls.or(m.get(b), () -> { throw new IllegalArgumentException("neither " + a + " nor " + b); }));
+        return Nulls.or(Nulls.<@Nullable String>or(m.get(a), () -> m.get(b)), () -> { throw new IllegalArgumentException("neither " + a + " nor " + b); });
     }
     public static void main(String[] args) {
         final var m = new HashMap<String, String>();

@@ -1,0 +1,26 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+
+class Counter(val name: String) {
+    val items = ArrayList<String>()
+    val seen = HashMap<String, Int>()
+    var count = 0
+    var label = "none"
+    var scale = 1.5
+
+    fn add(item: String) {
+        items.add(item)
+        seen.put(item, items.size())
+        count += 1
+        label = item
+    }
+}
+
+fn main() {
+    val c = Counter("c")
+    c.add("x")
+    c.add("y")
+    println(c.items.size() + " " + c.count + " " + c.label + " " + (c.seen.get("y") ?: 0) + " " + c.scale)
+}

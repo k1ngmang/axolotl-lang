@@ -44,6 +44,8 @@ import org.axl.compiler.ast.TypeRef;
     public int lambdaDepth;
     public int safeTailDepth;
     public int attemptDepth;
+    public boolean integerAllowed;
+    public boolean valueStage;
     public Decl.@Nullable ClassDecl currentClass;
     public @Nullable TypeRef declaredType;
     public Checker(SourceFile file) {
@@ -68,6 +70,8 @@ import org.axl.compiler.ast.TypeRef;
         this.lambdaDepth = 0;
         this.safeTailDepth = 0;
         this.attemptDepth = 0;
+        this.integerAllowed = false;
+        this.valueStage = false;
         this.currentClass = null;
         this.declaredType = null;
     }
@@ -332,11 +336,12 @@ import org.axl.compiler.ast.TypeRef;
         }
         for (final var p : c.properties()) {
             annotations(p.annotations());
-            if (p.type() == null) {
+            final var type = propertyType(p);
+            if (type == null) {
                 final var keyword = (p.mutable() ? "var " : "val ");
                 error(p.pos(), ErrorCode.TYPE_REQUIRED, "a property needs a type: `" + keyword + p.name() + ": Type = ...`");
             }
-            declare(p.namePos(), p.name(), fieldKind(p), p.type());
+            declare(p.namePos(), p.name(), fieldKind(p), type);
         }
         for (final var p : c.properties()) {
             final var init = p.init();
@@ -344,12 +349,26 @@ import org.axl.compiler.ast.TypeRef;
                 expr(init);
             }
         }
+        integerAllowed = c.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
         for (final var m : c.methods()) {
+            checkReserved(m.namePos(), m.name());
             typeParams(m);
             function(m);
         }
+        integerAllowed = false;
         pop();
         currentClass = null;
+    }
+    private boolean declaresType(String name) {
+        return file.decls().stream().anyMatch(d -> isTypeDecl(d) && d.name().equals(name));
+    }
+    private @Nullable TypeRef propertyType(Decl.Property p) {
+        final var written = p.type();
+        if (written != null) {
+            return written;
+        }
+        final var init = p.init();
+        return (init == null ? null : TypeInference.typeOf(file, init));
     }
     private void typeParams(Decl decl) {
         final List<Decl.TypeParam> params = switch (decl) {
@@ -969,6 +988,10 @@ import org.axl.compiler.ast.TypeRef;
         if (gives && !endsWithValue(arm.body())) {
             error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value");
         }
+        if (returns && endsWithIfOfValues(arm.body())) {
+            error(arm.body().getLast().pos(), ErrorCode.SYNTAX, "this `if` ends a branch of a `when` that is returned, so the " +
+                    "branch gives no value; write the `if` as a value, `if (c) a else b` without braces, or `return` in each of its branches");
+        }
         if (gives) {
             valueArm(body);
         } else {
@@ -977,6 +1000,30 @@ import org.axl.compiler.ast.TypeRef;
     }
     private boolean endsWithValue(List<Stmt> body) {
         return !body.isEmpty() && body.getLast() instanceof Stmt.ExprStmt;
+    }
+    private boolean endsWithIfOfValues(List<Stmt> body) {
+        if (body.isEmpty()) {
+            return false;
+        }
+        final var last = body.getLast();
+        return last instanceof Stmt.If last$1 && branchesGiveValues(last$1);
+    }
+    private boolean branchesGiveValues(Stmt.If ifStmt) {
+        final var elseBranch = ifStmt.elseBranch();
+        if (elseBranch == null || !endsWithPlainValue(ifStmt.then().statements())) {
+            return false;
+        }
+        if (elseBranch instanceof Stmt.If elseBranch$1) {
+            return branchesGiveValues(elseBranch$1);
+        }
+        return elseBranch instanceof Stmt.Block elseBranch$2 && endsWithPlainValue(elseBranch$2.statements());
+    }
+    private boolean endsWithPlainValue(List<Stmt> body) {
+        if (body.isEmpty()) {
+            return false;
+        }
+        final var last = body.getLast();
+        return last instanceof Stmt.ExprStmt last$1 && !(last$1.expr() instanceof Expr.Throw);
     }
     private void valueArm(List<Stmt> body) {
         scope = new Scope(scope, false);
@@ -1086,7 +1133,10 @@ import org.axl.compiler.ast.TypeRef;
             }
             exprs(stage.args());
             if (lambda != null) {
+                final var outerStage = valueStage;
+                valueStage = !stage.name().equals("forEach") && !stage.name().equals("peek");
                 lambdaExpr(lambda, !stage.name().equals("sorted"));
+                valueStage = outerStage;
             }
             i += 1;
         }
@@ -1105,7 +1155,9 @@ import org.axl.compiler.ast.TypeRef;
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes a lambda: `|> " + name + " { ... }`");
         } else if (STAGES_WITH_ARGUMENT.contains(name) && (hasLambda || stage.args().size() != 1)) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes one argument: `|> " + name + "(n)`");
-        } else if (((noArguments || name.equals("sorted")) && !stage.args().isEmpty()) || (noArguments && hasLambda)) {
+        } else if (name.equals("sorted") && (stage.args().size() > 1 || (hasLambda && !stage.args().isEmpty()))) {
+            error(stage.pos(), ErrorCode.PIPE_STAGE, "`sorted` takes a comparator, `sorted(byName)`, or a lambda, `sorted { a, b -> ... }`");
+        } else if ((noArguments && !stage.args().isEmpty()) || (noArguments && hasLambda)) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes no arguments");
         } else if (TERMINAL_STAGES.contains(name) && !isLast) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` ends a pipe and must be its last stage");
@@ -1150,10 +1202,14 @@ import org.axl.compiler.ast.TypeRef;
         declareIt(l, takesElement);
         final var body = l.body();
         final var single = onlyExpression(body);
-        if (single != null) {
+        final var lone = (single == null ? null : unparenthesized(single));
+        if (lone instanceof Expr.Attempt lone$1 && isAttemptStatement(lone$1, valueStage)) {
+            attemptStatementShape(lone$1);
+            statements(body);
+        } else if (single != null) {
             expressionLambdas = expressionLambdas + 1;
-            if (single instanceof Expr.Throw single$1) {
-                allowedThrows.add(single$1);
+            if (single instanceof Expr.Throw single$2) {
+                allowedThrows.add(single$2);
             }
             expr(single);
             expressionLambdas = expressionLambdas - 1;
@@ -1334,7 +1390,7 @@ import org.axl.compiler.ast.TypeRef;
             error(type.pos(), ErrorCode.SYNTAX, "a function that returns nothing has no result type; remove `-> " + name + "`");
         } else if (name.equals("void")) {
             error(type.pos(), ErrorCode.SYNTAX, "`void` is not the type of a value; only Java functions return it");
-        } else if (name.equals("Integer")) {
+        } else if (name.equals("Integer") && !integerAllowed) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), type.pos().line(), type.pos().column(), ErrorCode.SYNTAX,
                     "write `Int` instead of `Integer`; they are the same type, and `Int?` allows null"));
         }
@@ -1415,6 +1471,14 @@ import org.axl.compiler.ast.TypeRef;
     private static boolean isNullConstant(Expr.Cond c) {
         final var constant = c.constant();
         return constant != null && constant.text().equals("null");
+    }
+    public static boolean isAttemptStatement(Expr e, boolean valueStage) {
+        final var inner = unparenthesized(e);
+        if (valueStage || !(inner instanceof Expr.Attempt inner$1)) {
+            return false;
+        }
+        final var handler = unparenthesized(inner$1.handler());
+        return handler instanceof Expr.Call handler$2 || handler instanceof Expr.GenericNew handler$3 || handler instanceof Expr.Throw handler$4;
     }
     private static boolean buildsResult(Expr e) {
         final var inner = unparenthesized(e);

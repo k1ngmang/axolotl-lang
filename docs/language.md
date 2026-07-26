@@ -30,6 +30,10 @@ unless marked `private`. `fn main()` becomes `public static void main(String[] a
 reads the command line arguments from `args`. A `main` with parameters is an ordinary function, not
 an entry point.
 
+Three functions need no import: `println(x)` and `print(x)` write to the standard output, with and
+without a line end, and `readLine()` reads the next line of the standard input, or `null` at its end.
+`Ok(v)`, `Err(e)` and the type `Result` need none either.
+
 ## Types
 
 `Int`, `Long`, `Boolean`, `Double` are Java's primitives; inside generics and when nullable they are
@@ -142,7 +146,8 @@ class Counter(val name: String, var step: Int) {
 
 The parameters of the class and the properties in its body are fields: `val` ones cannot be assigned,
 `var` ones can, from inside the class (`count += step`) and outside (`counter.step = 5`). A property
-needs a type and a value; it is set after the parameters, in order. Methods are the `fn`s in the body
+has a value, and a type when the value does not tell it: `val items = ArrayList<String>()` and `var
+count = 0` need none, `val cache: Map<String, Int>? = null` does. It is set after the parameters, in order. Methods are the `fn`s in the body
 and read the fields by name. `private` hides a property or a method. A class cannot extend another one
 and is created like a data class: `Counter("c", 1)`; it may implement interfaces of the same file.
 
@@ -343,6 +348,9 @@ fn doubled(s: String) -> Result<Int, String> {
 
 - `attempt X else e -> Y` runs `X`; an `Exception` becomes `Err(Y)`. Without a name the exception
   is not available: `attempt X else Y`.
+- `==` on strings, data classes and other values that define their own equality is an error: it would
+  compare the objects, not their values; write `a.equals(b)`. `==` on numbers, booleans and enum constants
+  compares the values.
 - `attempt X else e -> throw Y` gives the value of `X` itself, not a `Result`: a failure of `X` is
   a bug here, so `Y`, a `RuntimeException`, is thrown instead. This is how a Java method that
   declares a checked exception is called where no `Result` is wanted, such as in a test:
@@ -351,11 +359,13 @@ fn doubled(s: String) -> Result<Int, String> {
   e -> throw IllegalStateException(e)` or `attempt stream.close() else e -> println(e.getMessage())`.
   There is no value, so the call may return nothing, which is how `commit()`, `close()` and
   `Thread.sleep(1L)` are called when they declare a checked exception. The handler is a call or a `throw`.
+  Alone in a lambda, `{ -> attempt Thread.sleep(1L) else e -> println(e) }`, such an `attempt` is the
+  lambda's statement too, except in a pipe stage that gives a value, such as `map`, where it is the value.
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
   `Result`. The error types must match; convert them first with `mapErr`:
   `try parse(s).mapErr({ code -> "error " + code })`.
 - After `if (r is Err) { ...; return }` the `r` is an `Ok` and `r.value()` reads its value; after `if (r is Ok) { return }`
-  it is an `Err` and `r.error()` reads the error. (`r` must be a `val` or a parameter.)
+  it is an `Err` and `r.error()` reads the error, as in the `else` branch of such an `if`. (`r` must be a `val` or a parameter.)
 - A `Result` also has `isOk()`, `isErr()`, `map({ v -> ... })`, which changes the value of an `Ok`, and
   `getOrElse(fallback)`.
 - `try` binds like a unary operator and works anywhere in an expression:
@@ -385,7 +395,7 @@ numbers |> forEach { println(it) }
 | Stage | Meaning |
 |-------|---------|
 | `filter { }`, `map { }`, `peek { }` | Stream operations with one element `it`. |
-| `sorted`, `sorted { a, b -> ... }` | Natural order or a comparator. |
+| `sorted`, `sorted(byAge)`, `sorted { a, b -> ... }` | Natural order, a `Comparator`, or a comparison. |
 | `distinct`, `limit(n)`, `skip(n)` | As in `Stream`. |
 | `forEach { }`, `anyMatch { }`, `allMatch { }`, `noneMatch { }`, `count`, `first` | End the pipe; `first` is the first element or `null`, so `xs \|> first ?: fallback` gives the fallback for an empty pipe. |
 | `mapResult { }` | Maps every element to a `Result`; the first `Err` is returned from the function. |

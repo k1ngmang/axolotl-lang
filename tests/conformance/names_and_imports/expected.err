@@ -11,7 +11,6 @@ AXL100 app/KotlinTypes.axl:3:21: error: unknown type `Bool`; write `Boolean`
 AXL100 app/KotlinTypes.axl:3:30: error: unknown type `Array`; Axolotl uses lists, such as `List<Int>`
 AXL100 app/KotlinTypes.axl:4:14: error: unknown type `ArrayList`; add `import java.util.ArrayList`
 AXL100 app/KotlinTypes.axl:5:13: error: unknown name `Int`; the constants of `Int` are in `Integer`, such as `Integer.MAX_VALUE`
-AXL100 app/KotlinTypes.axl:6:5: error: unknown function `print(String)`; did you mean `println`?
 AXL100 app/KotlinTypes.axl:7:13: error: unknown function `arrayOf(Int, Int)`; write `List.of(...)`
 AXL100 app/NotImported.axl:4:13: error: unknown function `helper()`; it is declared in app/Helpers.axl: `import fn app.Helpers.helper`
 AXL100 app/NotImported.axl:5:13: error: unknown function `shout(String)`; it is declared in util/Strings.axl: `import fn util.Strings.shout`

@@ -1,0 +1,7 @@
+package app
+
+class Node(val value: Int) {
+    fn case() -> Int = value
+
+    fn default() -> Int = 0
+}

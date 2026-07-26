@@ -1,0 +1,29 @@
+package app
+
+import java.util.Collections
+import java.util.HashMap
+import java.util.List
+import java.util.Map
+
+fn total(m: Map<String, List<String>>, k: String) -> Int {
+    val xs = m.get(k) ?: Collections.emptyList()
+    var n = 0
+    for (x in xs) {
+        n += x.length()
+    }
+    return n
+}
+
+fn firstOr(m: Map<String, List<String>>, k: String) -> String {
+    val xs = m.get(k) ?: List.of()
+    return if (xs.isEmpty()) "none" else xs.get(0)
+}
+
+fn main() {
+    val m = HashMap<String, List<String>>()
+    m.put("a", List.of("ab", "cde"))
+    println(total(m, "a"))
+    println(total(m, "b"))
+    println(firstOr(m, "a"))
+    println(firstOr(m, "b"))
+}

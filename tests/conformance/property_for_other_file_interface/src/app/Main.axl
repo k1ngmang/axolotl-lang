@@ -1,6 +1,6 @@
 package app
 
-// A property gives the value of an interface of the same file only.
+// A property gives the value of an interface of another file too: the accessor is generated.
 class Box(val size: Int) : Sized
 
 class Crate(val count: Int) : Sized {
@@ -8,3 +8,12 @@ class Crate(val count: Int) : Sized {
 }
 
 data class Bag(val size: Int) : Sized
+
+fn main() {
+    val sized: java.util.List<Sized> = java.util.List.of(Box(1), Crate(2), Bag(3))
+    var total = 0
+    for (s in sized) {
+        total += s.size()
+    }
+    println(total)
+}

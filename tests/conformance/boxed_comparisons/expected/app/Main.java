@@ -45,7 +45,7 @@ import java.util.Map;
     public static void main(String[] args) {
         final Map<String, Integer> m = Map.of();
         final @Nullable String s = null;
-        System.out.println(Nulls.same(Nulls.or(m.get("a"), () -> f()), Nulls.or(m.get("b"), () -> f())));
+        System.out.println(((int) Nulls.<Integer>or(m.get("a"), () -> f())) == ((int) Nulls.<Integer>or(m.get("b"), () -> f())));
         System.out.println(!Nulls.same(Nulls.or(Nulls.map(s, $n1 -> $n1.length()), () -> f()), Nulls.or(Nulls.map(s, $n2 -> $n2.length()), () -> f())));
         System.out.println(new C(null, null).same());
         System.out.println(tried());

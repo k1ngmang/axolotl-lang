@@ -69,6 +69,7 @@ import org.axl.compiler.check.Whens;
     public final HashMap<String, @Nullable TypeRef> localTypes;
     public final HashSet<String> boxedLocals;
     public int nestedValues;
+    public boolean valueStage;
     public Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
         this.file = file;
         this.analysis = analysis;
@@ -99,6 +100,7 @@ import org.axl.compiler.check.Whens;
         this.localTypes = new HashMap<String, @Nullable TypeRef>();
         this.boxedLocals = new HashSet<String>();
         this.nestedValues = 0;
+        this.valueStage = false;
     }
     public void emitFile() {
         final var packageName = Nulls.or(file.packageName(), () -> "");
@@ -252,7 +254,7 @@ import org.axl.compiler.check.Whens;
             emitConstructor(classDecl);
         }
         final var outerOverridden = overridden;
-        overridden = Implementations.required(file, classDecl.supertypes());
+        overridden = Implementations.required(file, options.siblings(), classDecl.supertypes());
         for (final var method : classDecl.methods()) {
             resetCounters();
             emitFunction(method, false);
@@ -264,7 +266,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitConstructor(Decl.ClassDecl classDecl) {
         final var line = classDecl.pos().line();
-        final var params = classDecl.parameters().stream().map(Nulls.nonNull(p -> javaType(propertyType(p)) + " " + p.name())).toList();
+        final var params = classDecl.parameters().stream().map(Nulls.nonNull(p -> javaType(propertyType(file, p)) + " " + p.name())).toList();
         em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {");
         em.indent();
         for (final var p : classDecl.parameters()) {
@@ -272,7 +274,7 @@ import org.axl.compiler.check.Whens;
         }
         resetCounters();
         for (final var p : classDecl.properties()) {
-            final var stored = nullableType(propertyType(p));
+            final var stored = nullableType(propertyType(file, p));
             em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode(() -> valueCode(p.pos().line(), propertyInit(p), stored)) + ";");
         }
         em.dedent();
@@ -286,11 +288,11 @@ import org.axl.compiler.check.Whens;
     }
     private void emitAccessors(Decl.ClassDecl classDecl) {
         final var written = new HashSet<String>();
-        for (final var member : Implementations.requiredValues(file, classDecl.supertypes())) {
+        for (final var member : Implementations.requiredValues(file, options.siblings(), classDecl.supertypes())) {
             final var property = propertyNamed(classDecl, member.name());
             final var ownMethod = classDecl.methods().stream().anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
             if (property != null && !ownMethod && written.add(member.name())) {
-                em.line(property.pos().line(), "@Override public " + javaType(propertyType(property)) + " " +
+                em.line(property.pos().line(), "@Override public " + javaType(propertyType(file, property)) + " " +
                         member.name() +
                         "() { return " +
                         member.name() +
@@ -314,7 +316,7 @@ import org.axl.compiler.check.Whens;
     private String field(Decl.Property p) {
         final var visibility = (p.isPrivate() ? "private" : "public");
         final var modifier = (p.mutable() ? "" : " final");
-        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyType(p)) + " " + p.name();
+        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyType(file, p)) + " " + p.name();
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
@@ -581,7 +583,8 @@ import org.axl.compiler.check.Whens;
         }
         withCopies(line, condition, () -> em.line(line, prefix + "if (" + lifted(line, condition).code() + ") {"));
         narrowed(whenTrue(condition), () -> emitBlock(ifStmt.then()));
-        final var otherwise = whenFalse(condition);
+        final var negated = whenFalse(condition);
+        final var otherwise = (negated.isEmpty() ? otherCase(condition) : negated);
         final var elseBranch = ifStmt.elseBranch();
         if (elseBranch instanceof Stmt.If elseBranch$1) {
             narrowed(otherwise, () -> emitIf(elseBranch$1, "} else "));
@@ -972,7 +975,26 @@ import org.axl.compiler.check.Whens;
         if (inner instanceof Expr.Conditional inner$4) {
             return commonBranchType(typeOf(inner$4.then()), typeOf(inner$4.otherwise()), inner$4);
         }
+        final var fromMap = mapGet(inner);
+        if (fromMap != null) {
+            return fromMap;
+        }
         return TypeInference.typeOf(file, options.siblings(), inner);
+    }
+    private @Nullable TypeRef mapGet(Expr e) {
+        if (!(e instanceof Expr.Call e$1) || !e$1.name().equals("get") || e$1.args().size() != 1 || e$1.safe()) {
+            return null;
+        }
+        final var target = e$1.target();
+        if (!(target instanceof Expr.Name target$2)) {
+            return null;
+        }
+        final var type = localTypes.get(target$2.name());
+        if (type == null || type.nullable() || type.args().size() != 2 || !MAP_TYPES.contains(type.name())) {
+            return null;
+        }
+        final var value = type.args().get(1);
+        return new TypeRef(value.pos(), value.name(), value.args(), true);
     }
     private @Nullable TypeRef commonBranchType(@Nullable TypeRef a, @Nullable TypeRef b, Expr.Conditional c) {
         final var same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty();
@@ -1031,6 +1053,9 @@ import org.axl.compiler.check.Whens;
     }
     private String elvisWitness(@Nullable TypeRef leftType, Expr right) {
         final var rightType = typeOf(right);
+        if (rightType == null && leftType != null && !leftType.args().isEmpty() && !leftType.name().equals("*")) {
+            return "<" + boxedType(new TypeRef(leftType.pos(), leftType.name(), leftType.args(), false)) + ">";
+        }
         if (rightType == null || !rightType.args().isEmpty() || leftType == null || !rightType.name().equals(leftType.name())) {
             return "";
         }
@@ -1673,6 +1698,12 @@ import org.axl.compiler.check.Whens;
         if (c.name().equals("println") && !declaredFunctions.contains("println")) {
             return "System.out.println(" + args + ")";
         }
+        if (c.name().equals("print") && !declaredFunctions.contains("print")) {
+            return "System.out.print(" + args + ")";
+        }
+        if (c.name().equals("readLine") && c.args().isEmpty() && !declaredFunctions.contains("readLine")) {
+            return "Console.readLine()";
+        }
         if (c.name().equals("Ok") || c.name().equals("Err")) {
             return "new " + c.name() + "<>(" + args + ")";
         }
@@ -1785,7 +1816,7 @@ import org.axl.compiler.check.Whens;
         final var outerCopies = copies;
         copies = Map.of();
         final var single = lambdaExpression(body);
-        if (single != null) {
+        if (single != null && !Checker.isAttemptStatement(single, valueStage)) {
             final var bodyLine = startLine(single);
             final var code = expr(single);
             copies = outerCopies;
@@ -2247,7 +2278,10 @@ import org.axl.compiler.check.Whens;
         var index = 0;
         for (final var stage : stages) {
             final var stageBody = stage.lambda();
+            final var outerStage = valueStage;
+            valueStage = !stage.name().equals("forEach") && !stage.name().equals("peek");
             final var lambdaText = (stageBody == null ? "" : lambdaCode(stageBody));
+            valueStage = outerStage;
             if (stage.pos().line() > previousLine) {
                 sb.append(Emitter.continued(stage.pos().line(), ""));
                 previousLine = stage.pos().line();
@@ -2284,7 +2318,9 @@ import org.axl.compiler.check.Whens;
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))");
             }
             case "sorted" -> {
-                sb.append(".sorted(").append((lambdaText.isEmpty() ? "java.util.Comparator.naturalOrder()" : lambdaText)).append(')');
+                final var order = (!lambdaText.isEmpty() ? lambdaText :
+                        (!stage.args().isEmpty() ? arg.apply(stage.args().getFirst()) : "java.util.Comparator.naturalOrder()"));
+                sb.append(".sorted(").append(order).append(')');
             }
             case "filter" -> {
                 sb.append(".filter(").append(lambdaText).append(')');
@@ -2474,12 +2510,17 @@ import org.axl.compiler.check.Whens;
         }
         return init;
     }
-    private static TypeRef propertyType(Decl.Property p) {
+    private static TypeRef propertyType(SourceFile file, Decl.Property p) {
         final var type = p.type();
-        if (type == null) {
+        if (type != null) {
+            return type;
+        }
+        final var init = p.init();
+        final @Nullable TypeRef inferred = (init == null ? null : TypeInference.typeOf(file, init));
+        if (inferred == null) {
             throw new IllegalStateException("property " + p.name() + " has no type");
         }
-        return type;
+        return inferred;
     }
     private static TypeRef memberType(Expr.Param member) {
         final var type = member.type();
@@ -2982,5 +3023,7 @@ import org.axl.compiler.check.Whens;
         final var merges = !operand.isEmpty() && "+-".indexOf(operand.charAt(0)) >= 0 && !op.equals("!");
         return (merges ? op + " " + operand : op + operand);
     }
+    private static final Set<String> MAP_TYPES = Set.of("Map", "HashMap", "TreeMap", "LinkedHashMap", "ConcurrentHashMap",
+            "java.util.Map", "java.util.HashMap", "java.util.TreeMap", "java.util.LinkedHashMap", "java.util.concurrent.ConcurrentHashMap");
     public record Pattern(String label, String marker) {}
 }

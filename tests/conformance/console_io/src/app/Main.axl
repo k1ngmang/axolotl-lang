@@ -1,0 +1,9 @@
+package app
+
+fn main() {
+    print("a")
+    print(1)
+    println("b")
+    val line = readLine()
+    println(line ?: "end of input")
+}
