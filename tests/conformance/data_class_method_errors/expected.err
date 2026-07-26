@@ -1,0 +1,3 @@
+AXL017 app/Main.axl:7:12: error: `Square` does not give `fn area() -> Double`, which the interface `Shape` requires; add it in a body after the fields: `data class Square(...) : Shape { fn ... }`
+AXL010 app/Main.axl:10:8: error: `x()` already reads the field `x` of `Point`; give the method another name
+AXL011 app/Main.axl:12:8: error: `case` cannot be used as a name: Java, which the code becomes, reserves it

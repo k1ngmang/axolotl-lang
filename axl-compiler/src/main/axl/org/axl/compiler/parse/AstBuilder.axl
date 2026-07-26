@@ -169,7 +169,7 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
     if (data != null) {
         return DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
             nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()),
-            buildTypeParams(data.typeParams()))
+            buildTypeParams(data.typeParams()), data.functionDecl() |> map { f -> buildFunction(f) })
     }
     val enumeration = top.enumDecl()
     if (enumeration != null) {

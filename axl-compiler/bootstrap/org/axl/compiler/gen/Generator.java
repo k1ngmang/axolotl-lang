@@ -54,6 +54,7 @@ import org.axl.compiler.check.Whens;
     public @Nullable TypeRef subjectTypeOf;
     public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
+    public List<Decl.Function> currentMethods;
     public String elseLabel;
     public boolean inPropertyInit;
     public int lambdaDepth;
@@ -85,6 +86,7 @@ import org.axl.compiler.check.Whens;
         this.subjectTypeOf = null;
         this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
+        this.currentMethods = List.of();
         this.elseLabel = "default";
         this.inPropertyInit = false;
         this.lambdaDepth = 0;
@@ -207,6 +209,9 @@ import org.axl.compiler.check.Whens;
                     ")" +
                     typeList(" implements ", fileType$1.supertypes()) +
                     " {");
+            em.indent();
+            emitDataClassMethods(fileType$1);
+            em.dedent();
         } else if (fileType instanceof Decl.Interface fileType$2) {
             em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() + typeParamList(fileType$2.typeParams()) +
                     typeList(" extends ", fileType$2.supertypes()) +
@@ -286,7 +291,9 @@ import org.axl.compiler.check.Whens;
     private void emitClassMembers(Decl.ClassDecl classDecl) {
         em.indent();
         final var outerClass = currentClass;
+        final var outerMethods = currentMethods;
         currentClass = classDecl;
+        currentMethods = classDecl.methods();
         final var lifting = classDecl.properties().stream().anyMatch(p -> Lifts.needed(propertyInit(p)));
         final var superArgs = classDecl.superArgs();
         final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty());
@@ -310,6 +317,7 @@ import org.axl.compiler.check.Whens;
         overridden = outerOverridden;
         emitAccessors(classDecl);
         currentClass = outerClass;
+        currentMethods = outerMethods;
         em.dedent();
     }
     private void emitConstructor(Decl.ClassDecl classDecl) {
@@ -373,13 +381,33 @@ import org.axl.compiler.check.Whens;
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
-        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
+        final var head = annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
                 typeParamList(dataClass.typeParams()) +
                 "(" +
                 parameters(dataClass.fields(), line) +
                 ")" +
-                typeList(" implements ", dataClass.supertypes()) +
-                " {}");
+                typeList(" implements ", dataClass.supertypes());
+        if (dataClass.methods().isEmpty()) {
+            em.line(line, head + " {}");
+            return;
+        }
+        em.line(line, head + " {");
+        em.indent();
+        emitDataClassMethods(dataClass);
+        em.dedent();
+        em.line(line, "}");
+    }
+    private void emitDataClassMethods(Decl.DataClass dataClass) {
+        final var outerOverridden = overridden;
+        final var outerMethods = currentMethods;
+        overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
+        currentMethods = dataClass.methods();
+        for (final var method : dataClass.methods()) {
+            resetCounters();
+            emitFunction(method, false);
+        }
+        currentMethods = outerMethods;
+        overridden = outerOverridden;
     }
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
@@ -1773,11 +1801,11 @@ import org.axl.compiler.check.Whens;
     }
     private boolean callsHiddenFunction(Expr.Call c) {
         final var owner = currentClass;
-        if (owner == null || owner.name().equals(file.className())) {
+        if (currentMethods.isEmpty() || (owner != null && owner.name().equals(file.className()))) {
             return false;
         }
         final var arity = c.args().size();
-        final var methods = owner.methods().stream().filter(m -> m.name().equals(c.name())).toList();
+        final var methods = currentMethods.stream().filter(m -> m.name().equals(c.name())).toList();
         final var method = methods.stream().anyMatch(m -> m.params().size() == arity);
         final var function = file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(c.name()) && d$1.params().size() == arity);
         return !methods.isEmpty() && !method && function;

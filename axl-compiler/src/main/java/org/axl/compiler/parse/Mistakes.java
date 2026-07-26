@@ -76,9 +76,7 @@ final class Mistakes {
             case AxolotlLexer.DOT -> previous.getType() == AxolotlLexer.IDENTIFIER && type(before(tokens, previous)) == AxolotlLexer.FN
                     ? "Axolotl has no extension functions; take the value as the first parameter: `fn "
                     + text(SourceParser.nextToken(tokens, at)) + "(s: " + previous.getText() + ")`" : null;
-            case AxolotlLexer.LBRACE -> text(SourceParser.lineStart(tokens, at)).equals("data")
-                    ? "a data class has no body; write its functions at the top level, taking it as a parameter"
-                    : inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
+            case AxolotlLexer.LBRACE -> inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
             case AxolotlLexer.ELSE -> previous.getType() != AxolotlLexer.RBRACE && !lineHas(tokens, previous.getLine(), AxolotlLexer.IF)
                     && type(SourceParser.nextToken(tokens, at)) != AxolotlLexer.ARROW
                     ? "`else` needs an `if` before it: `if (c) { ... } else { ... }`" : null;

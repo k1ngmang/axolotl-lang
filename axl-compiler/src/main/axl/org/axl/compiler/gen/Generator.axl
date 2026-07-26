@@ -92,6 +92,8 @@ class Generator(
 
     // The class whose members are being emitted, where a method hides a function of the same name.
     var currentClass: Decl.ClassDecl? = null
+    /** The methods of the class or data class being emitted, which a call by a bare name may mean. */
+    var currentMethods: List<Decl.Function> = List.of()
 
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
@@ -229,6 +231,9 @@ class Generator(
             em.line(line, marked + "public record " + fileType.name() + typeParamList(fileType.typeParams()) + "(" +
                 parameters(fileType.fields(), line) + ")" +
                 typeList(" implements ", fileType.supertypes()) + " {")
+            em.indent()
+            emitDataClassMethods(fileType)
+            em.dedent()
         } else if (fileType is Decl.Interface) {
             em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() + typeParamList(fileType.typeParams()) +
                 typeList(" extends ", fileType.supertypes()) + " {")
@@ -315,7 +320,9 @@ class Generator(
     private fn emitClassMembers(classDecl: Decl.ClassDecl) {
         em.indent()
         val outerClass = currentClass
+        val outerMethods = currentMethods
         currentClass = classDecl
+        currentMethods = classDecl.methods()
         // Properties are set after the parameters, in the constructor, since they may read them; so are
         // properties whose value needs statements before it.
         val lifting = classDecl.properties() |> anyMatch { p -> Lifts.needed(propertyInit(p)) }
@@ -341,6 +348,7 @@ class Generator(
         overridden = outerOverridden
         emitAccessors(classDecl)
         currentClass = outerClass
+        currentMethods = outerMethods
         em.dedent()
     }
 
@@ -409,9 +417,32 @@ class Generator(
 
     private fn emitDataClass(dataClass: Decl.DataClass) {
         val line = dataClass.pos().line()
-        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
+        val head = annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
             typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line) + ")" +
-            typeList(" implements ", dataClass.supertypes()) + " {}")
+            typeList(" implements ", dataClass.supertypes())
+        if (dataClass.methods().isEmpty()) {
+            em.line(line, head + " {}")
+            return
+        }
+        em.line(line, head + " {")
+        em.indent()
+        emitDataClassMethods(dataClass)
+        em.dedent()
+        em.line(line, "}")
+    }
+
+    /** The methods of a record body, which read the fields by name as a class's do. */
+    private fn emitDataClassMethods(dataClass: Decl.DataClass) {
+        val outerOverridden = overridden
+        val outerMethods = currentMethods
+        overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
+        currentMethods = dataClass.methods()
+        for (method in dataClass.methods()) {
+            resetCounters()
+            emitFunction(method, false)
+        }
+        currentMethods = outerMethods
+        overridden = outerOverridden
     }
 
     private fn emitInterface(iface: Decl.Interface) {
@@ -2024,11 +2055,11 @@ class Generator(
      */
     private fn callsHiddenFunction(c: Expr.Call) -> Boolean {
         val owner = currentClass
-        if (owner == null || owner.name().equals(file.className())) {
+        if (currentMethods.isEmpty() || (owner != null && owner.name().equals(file.className()))) {
             return false
         }
         val arity = c.args().size()
-        val methods = owner.methods() |> filter { m -> m.name().equals(c.name()) }
+        val methods = currentMethods |> filter { m -> m.name().equals(c.name()) }
         val method = methods |> anyMatch { m -> m.params().size() == arity }
         val function = file.decls() |> anyMatch { d -> d is Decl.Function && d.name().equals(c.name()) && d.params().size() == arity }
         return !methods.isEmpty() && !method && function

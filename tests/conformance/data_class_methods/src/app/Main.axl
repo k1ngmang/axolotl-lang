@@ -1,0 +1,38 @@
+package app
+
+import java.util.ArrayList
+import java.util.Collections
+import java.util.List
+
+interface Priced {
+    fn price() -> Long
+    fn label(prefix: String) -> String
+}
+
+data class Money(val cents: Long) : Comparable<Money> {
+    fn compareTo(other: Money) -> Int = Long.compare(cents, other.cents())
+
+    fn plus(other: Money) -> Money = Money(cents + other.cents())
+
+    fn show() -> String = cents / 100 + "." + String.format("%02d", cents % 100)
+}
+
+data class Item(val name: String, val money: Money) : Priced {
+    fn price() -> Long = money.cents()
+
+    fn label(prefix: String) -> String = prefix + name + " " + money.show()
+}
+
+fn main() {
+    val prices = ArrayList<Money>()
+    prices.add(Money(250))
+    prices.add(Money(99))
+    prices.add(Money(1000))
+    Collections.sort(prices)
+    println(prices |> map { it.show() })
+    println(Money(250).plus(Money(99)).show())
+    val item = Item("tea", Money(350))
+    val priced: Priced = item
+    println(priced.label("* ") + " " + priced.price())
+    println(item.equals(Item("tea", Money(350))))
+}

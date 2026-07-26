@@ -215,6 +215,7 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
 - Pipes: `filter { it is Circle }` narrows the elements to `Circle` for the rest of the pipe and for the list it builds, and a `map` that gives null may be followed by `filter { it != null }`.
 - Language: after `if (r is Err) { return }` a `Result` is known to be an `Ok` (`r.value()`), and after `if (r is Ok) { return }` an `Err` (`r.error()`).
 - Language: type parameters on data classes, classes, interfaces and functions: `data class Pair<A, B>(...)`, `interface Repository<K, V>`, `fn largest<T : Comparable<T>>(xs: List<T>) -> T?`. A parameter without a bound takes nullable types too; `T : Object` takes the types without null. A type test on a value of a generic sealed interface keeps the type arguments.
+- Language: a data class may have a body with methods, for the interfaces it implements: `data class Money(val cents: Long) : Comparable<Money> { fn compareTo(o: Money) -> Int = ... }`.
 - Language: enum constants carry fields, `enum Planet(val mass: Double) { EARTH(5.976e24) }`, read as `Planet.EARTH.mass`.
 - Language: a class extends a Java class by calling its constructor, `class NotFound(val id: String) : RuntimeException("not found: " + id)`, `class Worker : Thread("w") { fn run() { ... } }`; a class written in Axolotl still cannot be extended.
 - Language: `break` and `continue` in `while` and `for` loops.

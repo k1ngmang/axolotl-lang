@@ -113,9 +113,10 @@ annotationValue
     ;
 
 // `data class Point(val x: Int, val y: Int) : Shape`; `data` is a word only here.
+// A body holds methods only, for the interfaces the data class implements, such as `Comparable`.
 dataClassDecl
     : annotation* PRIVATE? {_input.LT(1).getText().equals("data")}? IDENTIFIER CLASS identifier typeParams?
-      LPAREN (field (COMMA field)*)? RPAREN (COLON type (COMMA type)*)?
+      LPAREN (field (COMMA field)*)? RPAREN (COLON type (COMMA type)*)? (LBRACE functionDecl* RBRACE)?
     ;
 // `<T>` or `<K, V : Comparable<V>>`: the type parameters of a type or a function.
 typeParams

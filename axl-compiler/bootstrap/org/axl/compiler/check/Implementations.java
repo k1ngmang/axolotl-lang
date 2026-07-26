@@ -50,32 +50,36 @@ import org.axl.compiler.ast.TypeRef;
             }
             for (final var method : iface.methods()) {
                 if (!seen.add(method.name() + "/" + method.params().size())) {
-                } else if (decl instanceof Decl.ClassDecl decl$1) {
-                    implementation(decl$1, method, implemented, problems);
                 } else {
-                    problems.add(new Mismatch(decl.namePos(), "`" + decl.name() + "` is a data class, so it has no methods, but the " +
-                            "interface `" +
-                            iface.name() +
-                            "` requires `" +
-                            signature(method) +
-                            "`; make `" +
-                            decl.name() +
-                            "` a class, or write `" +
-                            method.name() +
-                            "` as a function of the file that takes the `" +
-                            iface.name() +
-                            "`"));
+                    implementation(decl, methodsOf(decl), method, implemented, problems);
                 }
             }
         }
     }
-    private static void implementation(Decl.ClassDecl c, Decl.Function method, Implemented implemented, List<Mismatch> problems) {
+    private static List<Decl.Function> methodsOf(Decl decl) {
+        switch (decl) {
+            case Decl.ClassDecl decl$1 -> {
+                return decl$1.methods();
+            }
+            case Decl.DataClass decl$2 -> {
+                return decl$2.methods();
+            }
+            default -> {
+                return List.of();
+            }
+        }
+    }
+    private static void implementation(Decl c, List<Decl.Function> methods, Decl.Function method, Implemented implemented,
+            List<Mismatch> problems) {
         final var iface = implemented.iface();
-        final var own = Nulls.first(c.methods().stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).iterator());
+        final var own = Nulls.first(methods.stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).iterator());
         if (own == null) {
+            final var where = (c instanceof Decl.DataClass c$1 ? "add it in a body after the fields: `data class " + c$1.name() + "(...) : " + iface.name() + " { fn ... }`" :
+                    "add the method");
             problems.add(new Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
                     iface.name() +
-                    "` requires; add the method"));
+                    "` requires; " +
+                    where));
             return;
         }
         if (own.isPrivate()) {

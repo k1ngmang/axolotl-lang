@@ -1,0 +1,13 @@
+package app
+
+interface Shape {
+    fn area() -> Double
+}
+
+data class Square(val side: Double) : Shape
+
+data class Point(val x: Int) {
+    fn x() -> Int = 1
+
+    fn case() -> Int = 2
+}

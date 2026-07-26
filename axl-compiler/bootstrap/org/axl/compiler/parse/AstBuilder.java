@@ -169,7 +169,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (data != null) {
             return new DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
                     nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()),
-                    buildTypeParams(data.typeParams()));
+                    buildTypeParams(data.typeParams()), data.functionDecl().stream().map(Nulls.nonNull(f -> buildFunction(f))).toList());
         }
         final var enumeration = top.enumDecl();
         if (enumeration != null) {

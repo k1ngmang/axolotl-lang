@@ -59,24 +59,29 @@ private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, 
         for (method in iface.methods()) {
             if (!seen.add(method.name() + "/" + method.params().size())) {
                 // Reported where the interface declares it twice.
-            } else if (decl is Decl.ClassDecl) {
-                implementation(decl, method, implemented, problems)
             } else {
-                problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` is a data class, so it has no methods, but the " +
-                    "interface `" + iface.name() + "` requires `" + signature(method) + "`; make `" + decl.name() +
-                    "` a class, or write `" + method.name() + "` as a function of the file that takes the `" + iface.name() + "`"))
+                implementation(decl, methodsOf(decl), method, implemented, problems)
             }
         }
     }
 }
 
-/** A class gives a method with the name, as many parameters, and types that fit the interface's. */
-private fn implementation(c: Decl.ClassDecl, method: Decl.Function, implemented: Implemented, problems: List<Mismatch>) {
+private fn methodsOf(decl: Decl) -> List<Decl.Function> = when (decl) {
+    is Decl.ClassDecl -> decl.methods()
+    is Decl.DataClass -> decl.methods()
+    else -> List.of()
+}
+
+/** A class or data class gives a method with the name, as many parameters, and types that fit the interface's. */
+private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Function, implemented: Implemented,
+                          problems: List<Mismatch>) {
     val iface = implemented.iface()
-    val own = c.methods() |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
+    val own = methods |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
     if (own == null) {
+        val where = if (c is Decl.DataClass) "add it in a body after the fields: `data class " + c.name() + "(...) : " + iface.name() + " { fn ... }`"
+            else "add the method"
         problems.add(Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
-            iface.name() + "` requires; add the method"))
+            iface.name() + "` requires; " + where))
         return
     }
     if (own.isPrivate()) {

@@ -39,7 +39,8 @@ import java.util.List;
             List<Expr.Param> fields,
             List<TypeRef> supertypes,
             List<Annotation> annotations,
-            List<TypeParam> typeParams) implements Decl {}
+            List<TypeParam> typeParams,
+            List<Function> methods) implements Decl {}
     public record Interface(
             Pos pos,
             Pos namePos,

@@ -147,6 +147,8 @@ class Checker(val file: SourceFile) {
     /** Inside the lambda of a pipe stage that gives a value, where a lone `attempt` is the value. */
     var valueStage: Boolean = false
     var currentClass: Decl.ClassDecl? = null
+    /** The methods of the class or data class whose body is being checked. */
+    var currentMethods: List<Decl.Function> = List.of()
     // The written type of the `val` whose initializer is being checked, for `mapResult`.
     var declaredType: TypeRef? = null
 
@@ -164,7 +166,10 @@ class Checker(val file: SourceFile) {
                 }
                 is Decl.ClassDecl -> classDecl(decl)
                 is Decl.EnumDecl -> enumConstants(decl)
-                is Decl.DataClass -> members(decl.fields(), "field")
+                is Decl.DataClass -> {
+                    members(decl.fields(), "field")
+                    dataClassMethods(decl)
+                }
                 is Decl.Interface -> {
                     members(decl.members(), "member")
                     interfaceMethods(decl)
@@ -350,6 +355,9 @@ class Checker(val file: SourceFile) {
             if (accessor) {
                 error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + decl.name() + "()` reads the field `" + decl.name() +
                     "` of `" + data.name() + "`, the type of this file; give the function another name")
+            } else if (decl is Decl.Function && (data.methods() |> anyMatch { m -> m.name().equals(decl.name()) && m.params().size() == decl.params().size() })) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + data.name() + "`, the type of this file, has a method `" +
+                    decl.name() + "` with as many parameters, so a function of the file cannot have its name; rename one")
             }
         }
     }
@@ -391,6 +399,7 @@ class Checker(val file: SourceFile) {
 
     private fn classDecl(c: Decl.ClassDecl) {
         currentClass = c
+        currentMethods = c.methods()
         scope = Scope(scope, false)
         for (p in c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type())
@@ -430,6 +439,33 @@ class Checker(val file: SourceFile) {
         integerAllowed = false
         pop()
         currentClass = null
+        currentMethods = List.of()
+    }
+
+    /** The methods of a data class see its fields by name, like the methods of a class. */
+    private fn dataClassMethods(data: Decl.DataClass) {
+        if (data.methods().isEmpty()) {
+            return
+        }
+        scope = Scope(scope, false)
+        for (f in data.fields()) {
+            declare(f.pos(), f.name(), Kind.FIELD, f.type())
+        }
+        val outerMethods = currentMethods
+        currentMethods = data.methods()
+        integerAllowed = data.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
+        for (m in data.methods()) {
+            checkReserved(m.namePos(), m.name())
+            if (m.params().isEmpty() && (data.fields() |> anyMatch { f -> f.name().equals(m.name()) })) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "()` already reads the field `" + m.name() +
+                    "` of `" + data.name() + "`; give the method another name")
+            }
+            typeParams(m)
+            function(m)
+        }
+        integerAllowed = false
+        currentMethods = outerMethods
+        pop()
     }
 
     private fn declaresType(name: String) -> Boolean = file.decls() |> anyMatch { d -> isTypeDecl(d) && d.name().equals(name) }
@@ -1294,9 +1330,7 @@ class Checker(val file: SourceFile) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "the lambda of `mapResult` must be a single expression")
             return
         }
-        val owner = currentClass
-        val methods: List<Decl.Function> = if (owner == null) List.of() else owner.methods()
-        val element = MapResultTypes.elementType(stage, file, methods, declared)
+        val element = MapResultTypes.elementType(stage, file, currentMethods, declared)
         if (element == null) {
             error(stage.pos(), ErrorCode.TYPE_REQUIRED, "`mapResult` needs the element type: call a function of this file " +
                 "that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`")

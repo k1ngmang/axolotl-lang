@@ -48,6 +48,7 @@ import org.axl.compiler.ast.TypeRef;
     public boolean integerAllowed;
     public boolean valueStage;
     public Decl.@Nullable ClassDecl currentClass;
+    public List<Decl.Function> currentMethods;
     public @Nullable TypeRef declaredType;
     public Checker(SourceFile file) {
         this.file = file;
@@ -75,6 +76,7 @@ import org.axl.compiler.ast.TypeRef;
         this.integerAllowed = false;
         this.valueStage = false;
         this.currentClass = null;
+        this.currentMethods = List.of();
         this.declaredType = null;
     }
     public void run() {
@@ -99,6 +101,7 @@ import org.axl.compiler.ast.TypeRef;
                 }
                 case Decl.DataClass decl$5 -> {
                     members(decl$5.fields(), "field");
+                    dataClassMethods(decl$5);
                 }
                 case Decl.Interface decl$6 -> {
                     members(decl$6.members(), "member");
@@ -280,6 +283,10 @@ import org.axl.compiler.ast.TypeRef;
                         "` of `" +
                         data.name() +
                         "`, the type of this file; give the function another name");
+            } else if (decl instanceof Decl.Function decl$2 && (data.methods().stream().anyMatch(m -> m.name().equals(decl$2.name()) && m.params().size() == decl$2.params().size()))) {
+                error(decl$2.namePos(), ErrorCode.DUPLICATE_NAME, "`" + data.name() + "`, the type of this file, has a method `" +
+                        decl$2.name() +
+                        "` with as many parameters, so a function of the file cannot have its name; rename one");
             }
         }
     }
@@ -331,6 +338,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private void classDecl(Decl.ClassDecl c) {
         currentClass = c;
+        currentMethods = c.methods();
         scope = new Scope(scope, false);
         for (final var p : c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type());
@@ -368,6 +376,33 @@ import org.axl.compiler.ast.TypeRef;
         integerAllowed = false;
         pop();
         currentClass = null;
+        currentMethods = List.of();
+    }
+    private void dataClassMethods(Decl.DataClass data) {
+        if (data.methods().isEmpty()) {
+            return;
+        }
+        scope = new Scope(scope, false);
+        for (final var f : data.fields()) {
+            declare(f.pos(), f.name(), Kind.FIELD, f.type());
+        }
+        final var outerMethods = currentMethods;
+        currentMethods = data.methods();
+        integerAllowed = data.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
+        for (final var m : data.methods()) {
+            checkReserved(m.namePos(), m.name());
+            if (m.params().isEmpty() && (data.fields().stream().anyMatch(f -> f.name().equals(m.name())))) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "()` already reads the field `" + m.name() +
+                        "` of `" +
+                        data.name() +
+                        "`; give the method another name");
+            }
+            typeParams(m);
+            function(m);
+        }
+        integerAllowed = false;
+        currentMethods = outerMethods;
+        pop();
     }
     private boolean declaresType(String name) {
         return file.decls().stream().anyMatch(d -> isTypeDecl(d) && d.name().equals(name));
@@ -1224,9 +1259,7 @@ import org.axl.compiler.ast.TypeRef;
             error(stage.pos(), ErrorCode.PIPE_STAGE, "the lambda of `mapResult` must be a single expression");
             return;
         }
-        final var owner = currentClass;
-        final List<Decl.Function> methods = (owner == null ? List.of() : owner.methods());
-        final var element = MapResultTypes.elementType(stage, file, methods, declared);
+        final var element = MapResultTypes.elementType(stage, file, currentMethods, declared);
         if (element == null) {
             error(stage.pos(), ErrorCode.TYPE_REQUIRED, "`mapResult` needs the element type: call a function of this file " +
                     "that returns `Result<T, E>`, or declare the result as `val name: List<T> = ...`");

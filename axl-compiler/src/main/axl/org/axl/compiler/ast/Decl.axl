@@ -57,7 +57,9 @@ data class DataClass(
     val fields: List<Expr.Param>,
     val supertypes: List<TypeRef>,
     val annotations: List<Annotation>,
-    val typeParams: List<TypeParam>
+    val typeParams: List<TypeParam>,
+    /** The methods of its body, for the interfaces it implements; a data class has no other members. */
+    val methods: List<Function>
 ) : Decl
 
 /** members are the values it requires, such as `val pos: Pos`. */

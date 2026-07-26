@@ -111,7 +111,8 @@ A `data class` is an immutable Java record: its fields are read with `circle.rad
 `sealed` limits the implementations to the file, so that a `when` can cover them all. Type names start
 with a capital letter, and `Circle("c", 2.0)` creates one. They are nested in the class of their file
 (`Shapes.axl` makes `Shapes.Circle`), so other files import them as `import app.Shapes.Circle`.
-Methods of a record are plain functions that take it: `fn area(c: Circle) -> Double = ...`.
+Functions over a record are plain functions that take it: `fn area(c: Circle) -> Double = ...`;
+a body with methods is for the interfaces the data class implements.
 
 An interface may also require methods, as signatures without a body:
 
@@ -125,8 +126,10 @@ interface Notes {
 
 Each `class` that implements it writes the methods (`fn add(text: String) -> Int { ... }`), with the
 same parameter types and a result type that fits: `String` where `String?` is required, never the
-other way. A data class has no body, so an interface with methods is implemented by classes; for
-data, write the function at the top level and `when` over the sealed interface.
+other way. A data class implements such methods in a body after its fields, as it does
+`Comparable`: `data class Money(val cents: Long) : Comparable<Money> { fn compareTo(o: Money) -> Int =
+Long.compare(cents, o.cents()) }`. The body holds methods only; behavior over data classes otherwise
+stays in functions at the top level, with `when` over the sealed interface.
 
 ## Classes
 
