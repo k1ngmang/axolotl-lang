@@ -203,8 +203,9 @@ assignOp
     : ASSIGN | PLUS_ASSIGN | MINUS_ASSIGN | STAR_ASSIGN | SLASH_ASSIGN | PERCENT_ASSIGN
     ;
 
+// `xs |> first ?: fallback`: the fallback belongs to the whole pipe, whose `first` may be null.
 expression
-    : disjunction (PIPE pipeStage)*
+    : disjunction (PIPE pipeStage)* (ELVIS additive)?
     ;
 
 // `xs |> filter { it > 0 } |> limit(10)`

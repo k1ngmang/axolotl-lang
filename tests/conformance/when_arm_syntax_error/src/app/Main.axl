@@ -6,7 +6,7 @@ fn main() {
         0 -> println("q")
         1, 5 -> {
             when (1) {
-                0 -> println((names |> first ?: "z"))
+                0 -> println((names |> first ?: ))
                 else -> println("c")
             }
         }

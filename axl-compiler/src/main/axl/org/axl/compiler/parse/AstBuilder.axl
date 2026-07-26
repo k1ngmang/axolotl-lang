@@ -351,7 +351,9 @@ private fn buildExpr(ctx: ExpressionContext) -> Expr {
         return source
     }
     val stages = ctx.pipeStage() |> map { stage -> buildStage(stage) }
-    return Pipe(source.pos(), source, stages)
+    val pipe = Pipe(source.pos(), source, stages)
+    val fallback = ctx.additive()
+    return if (fallback == null) pipe else Elvis(pipe.pos(), pipe, buildAdditive(fallback))
 }
 
 private fn buildStage(stage: PipeStageContext) -> Expr.Stage {

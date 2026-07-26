@@ -358,7 +358,9 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             return source;
         }
         final var stages = ctx.pipeStage().stream().map(Nulls.nonNull(stage -> buildStage(stage))).toList();
-        return new Pipe(source.pos(), source, stages);
+        final var pipe = new Pipe(source.pos(), source, stages);
+        final var fallback = ctx.additive();
+        return (fallback == null ? pipe : new Elvis(pipe.pos(), pipe, buildAdditive(fallback)));
     }
     private static Expr.Stage buildStage(PipeStageContext stage) {
         final var lambdaCtx = stage.lambda();

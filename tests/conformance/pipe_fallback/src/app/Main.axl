@@ -1,0 +1,14 @@
+package app
+
+import java.util.List
+
+fn top(names: List<String>) -> String = names |> sorted |> first ?: "none"
+
+fn main() {
+    println(top(List.of("pear", "apple")))
+    println(top(List.of()))
+    val numbers = List.of(3, 8, 5)
+    val firstBig = numbers |> filter { it > 4 } |> first ?: 0
+    println(firstBig + 1)
+    println("top " + (numbers |> filter { it > 10 } |> first ?: -1))
+}

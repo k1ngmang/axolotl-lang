@@ -387,7 +387,7 @@ numbers |> forEach { println(it) }
 | `filter { }`, `map { }`, `peek { }` | Stream operations with one element `it`. |
 | `sorted`, `sorted { a, b -> ... }` | Natural order or a comparator. |
 | `distinct`, `limit(n)`, `skip(n)` | As in `Stream`. |
-| `forEach { }`, `anyMatch { }`, `allMatch { }`, `noneMatch { }`, `count`, `first` | End the pipe; `first` is the first element or `null`. |
+| `forEach { }`, `anyMatch { }`, `allMatch { }`, `noneMatch { }`, `count`, `first` | End the pipe; `first` is the first element or `null`, so `xs \|> first ?: fallback` gives the fallback for an empty pipe. |
 | `mapResult { }` | Maps every element to a `Result`; the first `Err` is returned from the function. |
 
 `filter { it is Circle }` keeps the circles and the elements after it are `Circle`s: `shapes |> filter { it is
