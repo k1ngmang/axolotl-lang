@@ -81,7 +81,7 @@ type has parameters are static and cannot use them; they take their own.
 
 ## Expressions
 
-Calls, member access, `+ - * / %`, comparisons, `== !=` (Java's `==`), `&& || !`, string
+Calls, member access, `+ - * / %`, comparisons, `== !=` (Java's `==`: values for numbers, booleans and enum constants, an error for strings and other objects), `&& || !`, string
 concatenation, lambdas, method references `String::length` and class literals `String.class` work
 as in Java (`Int.class` is `Integer.class`, the class a Java API such as Jackson wants). A call of a
 capitalized name creates an object: `StringBuilder("x")`, `ArrayList<String>()`, also when it is
