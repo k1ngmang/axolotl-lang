@@ -20,6 +20,9 @@ data class Assign(val pos: Pos, val target: Expr, val op: String, val value: Exp
 
 data class Return(val pos: Pos, val value: Expr?) : Stmt
 
+/** `break` or `continue`, inside a loop. */
+data class Jump(val pos: Pos, val isBreak: Boolean) : Stmt
+
 /** elseBranch is null, a Block or another If. */
 data class If(val pos: Pos, val condition: Expr, val then: Block, val elseBranch: Stmt?) : Stmt
 

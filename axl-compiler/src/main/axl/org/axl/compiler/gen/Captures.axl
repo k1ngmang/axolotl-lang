@@ -114,6 +114,7 @@ class Captures(val analysis: Analysis) {
                     visit(value, inLambda)
                 }
             }
+            is Stmt.Jump -> { }
             is Stmt.If -> {
                 visit(stmt.condition(), inLambda)
                 statement(stmt.then(), inLambda)

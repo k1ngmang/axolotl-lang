@@ -61,6 +61,7 @@ import org.axl.compiler.parse.AxolotlParser.AnnotationContext
 import org.axl.compiler.parse.AxolotlParser.AnnotationValueContext
 import org.axl.compiler.parse.AxolotlParser.AttemptExpressionContext
 import org.axl.compiler.parse.AxolotlParser.BlockContext
+import org.axl.compiler.parse.AxolotlParser.BreakStatementContext
 import org.axl.compiler.parse.AxolotlParser.CallSuffixContext
 import org.axl.compiler.parse.AxolotlParser.ClassDeclContext
 import org.axl.compiler.parse.AxolotlParser.ClassMemberContext
@@ -68,6 +69,7 @@ import org.axl.compiler.parse.AxolotlParser.ClassParamContext
 import org.axl.compiler.parse.AxolotlParser.ComparisonContext
 import org.axl.compiler.parse.AxolotlParser.CompilationUnitContext
 import org.axl.compiler.parse.AxolotlParser.ConjunctionContext
+import org.axl.compiler.parse.AxolotlParser.ContinueStatementContext
 import org.axl.compiler.parse.AxolotlParser.DataClassDeclContext
 import org.axl.compiler.parse.AxolotlParser.DisjunctionContext
 import org.axl.compiler.parse.AxolotlParser.ElvisContext
@@ -294,6 +296,8 @@ private fn buildStatement(ctx: StatementContext) -> Stmt? = when (ctx) {
             buildExpr(decl.expression()), true)
     }
     is ReturnStatementContext -> buildReturn(ctx)
+    is BreakStatementContext -> Stmt.Jump(pos(ctx.start), true)
+    is ContinueStatementContext -> Stmt.Jump(pos(ctx.start), false)
     is IfStatementAltContext -> buildIf(ctx.ifStatement())
     is WhileStatementContext -> While(pos(ctx.start), buildExpr(ctx.expression()), buildBlock(ctx.block()))
     is ForStatementContext -> For(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()),

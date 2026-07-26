@@ -1,0 +1,23 @@
+package app
+
+import java.util.List
+
+fn main() {
+    break
+    val xs = List.of(1, 2)
+    for (x in xs) {
+        xs |> forEach {
+            if (it > 1) {
+                continue
+            }
+        }
+        val label = when (x) {
+            1 -> {
+                break
+                "one"
+            }
+            else -> "other"
+        }
+        println(label)
+    }
+}

@@ -17,20 +17,23 @@ import org.axl.compiler.ast.Stmt;
             case Stmt.Return stmt$3 -> {
                 return stmt$3.value() != null && usesIt(Nulls.sure(stmt$3.value()));
             }
-            case Stmt.If stmt$4 -> {
-                return usesIt(stmt$4.condition()) || usesIt(stmt$4.then()) || (stmt$4.elseBranch() != null && usesIt(Nulls.sure(stmt$4.elseBranch())));
+            case Stmt.Jump stmt$4 -> {
+                return false;
             }
-            case Stmt.While stmt$5 -> {
-                return usesIt(stmt$5.condition()) || usesIt(stmt$5.body());
+            case Stmt.If stmt$5 -> {
+                return usesIt(stmt$5.condition()) || usesIt(stmt$5.then()) || (stmt$5.elseBranch() != null && usesIt(Nulls.sure(stmt$5.elseBranch())));
             }
-            case Stmt.For stmt$6 -> {
-                return usesIt(stmt$6.iterable()) || usesIt(stmt$6.body());
+            case Stmt.While stmt$6 -> {
+                return usesIt(stmt$6.condition()) || usesIt(stmt$6.body());
             }
-            case Stmt.ExprStmt stmt$7 -> {
-                return usesIt(stmt$7.expr());
+            case Stmt.For stmt$7 -> {
+                return usesIt(stmt$7.iterable()) || usesIt(stmt$7.body());
             }
-            case Stmt.Block stmt$8 -> {
-                return stmt$8.statements().stream().anyMatch(it -> usesIt(it));
+            case Stmt.ExprStmt stmt$8 -> {
+                return usesIt(stmt$8.expr());
+            }
+            case Stmt.Block stmt$9 -> {
+                return stmt$9.statements().stream().anyMatch(it -> usesIt(it));
             }
         }
     }

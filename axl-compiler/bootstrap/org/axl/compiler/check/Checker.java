@@ -34,6 +34,7 @@ import org.axl.compiler.ast.TypeRef;
     public final HashSet<String> typeNames;
     public final IdentityHashMap<Expr.When, Boolean> whenResults;
     public int valueWhenDepth;
+    public int loopDepth;
     public int expressionLambdas;
     public int conditionalDepth;
     public final Set<Expr.Throw> allowedThrows;
@@ -60,6 +61,7 @@ import org.axl.compiler.ast.TypeRef;
         this.typeNames = new HashSet<String>();
         this.whenResults = new IdentityHashMap<Expr.When, Boolean>();
         this.valueWhenDepth = -1;
+        this.loopDepth = 0;
         this.expressionLambdas = 0;
         this.conditionalDepth = 0;
         this.allowedThrows = Collections.newSetFromMap(new IdentityHashMap<Expr.Throw, Boolean>());
@@ -538,32 +540,39 @@ import org.axl.compiler.ast.TypeRef;
             case Stmt.Return stmt$3 -> {
                 returnStatement(stmt$3);
             }
-            case Stmt.If stmt$4 -> {
-                expr(stmt$4.condition());
-                statements(stmt$4.then().statements());
-                final var elseBranch = stmt$4.elseBranch();
+            case Stmt.Jump stmt$4 -> {
+                jump(stmt$4);
+            }
+            case Stmt.If stmt$5 -> {
+                expr(stmt$5.condition());
+                statements(stmt$5.then().statements());
+                final var elseBranch = stmt$5.elseBranch();
                 if (elseBranch != null) {
                     statement(elseBranch);
                 }
             }
-            case Stmt.While stmt$5 -> {
-                expr(stmt$5.condition());
-                statements(stmt$5.body().statements());
-            }
-            case Stmt.For stmt$6 -> {
-                expr(stmt$6.iterable());
-                scope = new Scope(scope, false);
-                if (!stmt$6.name().equals("_")) {
-                    declare(stmt$6.namePos(), stmt$6.name(), Kind.LOOP_VARIABLE, null);
-                }
+            case Stmt.While stmt$6 -> {
+                expr(stmt$6.condition());
+                loopDepth = loopDepth + 1;
                 statements(stmt$6.body().statements());
+                loopDepth = loopDepth - 1;
+            }
+            case Stmt.For stmt$7 -> {
+                expr(stmt$7.iterable());
+                scope = new Scope(scope, false);
+                if (!stmt$7.name().equals("_")) {
+                    declare(stmt$7.namePos(), stmt$7.name(), Kind.LOOP_VARIABLE, null);
+                }
+                loopDepth = loopDepth + 1;
+                statements(stmt$7.body().statements());
+                loopDepth = loopDepth - 1;
                 pop();
             }
-            case Stmt.ExprStmt stmt$7 -> {
-                expressionStatement(stmt$7);
+            case Stmt.ExprStmt stmt$8 -> {
+                expressionStatement(stmt$8);
             }
-            case Stmt.Block stmt$8 -> {
-                statements(stmt$8.statements());
+            case Stmt.Block stmt$9 -> {
+                statements(stmt$9.statements());
             }
         }
     }
@@ -625,6 +634,16 @@ import org.axl.compiler.ast.TypeRef;
             return type;
         }
         return null;
+    }
+    private void jump(Stmt.Jump stmt) {
+        final var word = (stmt.isBreak() ? "break" : "continue");
+        if (loopDepth == 0) {
+            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` is used inside a `while` or `for` loop" +
+                    ((lambdaDepth > 0 ? ", not in a lambda; a lambda ends with `return`" : "")));
+        } else if (valueWhenDepth == lambdaDepth) {
+            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` cannot leave a `when` that gives a value; " +
+                    "write the `when` as a statement");
+        }
     }
     private void returnStatement(Stmt.Return stmt) {
         if (valueWhenDepth == lambdaDepth) {
@@ -1196,6 +1215,8 @@ import org.axl.compiler.ast.TypeRef;
     private void lambdaExpr(Expr.Lambda l, boolean takesElement) {
         scope = new Scope(scope, false);
         lambdaDepth = lambdaDepth + 1;
+        final var outerLoops = loopDepth;
+        loopDepth = 0;
         for (final var p : l.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type());
         }
@@ -1228,6 +1249,7 @@ import org.axl.compiler.ast.TypeRef;
             attemptDepth = outerAttempts;
             safeTailDepth = outerSafeTails;
         }
+        loopDepth = outerLoops;
         lambdaDepth = lambdaDepth - 1;
         pop();
     }

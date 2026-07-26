@@ -62,6 +62,7 @@ import org.axl.compiler.parse.AxolotlParser.AnnotationContext;
 import org.axl.compiler.parse.AxolotlParser.AnnotationValueContext;
 import org.axl.compiler.parse.AxolotlParser.AttemptExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.BlockContext;
+import org.axl.compiler.parse.AxolotlParser.BreakStatementContext;
 import org.axl.compiler.parse.AxolotlParser.CallSuffixContext;
 import org.axl.compiler.parse.AxolotlParser.ClassDeclContext;
 import org.axl.compiler.parse.AxolotlParser.ClassMemberContext;
@@ -69,6 +70,7 @@ import org.axl.compiler.parse.AxolotlParser.ClassParamContext;
 import org.axl.compiler.parse.AxolotlParser.ComparisonContext;
 import org.axl.compiler.parse.AxolotlParser.CompilationUnitContext;
 import org.axl.compiler.parse.AxolotlParser.ConjunctionContext;
+import org.axl.compiler.parse.AxolotlParser.ContinueStatementContext;
 import org.axl.compiler.parse.AxolotlParser.DataClassDeclContext;
 import org.axl.compiler.parse.AxolotlParser.DisjunctionContext;
 import org.axl.compiler.parse.AxolotlParser.ElvisContext;
@@ -291,23 +293,29 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             case ReturnStatementContext ctx$3 -> {
                 return buildReturn(ctx$3);
             }
-            case IfStatementAltContext ctx$4 -> {
-                return buildIf(ctx$4.ifStatement());
+            case BreakStatementContext ctx$4 -> {
+                return new Stmt.Jump(pos(ctx$4.start), true);
             }
-            case WhileStatementContext ctx$5 -> {
-                return new While(pos(ctx$5.start), buildExpr(ctx$5.expression()), buildBlock(ctx$5.block()));
+            case ContinueStatementContext ctx$5 -> {
+                return new Stmt.Jump(pos(ctx$5.start), false);
             }
-            case ForStatementContext ctx$6 -> {
-                return new For(pos(ctx$6.start), pos(ctx$6.identifier().start), nameOf(ctx$6.identifier()),
-                        buildExpr(ctx$6.expression()), buildBlock(ctx$6.block()));
+            case IfStatementAltContext ctx$6 -> {
+                return buildIf(ctx$6.ifStatement());
             }
-            case AssignStatementContext ctx$7 -> {
-                return buildAssign(ctx$7);
+            case WhileStatementContext ctx$7 -> {
+                return new While(pos(ctx$7.start), buildExpr(ctx$7.expression()), buildBlock(ctx$7.block()));
             }
-            case ExpressionStatementContext ctx$8 -> {
-                return new ExprStmt(pos(ctx$8.start), buildExpr(ctx$8.expression()));
+            case ForStatementContext ctx$8 -> {
+                return new For(pos(ctx$8.start), pos(ctx$8.identifier().start), nameOf(ctx$8.identifier()),
+                        buildExpr(ctx$8.expression()), buildBlock(ctx$8.block()));
             }
-            case EmptyStatementContext ctx$9 -> {
+            case AssignStatementContext ctx$9 -> {
+                return buildAssign(ctx$9);
+            }
+            case ExpressionStatementContext ctx$10 -> {
+                return new ExprStmt(pos(ctx$10.start), buildExpr(ctx$10.expression()));
+            }
+            case EmptyStatementContext ctx$11 -> {
                 return null;
             }
             default -> {

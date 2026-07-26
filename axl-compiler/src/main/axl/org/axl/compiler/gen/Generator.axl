@@ -454,6 +454,7 @@ class Generator(
             is Stmt.Local -> localStatement(stmt)
             is Stmt.Assign -> assignStatement(stmt)
             is Stmt.Return -> returnStatement(stmt)
+            is Stmt.Jump -> em.line(stmt.pos().line(), if (stmt.isBreak()) "break;" else "continue;")
             is Stmt.If -> ifStatement(stmt)
             is Stmt.While -> emitWhile(stmt)
             is Stmt.For -> emitFor(stmt)
@@ -2975,6 +2976,7 @@ private fn asBlock(elseBranch: Stmt?) -> Stmt.Block? {
 /** Java rejects a statement after one that never completes. */
 private fn exits(stmt: Stmt) -> Boolean = when (stmt) {
     is Stmt.Return -> true
+    is Stmt.Jump -> true
     is Stmt.ExprStmt -> stmt.expr() is Expr.Throw || whenLeaves(stmt.expr())
     is Stmt.Block -> !stmt.statements().isEmpty() && exits(stmt.statements().getLast())
     is Stmt.If -> exitsIf(stmt)

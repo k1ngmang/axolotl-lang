@@ -129,6 +129,8 @@ class Checker(val file: SourceFile) {
     val whenResults: IdentityHashMap<Expr.When, Boolean> = IdentityHashMap<Expr.When, Boolean>()
     // Lambda depth inside the innermost `when` that gives a value, or -1.
     var valueWhenDepth: Int = -1
+    /** Loops around the statement being checked, within the current function or lambda. */
+    var loopDepth: Int = 0
     var expressionLambdas: Int = 0
     // Inside the branches of an `if` that gives a value.
     var conditionalDepth: Int = 0
@@ -597,6 +599,7 @@ class Checker(val file: SourceFile) {
             is Stmt.Local -> local(stmt)
             is Stmt.Assign -> assign(stmt)
             is Stmt.Return -> returnStatement(stmt)
+            is Stmt.Jump -> jump(stmt)
             is Stmt.If -> {
                 expr(stmt.condition())
                 statements(stmt.then().statements())
@@ -607,7 +610,9 @@ class Checker(val file: SourceFile) {
             }
             is Stmt.While -> {
                 expr(stmt.condition())
+                loopDepth = loopDepth + 1
                 statements(stmt.body().statements())
+                loopDepth = loopDepth - 1
             }
             is Stmt.For -> {
                 expr(stmt.iterable())
@@ -616,7 +621,9 @@ class Checker(val file: SourceFile) {
                 if (!stmt.name().equals("_")) {
                     declare(stmt.namePos(), stmt.name(), Kind.LOOP_VARIABLE, null)
                 }
+                loopDepth = loopDepth + 1
                 statements(stmt.body().statements())
+                loopDepth = loopDepth - 1
                 pop()
             }
             is Stmt.ExprStmt -> expressionStatement(stmt)
@@ -679,6 +686,18 @@ class Checker(val file: SourceFile) {
             return type
         }
         return null
+    }
+
+    /** `break` and `continue` belong to the loop around them, in the same function and outside a `when` value. */
+    private fn jump(stmt: Stmt.Jump) {
+        val word = if (stmt.isBreak()) "break" else "continue"
+        if (loopDepth == 0) {
+            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` is used inside a `while` or `for` loop" +
+                (if (lambdaDepth > 0) ", not in a lambda; a lambda ends with `return`" else ""))
+        } else if (valueWhenDepth == lambdaDepth) {
+            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` cannot leave a `when` that gives a value; " +
+                "write the `when` as a statement")
+        }
     }
 
     private fn returnStatement(stmt: Stmt.Return) {
@@ -1267,6 +1286,9 @@ class Checker(val file: SourceFile) {
     private fn lambdaExpr(l: Expr.Lambda, takesElement: Boolean) {
         scope = Scope(scope, false)
         lambdaDepth = lambdaDepth + 1
+        // A loop around the lambda is not one its body can leave.
+        val outerLoops = loopDepth
+        loopDepth = 0
         for (p in l.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type())
         }
@@ -1302,6 +1324,7 @@ class Checker(val file: SourceFile) {
             attemptDepth = outerAttempts
             safeTailDepth = outerSafeTails
         }
+        loopDepth = outerLoops
         lambdaDepth = lambdaDepth - 1
         pop()
     }

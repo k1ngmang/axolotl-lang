@@ -69,6 +69,7 @@ type has parameters are static and cannot use them; they take their own.
 - `x = e`, `x += e`, `-=`, `*=`, `/=`, `%=` assign to a `var` (or to a Java field).
 - `if (c) { ... } else if (d) { ... } else { ... }`, `while (c) { ... }`, `return e`.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
+  `break` leaves the loop around it and `continue` goes on with its next round; they have no labels.
 - Statements end at the end of a line or at `;`. A line starting with `(`, `+` or `-` starts a new
   statement; break long lines after an operator or before `.`, `?.`, `?:` and `|>`. Two statements
   on one line need a `;` between them, and an expression that does nothing, such as `x + 1`,

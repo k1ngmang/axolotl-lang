@@ -130,27 +130,29 @@ import org.axl.compiler.check.Analysis;
                     visit(value, inLambda);
                 }
             }
-            case Stmt.If stmt$4 -> {
-                visit(stmt$4.condition(), inLambda);
-                statement(stmt$4.then(), inLambda);
-                final var otherwise = stmt$4.elseBranch();
+            case Stmt.Jump stmt$4 -> {
+            }
+            case Stmt.If stmt$5 -> {
+                visit(stmt$5.condition(), inLambda);
+                statement(stmt$5.then(), inLambda);
+                final var otherwise = stmt$5.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise, inLambda);
                 }
             }
-            case Stmt.While stmt$5 -> {
-                visit(stmt$5.condition(), inLambda);
-                statement(stmt$5.body(), inLambda);
-            }
-            case Stmt.For stmt$6 -> {
-                visit(stmt$6.iterable(), inLambda);
+            case Stmt.While stmt$6 -> {
+                visit(stmt$6.condition(), inLambda);
                 statement(stmt$6.body(), inLambda);
             }
-            case Stmt.ExprStmt stmt$7 -> {
-                visit(stmt$7.expr(), inLambda);
+            case Stmt.For stmt$7 -> {
+                visit(stmt$7.iterable(), inLambda);
+                statement(stmt$7.body(), inLambda);
             }
-            case Stmt.Block stmt$8 -> {
-                statements(stmt$8.statements(), inLambda);
+            case Stmt.ExprStmt stmt$8 -> {
+                visit(stmt$8.expr(), inLambda);
+            }
+            case Stmt.Block stmt$9 -> {
+                statements(stmt$9.statements(), inLambda);
             }
         }
     }

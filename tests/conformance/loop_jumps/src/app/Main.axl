@@ -1,0 +1,46 @@
+package app
+
+import java.util.List
+
+fn firstNegative(xs: List<Int>) -> Int? {
+    var found: Int? = null
+    for (x in xs) {
+        if (x >= 0) {
+            continue
+        }
+        found = x
+        break
+    }
+    return found
+}
+
+fn digitsBefore(s: String, stop: Character) -> String {
+    val out = StringBuilder()
+    var i = 0
+    while (i < s.length()) {
+        val c = s.charAt(i)
+        i += 1
+        if (c == stop) {
+            break
+        }
+        if (!Character.isDigit(c)) {
+            continue
+        }
+        out.append(c)
+    }
+    return out.toString()
+}
+
+fn main() {
+    println(firstNegative(List.of(3, -1, -2)))
+    println(firstNegative(List.of(1, 2)))
+    println(digitsBefore("a1b2;c3", ';'))
+    var n = 0
+    while (true) {
+        n += 1
+        if (n > 3) {
+            break
+        }
+    }
+    println(n)
+}

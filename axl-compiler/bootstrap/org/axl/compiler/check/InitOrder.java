@@ -530,28 +530,30 @@ import org.axl.compiler.ast.TypeRef;
                     names(value, hidden, out);
                 }
             }
-            case Stmt.If stmt$6 -> {
-                names(stmt$6.condition(), hidden, out);
-                statement(stmt$6.then(), hidden, out);
-                final var otherwise = stmt$6.elseBranch();
+            case Stmt.Jump stmt$6 -> {
+            }
+            case Stmt.If stmt$7 -> {
+                names(stmt$7.condition(), hidden, out);
+                statement(stmt$7.then(), hidden, out);
+                final var otherwise = stmt$7.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise, hidden, out);
                 }
             }
-            case Stmt.While stmt$7 -> {
-                names(stmt$7.condition(), hidden, out);
-                statement(stmt$7.body(), hidden, out);
+            case Stmt.While stmt$8 -> {
+                names(stmt$8.condition(), hidden, out);
+                statement(stmt$8.body(), hidden, out);
             }
-            case Stmt.For stmt$8 -> {
-                names(stmt$8.iterable(), hidden, out);
-                track(stmt$8.name(), elementOf(stmt$8.iterable(), hidden), null);
-                statement(stmt$8.body(), with(hidden, Set.of(stmt$8.name())), out);
+            case Stmt.For stmt$9 -> {
+                names(stmt$9.iterable(), hidden, out);
+                track(stmt$9.name(), elementOf(stmt$9.iterable(), hidden), null);
+                statement(stmt$9.body(), with(hidden, Set.of(stmt$9.name())), out);
             }
-            case Stmt.ExprStmt stmt$9 -> {
-                names(stmt$9.expr(), hidden, out);
+            case Stmt.ExprStmt stmt$10 -> {
+                names(stmt$10.expr(), hidden, out);
             }
-            case Stmt.Block stmt$10 -> {
-                statements(stmt$10.statements(), hidden, out);
+            case Stmt.Block stmt$11 -> {
+                statements(stmt$11.statements(), hidden, out);
             }
         }
     }

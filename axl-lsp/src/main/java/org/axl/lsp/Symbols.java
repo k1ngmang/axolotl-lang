@@ -247,6 +247,7 @@ final class Symbols {
                 }
                 case Stmt.Block block -> block(block, pos, fn, out);
                 case Stmt.Assign assign -> expr(assign.value(), pos, fn, out);
+                case Stmt.Jump jump -> { }
                 case Stmt.Return ret -> {
                     if (ret.value() != null) {
                         expr(ret.value(), pos, fn, out);

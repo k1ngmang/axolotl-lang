@@ -568,6 +568,7 @@ class InitOrder(val file: SourceFile) {
                     names(value, hidden, out)
                 }
             }
+            is Stmt.Jump -> { }
             is Stmt.If -> {
                 names(stmt.condition(), hidden, out)
                 statement(stmt.then(), hidden, out)

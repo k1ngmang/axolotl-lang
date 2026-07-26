@@ -1,8 +1,5 @@
 AXL001 app/ArrayIndex.axl:5:18: error: Axolotl has no `[]` indexing, and `parts` is a Java array; read it as a list: `List.of(parts).get(1)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
-AXL001 app/BreakContinue.axl:8:13: error: Axolotl has no `continue`; put the rest of the loop body in an `if`
-AXL001 app/BreakContinue.axl:11:13: error: Axolotl has no `break`; end the loop with its condition, or move the loop into a function and `return`
-AXL001 app/BreakInBlock.axl:7:22: error: Axolotl has no `break`; end the loop with its condition, or move the loop into a function and `return`
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
 AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
 AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection: `for (x in xs) { ... }`; count with a `while` loop

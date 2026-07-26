@@ -437,24 +437,27 @@ import org.axl.compiler.check.Whens;
             case Stmt.Return stmt$3 -> {
                 returnStatement(stmt$3);
             }
-            case Stmt.If stmt$4 -> {
-                ifStatement(stmt$4);
+            case Stmt.Jump stmt$4 -> {
+                em.line(stmt$4.pos().line(), (stmt$4.isBreak() ? "break;" : "continue;"));
             }
-            case Stmt.While stmt$5 -> {
-                emitWhile(stmt$5);
+            case Stmt.If stmt$5 -> {
+                ifStatement(stmt$5);
             }
-            case Stmt.For stmt$6 -> {
-                emitFor(stmt$6);
+            case Stmt.While stmt$6 -> {
+                emitWhile(stmt$6);
             }
-            case Stmt.ExprStmt stmt$7 -> {
-                exprStatement(stmt$7);
+            case Stmt.For stmt$7 -> {
+                emitFor(stmt$7);
             }
-            case Stmt.Block stmt$8 -> {
-                em.line(stmt$8.pos().line(), "{");
+            case Stmt.ExprStmt stmt$8 -> {
+                exprStatement(stmt$8);
+            }
+            case Stmt.Block stmt$9 -> {
+                em.line(stmt$9.pos().line(), "{");
                 em.indent();
-                emitStatements(stmt$8.statements());
+                emitStatements(stmt$9.statements());
                 em.dedent();
-                em.line(stmt$8.end().line(), "}");
+                em.line(stmt$9.end().line(), "}");
             }
         }
     }
@@ -2729,17 +2732,20 @@ import org.axl.compiler.check.Whens;
             case Stmt.Return stmt$1 -> {
                 return true;
             }
-            case Stmt.ExprStmt stmt$2 -> {
-                return stmt$2.expr() instanceof Expr.Throw || whenLeaves(stmt$2.expr());
+            case Stmt.Jump stmt$2 -> {
+                return true;
             }
-            case Stmt.Block stmt$3 -> {
-                return !stmt$3.statements().isEmpty() && exits(stmt$3.statements().getLast());
+            case Stmt.ExprStmt stmt$3 -> {
+                return stmt$3.expr() instanceof Expr.Throw || whenLeaves(stmt$3.expr());
             }
-            case Stmt.If stmt$4 -> {
-                return exitsIf(stmt$4);
+            case Stmt.Block stmt$4 -> {
+                return !stmt$4.statements().isEmpty() && exits(stmt$4.statements().getLast());
             }
-            case Stmt.While stmt$5 -> {
-                return loopsForever(stmt$5);
+            case Stmt.If stmt$5 -> {
+                return exitsIf(stmt$5);
+            }
+            case Stmt.While stmt$6 -> {
+                return loopsForever(stmt$6);
             }
             default -> {
                 return false;

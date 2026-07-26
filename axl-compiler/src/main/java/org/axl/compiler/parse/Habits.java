@@ -222,9 +222,6 @@ final class Habits {
             case "case" -> startsLine(tokens, i)
                     ? "Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`" : null;
             case "do" -> next == AxolotlLexer.LBRACE ? "Axolotl has no `do`-`while`; write a `while` loop" : null;
-            case "break" -> alone(tokens, i) ? "Axolotl has no `break`; end the loop with its condition, "
-                    + "or move the loop into a function and `return`" : null;
-            case "continue" -> alone(tokens, i) ? "Axolotl has no `continue`; put the rest of the loop body in an `if`" : null;
             case "catch", "finally" -> type(tokens, SourceParser.previousCode(tokens, i)) == AxolotlLexer.RBRACE
                     ? NO_TRY_CATCH : null;
             case "instanceof" -> "Axolotl tests types with `is`: `if (x is String) { ... }`";

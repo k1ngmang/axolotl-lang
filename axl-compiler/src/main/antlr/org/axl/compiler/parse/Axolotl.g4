@@ -187,6 +187,8 @@ statement
     : valDecl SEMI?                                         # valStatement
     | varDecl SEMI?                                         # varStatement
     | RETURN ({sameLine()}? expression)? SEMI?              # returnStatement
+    | BREAK SEMI?                                           # breakStatement
+    | CONTINUE SEMI?                                        # continueStatement
     | ifStatement                                           # ifStatementAlt
     | WHILE LPAREN expression RPAREN block                  # whileStatement
     | FOR LPAREN identifier {_input.LT(1).getText().equals("in")}? IDENTIFIER expression RPAREN block   # forStatement
@@ -342,6 +344,8 @@ VAL     : 'val';
 VAR     : 'var';
 PRIVATE : 'private';
 RETURN  : 'return';
+BREAK   : 'break';
+CONTINUE : 'continue';
 IF      : 'if';
 ELSE    : 'else';
 WHILE   : 'while';
