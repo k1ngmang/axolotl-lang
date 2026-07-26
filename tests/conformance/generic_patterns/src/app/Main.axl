@@ -1,0 +1,36 @@
+package app
+
+import app.Options.None
+import app.Options.Option
+import app.Options.Some
+
+/** The type of `parsed` comes from another file, so the translator does not know its arguments. */
+fn show(s: String) -> String {
+    val parsed = Options.parse(s)
+    if (parsed is Some) {
+        return "some " + (parsed.value() + 1)
+    }
+    return "none " + parsed.present()
+}
+
+fn describe(s: String) -> String {
+    val parsed = Options.parse(s)
+    return when (parsed) {
+        is Some -> "value " + parsed.value().toString().length()
+        is None -> "nothing"
+    }
+}
+
+fn known(option: Option<String>) -> String = when (option) {
+    is Some -> option.value().toUpperCase()
+    is None -> "-"
+}
+
+fn main() {
+    println(show("41"))
+    println(show("x"))
+    println(describe("123"))
+    println(describe("y"))
+    println(known(Some<String>(true, "abc")))
+    println(known(None<String>(false)))
+}

@@ -922,14 +922,13 @@ class Generator(
             if (condition.type() == null) {
                 emitBranch(arm, "case null", Map.of(), form)
             } else {
-                val variable = patternVariable(narrowedName)
                 val type = conditionType(condition)
-                val accessor = resultAccessor(type)
-                if (accessor != null) {
-                    val bare = if (narrowedName == null) "" else bareName(narrowedName)
-                    val narrowing = nameBinding(narrowedName, deconstruction(accessor, variable, bare))
-                    emitBranch(arm, "case " + type.name() + "(var " + variable + ")", narrowing, form)
+                val bare = if (narrowedName == null) "" else bareName(narrowedName)
+                val taken = recordPattern(type, subjectTypeOf, narrowedName, bare)
+                if (taken != null) {
+                    emitBranch(arm, "case " + taken.label(), nameBinding(narrowedName, taken.marker()), form)
                 } else {
+                    val variable = patternVariable(narrowedName)
                     val narrowing = nameBinding(narrowedName, variable)
                     emitBranch(arm, "case " + testedType(type, subjectTypeOf) + " " + variable, narrowing, form)
                 }
@@ -1090,13 +1089,13 @@ class Generator(
         if (inner is Expr.Conditional) {
             return commonBranchType(typeOf(inner.then()), typeOf(inner.otherwise()), inner)
         }
-        return TypeInference.typeOf(file, inner)
+        return TypeInference.typeOf(file, options.siblings(), inner)
     }
 
     private fn commonBranchType(a: TypeRef?, b: TypeRef?, c: Expr.Conditional) -> TypeRef? {
         val same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty()
         return if (a != null && same) TypeRef(a.pos(), a.name(), a.args(), a.nullable() || b!!.nullable())
-            else TypeInference.typeOf(file, c)
+            else TypeInference.typeOf(file, options.siblings(), c)
     }
 
     /**
@@ -1623,13 +1622,13 @@ class Generator(
             val plainTest = exprIn(target, inLambda) + " instanceof " + type
             return if (check.negated()) "!(" + plainTest + ")" else plainTest
         }
-        val variable = patternVariable(target.name())
-        val accessor = resultAccessor(check.type())
-        if (accessor != null) {
-            patternVariables.put(check, deconstruction(accessor, variable, bareName(target.name())))
-            val test = exprIn(target, inLambda) + " instanceof " + check.type().name() + "(var " + variable + ")"
+        val taken = recordPattern(check.type(), typeOf(target), target.name(), bareName(target.name()))
+        if (taken != null) {
+            patternVariables.put(check, taken.marker())
+            val test = exprIn(target, inLambda) + " instanceof " + taken.label()
             return if (check.negated()) "!(" + test + ")" else test
         }
+        val variable = patternVariable(target.name())
         patternVariables.put(check, variable)
         val test = exprIn(target, inLambda) + " instanceof " + type + " " + variable
         return if (check.negated()) "!(" + test + ")" else test
@@ -1652,8 +1651,70 @@ class Generator(
         return null
     }
 
-    private fn deconstruction(accessor: String, variable: String, bare: String) -> String =
-        "@" + accessor + ":" + variable + ":" + bare
+    /**
+     * A record pattern, `Ok(var x$1)` or `Some(var x$1, var x$2)`, with the marker that maps the accessors
+     * of the taken-apart value to the pattern variables: `@value=x$1:x`, `@present=x$1,value=x$2:x`.
+     * Ok and Err are always taken apart; a generic data class of this file is, when the type arguments
+     * of the test cannot be told from the subject, since a raw pattern would read its fields as Objects.
+     */
+    private fn recordPattern(tested: TypeRef, subject: TypeRef?, name: String?, bare: String) -> Pattern? {
+        val accessor = resultAccessor(tested)
+        val fields: List<String> = if (accessor != null) List.of(accessor) else genericRecordFields(tested, subject)
+        if (fields.isEmpty()) {
+            return null
+        }
+        val variables = fields |> map { f -> patternVariable(name) }
+        val pairs = ArrayList<String>()
+        var i = 0
+        while (i < fields.size()) {
+            pairs.add(fields.get(i) + "=" + variables.get(i))
+            i += 1
+        }
+        val declared = variables |> map { v -> "var " + v }
+        return Pattern(tested.name() + "(" + String.join(", ", declared) + ")", "@" + String.join(",", pairs) + ":" + bare)
+    }
+
+    /** The fields of a generic data class of the build whose type arguments the subject does not tell. */
+    private fn genericRecordFields(tested: TypeRef, subject: TypeRef?) -> List<String> {
+        if (!tested.args().isEmpty() || (subject != null && argumentsOf(tested, subject) != null)) {
+            return List.of()
+        }
+        val decl = declaredType(tested.name())
+        if (decl is Decl.DataClass && !decl.typeParams().isEmpty()) {
+            return decl.fields() |> map { f -> f.name() }
+        }
+        return List.of()
+    }
+
+    /**
+     * A type declared in this file or, by its simple name, in one other file of the build in the same
+     * package. Two files declaring the name leave it to javac and the imports.
+     */
+    private fn declaredType(name: String) -> Decl? {
+        for (decl in file.decls()) {
+            if (decl.name().equals(name) && isTypeDecl(decl)) {
+                return decl
+            }
+        }
+        var found: Decl? = null
+        for (sibling in options.siblings()) {
+            for (decl in sibling.decls()) {
+                if (decl.name().equals(name) && isTypeDecl(decl) && samePackage(sibling)) {
+                    if (found != null) {
+                        return null
+                    }
+                    found = decl
+                }
+            }
+        }
+        return found
+    }
+
+    private fn samePackage(other: SourceFile) -> Boolean {
+        val own = file.packageName()
+        val theirs = other.packageName()
+        return if (own == null) theirs == null else own.equals(theirs)
+    }
 
     /** What a name is in Java where it is used whole: its own name, or what an outer binding made of it. */
     private fn bareName(name: String) -> String {
@@ -1676,17 +1737,39 @@ class Generator(
             return chain
         }
         val first = steps.getFirst()
-        val accessor = known.substring(1, known.indexOf(":"))
         val args = first.args()
-        if (!first.name().equals(accessor) || args == null || !args.isEmpty() || first.safe()) {
+        if (args == null || !args.isEmpty() || first.safe()) {
             return chain
         }
         if (known.startsWith("!")) {
+            val accessor = known.substring(1, known.indexOf(":"))
+            if (!first.name().equals(accessor)) {
+                return chain
+            }
             val read = if (accessor.equals("value")) "Result.unwrap(" else "Result.unwrapError("
             return Chains.Chain(Expr.Name(base.pos(), read + known.substring(known.lastIndexOf(":") + 1) + ")"), steps.subList(1, steps.size()))
         }
-        val variable = Expr.Name(base.pos(), known.substring(known.indexOf(":") + 1, known.lastIndexOf(":")))
-        return Chains.Chain(variable, steps.subList(1, steps.size()))
+        val variable = patternVariableOf(known, first.name())
+        if (variable == null) {
+            return chain
+        }
+        return Chains.Chain(Expr.Name(base.pos(), variable), steps.subList(1, steps.size()))
+    }
+
+    /** The pattern variable an accessor maps to in `@present=x$1,value=x$2:x`, or null. */
+    private fn patternVariableOf(marker: String, accessor: String) -> String? {
+        val pairs = marker.substring(1, marker.lastIndexOf(":"))
+        var start = 0
+        while (start < pairs.length()) {
+            val comma = pairs.indexOf(",", start)
+            val end = if (comma < 0) pairs.length() else comma
+            val separator = pairs.indexOf("=", start)
+            if (pairs.substring(start, separator).equals(accessor)) {
+                return pairs.substring(separator + 1, end)
+            }
+            start = end + 1
+        }
+        return null
     }
 
     private fn liftedTypeCheck(line: Int, check: Expr.Is) -> String {
@@ -1719,32 +1802,31 @@ class Generator(
      * Without them Java would read the fields of the match as Objects.
      */
     private fn argumentsOf(tested: TypeRef, subject: TypeRef) -> List<String>? {
-        for (decl in file.decls()) {
-            if (decl.name().equals(tested.name()) && isTypeDecl(decl)) {
-                val typeParams = typeParamsOf(decl)
-                val parent = supertypesOf(decl) |> filter { t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size() } |> first
-                if (typeParams.isEmpty() || parent == null) {
-                    return null
-                }
-                val arguments = ArrayList<String>()
-                for (param in typeParams) {
-                    var found: String? = null
-                    var i = 0
-                    while (i < parent.args().size()) {
-                        if (parent.args().get(i).name().equals(param.name())) {
-                            found = boxedType(subject.args().get(i))
-                        }
-                        i += 1
-                    }
-                    if (found == null) {
-                        return null
-                    }
-                    arguments.add(found)
-                }
-                return arguments
-            }
+        val decl = declaredType(tested.name())
+        if (decl == null) {
+            return null
         }
-        return null
+        val typeParams = typeParamsOf(decl)
+        val parent = supertypesOf(decl) |> filter { t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size() } |> first
+        if (typeParams.isEmpty() || parent == null) {
+            return null
+        }
+        val arguments = ArrayList<String>()
+        for (param in typeParams) {
+            var found: String? = null
+            var i = 0
+            while (i < parent.args().size()) {
+                if (parent.args().get(i).name().equals(param.name())) {
+                    found = boxedType(subject.args().get(i))
+                }
+                i += 1
+            }
+            if (found == null) {
+                return null
+            }
+            arguments.add(found)
+        }
+        return arguments
     }
 
     /** The names a condition narrows where it is true. */
@@ -3139,3 +3221,6 @@ private fn unary(op: String, operand: String) -> String {
     val merges = !operand.isEmpty() && "+-".indexOf(operand.charAt(0)) >= 0 && !op.equals("!")
     return if (merges) op + " " + operand else op + operand
 }
+
+/** A record pattern and the marker for the names it binds. */
+data class Pattern(val label: String, val marker: String)

@@ -1,0 +1,16 @@
+package app
+
+sealed interface Option<T> {
+    val present: Boolean
+}
+
+data class Some<T>(val present: Boolean, val value: T) : Option<T>
+data class None<T>(val present: Boolean) : Option<T>
+
+fn parse(s: String) -> Option<Int> {
+    val n = attempt Integer.parseInt(s) else -1
+    return when (n) {
+        is Ok -> Some<Int>(true, n.value())
+        is Err -> None<Int>(false)
+    }
+}

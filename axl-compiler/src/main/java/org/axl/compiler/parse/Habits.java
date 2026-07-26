@@ -83,14 +83,15 @@ final class Habits {
         };
     }
 
-    /** Whether the file declares a type of the name, such as `data class None<T>(...)`. */
+    /** Whether the file declares or imports a type of the name, such as `data class None<T>(...)` or `app.Options.None`. */
     private static boolean declaresType(List<Token> tokens, String name) {
         for (int i = 1; i < tokens.size(); i++) {
             if (!tokens.get(i).getText().equals(name)) {
                 continue;
             }
             int previous = type(tokens, SourceParser.previousCode(tokens, i));
-            if (previous == AxolotlLexer.CLASS || previous == AxolotlLexer.INTERFACE || previous == AxolotlLexer.ENUM) {
+            if (previous == AxolotlLexer.CLASS || previous == AxolotlLexer.INTERFACE || previous == AxolotlLexer.ENUM
+                    || previous == AxolotlLexer.DOT) {
                 return true;
             }
         }

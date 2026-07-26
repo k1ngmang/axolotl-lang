@@ -16,10 +16,12 @@ import org.axl.compiler.ast.TypeRef;
 @NullMarked public final class TypeInference {
     public final SourceFile file;
     public final Map<String, TypeRef> known;
+    public final List<SourceFile> siblings;
     public final HashSet<String> inProgress;
-    public TypeInference(SourceFile file, Map<String, TypeRef> known) {
+    public TypeInference(SourceFile file, Map<String, TypeRef> known, List<SourceFile> siblings) {
         this.file = file;
         this.known = known;
+        this.siblings = siblings;
         this.inProgress = new HashSet<String>();
     }
     public @Nullable TypeRef value(Decl.Value value) {
@@ -60,7 +62,7 @@ import org.axl.compiler.ast.TypeRef;
                 return topLevelValue(expr$7.name());
             }
             case Expr.Call expr$8 -> {
-                return (expr$8.target() == null ? call(expr$8) : null);
+                return (expr$8.target() == null ? call(expr$8) : siblingCall(expr$8));
             }
             case Expr.GenericNew expr$9 -> {
                 return (expr$9.typeArgs().isEmpty() ? null : new TypeRef(expr$9.pos(), expr$9.type(), expr$9.typeArgs(), false));
@@ -162,6 +164,29 @@ import org.axl.compiler.ast.TypeRef;
         }
         return null;
     }
+    private @Nullable TypeRef siblingCall(Expr.Call c) {
+        final var target = c.target();
+        if (!(target instanceof Expr.Name target$1) || c.safe()) {
+            return null;
+        }
+        for (final var sibling : siblings) {
+            if (sibling.className().equals(target$1.name()) && samePackage(sibling)) {
+                final var candidates = new ArrayList<Decl.Function>();
+                for (final var decl : sibling.decls()) {
+                    if (decl instanceof Decl.Function decl$2 && !decl$2.isPrivate() && decl$2.name().equals(c.name()) && decl$2.params().size() == c.args().size()) {
+                        candidates.add(decl$2);
+                    }
+                }
+                return (candidates.size() == 1 ? candidates.getFirst().returnType() : null);
+            }
+        }
+        return null;
+    }
+    private boolean samePackage(SourceFile other) {
+        final var own = file.packageName();
+        final var theirs = other.packageName();
+        return (own == null ? Boolean.valueOf(theirs == null) : own.equals(theirs));
+    }
     private boolean isImportedFunction(String name) {
         return file.imports().stream().anyMatch(i -> i.kind() != Import.Kind.TYPE && i.simpleName().equals(name));
     }
@@ -176,7 +201,7 @@ import org.axl.compiler.ast.TypeRef;
     private static final List<String> numbers = List.of("Int", "Long", "Double");
     private static final List<String> comparisons = List.of("==", "!=", "<", "<=", ">", ">=", "&&", "||");
     public static void inferAll(SourceFile file, Map<String, TypeRef> known) {
-        final var inference = new TypeInference(file, known);
+        final var inference = new TypeInference(file, known, List.of());
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Value decl$1 && decl$1.type() == null) {
                 final var type = inference.value(decl$1);
@@ -187,7 +212,10 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     public static @Nullable TypeRef typeOf(SourceFile file, Expr expr) {
-        return new TypeInference(file, new HashMap<String, TypeRef>()).of(expr);
+        return new TypeInference(file, new HashMap<String, TypeRef>(), List.of()).of(expr);
+    }
+    public static @Nullable TypeRef typeOf(SourceFile file, List<SourceFile> siblings, Expr expr) {
+        return new TypeInference(file, new HashMap<String, TypeRef>(), siblings).of(expr);
     }
     private static boolean sameType(TypeRef a, TypeRef b) {
         if (!a.name().equals(b.name()) || a.args().size() != b.args().size()) {

@@ -17,7 +17,7 @@ import org.axl.compiler.ast.TypeRef
  * operators, constructors, other values and the result types of its functions. Anything that needs
  * the classpath is left to javac (see JavaTypes).
  */
-class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
+class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val siblings: List<SourceFile>) {
 
     val inProgress: HashSet<String> = HashSet<String>()
 
@@ -44,7 +44,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
         is Expr.Elvis -> elvis(expr)
         is Expr.Is -> simple("Boolean", expr.pos())
         is Expr.Name -> topLevelValue(expr.name())
-        is Expr.Call -> if (expr.target() == null) call(expr) else null
+        is Expr.Call -> if (expr.target() == null) call(expr) else siblingCall(expr)
         is Expr.GenericNew -> if (expr.typeArgs().isEmpty()) null else TypeRef(expr.pos(), expr.type(), expr.typeArgs(), false)
         is Expr.NotNull -> nonNull(of(expr.target()))
         is Expr.Conditional -> common(of(expr.then()), of(expr.otherwise()))
@@ -141,6 +141,32 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>) {
         return null
     }
 
+    /** `Parse.number(s)`: what the function of that file of the build returns, when the file is known. */
+    private fn siblingCall(c: Expr.Call) -> TypeRef? {
+        val target = c.target()
+        if (target !is Expr.Name || c.safe()) {
+            return null
+        }
+        for (sibling in siblings) {
+            if (sibling.className().equals(target.name()) && samePackage(sibling)) {
+                val candidates = ArrayList<Decl.Function>()
+                for (decl in sibling.decls()) {
+                    if (decl is Decl.Function && !decl.isPrivate() && decl.name().equals(c.name()) && decl.params().size() == c.args().size()) {
+                        candidates.add(decl)
+                    }
+                }
+                return if (candidates.size() == 1) candidates.getFirst().returnType() else null
+            }
+        }
+        return null
+    }
+
+    private fn samePackage(other: SourceFile) -> Boolean {
+        val own = file.packageName()
+        val theirs = other.packageName()
+        return if (own == null) theirs == null else own.equals(theirs)
+    }
+
     private fn isImportedFunction(name: String) -> Boolean =
         file.imports().stream().anyMatch({ i -> i.kind() != Import.Kind.TYPE && i.simpleName().equals(name) })
 
@@ -160,7 +186,7 @@ private val comparisons: List<String> = List.of("==", "!=", "<", "<=", ">", ">="
 
 /** Infers every untyped top-level value it can; the result maps value names to types. */
 fn inferAll(file: SourceFile, known: Map<String, TypeRef>) {
-    val inference = TypeInference(file, known)
+    val inference = TypeInference(file, known, List.of())
     for (decl in file.decls()) {
         if (decl is Decl.Value && decl.type() == null) {
             val type = inference.value(decl)
@@ -172,7 +198,11 @@ fn inferAll(file: SourceFile, known: Map<String, TypeRef>) {
 }
 
 /** The type of an expression of the file as far as the file alone tells, or null. */
-fn typeOf(file: SourceFile, expr: Expr) -> TypeRef? = TypeInference(file, HashMap<String, TypeRef>()).of(expr)
+fn typeOf(file: SourceFile, expr: Expr) -> TypeRef? = TypeInference(file, HashMap<String, TypeRef>(), List.of()).of(expr)
+
+/** The type of an expression, also through the functions of the other files of the build. */
+fn typeOf(file: SourceFile, siblings: List<SourceFile>, expr: Expr) -> TypeRef? =
+    TypeInference(file, HashMap<String, TypeRef>(), siblings).of(expr)
 
 private fn sameType(a: TypeRef, b: TypeRef) -> Boolean {
     if (!a.name().equals(b.name()) || a.args().size() != b.args().size()) {

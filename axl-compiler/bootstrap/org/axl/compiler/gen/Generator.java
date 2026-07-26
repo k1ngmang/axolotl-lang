@@ -838,14 +838,13 @@ import org.axl.compiler.check.Whens;
             if (condition.type() == null) {
                 emitBranch(arm, "case null", Map.of(), form);
             } else {
-                final var variable = patternVariable(narrowedName);
                 final var type = conditionType(condition);
-                final var accessor = resultAccessor(type);
-                if (accessor != null) {
-                    final var bare = (narrowedName == null ? "" : bareName(narrowedName));
-                    final var narrowing = nameBinding(narrowedName, deconstruction(accessor, variable, bare));
-                    emitBranch(arm, "case " + type.name() + "(var " + variable + ")", narrowing, form);
+                final var bare = (narrowedName == null ? "" : bareName(narrowedName));
+                final var taken = recordPattern(type, subjectTypeOf, narrowedName, bare);
+                if (taken != null) {
+                    emitBranch(arm, "case " + taken.label(), nameBinding(narrowedName, taken.marker()), form);
                 } else {
+                    final var variable = patternVariable(narrowedName);
                     final var narrowing = nameBinding(narrowedName, variable);
                     emitBranch(arm, "case " + testedType(type, subjectTypeOf) + " " + variable, narrowing, form);
                 }
@@ -973,12 +972,12 @@ import org.axl.compiler.check.Whens;
         if (inner instanceof Expr.Conditional inner$4) {
             return commonBranchType(typeOf(inner$4.then()), typeOf(inner$4.otherwise()), inner$4);
         }
-        return TypeInference.typeOf(file, inner);
+        return TypeInference.typeOf(file, options.siblings(), inner);
     }
     private @Nullable TypeRef commonBranchType(@Nullable TypeRef a, @Nullable TypeRef b, Expr.Conditional c) {
         final var same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty();
         return (a != null && same ? new TypeRef(a.pos(), a.name(), a.args(), a.nullable() || java.util.Objects.requireNonNull(b).nullable()) :
-                TypeInference.typeOf(file, c));
+                TypeInference.typeOf(file, options.siblings(), c));
     }
     private String elvisCode(Expr.Elvis elvis, String left) {
         final var right = elvis.right();
@@ -1440,13 +1439,13 @@ import org.axl.compiler.check.Whens;
             final var plainTest = exprIn(target, inLambda) + " instanceof " + type;
             return (check.negated() ? "!(" + plainTest + ")" : plainTest);
         }
-        final var variable = patternVariable(target$1.name());
-        final var accessor = resultAccessor(check.type());
-        if (accessor != null) {
-            patternVariables.put(check, deconstruction(accessor, variable, bareName(target$1.name())));
-            final var test = exprIn(target$1, inLambda) + " instanceof " + check.type().name() + "(var " + variable + ")";
+        final var taken = recordPattern(check.type(), typeOf(target$1), target$1.name(), bareName(target$1.name()));
+        if (taken != null) {
+            patternVariables.put(check, taken.marker());
+            final var test = exprIn(target$1, inLambda) + " instanceof " + taken.label();
             return (check.negated() ? "!(" + test + ")" : test);
         }
+        final var variable = patternVariable(target$1.name());
         patternVariables.put(check, variable);
         final var test = exprIn(target$1, inLambda) + " instanceof " + type + " " + variable;
         return (check.negated() ? "!(" + test + ")" : test);
@@ -1461,8 +1460,55 @@ import org.axl.compiler.check.Whens;
         }
         return null;
     }
-    private String deconstruction(String accessor, String variable, String bare) {
-        return "@" + accessor + ":" + variable + ":" + bare;
+    private @Nullable Pattern recordPattern(TypeRef tested, @Nullable TypeRef subject, @Nullable String name, String bare) {
+        final var accessor = resultAccessor(tested);
+        final List<String> fields = (accessor != null ? List.of(accessor) : genericRecordFields(tested, subject));
+        if (fields.isEmpty()) {
+            return null;
+        }
+        final var variables = fields.stream().map(Nulls.nonNull(f -> patternVariable(name))).toList();
+        final var pairs = new ArrayList<String>();
+        var i = 0;
+        while (i < fields.size()) {
+            pairs.add(fields.get(i) + "=" + variables.get(i));
+            i += 1;
+        }
+        final var declared = variables.stream().map(Nulls.nonNull(v -> "var " + v)).toList();
+        return new Pattern(tested.name() + "(" + String.join(", ", declared) + ")", "@" + String.join(",", pairs) + ":" + bare);
+    }
+    private List<String> genericRecordFields(TypeRef tested, @Nullable TypeRef subject) {
+        if (!tested.args().isEmpty() || (subject != null && argumentsOf(tested, subject) != null)) {
+            return List.of();
+        }
+        final var decl = declaredType(tested.name());
+        if (decl instanceof Decl.DataClass decl$1 && !decl$1.typeParams().isEmpty()) {
+            return decl$1.fields().stream().map(Nulls.nonNull(f -> f.name())).toList();
+        }
+        return List.of();
+    }
+    private @Nullable Decl declaredType(String name) {
+        for (final var decl : file.decls()) {
+            if (decl.name().equals(name) && isTypeDecl(decl)) {
+                return decl;
+            }
+        }
+        @Nullable Decl found = null;
+        for (final var sibling : options.siblings()) {
+            for (final var decl : sibling.decls()) {
+                if (decl.name().equals(name) && isTypeDecl(decl) && samePackage(sibling)) {
+                    if (found != null) {
+                        return null;
+                    }
+                    found = decl;
+                }
+            }
+        }
+        return found;
+    }
+    private boolean samePackage(SourceFile other) {
+        final var own = file.packageName();
+        final var theirs = other.packageName();
+        return (own == null ? Boolean.valueOf(theirs == null) : own.equals(theirs));
     }
     private String bareName(String name) {
         final var known = smart.get(name);
@@ -1482,17 +1528,37 @@ import org.axl.compiler.check.Whens;
             return chain;
         }
         final var first = steps.getFirst();
-        final var accessor = known.substring(1, known.indexOf(":"));
         final var args = first.args();
-        if (!first.name().equals(accessor) || args == null || !args.isEmpty() || first.safe()) {
+        if (args == null || !args.isEmpty() || first.safe()) {
             return chain;
         }
         if (known.startsWith("!")) {
+            final var accessor = known.substring(1, known.indexOf(":"));
+            if (!first.name().equals(accessor)) {
+                return chain;
+            }
             final var read = (accessor.equals("value") ? "Result.unwrap(" : "Result.unwrapError(");
             return new Chains.Chain(new Expr.Name(base$1.pos(), read + known.substring(known.lastIndexOf(":") + 1) + ")"), steps.subList(1, steps.size()));
         }
-        final var variable = new Expr.Name(base$1.pos(), known.substring(known.indexOf(":") + 1, known.lastIndexOf(":")));
-        return new Chains.Chain(variable, steps.subList(1, steps.size()));
+        final var variable = patternVariableOf(known, first.name());
+        if (variable == null) {
+            return chain;
+        }
+        return new Chains.Chain(new Expr.Name(base$1.pos(), variable), steps.subList(1, steps.size()));
+    }
+    private @Nullable String patternVariableOf(String marker, String accessor) {
+        final var pairs = marker.substring(1, marker.lastIndexOf(":"));
+        var start = 0;
+        while (start < pairs.length()) {
+            final var comma = pairs.indexOf(",", start);
+            final var end = (comma < 0 ? pairs.length() : comma);
+            final var separator = pairs.indexOf("=", start);
+            if (pairs.substring(start, separator).equals(accessor)) {
+                return pairs.substring(separator + 1, end);
+            }
+            start = end + 1;
+        }
+        return null;
     }
     private String liftedTypeCheck(int line, Expr.Is check) {
         final var test = lifted(line, check.target()).code() + " instanceof " + testedType(check.type(), typeOf(check.target()));
@@ -1513,32 +1579,31 @@ import org.axl.compiler.check.Whens;
         return boxedType(tested);
     }
     private @Nullable List<String> argumentsOf(TypeRef tested, TypeRef subject) {
-        for (final var decl : file.decls()) {
-            if (decl.name().equals(tested.name()) && isTypeDecl(decl)) {
-                final var typeParams = typeParamsOf(decl);
-                final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
-                if (typeParams.isEmpty() || parent == null) {
-                    return null;
-                }
-                final var arguments = new ArrayList<String>();
-                for (final var param : typeParams) {
-                    @Nullable String found = null;
-                    var i = 0;
-                    while (i < parent.args().size()) {
-                        if (parent.args().get(i).name().equals(param.name())) {
-                            found = boxedType(subject.args().get(i));
-                        }
-                        i += 1;
-                    }
-                    if (found == null) {
-                        return null;
-                    }
-                    arguments.add(found);
-                }
-                return arguments;
-            }
+        final var decl = declaredType(tested.name());
+        if (decl == null) {
+            return null;
         }
-        return null;
+        final var typeParams = typeParamsOf(decl);
+        final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
+        if (typeParams.isEmpty() || parent == null) {
+            return null;
+        }
+        final var arguments = new ArrayList<String>();
+        for (final var param : typeParams) {
+            @Nullable String found = null;
+            var i = 0;
+            while (i < parent.args().size()) {
+                if (parent.args().get(i).name().equals(param.name())) {
+                    found = boxedType(subject.args().get(i));
+                }
+                i += 1;
+            }
+            if (found == null) {
+                return null;
+            }
+            arguments.add(found);
+        }
+        return arguments;
     }
     private Map<String, String> whenTrue(Expr condition) {
         if (condition instanceof Expr.Is condition$1) {
@@ -2917,4 +2982,5 @@ import org.axl.compiler.check.Whens;
         final var merges = !operand.isEmpty() && "+-".indexOf(operand.charAt(0)) >= 0 && !op.equals("!");
         return (merges ? op + " " + operand : op + operand);
     }
+    public record Pattern(String label, String marker) {}
 }
