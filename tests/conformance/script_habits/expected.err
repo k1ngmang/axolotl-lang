@@ -5,7 +5,7 @@ AXL001 app/BangDot.axl:3:28: error: write `!!.` to state that the value is not n
 AXL001 app/BitAnd.axl:3:33: error: Axolotl has no bit operators such as `&`, `|` and `<<`; for flags, use a `Set` or `java.util.BitSet`
 AXL001 app/Comprehension.axl:5:36: error: Axolotl has no list comprehensions; use a pipe: `xs |> map { ... }`
 AXL001 app/Elif.axl:6:7: error: write `else if`
-AXL001 app/EnumValues.axl:3:18: error: an enum lists only its constants, as in `{ RED, GREEN }`; it cannot give them values
+AXL001 app/EnumValues.axl:3:18: error: an enum constant takes its values in parentheses, for fields declared after the name: `enum Color(val code: Int) { RED(1), GREEN(2) }`
 AXL001 app/Export.axl:3:1: error: declarations are public by default; remove `export`
 AXL001 app/FString.axl:4:13: error: Axolotl has no f-strings; join the parts with `+`: `"n=" + n`
 AXL001 app/FatArrow.axl:3:28: error: lambdas are written in braces: `{ a, b -> ... }`

@@ -152,6 +152,11 @@ count = 0` need none, `val cache: Map<String, Int>? = null` does. It is set afte
 and read the fields by name. `private` hides a property or a method. A class cannot extend another one
 and is created like a data class: `Counter("c", 1)`; it may implement interfaces of the same file.
 
+A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
+String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
+Its methods override the Java class's by name, and interfaces follow after a comma. A class written in
+Axolotl cannot be extended: keep one in a property and give both an interface.
+
 A file whose name is a type it declares, such as `Counter.axl` above, is that type. Its other
 declarations are static members: `Counter.start("c")`.
 
@@ -178,8 +183,10 @@ is not an annotation but part of the type, so `@Nullable` and `@NonNull` are rej
 
 ## Enumerations
 
-`enum Color { RED, GREEN, BLUE }` is a Java enum with constants only, nested like a data class:
-`Color.RED`, `Color.values()`.
+`enum Color { RED, GREEN, BLUE }` is a Java enum, nested like a data class: `Color.RED`,
+`Color.values()`. Its constants may carry fields, declared after the name and given by each constant:
+`enum Planet(val mass: Double, val radius: Double) { MERCURY(3.303e23, 2.4397e6), EARTH(5.976e24, 6.37814e6) }`,
+read as `Planet.EARTH.mass`. Behavior stays in functions that `when` over the constants.
 
 ## `if` as a value and `throw`
 

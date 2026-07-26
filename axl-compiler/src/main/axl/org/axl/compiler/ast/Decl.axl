@@ -89,7 +89,9 @@ data class ClassDecl(
     val methods: List<Function>,
     val supertypes: List<TypeRef>,
     val annotations: List<Annotation>,
-    val typeParams: List<TypeParam>
+    val typeParams: List<TypeParam>,
+    /** `: Thread(name)`: the first supertype is a Java class to extend, with these constructor arguments; null when none. */
+    val superArgs: List<Expr>?
 ) : Decl
 
 /** An enumeration of constants without members. */
@@ -99,7 +101,11 @@ data class EnumDecl(
     val isPrivate: Boolean,
     val name: String,
     val constants: List<String>,
-    val annotations: List<Annotation>
+    val annotations: List<Annotation>,
+    /** `enum Planet(val mass: Double)`: the fields every constant gives a value for. */
+    val fields: List<Expr.Param>,
+    /** The arguments of each constant, in the order of the constants: `EARTH(5.97e24)`. */
+    val arguments: List<List<Expr>>
 ) : Decl
 
 data class Property(

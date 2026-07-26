@@ -332,12 +332,9 @@ final class Mistakes {
             return null;
         }
         Token before = before(tokens, previous);
-        if (type(before) == AxolotlLexer.ENUM) {
-            return "an enum lists its constants only: `enum " + previous.getText() + " { RED, GREEN }`";
-        }
-        if (type(before) == AxolotlLexer.COLON && lineHas(tokens, at.getLine(), AxolotlLexer.CLASS)) {
-            return declaresInterface(tokens, previous.getText()) ? "an interface takes no `()`: `: " + previous.getText() + "`"
-                    : "a class cannot extend another class; it can only implement interfaces";
+        if (type(before) == AxolotlLexer.COLON && lineHas(tokens, at.getLine(), AxolotlLexer.CLASS)
+                && declaresInterface(tokens, previous.getText())) {
+            return "an interface takes no `()`: `: " + previous.getText() + "`";
         }
         return null;
     }
@@ -348,7 +345,8 @@ final class Mistakes {
         if (paren == null) {
             Token brace = enclosingBrace(tokens, at);
             if (brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM)) {
-                return "an enum lists only its constants, as in `{ RED, GREEN }`; it cannot give them values";
+                return "an enum constant takes its values in parentheses, for fields declared after the name: "
+                        + "`enum Color(val code: Int) { RED(1), GREEN(2) }`";
             }
             return inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
         }

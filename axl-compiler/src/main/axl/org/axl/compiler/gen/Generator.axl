@@ -167,8 +167,7 @@ class Generator(
             }
             is Decl.Function -> emitFunction(decl, true)
             is Decl.ClassDecl -> emitClass(decl)
-            is Decl.EnumDecl -> em.line(decl.pos().line(), annotations(decl.annotations()) + visibility(decl) + " enum " +
-                decl.name() + " { " + String.join(", ", decl.constants()) + " }")
+            is Decl.EnumDecl -> emitEnum(decl)
             is Decl.DataClass -> emitDataClass(decl)
             is Decl.Interface -> emitInterface(decl)
         }
@@ -236,11 +235,14 @@ class Generator(
             emitRequiredValues(fileType)
         } else if (fileType is Decl.ClassDecl) {
             em.line(line, marked + "public final class " + fileType.name() + typeParamList(fileType.typeParams()) +
-                typeList(" implements ", fileType.supertypes()) + " {")
+                supertypeList(fileType) + " {")
             emitClassMembers(fileType)
         } else if (fileType is Decl.EnumDecl) {
             // The rest of the file follows the constants, which a `;` ends.
-            em.line(line, marked + "public enum " + fileType.name() + " { " + String.join(", ", fileType.constants()) + ";")
+            em.line(line, marked + "public enum " + fileType.name() + " { " + constantList(fileType) + ";")
+            em.indent()
+            emitEnumFields(fileType)
+            em.dedent()
         } else {
             throw IllegalStateException()
         }
@@ -249,9 +251,64 @@ class Generator(
 
     private fn emitClass(classDecl: Decl.ClassDecl) {
         em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
-            typeParamList(classDecl.typeParams()) + typeList(" implements ", classDecl.supertypes()) + " {")
+            typeParamList(classDecl.typeParams()) + supertypeList(classDecl) + " {")
         emitClassMembers(classDecl)
         em.line(classDecl.pos().line(), "}")
+    }
+
+    /** `: Thread(name), Runnable` extends Thread and implements Runnable; without arguments every supertype is an interface. */
+    private fn supertypeList(classDecl: Decl.ClassDecl) -> String {
+        val supertypes = classDecl.supertypes()
+        if (classDecl.superArgs() == null || supertypes.isEmpty()) {
+            return typeList(" implements ", supertypes)
+        }
+        return " extends " + javaType(supertypes.getFirst()) + typeList(" implements ", supertypes.subList(1, supertypes.size()))
+    }
+
+    private fn emitEnum(e: Decl.EnumDecl) {
+        val line = e.pos().line()
+        val head = annotations(e.annotations()) + visibility(e) + " enum " + e.name()
+        if (e.fields().isEmpty()) {
+            em.line(line, head + " { " + constantList(e) + " }")
+            return
+        }
+        em.line(line, head + " {")
+        em.indent()
+        em.line(line, constantList(e) + ";")
+        emitEnumFields(e)
+        em.dedent()
+        em.line(line, "}")
+    }
+
+    /** `MERCURY(3.3e23), EARTH(5.97e24)`: the constants with the values of their fields. */
+    private fn constantList(e: Decl.EnumDecl) -> String {
+        val texts = ArrayList<String>()
+        var i = 0
+        while (i < e.constants().size()) {
+            val arguments = e.arguments().get(i)
+            val args = arguments |> map { a -> expr(a) }
+            texts.add(e.constants().get(i) + (if (arguments.isEmpty()) "" else "(" + String.join(", ", args) + ")"))
+            i += 1
+        }
+        return String.join(", ", texts)
+    }
+
+    /** The fields of an enum and the constructor that sets them, after the constants. */
+    private fn emitEnumFields(e: Decl.EnumDecl) {
+        if (e.fields().isEmpty()) {
+            return
+        }
+        val line = e.pos().line()
+        for (f in e.fields()) {
+            em.line(f.pos().line(), annotations(f.annotations()) + "public final " + javaType(memberType(f)) + " " + f.name() + ";")
+        }
+        em.line(line, e.name() + "(" + parameters(e.fields(), line) + ") {")
+        em.indent()
+        for (f in e.fields()) {
+            em.line(line, "this." + f.name() + " = " + f.name() + ";")
+        }
+        em.dedent()
+        em.line(line, "}")
     }
 
     /** Fields, the constructor and the methods, inside the class that is open. */
@@ -262,7 +319,8 @@ class Generator(
         // Properties are set after the parameters, in the constructor, since they may read them; so are
         // properties whose value needs statements before it.
         val lifting = classDecl.properties() |> anyMatch { p -> Lifts.needed(propertyInit(p)) }
-        val inConstructor = !classDecl.parameters().isEmpty() || lifting
+        val superArgs = classDecl.superArgs()
+        val inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty())
         for (p in classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";")
         }
@@ -291,6 +349,11 @@ class Generator(
         val params = classDecl.parameters() |> map { p -> javaType(propertyType(file, p)) + " " + p.name() }
         em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {")
         em.indent()
+        val superArgs = classDecl.superArgs()
+        if (superArgs != null && !superArgs.isEmpty()) {
+            val args = superArgs |> map { a -> expr(a) }
+            em.line(line, "super(" + String.join(", ", args) + ");")
+        }
         for (p in classDecl.parameters()) {
             em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";")
         }

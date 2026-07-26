@@ -89,6 +89,7 @@ final class Messages {
     private static final Pattern NON_STATIC = Pattern.compile("^non-static (method|variable) (\\w+)(\\(.*\\))? cannot be referenced from a static context$");
     // One line with several uses of the parameter gets the message once.
     private static final String STATIC_TYPE_PARAMETER = "is a type parameter of the type of this file";
+    private static final Pattern FINAL_PARENT = Pattern.compile("^cannot inherit from final ([\\w.$]+)$");
     private static final Pattern STATIC_TYPE_VARIABLE = Pattern.compile("^non-static type variable (\\w+) cannot be referenced from a static context$");
     private static final Pattern FOR_EACH = Pattern.compile("^for-each not applicable to expression type; required: array or java\\.lang\\.Iterable; found: (.+)$");
     private static final Pattern UNARY = Pattern.compile("^bad operand type (.+) for unary operator '(.+)'$");
@@ -1167,7 +1168,13 @@ final class Messages {
             return abstractType(abstractType.group(1), text, javaLines);
         }
         if (message.equals("interface expected here")) {
-            return "a class cannot extend another class; it can only implement interfaces";
+            return "this supertype is a class, not an interface; to extend a Java class, call its constructor: `: Thread()`. "
+                    + "A class written in Axolotl cannot be extended: compose it, or give both an interface";
+        }
+        Matcher finalParent = FINAL_PARENT.matcher(message);
+        if (finalParent.find()) {
+            return "`" + simpleNames(axlType(finalParent.group(1))) + "` is written in Axolotl and cannot be extended; "
+                    + "keep one in a property and give both an interface";
         }
         return null;
     }

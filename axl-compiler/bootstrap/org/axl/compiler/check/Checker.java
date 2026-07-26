@@ -336,6 +336,14 @@ import org.axl.compiler.ast.TypeRef;
             declare(p.namePos(), p.name(), fieldKind(p), p.type());
             annotations(p.annotations());
         }
+        final var superArgs = c.superArgs();
+        if (superArgs != null) {
+            final var parent = c.supertypes().getFirst();
+            if (file.decls().stream().anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.name().equals(parent.name()))) {
+                error(parent.pos(), ErrorCode.SYNTAX, "an interface takes no `()`: `: " + parent.name() + "`");
+            }
+            exprs(superArgs);
+        }
         for (final var p : c.properties()) {
             annotations(p.annotations());
             final var type = propertyType(p);
@@ -466,13 +474,27 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void enumConstants(Decl.EnumDecl e) {
+        members(e.fields(), "field");
         final var seen = new HashSet<String>();
-        for (final var constant : e.constants()) {
+        var i = 0;
+        while (i < e.constants().size()) {
+            final var constant = e.constants().get(i);
+            final var arguments = e.arguments().get(i);
             if (!seen.add(constant)) {
                 error(e.namePos(), ErrorCode.DUPLICATE_NAME, "the constant `" + constant + "` of `" + e.name() + "` is declared twice");
             } else {
                 checkReserved(e.namePos(), constant);
             }
+            if (arguments.size() != e.fields().size()) {
+                final var names = e.fields().stream().map(Nulls.nonNull(f -> f.name())).toList();
+                error(e.namePos(), ErrorCode.SYNTAX, (e.fields().isEmpty() ?
+                        "`" + constant + "` takes no arguments: `" + e.name() + "` declares no fields; declare them after the name: `enum " +
+                        e.name() +
+                        "(val code: Int)`" :
+                        "`" + constant + "` gives a value for each field of `" + e.name() + "`: `" + constant + "(" + String.join(", ", names) + ")`"));
+            }
+            exprs(arguments);
+            i += 1;
         }
     }
     private void topLevelValue(Decl.Value value) {

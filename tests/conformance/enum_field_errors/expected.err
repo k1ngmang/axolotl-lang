@@ -1,0 +1,2 @@
+AXL001 app/Main.axl:3:6: error: `GREEN` gives a value for each field of `Color`: `GREEN(hex)`
+AXL001 app/Main.axl:5:6: error: `SMALL` takes no arguments: `Size` declares no fields; declare them after the name: `enum Size(val code: Int)`

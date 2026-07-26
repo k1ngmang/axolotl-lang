@@ -61,14 +61,17 @@ import java.util.List;
             List<Function> methods,
             List<TypeRef> supertypes,
             List<Annotation> annotations,
-            List<TypeParam> typeParams) implements Decl {}
+            List<TypeParam> typeParams,
+            @Nullable List<Expr> superArgs) implements Decl {}
     public record EnumDecl(
             Pos pos,
             Pos namePos,
             boolean isPrivate,
             String name,
             List<String> constants,
-            List<Annotation> annotations) implements Decl {}
+            List<Annotation> annotations,
+            List<Expr.Param> fields,
+            List<List<Expr>> arguments) implements Decl {}
     public record Property(
             Pos pos,
             Pos namePos,

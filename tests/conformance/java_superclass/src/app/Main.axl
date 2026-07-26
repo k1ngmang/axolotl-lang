@@ -1,0 +1,48 @@
+package app
+
+import java.util.LinkedHashMap
+import java.util.Map
+
+class NotFound(val id: String) : RuntimeException("not found: " + id)
+
+class Loud(val times: Int) : Thread("loud") {
+    var shouted = 0
+
+    fn run() {
+        var i = 0
+        while (i < times) {
+            shouted += 1
+            i += 1
+        }
+    }
+}
+
+class Recent(val limit: Int) : LinkedHashMap<String, Int>() {
+    fn removeEldestEntry(eldest: Map.Entry<String, Int>) -> Boolean = size() > limit
+}
+
+class Plain : Object() {
+    fn toString() -> String = "plain"
+}
+
+fn find(id: String) -> String {
+    if (id.isEmpty()) {
+        throw NotFound(id)
+    }
+    return "user " + id
+}
+
+fn main() {
+    println(find("7"))
+    println(attempt find("") else e -> e.getMessage())
+    val loud = Loud(3)
+    loud.start()
+    attempt loud.join() else e -> throw IllegalStateException(e)
+    println(loud.shouted + " " + loud.getName())
+    val recent = Recent(2)
+    recent.put("a", 1)
+    recent.put("b", 2)
+    recent.put("c", 3)
+    println(recent.keySet())
+    println(Plain())
+}

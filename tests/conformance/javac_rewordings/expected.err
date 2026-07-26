@@ -1,7 +1,8 @@
 AXL100 app/BranchWithoutValue.axl:6:9: error: this gives no value: the call returns nothing, but `String` is expected
 AXL008 app/DataClassAssign.axl:7:7: error: a data class cannot change; create a new `Point` with the new value of `x`
 AXL100 app/EnumCreated.axl:6:13: error: `Color` is an enum and cannot be created; use one of its constants, such as `Color.RED`
-AXL100 app/ExtendsClass.axl:4:31: error: a class cannot extend another class; it can only implement interfaces
+AXL100 app/ExtendsClass.axl:4:31: error: this supertype is a class, not an interface; to extend a Java class, call its constructor: `: Thread()`. A class written in Axolotl cannot be extended: compose it, or give both an interface
+AXL100 app/ExtendsClass.axl:5:33: error: `Animal` is written in Axolotl and cannot be extended; keep one in a property and give both an interface
 AXL100 app/ForOverNumber.axl:4:15: error: `for` needs a list or another collection, found `Int`
 AXL100 app/ForOverNumber.axl:7:15: error: `for` needs a list or another collection, found `String`; for the characters of a string, use `s.toCharArray()`
 AXL100 app/ImpossibleIs.axl:4:5: error: a value of type `String` can never be `Int`; remove the `is` test

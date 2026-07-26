@@ -195,9 +195,11 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
 }
 
 private fn buildEnum(enumeration: EnumDeclContext) -> Decl.EnumDecl {
-    val constants = enumeration.identifier() |> skip(1) |> map { i -> nameOf(i) }
-    return EnumDecl(pos(enumeration.start), pos(enumeration.identifier(0).start), enumeration.PRIVATE() != null,
-        nameOf(enumeration.identifier(0)), constants, buildAnnotations(enumeration.annotation()))
+    val constants = enumeration.enumConstant() |> map { c -> nameOf(c.identifier()) }
+    val arguments = enumeration.enumConstant() |> map { c -> buildArguments(c.arguments()) }
+    return EnumDecl(pos(enumeration.start), pos(enumeration.identifier().start), enumeration.PRIVATE() != null,
+        nameOf(enumeration.identifier()), constants, buildAnnotations(enumeration.annotation()), buildFields(enumeration.field()),
+        arguments)
 }
 
 private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
@@ -219,8 +221,19 @@ private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
             throw IllegalStateException("unknown member " + member.getClass())
         }
     }
+    val superArgs: List<Expr>? = if (hasSuperArgs(ctx)) buildArguments(ctx.arguments()) else null
     return ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-        parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()))
+        parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()),
+        superArgs)
+}
+
+/** `: Thread(name)` or `: Thread()`: a `(` after the colon, as the class parameters' `(` comes before it. */
+private fn hasSuperArgs(ctx: ClassDeclContext) -> Boolean {
+    val colon = ctx.COLON()
+    if (colon == null) {
+        return false
+    }
+    return ctx.LPAREN() |> anyMatch { paren -> paren.getSymbol().getTokenIndex() > colon.getSymbol().getTokenIndex() }
 }
 
 private fn buildFields(contexts: List<FieldContext>) -> List<Expr.Param> =

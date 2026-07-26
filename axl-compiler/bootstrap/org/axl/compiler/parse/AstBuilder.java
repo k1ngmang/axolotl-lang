@@ -194,9 +194,11 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return null;
     }
     private static Decl.EnumDecl buildEnum(EnumDeclContext enumeration) {
-        final var constants = enumeration.identifier().stream().skip(1).map(Nulls.nonNull(i -> nameOf(i))).toList();
-        return new EnumDecl(pos(enumeration.start), pos(enumeration.identifier(0).start), enumeration.PRIVATE() != null,
-                nameOf(enumeration.identifier(0)), constants, buildAnnotations(enumeration.annotation()));
+        final var constants = enumeration.enumConstant().stream().map(Nulls.nonNull(c -> nameOf(c.identifier()))).toList();
+        final var arguments = enumeration.enumConstant().stream().map(Nulls.nonNull(c -> buildArguments(c.arguments()))).toList();
+        return new EnumDecl(pos(enumeration.start), pos(enumeration.identifier().start), enumeration.PRIVATE() != null,
+                nameOf(enumeration.identifier()), constants, buildAnnotations(enumeration.annotation()), buildFields(enumeration.field()),
+                arguments);
     }
     private static Decl.ClassDecl buildClass(ClassDeclContext ctx) {
         final var parameters = new ArrayList<Property>();
@@ -217,8 +219,17 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
                 throw new IllegalStateException("unknown member " + member.getClass());
             }
         }
+        final @Nullable List<Expr> superArgs = (hasSuperArgs(ctx) ? buildArguments(ctx.arguments()) : null);
         return new ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-                parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()));
+                parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()),
+                superArgs);
+    }
+    private static boolean hasSuperArgs(ClassDeclContext ctx) {
+        final var colon = ctx.COLON();
+        if (colon == null) {
+            return false;
+        }
+        return ctx.LPAREN().stream().anyMatch(paren -> paren.getSymbol().getTokenIndex() > colon.getSymbol().getTokenIndex());
     }
     private static List<Expr.Param> buildFields(List<FieldContext> contexts) {
         return contexts.stream().map(Nulls.nonNull(f -> new Param(pos(f.start), nameOf(f.identifier()), buildType(f.type()), buildAnnotations(f.annotation())))).toList();

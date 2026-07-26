@@ -129,13 +129,19 @@ field
     : annotation* VAL identifier COLON type
     ;
 
+// `enum Planet(val mass: Double) { MERCURY(3.3e23), EARTH(5.97e24) }`: fields, given by each constant.
 enumDecl
-    : annotation* PRIVATE? ENUM identifier LBRACE (identifier (COMMA identifier)* COMMA?)? RBRACE
+    : annotation* PRIVATE? ENUM identifier (LPAREN field (COMMA field)* RPAREN)? LBRACE (enumConstant (COMMA enumConstant)* COMMA?)? RBRACE
+    ;
+enumConstant
+    : identifier (LPAREN arguments? RPAREN)?
     ;
 
 // A class with state: constructor parameters and properties are fields, functions are methods.
+// `: Thread()` extends the Java class Thread, passing the arguments to its constructor; `: Runnable` implements.
 classDecl
-    : annotation* PRIVATE? CLASS identifier typeParams? (LPAREN (classParam (COMMA classParam)*)? RPAREN)? (COLON type (COMMA type)*)?
+    : annotation* PRIVATE? CLASS identifier typeParams? (LPAREN (classParam (COMMA classParam)*)? RPAREN)?
+      (COLON type (LPAREN arguments? RPAREN)? (COMMA type)*)?
       (LBRACE classMember* RBRACE)?
     ;
 

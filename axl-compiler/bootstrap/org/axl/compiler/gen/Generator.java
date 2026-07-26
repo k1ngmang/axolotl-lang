@@ -147,11 +147,7 @@ import org.axl.compiler.check.Whens;
                 emitClass(decl$3);
             }
             case Decl.EnumDecl decl$4 -> {
-                em.line(decl$4.pos().line(), annotations(decl$4.annotations()) + visibility(decl$4) + " enum " +
-                        decl$4.name() +
-                        " { " +
-                        String.join(", ", decl$4.constants()) +
-                        " }");
+                emitEnum(decl$4);
             }
             case Decl.DataClass decl$5 -> {
                 emitDataClass(decl$5);
@@ -218,11 +214,14 @@ import org.axl.compiler.check.Whens;
             emitRequiredValues(fileType$2);
         } else if (fileType instanceof Decl.ClassDecl fileType$3) {
             em.line(line, marked + "public final class " + fileType$3.name() + typeParamList(fileType$3.typeParams()) +
-                    typeList(" implements ", fileType$3.supertypes()) +
+                    supertypeList(fileType$3) +
                     " {");
             emitClassMembers(fileType$3);
         } else if (fileType instanceof Decl.EnumDecl fileType$4) {
-            em.line(line, marked + "public enum " + fileType$4.name() + " { " + String.join(", ", fileType$4.constants()) + ";");
+            em.line(line, marked + "public enum " + fileType$4.name() + " { " + constantList(fileType$4) + ";");
+            em.indent();
+            emitEnumFields(fileType$4);
+            em.dedent();
         } else {
             throw new IllegalStateException();
         }
@@ -231,17 +230,66 @@ import org.axl.compiler.check.Whens;
     private void emitClass(Decl.ClassDecl classDecl) {
         em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
                 typeParamList(classDecl.typeParams()) +
-                typeList(" implements ", classDecl.supertypes()) +
+                supertypeList(classDecl) +
                 " {");
         emitClassMembers(classDecl);
         em.line(classDecl.pos().line(), "}");
+    }
+    private String supertypeList(Decl.ClassDecl classDecl) {
+        final var supertypes = classDecl.supertypes();
+        if (classDecl.superArgs() == null || supertypes.isEmpty()) {
+            return typeList(" implements ", supertypes);
+        }
+        return " extends " + javaType(supertypes.getFirst()) + typeList(" implements ", supertypes.subList(1, supertypes.size()));
+    }
+    private void emitEnum(Decl.EnumDecl e) {
+        final var line = e.pos().line();
+        final var head = annotations(e.annotations()) + visibility(e) + " enum " + e.name();
+        if (e.fields().isEmpty()) {
+            em.line(line, head + " { " + constantList(e) + " }");
+            return;
+        }
+        em.line(line, head + " {");
+        em.indent();
+        em.line(line, constantList(e) + ";");
+        emitEnumFields(e);
+        em.dedent();
+        em.line(line, "}");
+    }
+    private String constantList(Decl.EnumDecl e) {
+        final var texts = new ArrayList<String>();
+        var i = 0;
+        while (i < e.constants().size()) {
+            final var arguments = e.arguments().get(i);
+            final var args = arguments.stream().map(Nulls.nonNull(a -> expr(a))).toList();
+            texts.add(e.constants().get(i) + ((arguments.isEmpty() ? "" : "(" + String.join(", ", args) + ")")));
+            i += 1;
+        }
+        return String.join(", ", texts);
+    }
+    private void emitEnumFields(Decl.EnumDecl e) {
+        if (e.fields().isEmpty()) {
+            return;
+        }
+        final var line = e.pos().line();
+        for (final var f : e.fields()) {
+            em.line(f.pos().line(), annotations(f.annotations()) + "public final " + javaType(memberType(f)) + " " + f.name() + ";");
+        }
+        em.line(line, e.name() + "(" + parameters(e.fields(), line) + ") {");
+        em.indent();
+        for (final var f : e.fields()) {
+            em.line(line, "this." + f.name() + " = " + f.name() + ";");
+        }
+        em.dedent();
+        em.line(line, "}");
     }
     private void emitClassMembers(Decl.ClassDecl classDecl) {
         em.indent();
         final var outerClass = currentClass;
         currentClass = classDecl;
         final var lifting = classDecl.properties().stream().anyMatch(p -> Lifts.needed(propertyInit(p)));
-        final var inConstructor = !classDecl.parameters().isEmpty() || lifting;
+        final var superArgs = classDecl.superArgs();
+        final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty());
         for (final var p : classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";");
         }
@@ -269,6 +317,11 @@ import org.axl.compiler.check.Whens;
         final var params = classDecl.parameters().stream().map(Nulls.nonNull(p -> javaType(propertyType(file, p)) + " " + p.name())).toList();
         em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {");
         em.indent();
+        final var superArgs = classDecl.superArgs();
+        if (superArgs != null && !superArgs.isEmpty()) {
+            final var args = superArgs.stream().map(Nulls.nonNull(a -> expr(a))).toList();
+            em.line(line, "super(" + String.join(", ", args) + ");");
+        }
         for (final var p : classDecl.parameters()) {
             em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";");
         }

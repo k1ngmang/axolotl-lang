@@ -43,7 +43,7 @@ at a time. Nothing has to be converted before it is useful.
 
 Axolotl has functions and values only. Keep these in Java and call them from Axolotl:
 
-- classes that extend other classes, and annotation types;
+- classes that extend a class written in Axolotl, and annotation types;
 - code that needs `for` loops over indices, arrays, casts, `switch` or `synchronized`.
 
 Framework entry points work in Axolotl: a `class` with annotated methods is a JUnit test class, a

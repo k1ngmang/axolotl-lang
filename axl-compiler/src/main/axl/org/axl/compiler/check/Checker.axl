@@ -396,6 +396,15 @@ class Checker(val file: SourceFile) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type())
             annotations(p.annotations())
         }
+        val superArgs = c.superArgs()
+        if (superArgs != null) {
+            val parent = c.supertypes().getFirst()
+            if (file.decls() |> anyMatch { d -> d is Decl.Interface && d.name().equals(parent.name()) }) {
+                error(parent.pos(), ErrorCode.SYNTAX, "an interface takes no `()`: `: " + parent.name() + "`")
+            }
+            // Java runs them before the properties are set, so only the parameters are at hand.
+            exprs(superArgs)
+        }
         for (p in c.properties()) {
             annotations(p.annotations())
             val type = propertyType(p)
@@ -526,13 +535,26 @@ class Checker(val file: SourceFile) {
     }
 
     private fn enumConstants(e: Decl.EnumDecl) {
+        members(e.fields(), "field")
         val seen = HashSet<String>()
-        for (constant in e.constants()) {
+        var i = 0
+        while (i < e.constants().size()) {
+            val constant = e.constants().get(i)
+            val arguments = e.arguments().get(i)
             if (!seen.add(constant)) {
                 error(e.namePos(), ErrorCode.DUPLICATE_NAME, "the constant `" + constant + "` of `" + e.name() + "` is declared twice")
             } else {
                 checkReserved(e.namePos(), constant)
             }
+            if (arguments.size() != e.fields().size()) {
+                val names = e.fields() |> map { f -> f.name() }
+                error(e.namePos(), ErrorCode.SYNTAX, if (e.fields().isEmpty())
+                    "`" + constant + "` takes no arguments: `" + e.name() + "` declares no fields; declare them after the name: `enum " +
+                        e.name() + "(val code: Int)`"
+                    else "`" + constant + "` gives a value for each field of `" + e.name() + "`: `" + constant + "(" + String.join(", ", names) + ")`")
+            }
+            exprs(arguments)
+            i += 1
         }
     }
 

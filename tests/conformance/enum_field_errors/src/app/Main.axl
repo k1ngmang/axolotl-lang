@@ -1,0 +1,5 @@
+package app
+
+enum Color(val hex: String) { RED("f00"), GREEN }
+
+enum Size { SMALL(1), LARGE }

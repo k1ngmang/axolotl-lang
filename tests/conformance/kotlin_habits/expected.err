@@ -11,13 +11,12 @@ AXL001 app/DestructuringLoop.axl:7:17: error: Axolotl has no destructuring; loop
 AXL001 app/ElvisReturn.axl:4:15: error: `return` cannot be the fallback of `?:`; check first: `if (s == null) { return 0 }`, and `s` is not null after it
 AXL001 app/ElvisReturnCall.axl:6:24: error: `return` cannot be the fallback of `?:`; keep the value in a `val` and check that: `val v = m.get("k")`, then `if (v == null) { return -1 }`
 AXL001 app/EnumClass.axl:3:6: error: write `enum Color { ... }` without `class`
-AXL001 app/EnumConstructor.axl:3:11: error: an enum lists its constants only: `enum Color { RED, GREEN }`
 AXL001 app/Extension.axl:3:10: error: Axolotl has no extension functions; take the value as the first parameter: `fn shout(s: String)`
 AXL001 app/FatArrow.axl:4:7: error: write `->` after the condition of a `when` branch, and in a lambda
 AXL001 app/GenericFunction.axl:5:4: error: the type parameters go after the name of the function: `fn first<T>(xs: List<T>) -> T?`
 AXL001 app/InfixTo.axl:4:23: error: Axolotl has no `to`; a map takes keys and values in turn: `Map.of("a", 1)`
 AXL001 app/InitBlock.axl:4:5: error: a class has no `init` block; give each property its value where it is declared
-AXL001 app/InterfaceParentheses.axl:4:24: error: an interface takes no `()`: `: I`
+AXL001 app/InterfaceParentheses.axl:4:23: error: an interface takes no `()`: `: I`
 AXL001 app/Lateinit.axl:4:5: error: Axolotl has no `lateinit`; give the `var` a value, or make it nullable: `var x: T? = null`
 AXL001 app/NamedArguments.axl:6:24: error: Axolotl has no named arguments; pass the values in the order of the parameters
 AXL001 app/NotInKotlin.axl:5:44: error: Axolotl has no `!in`; write `!xs.contains(x)`
