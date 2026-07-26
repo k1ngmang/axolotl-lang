@@ -121,6 +121,9 @@ public final class AxlBuild {
         // Error Prone can add a weaker warning about the same comparison, such as ReferenceEquality.
         List<AxlDiagnostic> errors = diagnostics.stream().filter(AxlDiagnostic::isError).toList();
         diagnostics.removeIf(d -> !d.isError() && errors.stream().anyMatch(e -> samePosition(e, d)));
+        // Boxed numbers compared with `==` get their own error; the general one about `==` says less.
+        diagnostics.removeIf(d -> d.message().startsWith(ErrorProneMessages.REFERENCE_EQUALITY)
+                && errors.stream().anyMatch(e -> e != d && samePosition(e, d)));
         List<AxlDiagnostic> all = List.copyOf(diagnostics);
         diagnostics.removeIf(d -> d.column() == 1 && all.stream().anyMatch(other -> placedBetter(other, d)));
         diagnostics.removeIf(d -> Messages.followsFrom(d, all));

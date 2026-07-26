@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:5:46: error: `==` tests whether both sides are the same object, not whether they are equal; compare them with `a.equals(b)`
+AXL100 app/Main.axl:7:49: error: `==` tests whether both sides are the same object, not whether they are equal; compare them with `a.equals(b)`

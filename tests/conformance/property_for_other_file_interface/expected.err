@@ -1,1 +1,0 @@
-AXL100 app/Main.axl:4:7: error: `Box` must give `fn size()`, which `Sized` requires; a property gives a value only to an interface of the same file, so add `fn size() -> Int = size`

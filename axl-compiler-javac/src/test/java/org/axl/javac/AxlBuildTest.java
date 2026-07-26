@@ -173,14 +173,12 @@ class AxlBuildTest {
 
                 fn main() {
                     val s = "a"
-                    if (s == "a") {
+                    if (s.equals("a")) {
                         println(Empty())
                     }
                 }
                 """);
         assertEquals(List.of(
-                "12:11 `==` tests whether both sides are the same object, not whether they are equal; compare them with "
-                        + "`a.equals(b)`",
                 "13:17 `Empty` has no `toString`, so it is shown as `Empty@4488aabb`; give it `fn toString() -> String`"),
                 warnings);
     }

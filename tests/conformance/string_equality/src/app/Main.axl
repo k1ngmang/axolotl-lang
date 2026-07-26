@@ -1,0 +1,12 @@
+package app
+
+data class Point(val x: Int, val y: Int)
+
+fn same(a: String, b: String) -> Boolean = a == b
+
+fn samePoint(a: Point, b: Point) -> Boolean = a != b
+
+fn main() {
+    println(same("a", "a"))
+    println(samePoint(Point(1, 2), Point(1, 2)))
+}

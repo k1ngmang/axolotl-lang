@@ -17,6 +17,8 @@ final class ErrorProneMessages {
     private static final String STACK = "`Stack` is an old class; use `ArrayDeque`, which has `push`, `pop` and `peek` too";
     private static final String LOCKS = " locks on every call, which is rarely needed; use `";
 
+    static final String REFERENCE_EQUALITY = "`==` tests whether both sides are the same object, not whether they are equal; "
+            + "compare them with `a.equals(b)`";
     static final String BOXED_EQUALITY = "`==` compares these numbers as objects, not by value, since they may be null "
             + "or come from a collection; use `java.util.Objects.equals(a, b)`";
 
@@ -156,8 +158,7 @@ final class ErrorProneMessages {
     /** Findings whose Java words, such as override and reference equality, have plain Axolotl advice. */
     private static String reworded(String message, String text) {
         return switch (tag(message)) {
-            case "ReferenceEquality" -> "`==` tests whether both sides are the same object, not whether they are equal; "
-                    + "compare them with `a.equals(b)`";
+            case "ReferenceEquality" -> REFERENCE_EQUALITY;
             case "BoxedPrimitiveEquality" -> BOXED_EQUALITY;
             case "ConstantOverflow" -> DIVISION_BY_ZERO.matcher(text).find() ? "division by zero"
                     : "this calculation is too large for its type; use `Long`, with `L` after a number";
