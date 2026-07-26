@@ -1,0 +1,28 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "bad " + s
+
+/** Type tests inside an `if` body: a static check of the Java once crashed on the pattern variables. */
+fn run(flag: Boolean, s: String) -> String {
+    if (flag) {
+        val r = parse(s)
+        if (r is Err) {
+            return "error " + r.error()
+        }
+        return "value " + r.value()
+    } else if (s.isEmpty()) {
+        val r = parse("0")
+        return when (r) {
+            is Ok -> "empty " + r.value()
+            is Err -> r.error()
+        }
+    }
+    return "off"
+}
+
+fn main() {
+    println(run(true, "x"))
+    println(run(true, "7"))
+    println(run(false, ""))
+    println(run(false, "q"))
+}

@@ -185,6 +185,8 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - `Ok`/`Err` branches in `else if` chains, `mapResult` and `map` lambdas get their types.
   - Long `?:` chains and deeply nested `if` values compile in linear time.
   - The language server compiles one module at a time.
+- Ninth audit, four more programs (an expression language with a REPL, a shop with pricing strategies, a concurrent job runner, an HTTP service with JUnit tests):
+  - `is Ok` and `is Err` inside an `if` body no longer crash Error Prone: its AlreadyChecked check, which cannot read the pattern variables, is off, and the Gradle and Maven builds run the same checks as `axl build`.
 - Eighth audit:
   - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.
   - `attempt` around a call that returns nothing, also with `else e -> throw`, says that it is a statement, and the exception inside the call is not reported a second time.

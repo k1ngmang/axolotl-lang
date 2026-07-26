@@ -42,10 +42,11 @@ public final class JavaCompilation {
      * import a static method by its plain name, which BadImport would flag. InlineMeSuggester asks for
      * an annotation on every deprecated function. A call that always fails is a warning here and made
      * an error again when it is not inside `attempt`, which handles the failure (see Messages).
+     * AlreadyChecked crashes on the `var` of a record pattern, `x instanceof Ok(var v)`, inside an `if`.
      */
     public static final String ERROR_PRONE_PLUGIN = "-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR "
-            + "-Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF "
-            + "-XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
+            + "-Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF "
+            + "-Xep:InlineMeSuggester:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
 
     public record Outcome(boolean success, List<Diagnostic<? extends JavaFileObject>> diagnostics) {}
 

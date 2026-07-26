@@ -74,7 +74,7 @@ in one execution; otherwise `smap` finds no line maps and adds no SMAP. The same
    <arg>-XDcompilePolicy=simple</arg>
    <arg>--should-stop=ifError=FLOW</arg>
    <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
-   <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
+   <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
    <arg>${axl.javacPlugin}</arg>
    ```
    `axl:generate` sets the property `axl.javacPlugin` to `-Xplugin:AxlDiagnostics <generated>=<sources>`,

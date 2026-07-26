@@ -146,7 +146,11 @@ public class AxlPlugin implements Plugin<Project> {
                     .getByType(ErrorProneOptions.class);
             errorprone.getEnabled().set(axl.getNullAway());
             errorprone.check("NullAway", CheckSeverity.ERROR);
+            errorprone.check("NarrowingCompoundAssignment", CheckSeverity.ERROR);
             errorprone.check("IdentityBinaryExpression", CheckSeverity.WARN);
+            errorprone.check("AlwaysThrows", CheckSeverity.WARN);
+            // Crashes on the `var` of a record pattern inside an `if`.
+            errorprone.check("AlreadyChecked", CheckSeverity.OFF);
             errorprone.check("BadImport", CheckSeverity.OFF);
             errorprone.check("InlineMeSuggester", CheckSeverity.OFF);
             errorprone.option("NullAway:JSpecifyMode", "true");
