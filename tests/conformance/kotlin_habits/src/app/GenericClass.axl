@@ -1,3 +1,0 @@
-package app
-
-data class Box<T>(val v: T)

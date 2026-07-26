@@ -38,6 +38,25 @@ the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `ja
 `List<*>` are Java's `Class<?>` and `List<?>`: a type argument that is not known.
 A character in single quotes, `'a'`, is a Java `Character`; text in double quotes is a `String`.
 
+A data class, class, interface or function may take type parameters, written after its name:
+
+```axl
+data class Pair<A, B>(val first: A, val second: B)
+
+interface Repository<K, V> {
+    fn find(key: K) -> V?
+}
+
+fn largest<T : Comparable<T>>(xs: List<T>) -> T? { ... }
+```
+
+`T` on its own stands for any type, nullable ones included, so `Pair<String, Int?>` is allowed and a
+`T` value may be null inside the declaration. `T : Object` takes every type without null, and
+`T : Comparable<T>` the types with an order. An object of a generic class is created with its
+arguments, `Pair<String, Int>("age", 41)`, or with `Pair<>(...)` where the type it is stored as tells
+them. Calls of generic functions need no arguments: `largest(numbers)`. The functions of a file whose
+type has parameters are static and cannot use them; they take their own.
+
 ## Statements
 
 - `val x = e` declares a final local; `var x = e` a mutable one. A type is optional, except when the

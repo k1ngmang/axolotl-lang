@@ -267,6 +267,7 @@ class Checker(val file: SourceFile) {
             }
             checkReserved(decl.namePos(), decl.name())
             annotations(decl.annotations())
+            typeParams(decl)
             if (decl is Decl.Function) {
                 checkFunctionName(decl)
             }
@@ -404,10 +405,36 @@ class Checker(val file: SourceFile) {
             }
         }
         for (m in c.methods()) {
+            typeParams(m)
             function(m)
         }
         pop()
         currentClass = null
+    }
+
+    /** `<T>` and `<K : Comparable<K>>`: names of types, distinct and new in this file. */
+    private fn typeParams(decl: Decl) {
+        val params: List<Decl.TypeParam> = when (decl) {
+            is Decl.DataClass -> decl.typeParams()
+            is Decl.ClassDecl -> decl.typeParams()
+            is Decl.Interface -> decl.typeParams()
+            is Decl.Function -> decl.typeParams()
+            else -> List.of()
+        }
+        val seen = HashSet<String>()
+        for (p in params) {
+            val name = p.name()
+            if (!Character.isUpperCase(name.charAt(0))) {
+                error(p.pos(), ErrorCode.SYNTAX, "a type parameter is a type, so its name starts with a capital letter, as `" +
+                    Character.toUpperCase(name.charAt(0)) + name.substring(1) + "`")
+            } else if (SHADOWED_TYPES.contains(name) || typeNames.contains(name) || JAVA_PRIMITIVES.containsKey(name)) {
+                error(p.pos(), ErrorCode.RESERVED_NAME, "a type parameter named `" + name + "` would hide the type `" + name +
+                    "`; choose another name, such as `T`")
+            } else if (!seen.add(name)) {
+                error(p.pos(), ErrorCode.DUPLICATE_NAME, "the type parameter `" + name + "` is declared twice")
+            }
+            writtenType(p.bound(), false)
+        }
     }
 
     private fn fieldKind(p: Decl.Property) -> Kind = if (p.mutable()) Kind.MUTABLE_FIELD else Kind.FIELD
@@ -455,6 +482,7 @@ class Checker(val file: SourceFile) {
         val seen = HashSet<String>()
         for (m in iface.methods()) {
             annotations(m.annotations())
+            typeParams(m)
             if (m.params().isEmpty() && values.contains(m.name())) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "` is already a value of `" + iface.name() +
                     "`, and a value is read as `" + m.name() + "()`; remove one")

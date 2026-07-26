@@ -87,6 +87,9 @@ final class Messages {
             "^cannot infer type for local variable (\\w+); \\(cannot use 'var' on self-referencing variable\\)$");
     private static final Pattern UNINITIALIZED = Pattern.compile("^variable (\\w+) might not have been initialized$");
     private static final Pattern NON_STATIC = Pattern.compile("^non-static (method|variable) (\\w+)(\\(.*\\))? cannot be referenced from a static context$");
+    // One line with several uses of the parameter gets the message once.
+    private static final String STATIC_TYPE_PARAMETER = "is a type parameter of the type of this file";
+    private static final Pattern STATIC_TYPE_VARIABLE = Pattern.compile("^non-static type variable (\\w+) cannot be referenced from a static context$");
     private static final Pattern FOR_EACH = Pattern.compile("^for-each not applicable to expression type; required: array or java\\.lang\\.Iterable; found: (.+)$");
     private static final Pattern UNARY = Pattern.compile("^bad operand type (.+) for unary operator '(.+)'$");
     private static final Pattern MISSING_METHOD = Pattern.compile(
@@ -360,7 +363,7 @@ final class Messages {
     static boolean oncePerLine(String translated) {
         return translated.equals(LAMBDA_VALUE) || translated.endsWith(UNKNOWN_IMPORTED_CLASS)
                 || translated.endsWith(ErrorProneMessages.NEVER_NULL)
-                || translated.endsWith(Names.NO_TYPE_PARAMETERS);
+                || translated.endsWith(Names.NO_TYPE_PARAMETERS) || translated.contains(STATIC_TYPE_PARAMETER);
     }
 
     /**
@@ -1127,6 +1130,12 @@ final class Messages {
         Matcher nonStatic = NON_STATIC.matcher(message);
         if (nonStatic.find()) {
             return nonStatic(nonStatic.group(1), nonStatic.group(2), text);
+        }
+        Matcher staticTypeVariable = STATIC_TYPE_VARIABLE.matcher(message);
+        if (staticTypeVariable.find()) {
+            String name = staticTypeVariable.group(1);
+            return "`" + name + "` is a type parameter of the type of this file, which a function of the file cannot use; "
+                    + "give the function its own: `fn name<" + name + ">(...)`";
         }
         Matcher forEach = FOR_EACH.matcher(message);
         if (forEach.find()) {

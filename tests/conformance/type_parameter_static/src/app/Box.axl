@@ -1,0 +1,5 @@
+package app
+
+data class Box<T>(val value: T)
+
+fn unwrap(box: Box<T>) -> T = box.value()

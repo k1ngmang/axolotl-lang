@@ -2,7 +2,7 @@ AXL100 app/ImportDataClass.axl:3:14: error: `Circle` is declared in model/Shapes
 AXL100 app/ImportPrivate.axl:3:24: error: `hidden` is private to `Strings` and can only be used in that file
 AXL100 app/ImportTypo.axl:3:24: error: `Strings` has no function or value `shuot`; did you mean `shout`?
 AXL100 app/ImportedType.axl:7:13: error: wrong arguments for `area`: expected (Circle), got (Circle, Int)
-AXL100 app/KotlinSignatures.axl:5:19: error: unknown type `T`; Axolotl functions and classes have no type parameters, so write the type itself
+AXL100 app/KotlinSignatures.axl:5:19: error: unknown type `T`; declare it as a type parameter, `fn first<T>(xs: List<T>)` or `class Box<T>`, or write the type itself
 AXL100 app/KotlinSignatures.axl:7:20: error: unknown type `Unit`; leave out the result type of a function that returns nothing
 AXL100 app/KotlinSignatures.axl:11:20: error: a function that returns nothing has no result type; remove `-> Void`
 AXL100 app/KotlinSignatures.axl:15:32: error: `s` of type `String` has no field `length`; `length` is a method: `length()`

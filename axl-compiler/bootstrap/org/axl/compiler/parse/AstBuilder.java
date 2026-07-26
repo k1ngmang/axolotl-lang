@@ -118,6 +118,7 @@ import org.axl.compiler.parse.AxolotlParser.TopLevelContext;
 import org.axl.compiler.parse.AxolotlParser.TryExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.TypeArgContext;
 import org.axl.compiler.parse.AxolotlParser.TypeContext;
+import org.axl.compiler.parse.AxolotlParser.TypeParamsContext;
 import org.axl.compiler.parse.AxolotlParser.UnaryExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.ValDeclContext;
 import org.axl.compiler.parse.AxolotlParser.ValStatementContext;
@@ -165,7 +166,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var data = top.dataClassDecl();
         if (data != null) {
             return new DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
-                    nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()));
+                    nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()),
+                    buildTypeParams(data.typeParams()));
         }
         final var enumeration = top.enumDecl();
         if (enumeration != null) {
@@ -179,7 +181,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (iface != null) {
             return new Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
                     nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()),
-                    iface.interfaceMethod().stream().map(Nulls.nonNull(m -> buildSignature(m))).toList(), buildTypes(iface.type()), buildAnnotations(iface.annotation()));
+                    iface.interfaceMethod().stream().map(Nulls.nonNull(m -> buildSignature(m))).toList(), buildTypes(iface.type()), buildAnnotations(iface.annotation()),
+                    buildTypeParams(iface.typeParams()));
         }
         final var value = top.valDecl();
         if (value != null) {
@@ -213,7 +216,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             }
         }
         return new ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-                parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()));
+                parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()));
     }
     private static List<Expr.Param> buildFields(List<FieldContext> contexts) {
         return contexts.stream().map(Nulls.nonNull(f -> new Param(pos(f.start), nameOf(f.identifier()), buildType(f.type()), buildAnnotations(f.annotation())))).toList();
@@ -229,11 +232,17 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final @Nullable Expr exprBody = (bodyExpr == null ? null : buildExpr(bodyExpr));
         final Stmt.@Nullable Block block = (bodyBlock == null ? null : buildBlock(bodyBlock));
         return new Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-                params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()));
+                params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()));
+    }
+    private static List<Decl.TypeParam> buildTypeParams(@Nullable TypeParamsContext ctx) {
+        if (ctx == null) {
+            return List.of();
+        }
+        return ctx.typeParam().stream().map(Nulls.nonNull(p -> new Decl.TypeParam(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())))).toList();
     }
     private static Decl.Function buildSignature(InterfaceMethodContext ctx) {
         return new Function(pos(ctx.start), pos(ctx.identifier().start), false, nameOf(ctx.identifier()), buildParams(ctx.param()),
-                typeOrNull(ctx.type()), null, null, buildAnnotations(ctx.annotation()));
+                typeOrNull(ctx.type()), null, null, buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()));
     }
     private static List<Expr.Param> buildParams(List<ParamContext> contexts) {
         final var params = new ArrayList<Expr.Param>();

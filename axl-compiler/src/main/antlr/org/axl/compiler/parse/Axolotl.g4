@@ -114,8 +114,15 @@ annotationValue
 
 // `data class Point(val x: Int, val y: Int) : Shape`; `data` is a word only here.
 dataClassDecl
-    : annotation* PRIVATE? {_input.LT(1).getText().equals("data")}? IDENTIFIER CLASS identifier
+    : annotation* PRIVATE? {_input.LT(1).getText().equals("data")}? IDENTIFIER CLASS identifier typeParams?
       LPAREN (field (COMMA field)*)? RPAREN (COLON type (COMMA type)*)?
+    ;
+// `<T>` or `<K, V : Comparable<V>>`: the type parameters of a type or a function.
+typeParams
+    : LT typeParam (COMMA typeParam)* GT
+    ;
+typeParam
+    : identifier (COLON type)?
     ;
 
 field
@@ -128,7 +135,7 @@ enumDecl
 
 // A class with state: constructor parameters and properties are fields, functions are methods.
 classDecl
-    : annotation* PRIVATE? CLASS identifier (LPAREN (classParam (COMMA classParam)*)? RPAREN)? (COLON type (COMMA type)*)?
+    : annotation* PRIVATE? CLASS identifier typeParams? (LPAREN (classParam (COMMA classParam)*)? RPAREN)? (COLON type (COMMA type)*)?
       (LBRACE classMember* RBRACE)?
     ;
 
@@ -143,14 +150,14 @@ classMember
 
 // `sealed interface Shape { val name: String }`
 interfaceDecl
-    : annotation* PRIVATE? SEALED? INTERFACE identifier (COLON type (COMMA type)*)? (LBRACE (field | interfaceMethod)* RBRACE)?
+    : annotation* PRIVATE? SEALED? INTERFACE identifier typeParams? (COLON type (COMMA type)*)? (LBRACE (field | interfaceMethod)* RBRACE)?
     ;
 interfaceMethod
-    : annotation* FN identifier LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? SEMI?
+    : annotation* FN identifier typeParams? LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? SEMI?
     ;
 
 functionDecl
-    : annotation* PRIVATE? FN identifier LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? functionBody
+    : annotation* PRIVATE? FN identifier typeParams? LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? functionBody
     ;
 
 functionBody

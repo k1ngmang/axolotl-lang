@@ -1,0 +1,92 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.List
+import java.util.Map
+
+data class Pair<A, B>(val first: A, val second: B)
+
+sealed interface Option<T> {
+    val present: Boolean
+}
+
+data class Some<T>(val present: Boolean, val value: T) : Option<T>
+data class None<T>(val present: Boolean) : Option<T>
+
+interface Repository<K, V> {
+    val name: String
+    fn find(key: K) -> V?
+    fn save(key: K, value: V)
+}
+
+class MemoryRepository<K, V>(val name: String) : Repository<K, V> {
+    val items: Map<K, V> = HashMap<K, V>()
+
+    fn find(key: K) -> V? = items.get(key)
+
+    fn save(key: K, value: V) {
+        items.put(key, value)
+    }
+}
+
+class Stack<T : Object> {
+    val items: List<T> = ArrayList<T>()
+
+    fn push(item: T) {
+        items.add(item)
+    }
+
+    fn pop() -> T? = if (items.isEmpty()) null else items.remove(items.size() - 1)
+
+    fn describe() -> String {
+        val top = items |> map { it.toString() } |> first
+        return items.size() + " items, top " + (top ?: "none")
+    }
+}
+
+fn firstOrNull<T>(xs: List<T>) -> T? = if (xs.isEmpty()) null else xs.get(0)
+
+fn largest<T : Comparable<T>>(xs: List<T>) -> T? {
+    var best: T? = null
+    for (x in xs) {
+        if (best == null || x.compareTo(best) > 0) {
+            best = x
+        }
+    }
+    return best
+}
+
+fn swap<A, B>(p: Pair<A, B>) -> Pair<B, A> = Pair<B, A>(p.second(), p.first())
+
+fn valueOr<T>(option: Option<T>, fallback: T) -> T = when (option) {
+    is Some -> option.value()
+    is None -> fallback
+}
+
+fn main() {
+    val pair = Pair<String, Int>("age", 41)
+    println(swap(pair))
+    val swapped = swap(pair)
+    println(swapped.first() + 1)
+    val repo = MemoryRepository<String, Int>("ages")
+    repo.save("ann", 30)
+    println(repo.find("ann"))
+    println(repo.find("bob"))
+    println(repo.name)
+    val stack = Stack<String>()
+    stack.push("a")
+    stack.push("b")
+    println(stack.describe())
+    println(stack.pop())
+    println(firstOrNull(List.of(3, 4)))
+    val empty: List<String> = List.of()
+    println(firstOrNull(empty))
+    println(largest(List.of(3, 9, 4)))
+    println(largest(List.of("pear", "apple")))
+    val some: Option<String> = Some<String>(true, "x")
+    val none: Option<String> = None<String>(false)
+    println(valueOr(some, "y") + valueOr(none, "y"))
+    val maybe: Pair<String, Int?> = Pair<String, Int?>("none", null)
+    println(maybe.second() ?: -1)
+}

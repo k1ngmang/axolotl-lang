@@ -117,6 +117,7 @@ import org.axl.compiler.parse.AxolotlParser.TopLevelContext
 import org.axl.compiler.parse.AxolotlParser.TryExpressionContext
 import org.axl.compiler.parse.AxolotlParser.TypeArgContext
 import org.axl.compiler.parse.AxolotlParser.TypeContext
+import org.axl.compiler.parse.AxolotlParser.TypeParamsContext
 import org.axl.compiler.parse.AxolotlParser.UnaryExpressionContext
 import org.axl.compiler.parse.AxolotlParser.ValDeclContext
 import org.axl.compiler.parse.AxolotlParser.ValStatementContext
@@ -165,7 +166,8 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
     val data = top.dataClassDecl()
     if (data != null) {
         return DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
-            nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()))
+            nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()),
+            buildTypeParams(data.typeParams()))
     }
     val enumeration = top.enumDecl()
     if (enumeration != null) {
@@ -179,7 +181,8 @@ private fn buildTopLevel(top: TopLevelContext) -> Decl? {
     if (iface != null) {
         return Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
             nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()),
-            iface.interfaceMethod() |> map { m -> buildSignature(m) }, buildTypes(iface.type()), buildAnnotations(iface.annotation()))
+            iface.interfaceMethod() |> map { m -> buildSignature(m) }, buildTypes(iface.type()), buildAnnotations(iface.annotation()),
+            buildTypeParams(iface.typeParams()))
     }
     val value = top.valDecl()
     if (value != null) {
@@ -215,7 +218,7 @@ private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
         }
     }
     return ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-        parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()))
+        parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()))
 }
 
 private fn buildFields(contexts: List<FieldContext>) -> List<Expr.Param> =
@@ -231,13 +234,20 @@ private fn buildFunction(ctx: FunctionDeclContext) -> Decl.Function {
     val exprBody: Expr? = if (bodyExpr == null) null else buildExpr(bodyExpr)
     val block: Stmt.Block? = if (bodyBlock == null) null else buildBlock(bodyBlock)
     return Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
-        params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()))
+        params, typeOrNull(ctx.type()), exprBody, block, buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()))
+}
+
+private fn buildTypeParams(ctx: TypeParamsContext?) -> List<Decl.TypeParam> {
+    if (ctx == null) {
+        return List.of()
+    }
+    return ctx.typeParam() |> map { p -> Decl.TypeParam(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())) }
 }
 
 /** A method of an interface: a function without a body. */
 private fn buildSignature(ctx: InterfaceMethodContext) -> Decl.Function =
     Function(pos(ctx.start), pos(ctx.identifier().start), false, nameOf(ctx.identifier()), buildParams(ctx.param()),
-        typeOrNull(ctx.type()), null, null, buildAnnotations(ctx.annotation()))
+        typeOrNull(ctx.type()), null, null, buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()))
 
 private fn buildParams(contexts: List<ParamContext>) -> List<Expr.Param> {
     val params = ArrayList<Expr.Param>()

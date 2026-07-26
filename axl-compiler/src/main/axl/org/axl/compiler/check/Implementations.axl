@@ -23,6 +23,9 @@ data class Mismatch(val pos: Pos, val message: String)
 /** A value a type gives, with where it is declared. */
 data class Given(val pos: Pos, val type: TypeRef?)
 
+/** An interface a type implements, with the types it writes for the interface's type parameters. */
+data class Implemented(val iface: Decl.Interface, val args: List<TypeRef>)
+
 fn check(file: SourceFile) -> List<Mismatch> {
     val problems = ArrayList<Mismatch>()
     for (decl in file.decls()) {
@@ -38,10 +41,11 @@ fn check(file: SourceFile) -> List<Mismatch> {
 private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, supertypes: List<TypeRef>,
                        problems: List<Mismatch>) {
     val seen = HashSet<String>()
-    for (iface in interfaces(file, supertypes, HashSet<String>())) {
+    for (implemented in interfaces(file, supertypes, HashSet<String>())) {
+        val iface = implemented.iface()
         for (member in iface.members()) {
             // The parser requires the type of a member, so it is never missing here.
-            val required = member.type()!!
+            val required = substitute(member.type()!!, iface.typeParams(), implemented.args())
             val field = given.get(member.name())
             if (!seen.add(member.name() + "/0")) {
                 // Reported where the interface declares it twice.
@@ -56,7 +60,7 @@ private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, 
             if (!seen.add(method.name() + "/" + method.params().size())) {
                 // Reported where the interface declares it twice.
             } else if (decl is Decl.ClassDecl) {
-                implementation(decl, method, iface, problems)
+                implementation(decl, method, implemented, problems)
             } else {
                 problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` is a data class, so it has no methods, but the " +
                     "interface `" + iface.name() + "` requires `" + signature(method) + "`; make `" + decl.name() +
@@ -67,7 +71,8 @@ private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, 
 }
 
 /** A class gives a method with the name, as many parameters, and types that fit the interface's. */
-private fn implementation(c: Decl.ClassDecl, method: Decl.Function, iface: Decl.Interface, problems: List<Mismatch>) {
+private fn implementation(c: Decl.ClassDecl, method: Decl.Function, implemented: Implemented, problems: List<Mismatch>) {
+    val iface = implemented.iface()
     val own = c.methods() |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
     if (own == null) {
         problems.add(Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
@@ -78,7 +83,8 @@ private fn implementation(c: Decl.ClassDecl, method: Decl.Function, iface: Decl.
         problems.add(Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
             "`, so it cannot be private"))
     }
-    val required = method.returnType()
+    val declaredReturn = method.returnType()
+    val required: TypeRef? = if (declaredReturn == null) null else substitute(declaredReturn, iface.typeParams(), implemented.args())
     val givenReturn = own.returnType()
     if ((required == null && givenReturn != null) || (required != null && (givenReturn == null || !fits(givenReturn, required)))) {
         problems.add(Mismatch(own.namePos(), "`" + own.name() + "` returns `" + returnText(givenReturn) + "` here, but the interface `" +
@@ -87,7 +93,8 @@ private fn implementation(c: Decl.ClassDecl, method: Decl.Function, iface: Decl.
     var i = 0
     while (i < own.params().size()) {
         val givenParam = own.params().get(i).type()
-        val requiredParam = method.params().get(i).type()
+        val declaredParam = method.params().get(i).type()
+        val requiredParam: TypeRef? = if (declaredParam == null) null else substitute(declaredParam, iface.typeParams(), implemented.args())
         // A parameter may accept more than required, `String?` for `String`, but not less.
         if (givenParam != null && requiredParam != null && !fits(requiredParam, givenParam)) {
             problems.add(Mismatch(own.params().get(i).pos(), "the parameter `" + own.params().get(i).name() + "` is `" +
@@ -116,16 +123,34 @@ private fn compare(name: String, field: Given, required: TypeRef, iface: Decl.In
 /** The values the interfaces of the file among the supertypes require. */
 fn requiredValues(file: SourceFile, supertypes: List<TypeRef>) -> List<Expr.Param> {
     val values = ArrayList<Expr.Param>()
-    for (iface in interfaces(file, supertypes, HashSet<String>())) {
-        values.addAll(iface.members())
+    for (implemented in interfaces(file, supertypes, HashSet<String>())) {
+        values.addAll(implemented.iface().members())
     }
     return values
+}
+
+/** `T` of `interface Repository<T>` is `User` in `class Users : Repository<User>`. */
+private fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<TypeRef>) -> TypeRef {
+    if (params.isEmpty() || params.size() != args.size()) {
+        return type
+    }
+    var i = 0
+    while (i < params.size()) {
+        if (params.get(i).name().equals(type.name()) && type.args().isEmpty()) {
+            val arg = args.get(i)
+            return TypeRef(type.pos(), arg.name(), arg.args(), arg.nullable() || type.nullable())
+        }
+        i += 1
+    }
+    val substituted = type.args() |> map { a -> substitute(a, params, args) }
+    return TypeRef(type.pos(), type.name(), substituted, type.nullable())
 }
 
 /** What the interfaces require, as `name/arity`: a value is a method without parameters. */
 fn required(file: SourceFile, supertypes: List<TypeRef>) -> List<String> {
     val keys = ArrayList<String>()
-    for (iface in interfaces(file, supertypes, HashSet<String>())) {
+    for (implemented in interfaces(file, supertypes, HashSet<String>())) {
+        val iface = implemented.iface()
         for (member in iface.members()) {
             keys.add(member.name() + "/0")
         }
@@ -136,14 +161,16 @@ fn required(file: SourceFile, supertypes: List<TypeRef>) -> List<String> {
     return keys
 }
 
-/** The interfaces of the file among the supertypes, with the interfaces they extend. */
-private fn interfaces(file: SourceFile, supertypes: List<TypeRef>, seen: Set<String>) -> List<Decl.Interface> {
-    val result = ArrayList<Decl.Interface>()
+/** The interfaces of the file among the supertypes, with the interfaces they extend and the type arguments each gets. */
+private fn interfaces(file: SourceFile, supertypes: List<TypeRef>, seen: Set<String>) -> List<Implemented> {
+    val result = ArrayList<Implemented>()
     for (type in supertypes) {
         for (decl in file.decls()) {
             if (decl is Decl.Interface && decl.name().equals(type.name()) && seen.add(decl.name())) {
-                result.add(decl)
-                result.addAll(interfaces(file, decl.supertypes(), seen))
+                result.add(Implemented(decl, type.args()))
+                // `interface A<T> : B<List<T>>` passes its own arguments on to B.
+                val parents = decl.supertypes() |> map { p -> substitute(p, decl.typeParams(), type.args()) }
+                result.addAll(interfaces(file, parents, seen))
             }
         }
     }

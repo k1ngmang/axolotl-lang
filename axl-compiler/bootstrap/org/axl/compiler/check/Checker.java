@@ -199,6 +199,7 @@ import org.axl.compiler.ast.TypeRef;
             }
             checkReserved(decl.namePos(), decl.name());
             annotations(decl.annotations());
+            typeParams(decl);
             if (decl instanceof Decl.Function decl$2) {
                 checkFunctionName(decl$2);
             }
@@ -344,10 +345,36 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         for (final var m : c.methods()) {
+            typeParams(m);
             function(m);
         }
         pop();
         currentClass = null;
+    }
+    private void typeParams(Decl decl) {
+        final List<Decl.TypeParam> params = switch (decl) {
+            case Decl.DataClass decl$1 -> decl$1.typeParams();
+            case Decl.ClassDecl decl$2 -> decl$2.typeParams();
+            case Decl.Interface decl$3 -> decl$3.typeParams();
+            case Decl.Function decl$4 -> decl$4.typeParams();
+            default -> List.of();
+        };
+        final var seen = new HashSet<String>();
+        for (final var p : params) {
+            final var name = p.name();
+            if (!Character.isUpperCase(name.charAt(0))) {
+                error(p.pos(), ErrorCode.SYNTAX, "a type parameter is a type, so its name starts with a capital letter, as `" +
+                        Character.toUpperCase(name.charAt(0)) +
+                        name.substring(1) +
+                        "`");
+            } else if (SHADOWED_TYPES.contains(name) || typeNames.contains(name) || JAVA_PRIMITIVES.containsKey(name)) {
+                error(p.pos(), ErrorCode.RESERVED_NAME, "a type parameter named `" + name + "` would hide the type `" + name +
+                        "`; choose another name, such as `T`");
+            } else if (!seen.add(name)) {
+                error(p.pos(), ErrorCode.DUPLICATE_NAME, "the type parameter `" + name + "` is declared twice");
+            }
+            writtenType(p.bound(), false);
+        }
     }
     private Kind fieldKind(Decl.Property p) {
         return (p.mutable() ? Kind.MUTABLE_FIELD : Kind.FIELD);
@@ -396,6 +423,7 @@ import org.axl.compiler.ast.TypeRef;
         final var seen = new HashSet<String>();
         for (final var m : iface.methods()) {
             annotations(m.annotations());
+            typeParams(m);
             if (m.params().isEmpty() && values.contains(m.name())) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "` is already a value of `" + iface.name() +
                         "`, and a value is read as `" +

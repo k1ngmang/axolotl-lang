@@ -204,16 +204,18 @@ import org.axl.compiler.check.Whens;
         final var line = fileType.pos().line();
         final var marked = "@NullMarked " + annotations(fileType.annotations());
         if (fileType instanceof Decl.DataClass fileType$1) {
-            em.line(line, marked + "public record " + fileType$1.name() + "(" + parameters(fileType$1.fields(), line) + ")" +
+            em.line(line, marked + "public record " + fileType$1.name() + typeParamList(fileType$1.typeParams()) + "(" +
+                    parameters(fileType$1.fields(), line) +
+                    ")" +
                     typeList(" implements ", fileType$1.supertypes()) +
                     " {");
         } else if (fileType instanceof Decl.Interface fileType$2) {
-            em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() +
+            em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() + typeParamList(fileType$2.typeParams()) +
                     typeList(" extends ", fileType$2.supertypes()) +
                     " {");
             emitRequiredValues(fileType$2);
         } else if (fileType instanceof Decl.ClassDecl fileType$3) {
-            em.line(line, marked + "public final class " + fileType$3.name() +
+            em.line(line, marked + "public final class " + fileType$3.name() + typeParamList(fileType$3.typeParams()) +
                     typeList(" implements ", fileType$3.supertypes()) +
                     " {");
             emitClassMembers(fileType$3);
@@ -226,6 +228,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitClass(Decl.ClassDecl classDecl) {
         em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
+                typeParamList(classDecl.typeParams()) +
                 typeList(" implements ", classDecl.supertypes()) +
                 " {");
         emitClassMembers(classDecl);
@@ -315,7 +318,9 @@ import org.axl.compiler.check.Whens;
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
-        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() + "(" +
+        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
+                typeParamList(dataClass.typeParams()) +
+                "(" +
                 parameters(dataClass.fields(), line) +
                 ")" +
                 typeList(" implements ", dataClass.supertypes()) +
@@ -324,6 +329,7 @@ import org.axl.compiler.check.Whens;
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
         final var head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
+                typeParamList(iface.typeParams()) +
                 typeList(" extends ", iface.supertypes());
         if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}");
@@ -341,7 +347,9 @@ import org.axl.compiler.check.Whens;
         for (final var method : iface.methods()) {
             final var returnType = method.returnType();
             final var resultType = (returnType == null ? "void" : javaType(returnType));
-            em.line(method.pos().line(), annotations(method.annotations()) + resultType + " " + method.name() + "(" +
+            em.line(method.pos().line(), annotations(method.annotations()) + typeParams(method.typeParams()) + resultType + " " +
+                    method.name() +
+                    "(" +
                     parameters(method.params(), method.pos().line()) +
                     ");");
         }
@@ -383,7 +391,12 @@ import org.axl.compiler.check.Whens;
         final var modifier = (isStatic ? " static " : " ");
         final var written = f.annotations().stream().anyMatch(a -> a.name().equals("Override"));
         final var override = (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size()) ? "@Override " : "");
-        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {");
+        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
+                " " +
+                f.name() +
+                "(" +
+                params +
+                ") {");
         returnType = (declaredReturn == null ? null : nullableType(declaredReturn));
         resultTypeRef = declaredReturn;
         localTypes.clear();
@@ -1491,7 +1504,41 @@ import org.axl.compiler.check.Whens;
         if (ownArguments && subject != null && subject.args().size() == 2 && isResultType(subject)) {
             return name + "<" + boxedType(subject.args().get(0)) + ", " + boxedType(subject.args().get(1)) + ">";
         }
+        if (subject != null && !subject.args().isEmpty() && tested.args().isEmpty()) {
+            final var arguments = argumentsOf(tested, subject);
+            if (arguments != null) {
+                return name + "<" + String.join(", ", arguments) + ">";
+            }
+        }
         return boxedType(tested);
+    }
+    private @Nullable List<String> argumentsOf(TypeRef tested, TypeRef subject) {
+        for (final var decl : file.decls()) {
+            if (decl.name().equals(tested.name()) && isTypeDecl(decl)) {
+                final var typeParams = typeParamsOf(decl);
+                final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
+                if (typeParams.isEmpty() || parent == null) {
+                    return null;
+                }
+                final var arguments = new ArrayList<String>();
+                for (final var param : typeParams) {
+                    @Nullable String found = null;
+                    var i = 0;
+                    while (i < parent.args().size()) {
+                        if (parent.args().get(i).name().equals(param.name())) {
+                            found = boxedType(subject.args().get(i));
+                        }
+                        i += 1;
+                    }
+                    if (found == null) {
+                        return null;
+                    }
+                    arguments.add(found);
+                }
+                return arguments;
+            }
+        }
+        return null;
     }
     private Map<String, String> whenTrue(Expr condition) {
         if (condition instanceof Expr.Is condition$1) {
@@ -2475,6 +2522,61 @@ import org.axl.compiler.check.Whens;
             i += 1;
         }
         return sb.toString();
+    }
+    private static String typeParams(List<Decl.TypeParam> params) {
+        final var list = typeParamList(params);
+        return (list.isEmpty() ? "" : list + " ");
+    }
+    private static String typeParamList(List<Decl.TypeParam> params) {
+        if (params.isEmpty()) {
+            return "";
+        }
+        final var texts = params.stream().map(Nulls.nonNull(p -> p.name() + boundText(p.bound()))).toList();
+        return "<" + String.join(", ", texts) + ">";
+    }
+    private static String boundText(@Nullable TypeRef bound) {
+        if (bound == null) {
+            return " extends @Nullable Object";
+        }
+        if (bound.name().equals("Object") && !bound.nullable()) {
+            return "";
+        }
+        return " extends " + javaType(bound);
+    }
+    private static List<Decl.TypeParam> typeParamsOf(Decl decl) {
+        switch (decl) {
+            case Decl.DataClass decl$1 -> {
+                return decl$1.typeParams();
+            }
+            case Decl.ClassDecl decl$2 -> {
+                return decl$2.typeParams();
+            }
+            case Decl.Interface decl$3 -> {
+                return decl$3.typeParams();
+            }
+            case Decl.Function decl$4 -> {
+                return decl$4.typeParams();
+            }
+            default -> {
+                return List.of();
+            }
+        }
+    }
+    private static List<TypeRef> supertypesOf(Decl decl) {
+        switch (decl) {
+            case Decl.DataClass decl$1 -> {
+                return decl$1.supertypes();
+            }
+            case Decl.ClassDecl decl$2 -> {
+                return decl$2.supertypes();
+            }
+            case Decl.Interface decl$3 -> {
+                return decl$3.supertypes();
+            }
+            default -> {
+                return List.of();
+            }
+        }
     }
     private static String typeList(String keyword, List<TypeRef> types) {
         if (types.isEmpty()) {

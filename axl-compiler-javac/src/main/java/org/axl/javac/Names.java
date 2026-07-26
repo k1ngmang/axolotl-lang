@@ -54,7 +54,7 @@ final class Names {
 
     private static final List<String> WORDS = List.of("null", "true", "false", "this", "println");
 
-    static final String NO_TYPE_PARAMETERS = "Axolotl functions and classes have no type parameters, so write the type itself";
+    static final String NO_TYPE_PARAMETERS = "declare it as a type parameter, `fn first<T>(xs: List<T>)` or `class Box<T>`, or write the type itself";
 
     private static final Pattern WORD = Pattern.compile("(?<![\\w$.])[A-Za-z_]\\w*");
 

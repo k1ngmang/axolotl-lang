@@ -225,14 +225,15 @@ class Generator(
         val line = fileType.pos().line()
         val marked = "@NullMarked " + annotations(fileType.annotations())
         if (fileType is Decl.DataClass) {
-            em.line(line, marked + "public record " + fileType.name() + "(" + parameters(fileType.fields(), line) + ")" +
+            em.line(line, marked + "public record " + fileType.name() + typeParamList(fileType.typeParams()) + "(" +
+                parameters(fileType.fields(), line) + ")" +
                 typeList(" implements ", fileType.supertypes()) + " {")
         } else if (fileType is Decl.Interface) {
-            em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() +
+            em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() + typeParamList(fileType.typeParams()) +
                 typeList(" extends ", fileType.supertypes()) + " {")
             emitRequiredValues(fileType)
         } else if (fileType is Decl.ClassDecl) {
-            em.line(line, marked + "public final class " + fileType.name() +
+            em.line(line, marked + "public final class " + fileType.name() + typeParamList(fileType.typeParams()) +
                 typeList(" implements ", fileType.supertypes()) + " {")
             emitClassMembers(fileType)
         } else if (fileType is Decl.EnumDecl) {
@@ -246,7 +247,7 @@ class Generator(
 
     private fn emitClass(classDecl: Decl.ClassDecl) {
         em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
-            typeList(" implements ", classDecl.supertypes()) + " {")
+            typeParamList(classDecl.typeParams()) + typeList(" implements ", classDecl.supertypes()) + " {")
         emitClassMembers(classDecl)
         em.line(classDecl.pos().line(), "}")
     }
@@ -343,15 +344,15 @@ class Generator(
 
     private fn emitDataClass(dataClass: Decl.DataClass) {
         val line = dataClass.pos().line()
-        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() + "(" +
-            parameters(dataClass.fields(), line) + ")" +
+        em.line(line, annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
+            typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line) + ")" +
             typeList(" implements ", dataClass.supertypes()) + " {}")
     }
 
     private fn emitInterface(iface: Decl.Interface) {
         val line = iface.pos().line()
         val head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
-            typeList(" extends ", iface.supertypes())
+            typeParamList(iface.typeParams()) + typeList(" extends ", iface.supertypes())
         if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}")
             return
@@ -369,8 +370,8 @@ class Generator(
         for (method in iface.methods()) {
             val returnType = method.returnType()
             val resultType = if (returnType == null) "void" else javaType(returnType)
-            em.line(method.pos().line(), annotations(method.annotations()) + resultType + " " + method.name() + "(" +
-                parameters(method.params(), method.pos().line()) + ");")
+            em.line(method.pos().line(), annotations(method.annotations()) + typeParams(method.typeParams()) + resultType + " " +
+                method.name() + "(" + parameters(method.params(), method.pos().line()) + ");")
         }
         em.dedent()
     }
@@ -415,7 +416,8 @@ class Generator(
         val modifier = if (isStatic) " static " else " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
         val override = if (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size())) "@Override " else ""
-        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + resultType + " " + f.name() + "(" + params + ") {")
+        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
+            " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
         resultTypeRef = declaredReturn
         localTypes.clear()
@@ -1702,7 +1704,47 @@ class Generator(
         if (ownArguments && subject != null && subject.args().size() == 2 && isResultType(subject)) {
             return name + "<" + boxedType(subject.args().get(0)) + ", " + boxedType(subject.args().get(1)) + ">"
         }
+        if (subject != null && !subject.args().isEmpty() && tested.args().isEmpty()) {
+            val arguments = argumentsOf(tested, subject)
+            if (arguments != null) {
+                return name + "<" + String.join(", ", arguments) + ">"
+            }
+        }
         return boxedType(tested)
+    }
+
+    /**
+     * `is Some` on an `Option<String>`, where `data class Some<T>(...) : Option<T>` is declared in this
+     * file: the type arguments of the test are the ones of the subject that its supertype passes on.
+     * Without them Java would read the fields of the match as Objects.
+     */
+    private fn argumentsOf(tested: TypeRef, subject: TypeRef) -> List<String>? {
+        for (decl in file.decls()) {
+            if (decl.name().equals(tested.name()) && isTypeDecl(decl)) {
+                val typeParams = typeParamsOf(decl)
+                val parent = supertypesOf(decl) |> filter { t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size() } |> first
+                if (typeParams.isEmpty() || parent == null) {
+                    return null
+                }
+                val arguments = ArrayList<String>()
+                for (param in typeParams) {
+                    var found: String? = null
+                    var i = 0
+                    while (i < parent.args().size()) {
+                        if (parent.args().get(i).name().equals(param.name())) {
+                            found = boxedType(subject.args().get(i))
+                        }
+                        i += 1
+                    }
+                    if (found == null) {
+                        return null
+                    }
+                    arguments.add(found)
+                }
+                return arguments
+            }
+        }
+        return null
     }
 
     /** The names a condition narrows where it is true. */
@@ -2711,6 +2753,47 @@ private fn parameters(params: List<Expr.Param>, declarationLine: Int) -> String 
         i += 1
     }
     return sb.toString()
+}
+
+/** `<T extends @Nullable Object, K extends Comparable<K>>` before a result type, or nothing. */
+private fn typeParams(params: List<Decl.TypeParam>) -> String {
+    val list = typeParamList(params)
+    return if (list.isEmpty()) "" else list + " "
+}
+
+/** A type parameter without a bound stands for any type, null included, as `T extends @Nullable Object`. */
+private fn typeParamList(params: List<Decl.TypeParam>) -> String {
+    if (params.isEmpty()) {
+        return ""
+    }
+    val texts = params |> map { p -> p.name() + boundText(p.bound()) }
+    return "<" + String.join(", ", texts) + ">"
+}
+
+/** `T : Object` is Java's plain `T`, which in null-marked code takes no null; Error Prone flags `extends Object`. */
+private fn boundText(bound: TypeRef?) -> String {
+    if (bound == null) {
+        return " extends @Nullable Object"
+    }
+    if (bound.name().equals("Object") && !bound.nullable()) {
+        return ""
+    }
+    return " extends " + javaType(bound)
+}
+
+private fn typeParamsOf(decl: Decl) -> List<Decl.TypeParam> = when (decl) {
+    is Decl.DataClass -> decl.typeParams()
+    is Decl.ClassDecl -> decl.typeParams()
+    is Decl.Interface -> decl.typeParams()
+    is Decl.Function -> decl.typeParams()
+    else -> List.of()
+}
+
+private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
+    is Decl.DataClass -> decl.supertypes()
+    is Decl.ClassDecl -> decl.supertypes()
+    is Decl.Interface -> decl.supertypes()
+    else -> List.of()
 }
 
 private fn typeList(keyword: String, types: List<TypeRef>) -> String {

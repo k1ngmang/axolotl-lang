@@ -314,12 +314,10 @@ final class Mistakes {
         return null;
     }
 
+    /** `fn <T> first(...)`, as Kotlin and Java write it. */
     private static String typeParameters(CommonTokenStream tokens, Token previous) {
-        if (previous.getType() == AxolotlLexer.FN) {
-            return "Axolotl functions have no type parameters; write the types the function works with";
-        }
-        boolean className = previous.getType() == AxolotlLexer.IDENTIFIER && type(before(tokens, previous)) == AxolotlLexer.CLASS;
-        return className ? "Axolotl classes have no type parameters; write the types the class holds" : null;
+        return previous.getType() == AxolotlLexer.FN
+                ? "the type parameters go after the name of the function: `fn first<T>(xs: List<T>) -> T?`" : null;
     }
 
     /** `val (a, b) = p`, `enum Color(...)` and `class Dog(...) : Animal(name)`. */

@@ -1,0 +1,4 @@
+AXL001 app/Main.axl:5:16: error: a type parameter is a type, so its name starts with a capital letter, as `T`
+AXL010 app/Main.axl:7:21: error: the type parameter `T` is declared twice
+AXL011 app/Main.axl:9:14: error: a type parameter named `String` would hide the type `String`; choose another name, such as `T`
+AXL011 app/Main.axl:11:9: error: a type parameter named `Int` would hide the type `Int`; choose another name, such as `T`

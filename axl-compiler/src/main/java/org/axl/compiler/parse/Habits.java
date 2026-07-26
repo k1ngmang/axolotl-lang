@@ -73,13 +73,28 @@ final class Habits {
             case AxolotlLexer.BANG -> followedBy(tokens, i, AxolotlLexer.DOT)
                     ? "write `!!.` to state that the value is not null: `s!!.length()`"
                     : followedBy(tokens, i, AxolotlLexer.IDENTIFIER) && text(tokens, i + 1).equals("in") ? notIn(tokens, i) : null;
-            case AxolotlLexer.IS -> next == AxolotlLexer.NULL || text(tokens, SourceParser.nextCode(tokens, i)).equals("None")
+            case AxolotlLexer.IS -> next == AxolotlLexer.NULL
+                    || text(tokens, SourceParser.nextCode(tokens, i)).equals("None") && !declaresType(tokens, "None")
                     ? "compare with `==` to test for null: `s == null`" : null;
             case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN ? elvisJump(tokens, i) : null;
             case AxolotlLexer.STRING_LITERAL -> tokens.get(i).getText().equals("\"\"")
                     && followedBy(tokens, i, AxolotlLexer.STRING_LITERAL) ? TEXT_BLOCKS : null;
             default -> null;
         };
+    }
+
+    /** Whether the file declares a type of the name, such as `data class None<T>(...)`. */
+    private static boolean declaresType(List<Token> tokens, String name) {
+        for (int i = 1; i < tokens.size(); i++) {
+            if (!tokens.get(i).getText().equals(name)) {
+                continue;
+            }
+            int previous = type(tokens, SourceParser.previousCode(tokens, i));
+            if (previous == AxolotlLexer.CLASS || previous == AxolotlLexer.INTERFACE || previous == AxolotlLexer.ENUM) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** `s ?: return 0`, which Kotlin allows. */

@@ -31,8 +31,12 @@ data class Function(
     val returnType: TypeRef?,
     val exprBody: Expr?,
     val body: Stmt.Block?,
-    val annotations: List<Annotation>
+    val annotations: List<Annotation>,
+    val typeParams: List<TypeParam>
 ) : Decl
+
+/** `T` or `T : Comparable<T>`: a type the declaration works with, whatever it is. */
+data class TypeParam(val pos: Pos, val name: String, val bound: TypeRef?)
 
 data class Value(
     val pos: Pos,
@@ -52,7 +56,8 @@ data class DataClass(
     val name: String,
     val fields: List<Expr.Param>,
     val supertypes: List<TypeRef>,
-    val annotations: List<Annotation>
+    val annotations: List<Annotation>,
+    val typeParams: List<TypeParam>
 ) : Decl
 
 /** members are the values it requires, such as `val pos: Pos`. */
@@ -66,7 +71,8 @@ data class Interface(
     /** Signatures without a body: a class that implements the interface writes each. */
     val methods: List<Function>,
     val supertypes: List<TypeRef>,
-    val annotations: List<Annotation>
+    val annotations: List<Annotation>,
+    val typeParams: List<TypeParam>
 ) : Decl
 
 /**
@@ -82,7 +88,8 @@ data class ClassDecl(
     val properties: List<Property>,
     val methods: List<Function>,
     val supertypes: List<TypeRef>,
-    val annotations: List<Annotation>
+    val annotations: List<Annotation>,
+    val typeParams: List<TypeParam>
 ) : Decl
 
 /** An enumeration of constants without members. */

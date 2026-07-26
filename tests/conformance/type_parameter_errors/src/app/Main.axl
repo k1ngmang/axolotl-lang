@@ -1,0 +1,11 @@
+package app
+
+import java.util.List
+
+data class Box<t>(val value: t)
+
+data class Twice<T, T>(val a: T, val b: T)
+
+class Holder<String>(val value: String)
+
+fn pick<Int>(xs: List<Int>) -> Int = xs.get(0)

@@ -20,7 +20,9 @@ import java.util.List;
             @Nullable TypeRef returnType,
             @Nullable Expr exprBody,
             Stmt.@Nullable Block body,
-            List<Annotation> annotations) implements Decl {}
+            List<Annotation> annotations,
+            List<TypeParam> typeParams) implements Decl {}
+    public record TypeParam(Pos pos, String name, @Nullable TypeRef bound) {}
     public record Value(
             Pos pos,
             Pos namePos,
@@ -36,7 +38,8 @@ import java.util.List;
             String name,
             List<Expr.Param> fields,
             List<TypeRef> supertypes,
-            List<Annotation> annotations) implements Decl {}
+            List<Annotation> annotations,
+            List<TypeParam> typeParams) implements Decl {}
     public record Interface(
             Pos pos,
             Pos namePos,
@@ -46,7 +49,8 @@ import java.util.List;
             List<Expr.Param> members,
             List<Function> methods,
             List<TypeRef> supertypes,
-            List<Annotation> annotations) implements Decl {}
+            List<Annotation> annotations,
+            List<TypeParam> typeParams) implements Decl {}
     public record ClassDecl(
             Pos pos,
             Pos namePos,
@@ -56,7 +60,8 @@ import java.util.List;
             List<Property> properties,
             List<Function> methods,
             List<TypeRef> supertypes,
-            List<Annotation> annotations) implements Decl {}
+            List<Annotation> annotations,
+            List<TypeParam> typeParams) implements Decl {}
     public record EnumDecl(
             Pos pos,
             Pos namePos,
