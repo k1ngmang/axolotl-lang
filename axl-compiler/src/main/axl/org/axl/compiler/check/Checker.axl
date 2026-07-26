@@ -658,6 +658,7 @@ class Checker(val file: SourceFile) {
             is Stmt.Assign -> assign(stmt)
             is Stmt.Return -> returnStatement(stmt)
             is Stmt.Jump -> jump(stmt)
+            is Stmt.Use -> use(stmt)
             is Stmt.If -> {
                 expr(stmt.condition())
                 statements(stmt.then().statements())
@@ -744,6 +745,35 @@ class Checker(val file: SourceFile) {
             return type
         }
         return null
+    }
+
+    /** `use (val r = open()) { ... } else e -> handler`: `r` lives in the block; the handler does something. */
+    private fn use(stmt: Stmt.Use) {
+        declaredType = stmt.type()
+        expr(stmt.resource())
+        declaredType = null
+        scope = Scope(scope, false)
+        declare(stmt.namePos(), stmt.name(), Kind.LOCAL, stmt.type())
+        statements(stmt.body().statements())
+        pop()
+        val handler = stmt.handler()
+        if (handler != null) {
+            scope = Scope(scope, false)
+            val errorName = stmt.errorName()
+            val errorPos = stmt.errorNamePos()
+            if (errorName != null && errorPos != null) {
+                declare(errorPos, errorName, Kind.PARAM, null)
+            }
+            val inner = unparenthesized(handler)
+            if (inner is Expr.Throw) {
+                allowedThrows.add(inner)
+            } else if (inner !is Expr.Call && inner !is Expr.GenericNew) {
+                error(handler.pos(), ErrorCode.SYNTAX, "the `else` of `use` needs a handler that does something: " +
+                    "a call such as `println(e)`, or `throw IllegalStateException(e)`")
+            }
+            expr(handler)
+            pop()
+        }
     }
 
     /** `break` and `continue` belong to the loop around them, in the same function and outside a `when` value. */

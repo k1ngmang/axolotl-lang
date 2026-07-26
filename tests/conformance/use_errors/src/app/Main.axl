@@ -1,0 +1,12 @@
+package app
+
+import java.util.Scanner
+
+fn main() {
+    use (val scanner = Scanner(java.nio.file.Path.of("x"))) {
+        println(scanner.hasNext())
+    }
+    use (val n = 5) {
+        println(n)
+    }
+}

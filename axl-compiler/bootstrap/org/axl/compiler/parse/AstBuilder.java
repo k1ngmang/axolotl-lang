@@ -121,6 +121,7 @@ import org.axl.compiler.parse.AxolotlParser.TryExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.TypeArgContext;
 import org.axl.compiler.parse.AxolotlParser.TypeContext;
 import org.axl.compiler.parse.AxolotlParser.TypeParamsContext;
+import org.axl.compiler.parse.AxolotlParser.UseStatementContext;
 import org.axl.compiler.parse.AxolotlParser.UnaryExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.ValDeclContext;
 import org.axl.compiler.parse.AxolotlParser.ValStatementContext;
@@ -304,29 +305,32 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             case ReturnStatementContext ctx$3 -> {
                 return buildReturn(ctx$3);
             }
-            case BreakStatementContext ctx$4 -> {
-                return new Stmt.Jump(pos(ctx$4.start), true);
+            case UseStatementContext ctx$4 -> {
+                return buildUse(ctx$4);
             }
-            case ContinueStatementContext ctx$5 -> {
-                return new Stmt.Jump(pos(ctx$5.start), false);
+            case BreakStatementContext ctx$5 -> {
+                return new Stmt.Jump(pos(ctx$5.start), true);
             }
-            case IfStatementAltContext ctx$6 -> {
-                return buildIf(ctx$6.ifStatement());
+            case ContinueStatementContext ctx$6 -> {
+                return new Stmt.Jump(pos(ctx$6.start), false);
             }
-            case WhileStatementContext ctx$7 -> {
-                return new While(pos(ctx$7.start), buildExpr(ctx$7.expression()), buildBlock(ctx$7.block()));
+            case IfStatementAltContext ctx$7 -> {
+                return buildIf(ctx$7.ifStatement());
             }
-            case ForStatementContext ctx$8 -> {
-                return new For(pos(ctx$8.start), pos(ctx$8.identifier().start), nameOf(ctx$8.identifier()),
-                        buildExpr(ctx$8.expression()), buildBlock(ctx$8.block()));
+            case WhileStatementContext ctx$8 -> {
+                return new While(pos(ctx$8.start), buildExpr(ctx$8.expression()), buildBlock(ctx$8.block()));
             }
-            case AssignStatementContext ctx$9 -> {
-                return buildAssign(ctx$9);
+            case ForStatementContext ctx$9 -> {
+                return new For(pos(ctx$9.start), pos(ctx$9.identifier().start), nameOf(ctx$9.identifier()),
+                        buildExpr(ctx$9.expression()), buildBlock(ctx$9.block()));
             }
-            case ExpressionStatementContext ctx$10 -> {
-                return new ExprStmt(pos(ctx$10.start), buildExpr(ctx$10.expression()));
+            case AssignStatementContext ctx$10 -> {
+                return buildAssign(ctx$10);
             }
-            case EmptyStatementContext ctx$11 -> {
+            case ExpressionStatementContext ctx$11 -> {
+                return new ExprStmt(pos(ctx$11.start), buildExpr(ctx$11.expression()));
+            }
+            case EmptyStatementContext ctx$12 -> {
                 return null;
             }
             default -> {
@@ -341,6 +345,14 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         }
         return new Local(pos(decl.start), pos(decl.identifier().start), nameOf(decl.identifier()), typeOrNull(decl.type()),
                 buildExpr(decl.expression()), false);
+    }
+    private static Stmt.Use buildUse(UseStatementContext ctx) {
+        final var names = ctx.identifier();
+        final @Nullable String errorName = (names.size() > 1 ? nameOf(names.get(1)) : null);
+        final @Nullable Pos errorPos = (names.size() > 1 ? pos(names.get(1).start) : null);
+        final @Nullable Expr handler = (ctx.expression().size() > 1 ? buildExpr(ctx.expression(1)) : null);
+        return new Stmt.Use(pos(ctx.start), pos(names.get(0).start), nameOf(names.get(0)), typeOrNull(ctx.type()),
+                buildExpr(ctx.expression(0)), buildBlock(ctx.block()), errorName, errorPos, handler);
     }
     private static Stmt.Return buildReturn(ReturnStatementContext ctx) {
         final var value = ctx.expression();

@@ -1,0 +1,9 @@
+package app
+
+import java.io.StringReader
+
+fn main() {
+    use (val reader = StringReader("x")) {
+        println(reader.read())
+    } else e -> "ignored"
+}

@@ -20,6 +20,22 @@ data class Assign(val pos: Pos, val target: Expr, val op: String, val value: Exp
 
 data class Return(val pos: Pos, val value: Expr?) : Stmt
 
+/**
+ * `use (val reader = open()) { ... } else e -> handler`: the resource is closed after the block, and the
+ * handler, a call or a `throw`, runs when opening, the block or closing throws. handler is null without `else`.
+ */
+data class Use(
+    val pos: Pos,
+    val namePos: Pos,
+    val name: String,
+    val type: TypeRef?,
+    val resource: Expr,
+    val body: Block,
+    val errorName: String?,
+    val errorNamePos: Pos?,
+    val handler: Expr?
+) : Stmt
+
 /** `break` or `continue`, inside a loop. */
 data class Jump(val pos: Pos, val isBreak: Boolean) : Stmt
 

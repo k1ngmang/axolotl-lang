@@ -248,6 +248,19 @@ final class Symbols {
                 case Stmt.Block block -> block(block, pos, fn, out);
                 case Stmt.Assign assign -> expr(assign.value(), pos, fn, out);
                 case Stmt.Jump jump -> { }
+                case Stmt.Use use -> {
+                    expr(use.resource(), pos, fn, out);
+                    if (before(use.body().pos(), pos) && before(pos, use.body().end())) {
+                        out.add(new Symbol(use.name(), Kind.LOCAL, use.namePos(), use.type(), fn, null));
+                    }
+                    block(use.body(), pos, fn, out);
+                    if (use.handler() != null) {
+                        if (use.errorName() != null && before(use.errorNamePos(), pos)) {
+                            out.add(new Symbol(use.errorName(), Kind.PARAMETER, use.errorNamePos(), null, fn, null));
+                        }
+                        expr(use.handler(), pos, fn, out);
+                    }
+                }
                 case Stmt.Return ret -> {
                     if (ret.value() != null) {
                         expr(ret.value(), pos, fn, out);

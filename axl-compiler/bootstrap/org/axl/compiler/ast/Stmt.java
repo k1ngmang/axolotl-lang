@@ -14,6 +14,16 @@ import java.util.List;
             boolean mutable) implements Stmt {}
     public record Assign(Pos pos, Expr target, String op, Expr value) implements Stmt {}
     public record Return(Pos pos, @Nullable Expr value) implements Stmt {}
+    public record Use(
+            Pos pos,
+            Pos namePos,
+            String name,
+            @Nullable TypeRef type,
+            Expr resource,
+            Block body,
+            @Nullable String errorName,
+            @Nullable Pos errorNamePos,
+            @Nullable Expr handler) implements Stmt {}
     public record Jump(Pos pos, boolean isBreak) implements Stmt {}
     public record If(Pos pos, Expr condition, Block then, @Nullable Stmt elseBranch) implements Stmt {}
     public record While(Pos pos, Expr condition, Block body) implements Stmt {}

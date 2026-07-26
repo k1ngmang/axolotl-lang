@@ -549,6 +549,7 @@ class Generator(
             is Stmt.Assign -> assignStatement(stmt)
             is Stmt.Return -> returnStatement(stmt)
             is Stmt.Jump -> em.line(stmt.pos().line(), if (stmt.isBreak()) "break;" else "continue;")
+            is Stmt.Use -> useStatement(stmt)
             is Stmt.If -> ifStatement(stmt)
             is Stmt.While -> emitWhile(stmt)
             is Stmt.For -> emitFor(stmt)
@@ -1707,6 +1708,34 @@ class Generator(
             return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler.value(), true) + ")"
         }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")"
+    }
+
+    /** `use (val r = open()) { ... } else e -> h` is a try with the resource, and a catch of Exception when there is an else. */
+    private fn useStatement(stmt: Stmt.Use) {
+        val line = stmt.pos().line()
+        val declared = stmt.type()
+        val typeCode = if (declared == null) "var" else javaType(declared)
+        withCopies(line, stmt.resource(), { ->
+            em.line(line, "try (" + typeCode + " " + stmt.name() + " = " + lifted(line, stmt.resource()).code() + ") {")
+        })
+        emitBlock(stmt.body())
+        val handler = stmt.handler()
+        if (handler == null) {
+            em.line(stmt.body().end().line(), "}")
+            return
+        }
+        val errorName = stmt.errorName()
+        val error = if (errorName != null) errorName else "$ex" + nextException()
+        em.line(stmt.body().end().line(), "} catch (Exception " + error + ") {")
+        em.indent()
+        val inner = withoutParens(handler)
+        if (inner is Expr.Throw) {
+            em.line(startLine(inner), "throw " + exprIn(inner.value(), true) + ";")
+        } else {
+            em.line(startLine(handler), exprIn(handler, true) + ";")
+        }
+        em.dedent()
+        em.line(stmt.body().end().line(), "}")
     }
 
     /**
@@ -3071,6 +3100,7 @@ private fn asBlock(elseBranch: Stmt?) -> Stmt.Block? {
 private fn exits(stmt: Stmt) -> Boolean = when (stmt) {
     is Stmt.Return -> true
     is Stmt.Jump -> true
+    is Stmt.Use -> false
     is Stmt.ExprStmt -> stmt.expr() is Expr.Throw || whenLeaves(stmt.expr())
     is Stmt.Block -> !stmt.statements().isEmpty() && exits(stmt.statements().getLast())
     is Stmt.If -> exitsIf(stmt)

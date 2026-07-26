@@ -194,6 +194,8 @@ statement
     : valDecl SEMI?                                         # valStatement
     | varDecl SEMI?                                         # varStatement
     | RETURN ({sameLine()}? expression)? SEMI?              # returnStatement
+    | {_input.LT(1).getText().equals("use")}? IDENTIFIER LPAREN VAL identifier (COLON type)? ASSIGN expression RPAREN block
+      (ELSE (identifier ARROW)? expression)?                # useStatement
     | BREAK SEMI?                                           # breakStatement
     | CONTINUE SEMI?                                        # continueStatement
     | ifStatement                                           # ifStatementAlt

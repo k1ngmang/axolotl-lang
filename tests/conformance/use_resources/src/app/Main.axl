@@ -1,0 +1,53 @@
+package app
+
+import java.io.BufferedReader
+import java.io.StringReader
+import java.nio.file.Files
+import java.util.ArrayList
+import java.util.List
+import java.util.Scanner
+
+class Tracker(val name: String) : AutoCloseable {
+    var closed = false
+
+    fn close() {
+        closed = true
+        println("closed " + name)
+    }
+}
+
+fn lines(text: String) -> List<String> {
+    val out = ArrayList<String>()
+    use (val reader = BufferedReader(StringReader(text))) {
+        var line = attempt reader.readLine() else e -> throw IllegalStateException(e)
+        while (line != null) {
+            out.add(line)
+            line = attempt reader.readLine() else e -> throw IllegalStateException(e)
+        }
+    } else e -> println("failed: " + e.getMessage())
+    return out
+}
+
+fn countWords(path: java.nio.file.Path) -> Long {
+    var words = 0L
+    use (val scanner = Scanner(path, java.nio.charset.StandardCharsets.UTF_8)) {
+        while (scanner.hasNext()) {
+            scanner.next()
+            words += 1
+        }
+    } else e -> println("cannot read " + path.getFileName() + ": " + e.getClass().getSimpleName())
+    return words
+}
+
+fn main() {
+    println(lines("a\nb\nc"))
+    val tracker = Tracker("t")
+    use (val t = tracker) {
+        println("using " + t.name)
+    }
+    println(tracker.closed)
+    val file = attempt Files.createTempFile("axl", ".txt") else e -> throw IllegalStateException(e)
+    attempt Files.writeString(file, "one two three") else e -> throw IllegalStateException(e)
+    println(countWords(file))
+    println(countWords(java.nio.file.Path.of("/nonexistent/none.txt")))
+}

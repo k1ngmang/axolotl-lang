@@ -867,6 +867,9 @@ final class Messages {
         if (lossy.find()) {
             return lossyConversion(lossy.group(1), lossy.group(2));
         }
+        if (message.startsWith("incompatible types: try-with-resources not applicable to variable type")) {
+            return "`use` needs a value with a `close()` method, an `AutoCloseable` such as a reader, a stream or a connection";
+        }
         Matcher incompatible = INCOMPATIBLE.matcher(message);
         if (incompatible.find() && pointsAtTypeTest(text, javaColumn)) {
             return "a value of type `" + axlType(incompatible.group(1)) + "` can never be `" + axlType(incompatible.group(2))
@@ -1039,6 +1042,10 @@ final class Messages {
         if (unreported.find() && text.strip().startsWith("throw ")) {
             return "`" + axlType(unreported.group(1)) + "` is a checked exception and cannot be thrown here; throw a "
                     + "`RuntimeException`, such as `IllegalStateException`, or return an `Err`";
+        }
+        if (unreported.find(0) && text.strip().startsWith("try (")) {
+            return "opening or closing this resource can throw `" + axlType(unreported.group(1)) + "`; handle it after the block: "
+                    + "`use (val r = ...) { ... } else e -> ...`";
         }
         if (unreported.find(0)) {
             String throwsIt = "this call can throw `" + axlType(unreported.group(1)) + "`";

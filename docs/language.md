@@ -68,6 +68,9 @@ type has parameters are static and cannot use them; they take their own.
   first value, so `var s = "x"` cannot take null later; write `var s: String? = "x"` for that.
 - `x = e`, `x += e`, `-=`, `*=`, `/=`, `%=` assign to a `var` (or to a Java field).
 - `if (c) { ... } else if (d) { ... } else { ... }`, `while (c) { ... }`, `return e`.
+- `use (val reader = Files.newBufferedReader(path)) { ... } else e -> println(e)` opens a resource for the
+  block and closes it after, also when the block throws. The `else` handles what opening, the block or
+  `close()` throws, a call or a `throw`; it is needed when `close()` declares a checked exception.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
   `break` leaves the loop around it and `continue` goes on with its next round; they have no labels.
 - Statements end at the end of a line or at `;`. A line starting with `(`, `+` or `-` starts a new

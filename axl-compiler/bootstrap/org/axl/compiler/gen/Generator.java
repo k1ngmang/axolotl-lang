@@ -521,24 +521,27 @@ import org.axl.compiler.check.Whens;
             case Stmt.Jump stmt$4 -> {
                 em.line(stmt$4.pos().line(), (stmt$4.isBreak() ? "break;" : "continue;"));
             }
-            case Stmt.If stmt$5 -> {
-                ifStatement(stmt$5);
+            case Stmt.Use stmt$5 -> {
+                useStatement(stmt$5);
             }
-            case Stmt.While stmt$6 -> {
-                emitWhile(stmt$6);
+            case Stmt.If stmt$6 -> {
+                ifStatement(stmt$6);
             }
-            case Stmt.For stmt$7 -> {
-                emitFor(stmt$7);
+            case Stmt.While stmt$7 -> {
+                emitWhile(stmt$7);
             }
-            case Stmt.ExprStmt stmt$8 -> {
-                exprStatement(stmt$8);
+            case Stmt.For stmt$8 -> {
+                emitFor(stmt$8);
             }
-            case Stmt.Block stmt$9 -> {
-                em.line(stmt$9.pos().line(), "{");
+            case Stmt.ExprStmt stmt$9 -> {
+                exprStatement(stmt$9);
+            }
+            case Stmt.Block stmt$10 -> {
+                em.line(stmt$10.pos().line(), "{");
                 em.indent();
-                emitStatements(stmt$9.statements());
+                emitStatements(stmt$10.statements());
                 em.dedent();
-                em.line(stmt$9.end().line(), "}");
+                em.line(stmt$10.end().line(), "}");
             }
         }
     }
@@ -1518,6 +1521,31 @@ import org.axl.compiler.check.Whens;
             return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler$1.value(), true) + ")";
         }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")";
+    }
+    private void useStatement(Stmt.Use stmt) {
+        final var line = stmt.pos().line();
+        final var declared = stmt.type();
+        final var typeCode = (declared == null ? "var" : javaType(declared));
+        withCopies(line, stmt.resource(), () ->
+                em.line(line, "try (" + typeCode + " " + stmt.name() + " = " + lifted(line, stmt.resource()).code() + ") {"));
+        emitBlock(stmt.body());
+        final var handler = stmt.handler();
+        if (handler == null) {
+            em.line(stmt.body().end().line(), "}");
+            return;
+        }
+        final var errorName = stmt.errorName();
+        final var error = (errorName != null ? errorName : "$ex" + nextException());
+        em.line(stmt.body().end().line(), "} catch (Exception " + error + ") {");
+        em.indent();
+        final var inner = withoutParens(handler);
+        if (inner instanceof Expr.Throw inner$1) {
+            em.line(startLine(inner$1), "throw " + exprIn(inner$1.value(), true) + ";");
+        } else {
+            em.line(startLine(handler), exprIn(handler, true) + ";");
+        }
+        em.dedent();
+        em.line(stmt.body().end().line(), "}");
     }
     private void attemptStatement(int line, Expr.Attempt a) {
         final var errorName = a.errorName();
@@ -2816,17 +2844,20 @@ import org.axl.compiler.check.Whens;
             case Stmt.Jump stmt$2 -> {
                 return true;
             }
-            case Stmt.ExprStmt stmt$3 -> {
-                return stmt$3.expr() instanceof Expr.Throw || whenLeaves(stmt$3.expr());
+            case Stmt.Use stmt$3 -> {
+                return false;
             }
-            case Stmt.Block stmt$4 -> {
-                return !stmt$4.statements().isEmpty() && exits(stmt$4.statements().getLast());
+            case Stmt.ExprStmt stmt$4 -> {
+                return stmt$4.expr() instanceof Expr.Throw || whenLeaves(stmt$4.expr());
             }
-            case Stmt.If stmt$5 -> {
-                return exitsIf(stmt$5);
+            case Stmt.Block stmt$5 -> {
+                return !stmt$5.statements().isEmpty() && exits(stmt$5.statements().getLast());
             }
-            case Stmt.While stmt$6 -> {
-                return loopsForever(stmt$6);
+            case Stmt.If stmt$6 -> {
+                return exitsIf(stmt$6);
+            }
+            case Stmt.While stmt$7 -> {
+                return loopsForever(stmt$7);
             }
             default -> {
                 return false;

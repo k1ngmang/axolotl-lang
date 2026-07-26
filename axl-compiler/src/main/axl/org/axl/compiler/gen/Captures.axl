@@ -115,6 +115,14 @@ class Captures(val analysis: Analysis) {
                 }
             }
             is Stmt.Jump -> { }
+            is Stmt.Use -> {
+                visit(stmt.resource(), inLambda)
+                statement(stmt.body(), inLambda)
+                val handler = stmt.handler()
+                if (handler != null) {
+                    visit(handler, inLambda)
+                }
+            }
             is Stmt.If -> {
                 visit(stmt.condition(), inLambda)
                 statement(stmt.then(), inLambda)

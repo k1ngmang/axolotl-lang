@@ -13,6 +13,7 @@ fn usesIt(stmt: Stmt) -> Boolean = when (stmt) {
     is Stmt.Assign -> usesIt(stmt.target()) || usesIt(stmt.value())
     is Stmt.Return -> stmt.value() != null && usesIt(stmt.value()!!)
     is Stmt.Jump -> false
+    is Stmt.Use -> usesIt(stmt.resource()) || usesIt(stmt.body()) || (stmt.handler() != null && !"it".equals(stmt.errorName()) && usesIt(stmt.handler()!!))
     is Stmt.If -> usesIt(stmt.condition()) || usesIt(stmt.then()) || (stmt.elseBranch() != null && usesIt(stmt.elseBranch()!!))
     is Stmt.While -> usesIt(stmt.condition()) || usesIt(stmt.body())
     is Stmt.For -> usesIt(stmt.iterable()) || usesIt(stmt.body())

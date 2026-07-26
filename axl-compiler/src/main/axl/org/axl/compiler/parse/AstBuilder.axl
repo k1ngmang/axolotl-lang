@@ -120,6 +120,7 @@ import org.axl.compiler.parse.AxolotlParser.TryExpressionContext
 import org.axl.compiler.parse.AxolotlParser.TypeArgContext
 import org.axl.compiler.parse.AxolotlParser.TypeContext
 import org.axl.compiler.parse.AxolotlParser.TypeParamsContext
+import org.axl.compiler.parse.AxolotlParser.UseStatementContext
 import org.axl.compiler.parse.AxolotlParser.UnaryExpressionContext
 import org.axl.compiler.parse.AxolotlParser.ValDeclContext
 import org.axl.compiler.parse.AxolotlParser.ValStatementContext
@@ -309,6 +310,7 @@ private fn buildStatement(ctx: StatementContext) -> Stmt? = when (ctx) {
             buildExpr(decl.expression()), true)
     }
     is ReturnStatementContext -> buildReturn(ctx)
+    is UseStatementContext -> buildUse(ctx)
     is BreakStatementContext -> Stmt.Jump(pos(ctx.start), true)
     is ContinueStatementContext -> Stmt.Jump(pos(ctx.start), false)
     is IfStatementAltContext -> buildIf(ctx.ifStatement())
@@ -328,6 +330,15 @@ private fn buildVal(ctx: ValStatementContext) -> Stmt.Local {
     }
     return Local(pos(decl.start), pos(decl.identifier().start), nameOf(decl.identifier()), typeOrNull(decl.type()),
         buildExpr(decl.expression()), false)
+}
+
+private fn buildUse(ctx: UseStatementContext) -> Stmt.Use {
+    val names = ctx.identifier()
+    val errorName: String? = if (names.size() > 1) nameOf(names.get(1)) else null
+    val errorPos: Pos? = if (names.size() > 1) pos(names.get(1).start) else null
+    val handler: Expr? = if (ctx.expression().size() > 1) buildExpr(ctx.expression(1)) else null
+    return Stmt.Use(pos(ctx.start), pos(names.get(0).start), nameOf(names.get(0)), typeOrNull(ctx.type()),
+        buildExpr(ctx.expression(0)), buildBlock(ctx.block()), errorName, errorPos, handler)
 }
 
 private fn buildReturn(ctx: ReturnStatementContext) -> Stmt.Return {

@@ -600,36 +600,39 @@ import org.axl.compiler.ast.TypeRef;
             case Stmt.Jump stmt$4 -> {
                 jump(stmt$4);
             }
-            case Stmt.If stmt$5 -> {
-                expr(stmt$5.condition());
-                statements(stmt$5.then().statements());
-                final var elseBranch = stmt$5.elseBranch();
+            case Stmt.Use stmt$5 -> {
+                use(stmt$5);
+            }
+            case Stmt.If stmt$6 -> {
+                expr(stmt$6.condition());
+                statements(stmt$6.then().statements());
+                final var elseBranch = stmt$6.elseBranch();
                 if (elseBranch != null) {
                     statement(elseBranch);
                 }
             }
-            case Stmt.While stmt$6 -> {
-                expr(stmt$6.condition());
-                loopDepth = loopDepth + 1;
-                statements(stmt$6.body().statements());
-                loopDepth = loopDepth - 1;
-            }
-            case Stmt.For stmt$7 -> {
-                expr(stmt$7.iterable());
-                scope = new Scope(scope, false);
-                if (!stmt$7.name().equals("_")) {
-                    declare(stmt$7.namePos(), stmt$7.name(), Kind.LOOP_VARIABLE, null);
-                }
+            case Stmt.While stmt$7 -> {
+                expr(stmt$7.condition());
                 loopDepth = loopDepth + 1;
                 statements(stmt$7.body().statements());
                 loopDepth = loopDepth - 1;
+            }
+            case Stmt.For stmt$8 -> {
+                expr(stmt$8.iterable());
+                scope = new Scope(scope, false);
+                if (!stmt$8.name().equals("_")) {
+                    declare(stmt$8.namePos(), stmt$8.name(), Kind.LOOP_VARIABLE, null);
+                }
+                loopDepth = loopDepth + 1;
+                statements(stmt$8.body().statements());
+                loopDepth = loopDepth - 1;
                 pop();
             }
-            case Stmt.ExprStmt stmt$8 -> {
-                expressionStatement(stmt$8);
+            case Stmt.ExprStmt stmt$9 -> {
+                expressionStatement(stmt$9);
             }
-            case Stmt.Block stmt$9 -> {
-                statements(stmt$9.statements());
+            case Stmt.Block stmt$10 -> {
+                statements(stmt$10.statements());
             }
         }
     }
@@ -691,6 +694,33 @@ import org.axl.compiler.ast.TypeRef;
             return type;
         }
         return null;
+    }
+    private void use(Stmt.Use stmt) {
+        declaredType = stmt.type();
+        expr(stmt.resource());
+        declaredType = null;
+        scope = new Scope(scope, false);
+        declare(stmt.namePos(), stmt.name(), Kind.LOCAL, stmt.type());
+        statements(stmt.body().statements());
+        pop();
+        final var handler = stmt.handler();
+        if (handler != null) {
+            scope = new Scope(scope, false);
+            final var errorName = stmt.errorName();
+            final var errorPos = stmt.errorNamePos();
+            if (errorName != null && errorPos != null) {
+                declare(errorPos, errorName, Kind.PARAM, null);
+            }
+            final var inner = unparenthesized(handler);
+            if (inner instanceof Expr.Throw inner$1) {
+                allowedThrows.add(inner$1);
+            } else if (!(inner instanceof Expr.Call inner$2) && !(inner instanceof Expr.GenericNew inner$3)) {
+                error(handler.pos(), ErrorCode.SYNTAX, "the `else` of `use` needs a handler that does something: " +
+                        "a call such as `println(e)`, or `throw IllegalStateException(e)`");
+            }
+            expr(handler);
+            pop();
+        }
     }
     private void jump(Stmt.Jump stmt) {
         final var word = (stmt.isBreak() ? "break" : "continue");
