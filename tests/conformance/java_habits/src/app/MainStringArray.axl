@@ -1,0 +1,5 @@
+package app
+
+fn main(args: String[]) {
+    println(args.length)
+}

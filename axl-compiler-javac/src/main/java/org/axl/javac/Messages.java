@@ -345,7 +345,11 @@ final class Messages {
     }
 
     /** `Pointt` for `Point`: a type of the file, then a type Axolotl or the JDK has. */
-    private static String unknownType(String symbol, String[] javaLines) {
+    private static String unknownType(String symbol, String text, String[] javaLines) {
+        if (symbol.equals("Array") && text.contains("static void main(")) {
+            return "unknown type `Array`; `fn main()` takes no parameters and already has `args`, a Java array of `String`: "
+                    + "read it as a list with `List.of(args)`";
+        }
         List<String> types = nestedTypes(javaLines);
         String similar = types.stream().filter(t -> t.equalsIgnoreCase(symbol)).findFirst()
                 .orElse(Names.closest(symbol, types));
@@ -1006,7 +1010,7 @@ final class Messages {
                 case "method" -> inThisFile ? unknownFunction(symbol, name, javaLines)
                         : staticOwner(location, text) + " has no method `" + withoutLambdas(symbol) + "`"
                         + similarMethod(location, name, javaLines);
-                default -> unknownType(symbol, javaLines);
+                default -> unknownType(symbol, text, javaLines);
             };
         }
         Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);

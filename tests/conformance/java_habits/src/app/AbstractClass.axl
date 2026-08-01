@@ -1,0 +1,10 @@
+package app
+
+abstract class Animal(val name: String) {
+    abstract fn sound() -> String
+    fn describe() -> String = name + " says " + sound()
+}
+
+fn main() {
+    println("x")
+}

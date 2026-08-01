@@ -1,3 +1,4 @@
+AXL001 app/AbstractClass.axl:3:1: error: Axolotl has no `abstract` classes, since a class cannot be extended; write an interface with the values and methods each class gives, `interface Animal { fn sound() -> String }`, and a method with a body as a function that takes the interface
 AXL001 app/ArrayIndex.axl:5:18: error: Axolotl has no `[]` indexing, and `parts` is a Java array; read it as a list: `List.of(parts).get(1)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
@@ -14,6 +15,7 @@ AXL001 app/JavaLambda.axl:6:28: error: lambdas are written in braces: `{ x -> ..
 AXL001 app/JavaType.axl:4:5: error: declare a local with its type after the name: `val count: Int = ...`
 AXL001 app/Let.axl:4:5: error: declare a value with `val`, or a variable with `var`
 AXL001 app/ListLiteral.axl:4:13: error: Axolotl has no list literals; write `List.of(1, 2, 3)`
+AXL001 app/MainStringArray.axl:3:21: error: Axolotl has no arrays, and `fn main()` takes no parameters: it already has `args`, a Java array of `String`; read it as a list with `List.of(args)`
 AXL001 app/MissingArrow.axl:6:11: error: missing `->` before `println`
 AXL001 app/New.axl:4:14: error: Axolotl creates objects without `new`: `StringBuilder(...)`
 AXL001 app/NewArray.axl:4:20: error: Axolotl has no arrays; use a list, such as `List<Int>` or `ArrayList<Int>()`

@@ -211,7 +211,7 @@ final class Habits {
         // `const x = 1` from JavaScript has a message of its own.
         boolean declares = !text.equals("const") || next == AxolotlLexer.VAL;
         if (MODIFIERS.contains(text)) {
-            return declares && modifierPosition(tokens, i) ? modifier(text) : null;
+            return declares && modifierPosition(tokens, i) ? modifier(tokens, i, text) : null;
         }
         return switch (text) {
             case "void" -> next == AxolotlLexer.IDENTIFIER && startsDeclaration(tokens, i)
@@ -461,9 +461,20 @@ final class Habits {
         return type(tokens, SourceParser.previousCode(tokens, name)) == AxolotlLexer.FN;
     }
 
-    private static String modifier(String word) {
+    private static String modifier(List<Token> tokens, int i, String word) {
         return switch (word) {
             case "public", "protected" -> "declarations are public by default; remove `" + word + "`";
+            case "abstract" -> {
+                // The class and its abstract method give the example, also for the `abstract fn` inside the class.
+                int next = SourceParser.nextCode(tokens, i);
+                int classToken = type(tokens, next) == AxolotlLexer.CLASS ? next : previousClass(tokens, i);
+                String name = classToken < 0 ? "Shape" : text(tokens, SourceParser.nextCode(tokens, classToken));
+                int method = abstractMethod(tokens, classToken < 0 ? i : classToken);
+                String example = method < 0 ? "fn describe() -> String" : source(tokens, method, lineEnd(tokens, method));
+                yield "Axolotl has no `abstract` classes, since a class cannot be extended; write an interface with the values and "
+                        + "methods each class gives, `interface " + name + " { " + example + " }`, and a method with a body as a "
+                        + "function that takes the interface";
+            }
             case "static" -> "Axolotl has no `static`; remove it: functions and values at the top of a file "
                     + "need no object";
             case "final" -> "a `val` cannot change already; remove `final`";
@@ -473,6 +484,27 @@ final class Habits {
             case "override" -> "Axolotl has no `override`; remove it";
             default -> "a class cannot be extended in Axolotl; remove `" + word + "`";
         };
+    }
+
+    /** The `class` of the class declared last before the token, or -1. */
+    private static int previousClass(List<Token> tokens, int i) {
+        for (int j = i - 1; j >= 0; j--) {
+            if (type(tokens, j) == AxolotlLexer.CLASS) {
+                return j;
+            }
+        }
+        return -1;
+    }
+
+    /** The `fn` of the first `abstract fn` after the token, before the next class, or -1. */
+    private static int abstractMethod(List<Token> tokens, int from) {
+        for (int j = SourceParser.nextCode(tokens, from); j < tokens.size() && type(tokens, j) != Token.EOF
+                && (j == SourceParser.nextCode(tokens, from) || type(tokens, j) != AxolotlLexer.CLASS); j = SourceParser.nextCode(tokens, j)) {
+            if (type(tokens, j) == AxolotlLexer.FN && text(tokens, SourceParser.previousCode(tokens, j)).equals("abstract")) {
+                return j;
+            }
+        }
+        return -1;
     }
 
     /** Before a declaration: `public fn`, `static void main`, `override fun`. */
@@ -549,6 +581,10 @@ final class Habits {
         String before = text(tokens, previous);
         boolean afterValue = previous == i - 1
                 && (type(tokens, previous) == AxolotlLexer.IDENTIFIER || type(tokens, previous) == AxolotlLexer.RPAREN);
+        if (afterValue && text(tokens, i + 1).equals("]") && inMainParameters(tokens, i)) {
+            return "Axolotl has no arrays, and `fn main()` takes no parameters: it already has `args`, a Java array of `String`; "
+                    + "read it as a list with `List.of(args)`";
+        }
         if (afterValue && (text(tokens, i + 1).equals("]") || text(tokens, SourceParser.previousCode(tokens, previous)).equals("new"))) {
             return "Axolotl has no arrays; use a list, such as `List<" + typeName(before) + ">` or `ArrayList<"
                     + typeName(before) + ">()`";
@@ -601,6 +637,20 @@ final class Habits {
             return false;
         }
         return null;
+    }
+
+    /** Whether the token is in the parameter list of `fn main`, which takes none. */
+    private static boolean inMainParameters(List<Token> tokens, int i) {
+        int depth = 0;
+        for (int j = i - 1; j >= 0; j--) {
+            if (type(tokens, j) == AxolotlLexer.RPAREN) {
+                depth++;
+            } else if (type(tokens, j) == AxolotlLexer.LPAREN && depth-- == 0) {
+                int name = SourceParser.previousCode(tokens, j);
+                return text(tokens, name).equals("main") && type(tokens, SourceParser.previousCode(tokens, name)) == AxolotlLexer.FN;
+            }
+        }
+        return false;
     }
 
     private static final Set<String> ARRAY_METHODS = Set.of("split", "toCharArray", "toArray", "getBytes",
