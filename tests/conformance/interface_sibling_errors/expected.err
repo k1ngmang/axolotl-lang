@@ -1,0 +1,2 @@
+AXL017 app/Main.axl:4:9: error: `name` is `String?` here, but the interface `Greeter` requires `val name: String`
+AXL017 app/Main.axl:9:12: error: `Polite` does not give `fn greet(who: String) -> String`, which the interface `Greeter` requires; add it in a body after the fields: `data class Polite(...) : Greeter { fn ... }`

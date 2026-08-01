@@ -24,6 +24,7 @@ import org.axl.compiler.ast.TypeRef;
 
 @NullMarked public final class Checker {
     public final SourceFile file;
+    public final List<SourceFile> siblings;
     public final ArrayList<AxlDiagnostic> diagnostics;
     public final LinkedHashMap<Pos, String> unassigned;
     public final Set<Expr.Lambda> implicitIt;
@@ -50,8 +51,9 @@ import org.axl.compiler.ast.TypeRef;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
     public @Nullable TypeRef declaredType;
-    public Checker(SourceFile file) {
+    public Checker(SourceFile file, List<SourceFile> siblings) {
         this.file = file;
+        this.siblings = siblings;
         this.diagnostics = new ArrayList<AxlDiagnostic>();
         this.unassigned = new LinkedHashMap<Pos, String>();
         this.implicitIt = Collections.newSetFromMap(new IdentityHashMap<Expr.Lambda, Boolean>());
@@ -115,7 +117,7 @@ import org.axl.compiler.ast.TypeRef;
                     "`" + entry.getValue() + "` is never assigned again; declare it with `val`"));
         }
         checkFileTypeMembers();
-        for (final var mismatch : Implementations.check(file)) {
+        for (final var mismatch : Implementations.check(file, siblings)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message());
         }
     }
@@ -1568,8 +1570,8 @@ import org.axl.compiler.ast.TypeRef;
             return null;
         }
     }
-    public static Analysis check(SourceFile file, List<AxlDiagnostic> diagnostics) {
-        final var checker = new Checker(file);
+    public static Analysis check(SourceFile file, List<SourceFile> siblings, List<AxlDiagnostic> diagnostics) {
+        final var checker = new Checker(file, siblings);
         checker.run();
         diagnostics.addAll(checker.diagnostics);
         return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,

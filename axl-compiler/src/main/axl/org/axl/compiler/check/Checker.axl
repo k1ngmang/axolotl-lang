@@ -113,7 +113,7 @@ class Scope(val parent: Scope?, val fileScope: Boolean) {
  * Name and placement rules that need no types: scopes, shadowing, where `try` may appear,
  * mandatory type annotations. Also records what the generator needs to know about names.
  */
-class Checker(val file: SourceFile) {
+class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
 
     val diagnostics: ArrayList<AxlDiagnostic> = ArrayList<AxlDiagnostic>()
 
@@ -182,7 +182,7 @@ class Checker(val file: SourceFile) {
                 "`" + entry.getValue() + "` is never assigned again; declare it with `val`"))
         }
         checkFileTypeMembers()
-        for (mismatch in Implementations.check(file)) {
+        for (mismatch in Implementations.check(file, siblings)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message())
         }
     }
@@ -1604,8 +1604,8 @@ class Checker(val file: SourceFile) {
     }
 }
 
-fn check(file: SourceFile, diagnostics: List<AxlDiagnostic>) -> Analysis {
-    val checker = Checker(file)
+fn check(file: SourceFile, siblings: List<SourceFile>, diagnostics: List<AxlDiagnostic>) -> Analysis {
+    val checker = Checker(file, siblings)
     checker.run()
     diagnostics.addAll(checker.diagnostics)
     return Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,

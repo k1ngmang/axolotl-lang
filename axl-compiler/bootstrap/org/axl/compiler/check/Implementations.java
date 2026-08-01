@@ -18,21 +18,21 @@ import org.axl.compiler.ast.TypeRef;
     public record Mismatch(Pos pos, String message) {}
     public record Given(Pos pos, @Nullable TypeRef type) {}
     public record Implemented(Decl.Interface iface, List<TypeRef> args) {}
-    public static List<Mismatch> check(SourceFile file) {
+    public static List<Mismatch> check(SourceFile file, List<SourceFile> siblings) {
         final var problems = new ArrayList<Mismatch>();
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.DataClass decl$1) {
-                implementer(file, decl$1, fieldsOf(decl$1.fields()), decl$1.supertypes(), problems);
+                implementer(file, siblings, decl$1, fieldsOf(decl$1.fields()), decl$1.supertypes(), problems);
             } else if (decl instanceof Decl.ClassDecl decl$2) {
-                implementer(file, decl$2, propertiesOf(decl$2), decl$2.supertypes(), problems);
+                implementer(file, siblings, decl$2, propertiesOf(decl$2), decl$2.supertypes(), problems);
             }
         }
         return problems;
     }
-    private static void implementer(SourceFile file, Decl decl, Map<String, Given> given, List<TypeRef> supertypes,
-            List<Mismatch> problems) {
+    private static void implementer(SourceFile file, List<SourceFile> siblings, Decl decl, Map<String, Given> given,
+            List<TypeRef> supertypes, List<Mismatch> problems) {
         final var seen = new HashSet<String>();
-        for (final var implemented : interfaces(file, List.of(), supertypes, new HashSet<String>())) {
+        for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
             for (final var member : iface.members()) {
                 final var required = substitute(Nulls.sure(member.type()), iface.typeParams(), implemented.args());

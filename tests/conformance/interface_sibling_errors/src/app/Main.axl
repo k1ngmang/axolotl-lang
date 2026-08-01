@@ -1,0 +1,11 @@
+package app
+
+class Terse : Greeter {
+    val name: String? = null
+
+    fn greet(who: String) -> String = who
+}
+
+data class Polite(val name: String) : Greeter
+
+fn main() {}

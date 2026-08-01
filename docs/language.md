@@ -156,7 +156,7 @@ The parameters of the class and the properties in its body are fields: `val` one
 has a value, and a type when the value does not tell it: `val items = ArrayList<String>()` and `var
 count = 0` need none, `val cache: Map<String, Int>? = null` does. It is set after the parameters, in order. Methods are the `fn`s in the body
 and read the fields by name. `private` hides a property or a method. A class cannot extend another one
-and is created like a data class: `Counter("c", 1)`; it may implement interfaces of the same file.
+and is created like a data class: `Counter("c", 1)`; it may implement interfaces of its package and Java interfaces.
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.

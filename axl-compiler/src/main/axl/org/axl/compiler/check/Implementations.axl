@@ -13,8 +13,8 @@ import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.TypeRef
 
 /*
- * A data class or class that implements an interface of its file gives each value and each method
- * the interface requires. Java checks that a method exists, but not the nullness of its types: a
+ * A data class or class that implements an interface of its file or of another file of its package
+ * gives each value and each method the interface requires. Java checks that a method exists, but not the nullness of its types: a
  * `String?` field would let the interface return null where it promises a `String`.
  */
 
@@ -26,22 +26,22 @@ data class Given(val pos: Pos, val type: TypeRef?)
 /** An interface a type implements, with the types it writes for the interface's type parameters. */
 data class Implemented(val iface: Decl.Interface, val args: List<TypeRef>)
 
-fn check(file: SourceFile) -> List<Mismatch> {
+fn check(file: SourceFile, siblings: List<SourceFile>) -> List<Mismatch> {
     val problems = ArrayList<Mismatch>()
     for (decl in file.decls()) {
         if (decl is Decl.DataClass) {
-            implementer(file, decl, fieldsOf(decl.fields()), decl.supertypes(), problems)
+            implementer(file, siblings, decl, fieldsOf(decl.fields()), decl.supertypes(), problems)
         } else if (decl is Decl.ClassDecl) {
-            implementer(file, decl, propertiesOf(decl), decl.supertypes(), problems)
+            implementer(file, siblings, decl, propertiesOf(decl), decl.supertypes(), problems)
         }
     }
     return problems
 }
 
-private fn implementer(file: SourceFile, decl: Decl, given: Map<String, Given>, supertypes: List<TypeRef>,
-                       problems: List<Mismatch>) {
+private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl, given: Map<String, Given>,
+                       supertypes: List<TypeRef>, problems: List<Mismatch>) {
     val seen = HashSet<String>()
-    for (implemented in interfaces(file, List.of(), supertypes, HashSet<String>())) {
+    for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
         val iface = implemented.iface()
         for (member in iface.members()) {
             // The parser requires the type of a member, so it is never missing here.
