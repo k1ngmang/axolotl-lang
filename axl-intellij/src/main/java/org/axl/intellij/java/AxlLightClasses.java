@@ -7,12 +7,15 @@ import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiAnnotationParameterList;
+import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiElementFactory;
+import com.intellij.psi.PsiEllipsisType;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFileFactory;
+import com.intellij.psi.PsiJavaCodeReferenceElement;
 import com.intellij.psi.PsiJavaFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.psi.PsiMember;
@@ -25,6 +28,7 @@ import com.intellij.psi.PsiReferenceList;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.PsiTypeParameterListOwner;
+import com.intellij.psi.PsiWildcardType;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.impl.light.LightFieldBuilder;
 import com.intellij.psi.impl.light.LightMethodBuilder;
@@ -32,6 +36,9 @@ import com.intellij.psi.impl.light.LightModifierList;
 import com.intellij.psi.impl.light.LightParameter;
 import com.intellij.psi.impl.light.LightParameterListBuilder;
 import com.intellij.psi.impl.light.LightPsiClassBuilder;
+import com.intellij.psi.impl.light.LightReferenceListBuilder;
+import com.intellij.psi.impl.light.LightTypeParameterBuilder;
+import com.intellij.psi.impl.light.LightTypeParameterListBuilder;
 import com.intellij.psi.impl.source.resolve.FileContextUtil;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
@@ -39,7 +46,9 @@ import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import org.axl.compiler.AxlDiagnostic;
@@ -59,8 +68,8 @@ import org.jetbrains.annotations.Nullable;
 
 /**
  * The Java view of an .axl file, without building it: the file is translated in memory, and the
- * classes of the generated Java PSI are copied with their nested classes, constructors, methods,
- * fields and annotations. Every member navigates to its .axl declaration.
+ * classes of the generated Java PSI are copied with their type parameters, nested classes,
+ * constructors, methods, fields and annotations. Every member navigates to its .axl declaration.
  */
 public final class AxlLightClasses {
 
@@ -112,7 +121,7 @@ public final class AxlLightClasses {
         if (java.getClasses().length == 0) {
             return null;
         }
-        return new Copy(file, unit.qualifiedName()).of(java.getClasses()[0], unit.qualifiedName(), declaration(file, file.className()), null);
+        return new Copy(file).of(java.getClasses()[0], unit.qualifiedName(), declaration(file, file.className()));
     }
 
     /**
@@ -144,42 +153,81 @@ public final class AxlLightClasses {
     /** Copies generated classes into light classes whose members navigate to the declarations of one file. */
     private static final class Copy {
         private final AxlFile file;
-        private final String outerName;
         private final PsiManager manager;
         private final PsiElementFactory factory;
+        // The light class of each generated class and the light type parameter of each generated one: what the types of the members name.
+        private final Map<PsiClass, AxlLightClass> classes = new HashMap<>();
+        private final Map<PsiTypeParameter, AxlLightTypeParameter> typeParameters = new HashMap<>();
 
-        Copy(AxlFile file, String outerName) {
+        Copy(AxlFile file) {
             this.file = file;
-            this.outerName = outerName;
             this.manager = PsiManager.getInstance(file.getProject());
             this.factory = JavaPsiFacade.getElementFactory(file.getProject());
         }
 
-        AxlLightClass of(PsiClass generated, String qualifiedName, @Nullable AxlTypeDeclaration declaration, @Nullable PsiClass outer) {
+        /** The classes are all created before any member, since the type of a member may name a class declared later in the file. */
+        AxlLightClass of(PsiClass generated, String qualifiedName, @Nullable AxlTypeDeclaration declaration) {
+            AxlLightClass light = shell(generated, qualifiedName, declaration, null);
+            fill(light);
+            return light;
+        }
+
+        private AxlLightClass shell(PsiClass generated, String qualifiedName, @Nullable AxlTypeDeclaration declaration, @Nullable PsiClass outer) {
             AxlLightClass light = new AxlLightClass(file, generated, qualifiedName, declaration != null ? declaration : file,
                     modifiers(generated));
             light.setContainingClass(outer);
+            classes.put(generated, light);
+            declareTypeParameters(generated, light, light.getTypeParameterList());
+            for (PsiClass inner : generated.getInnerClasses()) {
+                String name = String.valueOf(inner.getName());
+                light.inner.add(shell(inner, qualifiedName + "." + name, AxlLightClasses.declaration(file, name), light));
+            }
+            return light;
+        }
+
+        private void fill(AxlLightClass light) {
+            PsiClass generated = light.generated;
+            AxlTypeDeclaration declaration = light.declaration instanceof AxlTypeDeclaration type ? type : null;
+            bounds(generated);
             references(generated.getExtendsList(), light.getExtendsList()::addReference);
             references(generated.getImplementsList(), light.getImplementsList()::addReference);
-            boolean fileLevel = outer == null;
+            boolean fileLevel = light.getContainingClass() == null;
             for (PsiMethod method : generated.getMethods()) {
                 light.addMethod(method(method, light, declaration, fileLevel));
             }
             for (PsiField field : generated.getFields()) {
                 light.fields.add(field(field, light, declaration, fileLevel));
             }
-            for (PsiClass inner : generated.getInnerClasses()) {
-                String name = String.valueOf(inner.getName());
-                light.inner.add(of(inner, qualifiedName + "." + name, AxlLightClasses.declaration(file, name), light));
+            light.inner.forEach(this::fill);
+        }
+
+        /**
+         * The type parameters of a generated class or method, declared again on the light one, which
+         * the types of its members name. Their bounds follow once everything they may name exists.
+         */
+        private void declareTypeParameters(PsiTypeParameterListOwner generated, PsiTypeParameterListOwner light,
+                                           LightTypeParameterListBuilder list) {
+            PsiTypeParameter[] parameters = generated.getTypeParameters();
+            for (int i = 0; i < parameters.length; i++) {
+                AxlLightTypeParameter parameter = new AxlLightTypeParameter(String.valueOf(parameters[i].getName()), light, i);
+                typeParameters.put(parameters[i], parameter);
+                list.addParameter(parameter);
             }
-            return light;
+        }
+
+        private void bounds(PsiTypeParameterListOwner generated) {
+            for (PsiTypeParameter parameter : generated.getTypeParameters()) {
+                references(parameter.getExtendsList(), typeParameters.get(parameter).getExtendsList()::addReference);
+            }
         }
 
         private PsiMethod method(PsiMethod method, PsiClass owner, @Nullable AxlTypeDeclaration declaration, boolean fileLevel) {
-            LightMethodBuilder builder = new LightMethodBuilder(manager, JavaLanguage.INSTANCE, method.getName(),
-                    new LightParameterListBuilder(manager, JavaLanguage.INSTANCE), modifiers(method));
+            LightTypeParameterListBuilder typeParameterList = new LightTypeParameterListBuilder(manager, JavaLanguage.INSTANCE);
+            AxlLightMethod builder = new AxlLightMethod(manager, method.getName(), modifiers(method), typeParameterList);
             builder.setContainingClass(owner);
             builder.setConstructor(method.isConstructor());
+            declareTypeParameters(method, builder, typeParameterList);
+            bounds(method);
             if (!method.isConstructor()) {
                 builder.setMethodReturnType(type(method.getReturnType()));
             }
@@ -254,15 +302,100 @@ public final class AxlLightClasses {
         }
 
         /**
-         * Types that name classes of this file resolve in the generated file to its own classes; they
-         * are written again so that they resolve to the light classes, which Java code sees.
+         * Types that name classes and type parameters of this file resolve in the generated file to
+         * its own; they are written again so that they name the light ones, which Java code sees.
          */
         private PsiType type(PsiType type) {
-            String text = type.getCanonicalText();
-            int at = text.indexOf(outerName);
-            boolean own = at >= 0 && (at == 0 || !Character.isJavaIdentifierPart(text.charAt(at - 1)))
-                    && (at + outerName.length() == text.length() || !Character.isJavaIdentifierPart(text.charAt(at + outerName.length())));
-            return own ? factory.createTypeFromText(text, file) : type;
+            if (type instanceof PsiArrayType array) {
+                PsiType component = type(array.getComponentType());
+                if (component == array.getComponentType()) {
+                    return type;
+                }
+                return (array instanceof PsiEllipsisType ? new PsiEllipsisType(component) : new PsiArrayType(component))
+                        .annotate(type.getAnnotationProvider());
+            }
+            if (type instanceof PsiWildcardType wildcard && wildcard.getBound() != null) {
+                PsiType bound = type(wildcard.getBound());
+                if (bound == wildcard.getBound()) {
+                    return type;
+                }
+                return wildcard.isExtends() ? PsiWildcardType.createExtends(manager, bound) : PsiWildcardType.createSuper(manager, bound);
+            }
+            if (!(type instanceof PsiClassType classType)) {
+                return type;
+            }
+            PsiClass resolved = classType.resolve();
+            PsiClass light = resolved instanceof PsiTypeParameter parameter ? typeParameters.get(parameter) : classes.get(resolved);
+            PsiType[] arguments = classType.getParameters();
+            PsiType[] mapped = new PsiType[arguments.length];
+            boolean changed = light != null;
+            for (int i = 0; i < arguments.length; i++) {
+                mapped[i] = type(arguments[i]);
+                changed |= mapped[i] != arguments[i];
+            }
+            if (!changed || resolved == null) {
+                return type;
+            }
+            return factory.createType(light != null ? light : resolved, mapped).annotate(classType.getAnnotationProvider());
+        }
+    }
+
+    /**
+     * A reference list that keeps the types it is given: the platform's own re-creates each from its
+     * class, without the type arguments, and keeps the types of its first reading.
+     */
+    static final class AxlLightReferenceList extends LightReferenceListBuilder {
+        private final List<PsiClassType> types = new ArrayList<>();
+
+        AxlLightReferenceList(PsiManager manager, PsiReferenceList.Role role) {
+            super(manager, JavaLanguage.INSTANCE, role);
+        }
+
+        @Override
+        public void addReference(PsiClassType type) {
+            types.add(type);
+        }
+
+        @Override
+        public PsiClassType @NotNull [] getReferencedTypes() {
+            return types.toArray(PsiClassType.EMPTY_ARRAY);
+        }
+
+        @Override
+        public PsiJavaCodeReferenceElement @NotNull [] getReferenceElements() {
+            PsiElementFactory factory = JavaPsiFacade.getElementFactory(getProject());
+            return types.stream().map(factory::createReferenceElementByType).toArray(PsiJavaCodeReferenceElement[]::new);
+        }
+    }
+
+    /**
+     * A light method whose context is its class, which Java's inference of `new Pair<>(...)` looks
+     * for; the platform's own would lead to the .axl declaration it navigates to.
+     */
+    static final class AxlLightMethod extends LightMethodBuilder {
+        AxlLightMethod(PsiManager manager, String name, PsiModifierList modifiers, LightTypeParameterListBuilder typeParameters) {
+            super(manager, JavaLanguage.INSTANCE, name, new LightParameterListBuilder(manager, JavaLanguage.INSTANCE), modifiers,
+                    new LightReferenceListBuilder(manager, JavaLanguage.INSTANCE, PsiReferenceList.Role.THROWS_LIST), typeParameters);
+        }
+
+        @Override
+        public PsiElement getContext() {
+            return getContainingClass();
+        }
+    }
+
+    /** A light type parameter whose bounds keep their type arguments: `T extends Comparable<T>`. */
+    static final class AxlLightTypeParameter extends LightTypeParameterBuilder {
+        private final AxlLightReferenceList bounds;
+
+        AxlLightTypeParameter(String name, PsiTypeParameterListOwner owner, int index) {
+            super(name, owner, index);
+            this.bounds = new AxlLightReferenceList(getManager(), PsiReferenceList.Role.EXTENDS_BOUNDS_LIST);
+        }
+
+        @Override
+        public AxlLightReferenceList getExtendsList() {
+            return bounds;
         }
     }
 
@@ -427,22 +560,28 @@ public final class AxlLightClasses {
     /** A light class with the qualified name of its generated class, which navigates to its declaration. */
     static final class AxlLightClass extends LightPsiClassBuilder {
         private final AxlFile file;
+        private final PsiClass generated;
         private final String qualifiedName;
         private final PsiElement declaration;
         private final boolean isInterface;
         private final boolean isEnum;
         private final AxlLightModifierList modifiers;
+        private final AxlLightReferenceList extendsList;
+        private final AxlLightReferenceList implementsList;
         private final List<PsiField> fields = new ArrayList<>();
-        private final List<PsiClass> inner = new ArrayList<>();
+        private final List<AxlLightClass> inner = new ArrayList<>();
 
         AxlLightClass(AxlFile file, PsiClass generated, String qualifiedName, PsiElement declaration, AxlLightModifierList modifiers) {
             super(file, String.valueOf(generated.getName()));
             this.file = file;
+            this.generated = generated;
             this.qualifiedName = qualifiedName;
             this.declaration = declaration;
             this.isInterface = generated.isInterface();
             this.isEnum = generated.isEnum();
             this.modifiers = modifiers;
+            this.extendsList = new AxlLightReferenceList(getManager(), PsiReferenceList.Role.EXTENDS_LIST);
+            this.implementsList = new AxlLightReferenceList(getManager(), PsiReferenceList.Role.IMPLEMENTS_LIST);
         }
 
         @Override
@@ -453,6 +592,16 @@ public final class AxlLightClasses {
         @Override
         public @NotNull LightModifierList getModifierList() {
             return modifiers;
+        }
+
+        @Override
+        public AxlLightReferenceList getExtendsList() {
+            return extendsList;
+        }
+
+        @Override
+        public AxlLightReferenceList getImplementsList() {
+            return implementsList;
         }
 
         @Override
@@ -468,6 +617,13 @@ public final class AxlLightClasses {
         @Override
         public @NotNull PsiElement getNavigationElement() {
             return declaration;
+        }
+
+        /** The class around a nested one, or the file: where Java's own code looks from a member outwards. */
+        @Override
+        public PsiElement getContext() {
+            PsiClass outer = getContainingClass();
+            return outer != null ? outer : file;
         }
 
         @Override

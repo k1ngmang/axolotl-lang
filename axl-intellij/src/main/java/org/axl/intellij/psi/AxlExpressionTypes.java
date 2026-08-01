@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.axl.intellij.java.AxlLightClasses;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
 import org.jetbrains.annotations.Nullable;
@@ -98,7 +99,7 @@ final class AxlExpressionTypes {
 
     private static @Nullable PsiType referenceType(AxlReferenceExpression ref, PsiElement target) {
         return switch (target) {
-            case AxlVariable variable -> variableType(ref, variable);
+            case AxlVariable variable -> memberType(ref, variable, variableType(ref, variable));
             case PsiField field -> memberSubstitutor(ref, field.getContainingClass()).substitute(field.getType());
             default -> target.getNode() != null && target.getNode().getElementType() == AxlElementTypes.LAMBDA
                     ? lambdaParameterType(target, 0) : null;
@@ -110,24 +111,54 @@ final class AxlExpressionTypes {
         if (constructed != null) {
             return factory(callee).createType(constructed);
         }
-        if (target instanceof AxlFunction function) {
-            return function.returnType() == null ? null : of(function.returnType());
+        if (target instanceof AxlVariable field) {
+            // The accessor of a data class field or of a value an interface requires: `p.first()`.
+            return field.type() == null ? null : memberType(callee, field, of(field.type()));
         }
-        if (!(target instanceof PsiMethod method) || method.getReturnType() == null) {
+        PsiMethod method = target instanceof PsiMethod m ? m : lightMethod(target);
+        if (method == null) {
+            return target instanceof AxlFunction function && function.returnType() != null ? of(function.returnType()) : null;
+        }
+        if (method.getReturnType() == null) {
             return null;
         }
         PsiSubstitutor substitutor = memberSubstitutor(callee, method.getContainingClass()).putAll(inferred(method, arguments));
         return substitutor.substitute(method.getReturnType());
     }
 
+    /**
+     * The light method of a function with type parameters or of a method of a type with them, whose
+     * type arguments the call tells, as for a Java method; null for the other functions, whose written
+     * result type says it all.
+     */
+    private static @Nullable PsiMethod lightMethod(PsiElement target) {
+        if (!(target instanceof AxlFunction function)) {
+            return null;
+        }
+        boolean generic = !function.typeParameters().isEmpty()
+                || function.getParent() instanceof AxlTypeDeclaration owner && !owner.typeParameters().isEmpty();
+        return generic ? AxlLightClasses.methodOf(function) : null;
+    }
+
+    /** The type of a field of a generic type with the type arguments of the expression before the dot: `p.first` of a `Pair<String, Int>`. */
+    private static @Nullable PsiType memberType(AxlReferenceExpression ref, AxlVariable field, @Nullable PsiType type) {
+        if (type == null || ref.qualifier() == null || !(field.getParent() instanceof AxlTypeDeclaration owner)) {
+            return type;
+        }
+        PsiClass cls = AxlResolver.asClass(owner);
+        return cls == null ? type : memberSubstitutor(ref, cls).substitute(type);
+    }
+
     /** The type arguments of the class of a member, from the type of the expression before the dot. */
     private static PsiSubstitutor memberSubstitutor(AxlReferenceExpression ref, @Nullable PsiClass owner) {
         PsiElement qualifier = ref.qualifier();
         PsiType type = qualifier == null || owner == null ? null : typeOf(qualifier);
-        if (!(type instanceof PsiClassType classType) || classType.resolve() == null) {
+        PsiClassType.ClassResolveResult result = type instanceof PsiClassType classType ? classType.resolveGenerics() : null;
+        if (result == null || result.getElement() == null) {
             return PsiSubstitutor.EMPTY;
         }
-        return TypeConversionUtil.getSuperClassSubstitutor(owner, classType);
+        PsiSubstitutor substitutor = TypeConversionUtil.getMaybeSuperClassSubstitutor(owner, result.getElement(), result.getSubstitutor());
+        return substitutor != null ? substitutor : PsiSubstitutor.EMPTY;
     }
 
     /** The type variables of a generic method, from the types of the call's arguments, varargs too. */

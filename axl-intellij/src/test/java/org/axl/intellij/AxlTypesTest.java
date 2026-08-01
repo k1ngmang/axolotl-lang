@@ -11,7 +11,10 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiModifier;
 import com.intellij.psi.PsiReference;
+import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.util.PsiUtil;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
 import java.io.IOException;
@@ -626,6 +629,65 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of("RED", "GREEN", "BLUE"), highlighted(text, AxlSyntaxHighlighter.ENUM_CONSTANT));
     }
 
+
+    public void testJavaSeesTheTypeParametersOfTypesAndFunctions() {
+        myFixture.addFileToProject("app/Generics.axl", GENERICS);
+        PsiClass pair = findClass("app.Generics.Pair");
+        assertEquals(List.of("A", "B"), Arrays.stream(pair.getTypeParameters()).map(PsiTypeParameter::getName).toList());
+        assertEquals("A", pair.findMethodsByName("first", false)[0].getReturnType().getPresentableText());
+        assertEquals("B", pair.findFieldByName("second", false).getType().getPresentableText());
+        PsiType component = pair.getConstructors()[0].getParameterList().getParameters()[0].getType();
+        assertSame(pair.getTypeParameters()[0], PsiUtil.resolveClassInType(component));
+        PsiClass stack = findClass("app.Generics.Stack");
+        assertEquals(0, stack.getTypeParameters()[0].getExtendsListTypes().length);
+        assertEquals("List<T>", stack.findFieldByName("items", false).getType().getPresentableText());
+        assertSame(stack.getTypeParameters()[0], PsiUtil.resolveClassInType(stack.findMethodsByName("pop", false)[0].getReturnType()));
+        assertEquals(List.of("K", "V"), Arrays.stream(findClass("app.Generics.Repository").getTypeParameters())
+                .map(PsiTypeParameter::getName).toList());
+        PsiMethod largest = findClass("app.Generics").findMethodsByName("largest", false)[0];
+        assertEquals("Comparable<T>", largest.getTypeParameters()[0].getExtendsListTypes()[0].getPresentableText());
+        assertEquals("List<T>", largest.getParameterList().getParameters()[0].getType().getPresentableText());
+        assertSame(largest.getTypeParameters()[0], PsiUtil.resolveClassInType(largest.getReturnType()));
+        PsiMethod firstOrNull = findClass("app.Generics").findMethodsByName("firstOrNull", false)[0];
+        assertEquals("Object", firstOrNull.getTypeParameters()[0].getExtendsListTypes()[0].getPresentableText());
+        myFixture.configureByText("UseFromJava.java", """
+                package app;
+
+                import java.util.List;
+
+                class UseFromJava {
+                    String f() {
+                        Generics.Pair<String, Integer> p = new Generics.Pair<>("a", 1);
+                        String first = p.first();
+                        int second = p.second();
+                        Generics.Stack<String> stack = new Generics.Stack<>();
+                        stack.push("x");
+                        String top = stack.pop();
+                        Integer n = Generics.firstOrNull(List.of(1, 2));
+                        String biggest = Generics.largest(List.of("a", "b"));
+                        Generics.Pair<Integer, String> swapped = Generics.swap(p);
+                        return first + second + top + n + biggest + swapped.first();
+                    }
+                }
+                """);
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testTypesGenericConstructorsAndTheValuesOfTypeParameters() {
+        myFixture.configureByText("Generics.axl", GENERICS);
+        assertEquals("java.lang.String", ((PsiMethod) resolveAt("println(pair.first().|length())")).getContainingClass().getQualifiedName());
+        assertEquals("java.lang.Comparable", ((PsiMethod) resolveAt("x.|compareTo(best)")).getContainingClass().getQualifiedName());
+        assertEquals("java.util.List", ((PsiMethod) resolveAt("items.|add(item)")).getContainingClass().getQualifiedName());
+        assertCompletes(GENERICS.replace("val pair = Pair<String, Int>(\"age\", 41)", "val pair = Pair<String, Int>(\"age\", 41).<caret>"),
+                "first", "second");
+        assertCompletes(GENERICS.replace("println(pair.first().length())", "println(pair.first().<caret>)"), "length", "isEmpty");
+        assertCompletes(GENERICS.replace("println(stack.pop())", "println(stack.pop().<caret>)"), "length", "trim");
+        assertCompletes(GENERICS.replace("println(swap(pair).second())", "println(swap(pair).second().<caret>)"), "length");
+        assertCompletes(GENERICS.replace("stack.push(\"a\")", "stack.<caret>"), "push", "pop", "items");
+        assertCompletes(GENERICS.replace("items.add(item)", "item.<caret>"), "toString", "hashCode", "equals");
+        assertCompletes(GENERICS.replace("x.compareTo(best) > 0", "x.<caret>"), "compareTo", "toString");
+    }
 
     public void testResolvesTypeParametersInsideTheirDeclarations() {
         AxlFile file = (AxlFile) myFixture.configureByText("Generics.axl", GENERICS);
