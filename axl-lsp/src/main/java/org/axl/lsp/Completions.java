@@ -13,6 +13,7 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import org.antlr.v4.runtime.Token;
+import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.CompletionItem;
@@ -83,10 +84,23 @@ final class Completions {
             for (Symbols.Symbol symbol : names.values()) {
                 CompletionItem item = new CompletionItem(symbol.name());
                 item.setKind(kind(symbol.kind()));
-                if (symbol.type() != null) {
+                if (symbol.kind() == Symbols.Kind.FUNCTION && !symbol.function().typeParams().isEmpty()) {
+                    // The result type of a generic function says little on its own: `T?`.
+                    item.setDetail(Hovers.signature(symbol.function()));
+                } else if (symbol.type() != null) {
                     item.setDetail(Hovers.typeText(symbol.type()));
                 }
                 items.add(item);
+            }
+            if (typeOnly) {
+                for (Decl.TypeParam parameter : TypeParameters.inScope(parsed.ast, pos)) {
+                    CompletionItem item = new CompletionItem(parameter.name());
+                    item.setKind(CompletionItemKind.TypeParameter);
+                    if (parameter.bound() != null) {
+                        item.setDetail(Hovers.typeText(parameter.bound()));
+                    }
+                    items.add(item);
+                }
             }
         }
         if (typeOnly) {

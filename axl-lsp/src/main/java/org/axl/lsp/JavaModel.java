@@ -34,7 +34,9 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.ModuleElement;
 import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.Parameterizable;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -184,6 +186,10 @@ final class JavaModel {
 
     /** A written type with its type arguments, such as `List<String>`; raw when they do not resolve. */
     TypeMirror typeOf(SourceFile file, TypeRef type) {
+        TypeMirror variable = typeVariable(file, type);
+        if (variable != null) {
+            return variable;
+        }
         TypeElement element = resolveType(file, type);
         if (element == null) {
             return null;
@@ -193,6 +199,41 @@ final class JavaModel {
             return types.erasure(element.asType());
         }
         return types.getDeclaredType(element, arguments.toArray(TypeMirror[]::new));
+    }
+
+    /**
+     * The type variable of a type parameter named where a type is written, from the generated class or
+     * method that declares it, so that a `T` value has the members of its bound; the erased bound, or
+     * Object, while the generated code has no such declaration. Null for a name that is no type
+     * parameter there.
+     */
+    private TypeMirror typeVariable(SourceFile file, TypeRef type) {
+        TypeParameters.Owner owner = type.args().isEmpty() ? TypeParameters.ownerOf(file, type.pos(), type.name()) : null;
+        if (owner == null) {
+            return null;
+        }
+        Parameterizable declared = generatedOwner(file, owner);
+        for (TypeParameterElement parameter : declared == null ? List.<TypeParameterElement>of() : declared.getTypeParameters()) {
+            if (parameter.getSimpleName().contentEquals(type.name())) {
+                return parameter.asType();
+            }
+        }
+        Decl.TypeParam parameter = TypeParameters.named(TypeParameters.of(owner.declaring()), type.name());
+        TypeElement bound = parameter.bound() == null ? null : resolveType(file, parameter.bound());
+        TypeElement known = bound != null ? bound : elements.getTypeElement("java.lang.Object");
+        return known == null ? null : types.erasure(known.asType());
+    }
+
+    /** The generated class of a type, or the generated method of a function or a method of a type. */
+    private Parameterizable generatedOwner(SourceFile file, TypeParameters.Owner owner) {
+        TypeElement type = resolveType(file, owner.decl() instanceof Decl.Function ? file.className() : owner.decl().name());
+        Decl.Function function = owner.method() != null ? owner.method() : owner.decl() instanceof Decl.Function fn ? fn : null;
+        if (type == null || function == null) {
+            return type;
+        }
+        return ElementFilter.methodsIn(type.getEnclosedElements()).stream()
+                .filter(m -> m.getSimpleName().contentEquals(function.name()) && m.getParameters().size() == function.params().size())
+                .findFirst().orElse(null);
     }
 
     /**

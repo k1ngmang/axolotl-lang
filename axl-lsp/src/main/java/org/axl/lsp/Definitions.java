@@ -65,6 +65,10 @@ final class Definitions {
             String type = typeName(document, receiver);
             return type == null ? List.of() : member(document.module, type, name, argumentTypes);
         }
+        Decl.TypeParam parameter = TypeParameters.at(document.ast, Document.start(token), name);
+        if (parameter != null) {
+            return local(current, document, parameter.pos());
+        }
         Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), name, argumentTypes);
         if (symbol == null) {
             String type = typeName(document, token);

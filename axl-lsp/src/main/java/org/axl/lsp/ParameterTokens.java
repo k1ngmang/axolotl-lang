@@ -8,9 +8,9 @@ import org.antlr.v4.runtime.Token;
 import org.axl.compiler.parse.AxolotlLexer;
 
 /**
- * The tokens of a file that are parameters of functions and lambdas, where they are declared and
- * where their names are used in the function or lambda. Found from the tokens, so that a file
- * that does not parse is colored too.
+ * The tokens of a file that are parameters of functions and lambdas, or type parameters of
+ * functions and types, where they are declared and where their names are used in the declaration.
+ * Found from the tokens, so that a file that does not parse is colored too.
  */
 final class ParameterTokens {
 
@@ -36,11 +36,29 @@ final class ParameterTokens {
     static Set<Integer> of(List<? extends Token> tokens) {
         ParameterTokens parameters = new ParameterTokens(tokens);
         for (int k = 0; k < parameters.code.size(); k++) {
-            if (parameters.type(k) == AxolotlLexer.FN && parameters.type(k + 1) == AxolotlLexer.IDENTIFIER
-                    && parameters.type(k + 2) == AxolotlLexer.LPAREN) {
-                parameters.function(k + 2);
+            if (parameters.type(k) == AxolotlLexer.FN && parameters.type(k + 1) == AxolotlLexer.IDENTIFIER) {
+                int open = parameters.afterTypeParameters(k + 2);
+                if (parameters.type(open) == AxolotlLexer.LPAREN) {
+                    parameters.function(open);
+                }
             } else if (parameters.type(k) == AxolotlLexer.LBRACE) {
                 parameters.lambda(k);
+            }
+        }
+        return parameters.result;
+    }
+
+    /**
+     * The indexes of the tokens that name type parameters: after the `<` that follows the name of a
+     * function or a type, and used in the rest of the declaration.
+     */
+    static Set<Integer> typeParameters(List<? extends Token> tokens) {
+        ParameterTokens parameters = new ParameterTokens(tokens);
+        for (int k = 1; k < parameters.code.size(); k++) {
+            int before = parameters.type(k - 1);
+            boolean declared = before == AxolotlLexer.FN || before == AxolotlLexer.CLASS || before == AxolotlLexer.INTERFACE;
+            if (declared && parameters.type(k) == AxolotlLexer.IDENTIFIER && parameters.type(k + 1) == AxolotlLexer.LT) {
+                parameters.typeParameters(k + 1, before == AxolotlLexer.FN);
             }
         }
         return parameters.result;
@@ -62,6 +80,54 @@ final class ParameterTokens {
             }
         }
         mark(names, open, bodyEnd(k + 1));
+    }
+
+    /** The type parameters listed from the `<` at a position, used up to the end of the function or type that takes them. */
+    private void typeParameters(int open, boolean function) {
+        List<String> names = new ArrayList<>();
+        int k = open + 1;
+        while (type(k) == AxolotlLexer.IDENTIFIER) {
+            names.add(text(k));
+            k++;
+            if (type(k) == AxolotlLexer.COLON) {
+                k = afterType(k + 1);
+            }
+            if (type(k) != AxolotlLexer.COMMA) {
+                break;
+            }
+            k++;
+        }
+        if (type(k) != AxolotlLexer.GT || names.isEmpty()) {
+            return;
+        }
+        int after = k + 1;
+        boolean parameters = type(after) == AxolotlLexer.LPAREN;
+        int end = !function ? typeEnd(after) : bodyEnd(parameters ? closing(after, AxolotlLexer.LPAREN, AxolotlLexer.RPAREN) + 1 : after);
+        mark(names, open, end);
+    }
+
+    /** The position after the `<...>` at a position, or the position itself when there is none. */
+    private int afterTypeParameters(int k) {
+        return type(k) == AxolotlLexer.LT ? closing(k, AxolotlLexer.LT, AxolotlLexer.GT) + 1 : k;
+    }
+
+    /**
+     * Where the type ends whose header follows a position: at the `}` of its body, or without one,
+     * before the next declaration.
+     */
+    private int typeEnd(int k) {
+        int depth = 0;
+        for (; k < code.size(); k++) {
+            int type = type(k);
+            if (depth == 0 && (DECLARATIONS.contains(type) || type == AxolotlLexer.AT || type == AxolotlLexer.RBRACE)) {
+                return k - 1;
+            }
+            if (type == AxolotlLexer.LBRACE) {
+                return closing(k);
+            }
+            depth += type == AxolotlLexer.LPAREN ? 1 : type == AxolotlLexer.RPAREN ? -1 : 0;
+        }
+        return code.size() - 1;
     }
 
     /** The parameters before the `->` of a lambda whose `{` is at a position, used up to its `}`. */
@@ -130,9 +196,14 @@ final class ParameterTokens {
 
     /** The position of the `}` that closes the `{` at a position, or the last one. */
     private int closing(int open) {
+        return closing(open, AxolotlLexer.LBRACE, AxolotlLexer.RBRACE);
+    }
+
+    /** The position of the bracket that closes the one at a position, or the last token. */
+    private int closing(int open, int opening, int closing) {
         int depth = 0;
         for (int k = open; k < code.size(); k++) {
-            depth += type(k) == AxolotlLexer.LBRACE ? 1 : type(k) == AxolotlLexer.RBRACE ? -1 : 0;
+            depth += type(k) == opening ? 1 : type(k) == closing ? -1 : 0;
             if (depth == 0) {
                 return k;
             }

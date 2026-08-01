@@ -208,7 +208,7 @@ final class Symbols {
     }
 
     /** A declaration covers its text up to the next declaration. */
-    private static Decl enclosingDecl(SourceFile file, Pos pos) {
+    static Decl enclosingDecl(SourceFile file, Pos pos) {
         List<Decl> decls = file.decls();
         for (int i = 0; i < decls.size(); i++) {
             Pos start = decls.get(i).pos();

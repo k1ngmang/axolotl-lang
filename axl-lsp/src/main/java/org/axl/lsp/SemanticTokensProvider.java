@@ -17,7 +17,7 @@ import org.eclipse.lsp4j.SemanticTokensLegend;
 final class SemanticTokensProvider {
 
     static final List<String> TYPES = List.of("keyword", "function", "variable", "parameter", "type", "string",
-            "number", "comment", "operator", "property", "namespace", "enumMember", "decorator", "method");
+            "number", "comment", "operator", "property", "namespace", "enumMember", "decorator", "method", "typeParameter");
     static final SemanticTokensLegend LEGEND = new SemanticTokensLegend(TYPES, List.of());
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
@@ -59,8 +59,8 @@ final class SemanticTokensProvider {
         }
     }
 
-    /** The parameter tokens of a file, and the names it declares for values, which are not packages. */
-    private record Names(Set<Integer> parameters, Set<String> declared, Set<Integer> interfaceMethods) {
+    /** The parameter and type parameter tokens of a file, and the names it declares for values, which are not packages. */
+    private record Names(Set<Integer> parameters, Set<String> declared, Set<Integer> interfaceMethods, Set<Integer> typeParameters) {
 
         static Names of(List<? extends Token> tokens) {
             Set<Integer> parameters = ParameterTokens.of(tokens);
@@ -74,7 +74,7 @@ final class SemanticTokensProvider {
                     declared.add(tokens.get(i).getText());
                 }
             }
-            return new Names(parameters, declared, interfaceMethods(tokens));
+            return new Names(parameters, declared, interfaceMethods(tokens), ParameterTokens.typeParameters(tokens));
         }
 
         /** The names of the methods declared inside the braces of an interface. */
@@ -174,6 +174,9 @@ final class SemanticTokensProvider {
         }
         if (isAnnotationName(tokens, index)) {
             return "decorator";
+        }
+        if (names.typeParameters().contains(index)) {
+            return "typeParameter";
         }
         if (enums.isConstant(tokens, index, previous)) {
             return "enumMember";

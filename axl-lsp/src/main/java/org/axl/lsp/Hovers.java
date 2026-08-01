@@ -51,12 +51,17 @@ final class Hovers {
         return parts.isEmpty() ? null : new Hover(new MarkupContent(MarkupKind.MARKDOWN, String.join("\n\n", parts)));
     }
 
-    /** A member, a name in scope, a field or constant being declared, or a class of the package; null if none. */
+    /** A member, a type parameter, a name in scope, a field or constant being declared, or a class of the package; null if none. */
     private String axl(Document document, Token token) {
         Supplier<List<String>> argumentTypes = () -> workspace.argumentTypes(document, token);
         if (isMember(document, token)) {
             Declarations.Found member = declarations.member(document, token, argumentTypes);
             return member == null ? null : member.text();
+        }
+        TypeParameters.Owner owner = TypeParameters.ownerOf(document.ast, Document.start(token), token.getText());
+        if (owner != null) {
+            // A type parameter is explained by the declaration that takes it.
+            return declaration(owner.declaring());
         }
         Symbols.Symbol symbol = Symbols.lookup(document.ast, Document.start(token), token.getText(), argumentTypes);
         if (symbol != null) {
@@ -111,12 +116,13 @@ final class Hovers {
     static String declaration(Decl decl) {
         String visibility = decl.isPrivate() ? "private " : "";
         return switch (decl) {
-            case Decl.DataClass data -> visibility + "data class " + data.name() + data.fields().stream()
-                    .map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"))
+            case Decl.DataClass data -> visibility + "data class " + data.name() + TypeParameters.text(data.typeParams())
+                    + data.fields().stream().map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(data.supertypes());
             case Decl.Interface iface -> visibility + (iface.isSealed() ? "sealed " : "") + "interface " + iface.name()
-                    + supertypes(iface.supertypes()) + interfaceBody(iface);
-            case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + classDecl.parameters().stream()
+                    + TypeParameters.text(iface.typeParams()) + supertypes(iface.supertypes()) + interfaceBody(iface);
+            case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + TypeParameters.text(classDecl.typeParams())
+                    + classDecl.parameters().stream()
                     .map(p -> (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(classDecl.supertypes());
             case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name();
@@ -143,7 +149,7 @@ final class Hovers {
     static String signature(Decl.Function fn) {
         String params = fn.params().stream().map(p -> p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", "));
         String result = fn.returnType() == null ? "" : " -> " + typeText(fn.returnType());
-        return (fn.isPrivate() ? "private " : "") + "fn " + fn.name() + "(" + params + ")" + result;
+        return (fn.isPrivate() ? "private " : "") + "fn " + fn.name() + TypeParameters.text(fn.typeParams()) + "(" + params + ")" + result;
     }
 
     static String typeText(TypeRef type) {
