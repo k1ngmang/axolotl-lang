@@ -15,6 +15,7 @@ final class OtherFiles {
             "^(unknown function `(\\w+)\\(.*?\\)`); check the spelling or add `import fn`$");
 
     private static final Pattern NO_FIELD = Pattern.compile("^(?:`\\w+` of type )?`(?:[\\w.]+\\.)?(\\w+)(?:<.*>)?` has no field `(\\w+)`$");
+    private static final Pattern NO_METHOD = Pattern.compile("^(`(\\w+)` of type `(?:[\\w.]+\\.)?(\\w+)(?:<.*>)?` has no method `(\\w+)\\(\\)`)(?:;.*)?$");
     private static final Pattern PRIVATE_FIELD = Pattern.compile("^`(\\w+)` is private to `(?:[\\w.]+\\.)?(\\w+)` and can only be used in that file$");
 
     private final Collection<GeneratedSource> sources;
@@ -27,6 +28,11 @@ final class OtherFiles {
         Matcher noField = NO_FIELD.matcher(message);
         if (noField.find() && hasAccessor(noField.group(1), noField.group(2))) {
             return message + "; `" + noField.group(2) + "` is a method: `" + noField.group(2) + "()`";
+        }
+        Matcher noMethod = NO_METHOD.matcher(message);
+        if (noMethod.find() && hasField(noMethod.group(3), noMethod.group(4))) {
+            return noMethod.group(1) + "; `" + noMethod.group(4) + "` is a property of the class `" + noMethod.group(3)
+                    + "`: read it without parentheses, `" + noMethod.group(2) + "." + noMethod.group(4) + "`";
         }
         Matcher privateField = PRIVATE_FIELD.matcher(message);
         if (privateField.find() && hasComponent(privateField.group(2), privateField.group(1))) {
@@ -77,6 +83,18 @@ final class OtherFiles {
         return sources.stream().map(s -> s.unit().javaSource()).anyMatch(java -> {
             Matcher found = declaration.matcher(java);
             return found.find() && accessor.matcher(typeBody(java, found)).find();
+        });
+    }
+
+    /** Whether a class of the build has a property of this name, which its Java has as a field. */
+    private boolean hasField(String type, String property) {
+        Pattern declaration = Pattern.compile("^    (?:public |private )?(?:static |final )*class " + Pattern.quote(type) + "\\b.*$",
+                Pattern.MULTILINE);
+        Pattern field = Pattern.compile("^\\s+(?:public |private )?(?:final )?[\\w.<>?, @\\[\\]]+ " + Pattern.quote(property) + ";$",
+                Pattern.MULTILINE);
+        return sources.stream().map(s -> s.unit().javaSource()).anyMatch(java -> {
+            Matcher found = declaration.matcher(java);
+            return found.find() && field.matcher(typeBody(java, found)).find();
         });
     }
 

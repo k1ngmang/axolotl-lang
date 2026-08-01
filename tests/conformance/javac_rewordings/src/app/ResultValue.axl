@@ -1,0 +1,10 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "bad"
+
+fn main() {
+    val r = parse("1")
+    println(r.value())
+    println(r.error())
+    println(parse("2").value())
+}

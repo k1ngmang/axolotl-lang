@@ -1007,11 +1007,19 @@ final class Messages {
                 return "`" + simpleNames(axlType(owner)) + "` has no constant `" + symbol + "`; its constants are " + constants;
             }
             // `r.value` after `is Ok`: the narrowing took the record apart, so the whole `r` is still a Result.
-            boolean resultField = unknown.group(1).equals("variable") && location.contains("axl.lang.Result")
-                    && (symbol.equals("value") || symbol.equals("error"));
+            boolean resultMember = location.contains("axl.lang.Result") && (name.equals("value") || name.equals("error"));
+            boolean resultField = unknown.group(1).equals("variable") && resultMember;
             Tested tested = inThisFile || resultField ? null : testedWithoutNarrowing(location, text, javaLines);
             if (tested != null) {
                 return notNarrowed(tested);
+            }
+            if (unknown.group(1).equals("method") && resultMember && symbol.equals(name + "()")) {
+                return resultSide(location, name);
+            }
+            String property = unknown.group(1).equals("method") && symbol.equals(name + "()") && !inThisFile
+                    ? propertyType(javaLines, simpleNames(axlType(owner)).replaceAll("<.*", ""), name) : null;
+            if (property != null) {
+                return memberOwner(location) + " has no method `" + symbol + "`" + propertyHint(location, name, simpleNames(axlType(owner)));
             }
             return switch (unknown.group(1)) {
                 case "variable" -> inThisFile ? unknownName(symbol, text, javaLines)
@@ -1419,6 +1427,31 @@ final class Messages {
         String problem = "`" + value + "` is a property, so `is` does not narrow it; ";
         return tested.subject() ? problem + "name the subject: `when (val " + name + " = " + value + ")`"
                 : problem + "copy it to a local `val` first: `val " + name + " = " + value + "`";
+    }
+
+    /** `r` of `variable r of type ...`, the way javac names the location of a member; null for a class or an expression. */
+    private static String variableName(String location) {
+        int ofType = location.indexOf(" of type ");
+        return location.startsWith("variable ") && ofType > 0 ? location.substring("variable ".length(), ofType) : null;
+    }
+
+    /** `r.value()` on a `Result` that no `is Ok` test has narrowed: javac sees only the sealed interface. */
+    private static String resultSide(String location, String side) {
+        String receiver = variableName(location);
+        boolean value = side.equals("value");
+        String problem = memberOwner(location) + " may be an `" + (value ? "Err" : "Ok") + "`, so it has no `" + side + "()` yet; ";
+        if (receiver == null) {
+            return problem + "test it with `is " + (value ? "Ok" : "Err") + "` first" + (value ? ", or write `try` before it" : "");
+        }
+        return problem + "test it first: `if (" + receiver + " is " + (value ? "Ok" : "Err") + ") { ... " + receiver + "." + side
+                + "() }`" + (value ? ", or write `try " + receiver + "`" : "");
+    }
+
+    /** `c.by()` on `class Inc(val by: Int)`: a property of a class is read without parentheses. */
+    private static String propertyHint(String location, String property, String owner) {
+        String receiver = variableName(location);
+        return "; `" + property + "` is a property of the class `" + owner + "`: read it without parentheses, "
+                + (receiver == null ? "`" + property + "`" : "`" + receiver + "." + property + "`");
     }
 
     /** `s.split(",").size()`: Axolotl has no arrays of its own, but Java methods return them. */

@@ -1,0 +1,11 @@
+package app
+
+class Inc(val by: Int) {
+    var count: Int = 0
+}
+
+fn main() {
+    val c = Inc(2)
+    println(c.by())
+    println(c.count())
+}

@@ -3,6 +3,8 @@ AXL100 app/BigDecimalOperators.axl:9:15: error: `/` cannot be applied to `BigDec
 AXL100 app/BigDecimalOperators.axl:10:15: error: `>` cannot be applied to `BigDecimal` and `BigDecimal`; compare them with `a.compareTo(b) > 0`
 AXL100 app/BigDecimalOperators.axl:11:17: error: `<` cannot be applied to `String` and `String`; compare them with `a.compareTo(b) < 0`
 AXL100 app/BranchWithoutValue.axl:6:9: error: this gives no value: the call returns nothing, but `String` is expected
+AXL100 app/ClassProperty.axl:9:15: error: `c` of type `Inc` has no method `by()`; `by` is a property of the class `Inc`: read it without parentheses, `c.by`
+AXL100 app/ClassProperty.axl:10:15: error: `c` of type `Inc` has no method `count()`; `count` is a property of the class `Inc`: read it without parentheses, `c.count`
 AXL008 app/DataClassAssign.axl:7:7: error: a data class cannot change; create a new `Point` with the new value of `x`
 AXL100 app/EnumCreated.axl:6:13: error: `Color` is an enum and cannot be created; use one of its constants, such as `Color.RED`
 AXL100 app/ExtendsClass.axl:4:31: error: this supertype is a class, not an interface; to extend a Java class, call its constructor: `: Thread()`. A class written in Axolotl cannot be extended: compose it, or give both an interface
@@ -27,6 +29,9 @@ AXL100 app/NumberConversion.axl:7:15: error: `Double` is a primitive value and h
 AXL100 app/NumberConversion.axl:9:17: error: `Double` is a primitive value and has no members; for an `Int`, write `Double.valueOf(3.7).intValue()`, which drops the fraction, or `Math.toIntExact(Math.round(3.7))`, which rounds
 AXL100 app/OneLineReturn.axl:3:10: error: `g` has no result type, so it cannot return a value; add one after `->`, as in `fn g(...) -> Int`
 AXL100 app/PrimitiveArgument.axl:6:18: error: a type argument cannot be `int`; write `Int`, as in `List<Int>`
+AXL100 app/ResultValue.axl:7:15: error: `r` of type `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it first: `if (r is Ok) { ... r.value() }`, or write `try r`
+AXL100 app/ResultValue.axl:8:15: error: `r` of type `Result<Int, String>` may be an `Ok`, so it has no `error()` yet; test it first: `if (r is Err) { ... r.error() }`
+AXL100 app/ResultValue.axl:9:24: error: `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it with `is Ok` first, or write `try` before it
 AXL100 app/ReturnWithoutType.axl:4:5: error: `f` has no result type, so it cannot return a value; add one after `->`, as in `fn f(...) -> Int`
 AXL100 app/SelfReference.axl:4:9: error: `x` is used in its own value; a line that ends with an operator goes on to the next line
 AXL100 app/StaticContext.axl:8:20: error: `length()` belongs to each `String`, not to the class; use it on a value, such as `string.length()`
