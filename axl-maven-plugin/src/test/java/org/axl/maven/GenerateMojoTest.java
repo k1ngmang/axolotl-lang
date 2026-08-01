@@ -21,6 +21,7 @@ import org.junit.jupiter.api.io.TempDir;
 class GenerateMojoTest {
 
     private final List<String> messages = new ArrayList<>();
+    private final List<String> errors = new ArrayList<>();
 
     private GenerateMojo mojo(Path base) {
         return configure(new GenerateMojo(), base);
@@ -38,6 +39,11 @@ class GenerateMojoTest {
             @Override
             public void info(CharSequence content) {
                 messages.add(content.toString());
+            }
+
+            @Override
+            public void error(CharSequence content) {
+                errors.add(content.toString());
             }
         });
         return mojo;
@@ -126,6 +132,43 @@ class GenerateMojoTest {
         mojo(base).execute();
         assertEquals("Translated 2 of 2 .axl file(s)", messages.getLast());
         assertTrue(Files.readString(b).contains("int v"));
+    }
+
+    @Test
+    void readsTheUnchangedFilesWhenTranslatingAChangedOne(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("Greeter.axl"), "package app\n\ninterface Greeter {\n    val name: String\n}\n");
+        Files.writeString(sources.resolve("Terse.axl"), "package app\n\nclass Terse : Greeter {\n    val name: String = \"terse\"\n}\n");
+        Path terse = base.resolve("target/generated-sources/axl/app/Terse.java");
+        mojo(base).execute();
+        assertTrue(Files.readString(terse).contains("public String name()"));
+
+        Files.writeString(sources.resolve("Terse.axl"), "package app\n\nclass Terse : Greeter {\n    val name: String = \"brief\"\n}\n");
+        mojo(base).execute();
+        assertEquals("Translated 2 of 2 .axl file(s)", messages.getLast());
+        assertTrue(Files.readString(terse).contains("public String name()"));
+    }
+
+    @Test
+    void retranslatesThePackageOfAChangedFile(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Path greeter = sources.resolve("Greeter.axl");
+        Files.writeString(greeter, "package app\n\ninterface Greeter {\n    val name: String\n}\n");
+        Files.writeString(sources.resolve("Terse.axl"), "package app\n\nclass Terse : Greeter {\n    val name: String = \"terse\"\n}\n");
+        Files.writeString(Files.createDirectories(base.resolve("src/main/axl/other")).resolve("Other.axl"),
+                "package other\n\nfn other() -> Int = 1\n");
+        mojo(base).execute();
+
+        Files.writeString(greeter, "package app\n\ninterface Greeter {\n    val name: String\n    fn greet() -> String\n}\n");
+        assertThrows(MojoFailureException.class, () -> mojo(base).execute());
+        assertEquals("Translated 2 of 3 .axl file(s)", messages.getLast());
+        assertEquals(List.of(sources.resolve("Terse.axl") + ":3:7: error: `Terse` does not give `fn greet() -> String`, "
+                + "which the interface `Greeter` requires; add the method"), errors);
+
+        // Without the interface, Terse is a class without supertypes to check; javac will miss it.
+        Files.delete(greeter);
+        mojo(base).execute();
+        assertEquals("Translated 1 of 2 .axl file(s)", messages.getLast());
     }
 
     @Test

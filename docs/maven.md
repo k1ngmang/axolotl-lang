@@ -23,8 +23,9 @@ Generation is incremental: a state file in `target/axl`, named after the output 
 directory (`generated-sources_axl-from-src_main_axl.state.json`,
 `generated-test-sources_axl-from-src_test_axl.state.json`), stores a SHA-256 of every
 `.axl` file and the files generated from it, and only changed files are translated again, together
-with files whose top-level values have inferred types, which may depend on the changed or removed
-ones. A change of the options, the plugin version, the classpath or the Java sources makes every file
+with the other files of their package, whose checks read their declarations, and files whose top-level
+values have inferred types, which may depend on the changed or removed ones; the unchanged files are
+read but not written. A change of the options, the plugin version, the classpath or the Java sources makes every file
 translated again; for a classpath directory, such as `target/classes` of another module in the
 reactor, every class file in it counts, while the module's own `target/classes` and
 `target/test-classes` do not. Outputs of removed files are deleted, all of them when the source

@@ -90,23 +90,35 @@ public abstract class GenerateAxlTask extends DefaultTask {
         }
         Map<String, List<Path>> outputsBySource = outputsBySource(out);
         Set<String> changed = new HashSet<>();
+        Set<String> changedPackages = new HashSet<>();
         boolean removed = false;
         for (FileChange change : changes.getFileChanges(getSources())) {
             if (change.getFileType() == FileType.DIRECTORY) {
                 continue;
             }
             String sourcePath = change.getNormalizedPath().replace('\\', '/');
-            deleteOutputs(outputsBySource.remove(sourcePath));
+            List<Path> outputs = outputsBySource.remove(sourcePath);
+            deleteOutputs(outputs);
             if (change.getChangeType() == ChangeType.REMOVED) {
                 removed = true;
+                if (outputs != null) {
+                    changedPackages.add(packageOf(out, outputs.getFirst()));
+                }
             } else {
                 changed.add(sourcePath);
             }
         }
         List<Translation.Input> sources = readSources();
-        Map<String, String> duplicates = duplicateClasses(sources);
+        Map<Translation.Input, SourceFile> parsed = parseAll(sources);
+        for (Translation.Input source : sources) {
+            if (changed.contains(source.sourcePath())) {
+                changedPackages.add(packageOf(parsed.get(source)));
+            }
+        }
+        Map<String, String> duplicates = duplicateClasses(sources, parsed);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         List<Translation.Input> inputs = new ArrayList<>();
+        List<Translation.Input> context = new ArrayList<>();
         boolean anyChange = removed || !changed.isEmpty();
         for (Translation.Input source : sources) {
             String sourcePath = source.sourcePath();
@@ -114,31 +126,55 @@ public abstract class GenerateAxlTask extends DefaultTask {
                 deleteOutputs(outputsBySource.remove(sourcePath));
                 diagnostics.add(AxlDiagnostic.error(source.displayPath(), 1, 1, ErrorCode.DUPLICATE_CLASS,
                         duplicates.get(sourcePath)));
-            } else if (needsTranslation(source, changed, outputsBySource, anyChange)) {
+            } else if (needsTranslation(sourcePath, parsed.get(source), changed, changedPackages, outputsBySource, anyChange)) {
                 deleteOutputs(outputsBySource.remove(sourcePath));
                 inputs.add(source);
+            } else {
+                context.add(source);
             }
         }
-        translate(inputs, out, diagnostics);
+        translate(inputs, context, out, diagnostics);
     }
 
     /**
-     * Besides changed files: files with inferred top-level types, which may depend on any change, and
+     * Besides changed files: files with inferred top-level types, which may depend on any change, the
+     * other files of the package of a changed or removed file, whose checks read its declarations, and
      * files without outputs, whose translation failed before or whose outputs a removed file that
      * declared the same class overwrote.
      */
-    private static boolean needsTranslation(Translation.Input source, Set<String> changed,
+    private static boolean needsTranslation(String sourcePath, SourceFile file, Set<String> changed, Set<String> changedPackages,
                                             Map<String, List<Path>> outputsBySource, boolean anyChange) {
-        String sourcePath = source.sourcePath();
         return changed.contains(sourcePath) || !outputsBySource.containsKey(sourcePath)
-                || anyChange && Translator.infersValueTypes(sourcePath, source.text());
+                || anyChange && Translator.infersValueTypes(file) || changedPackages.contains(packageOf(file));
     }
 
-    private void translate(List<Translation.Input> inputs, Path out, List<AxlDiagnostic> diagnostics) throws IOException {
+    private static Map<Translation.Input, SourceFile> parseAll(List<Translation.Input> sources) {
+        Map<Translation.Input, SourceFile> result = new HashMap<>();
+        for (Translation.Input source : sources) {
+            result.put(source, SourceParser.parse(source.sourcePath(), Translator.className(source.sourcePath()),
+                    source.text()).file());
+        }
+        return result;
+    }
+
+    private static String packageOf(SourceFile file) {
+        return file == null || file.packageName() == null ? "" : file.packageName();
+    }
+
+    /** The package of a removed file, from the directory of the Java it generated. */
+    private static String packageOf(Path out, Path output) {
+        Path directory = out.relativize(output).getParent();
+        return directory == null ? "" : directory.toString().replace('\\', '/').replace('/', '.');
+    }
+
+    /** The unchanged files are read for their declarations but not written. */
+    private void translate(List<Translation.Input> inputs, List<Translation.Input> context, Path out,
+                           List<AxlDiagnostic> diagnostics) throws IOException {
         Options options = new Options(getInlineElvis().get());
         List<Path> classpath = getClasspath().getFiles().stream().map(File::toPath).toList();
         List<Path> javaRoots = getJavaSourceDirs().getFiles().stream().map(File::toPath).toList();
-        for (Translator.Result result : Translation.run(inputs, options, classpath, javaRoots, out, getStrictNull().get())) {
+        for (Translator.Result result : Translation.run(inputs, context, options, classpath, javaRoots, out,
+                getStrictNull().get())) {
             diagnostics.addAll(result.diagnostics());
         }
         getLogger().info("Translated {} .axl file(s)", inputs.size());
@@ -179,14 +215,12 @@ public abstract class GenerateAxlTask extends DefaultTask {
      * Files that declare the same class, with the error for each. Two such files overwrite each
      * other's Java, and only all files together show it, not just the changed ones.
      */
-    private static Map<String, String> duplicateClasses(List<Translation.Input> sources) {
+    private static Map<String, String> duplicateClasses(List<Translation.Input> sources, Map<Translation.Input, SourceFile> parsed) {
         Map<String, List<Translation.Input>> byClass = new TreeMap<>();
         for (Translation.Input source : sources) {
-            SourceFile file = SourceParser.parse(source.sourcePath(), Translator.className(source.sourcePath()),
-                    source.text()).file();
+            SourceFile file = parsed.get(source);
             if (file != null) {
-                String name = file.packageName() == null || file.packageName().isEmpty()
-                        ? file.className() : file.packageName() + "." + file.className();
+                String name = packageOf(file).isEmpty() ? file.className() : packageOf(file) + "." + file.className();
                 byClass.computeIfAbsent(name, k -> new ArrayList<>()).add(source);
             }
         }

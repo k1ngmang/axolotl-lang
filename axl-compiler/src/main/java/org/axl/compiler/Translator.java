@@ -206,8 +206,7 @@ public final class Translator {
     }
 
     /** Whether a file has top-level values without a written type, whose type may depend on other code. */
-    public static boolean infersValueTypes(String sourcePath, String text) {
-        SourceFile file = SourceParser.parse(sourcePath, className(sourcePath), text).file();
+    public static boolean infersValueTypes(SourceFile file) {
         return file != null && file.decls().stream().anyMatch(d -> d instanceof Decl.Value value && value.type() == null);
     }
 

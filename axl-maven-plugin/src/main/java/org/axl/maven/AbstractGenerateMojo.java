@@ -8,10 +8,12 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -135,15 +137,16 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         next.environment = environment(classpath, javaRoots);
         boolean sameEnvironment = next.environment.equals(previous.environment);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
-        boolean removed = false;
+        Set<String> changedPackages = new HashSet<>();
         for (Map.Entry<String, GenerationState.Entry> old : previous.files.entrySet()) {
             if (!current.containsKey(old.getKey())) {
                 deleteOutputs(output, old.getValue());
-                removed = true;
+                changedPackages.add(packageOf(old.getValue()));
             }
         }
         Map<String, String> texts = readAll(current);
-        Map<String, String> duplicates = duplicateClasses(current, texts);
+        Map<String, SourceFile> parsed = parseAll(texts);
+        Map<String, String> duplicates = duplicateClasses(current, parsed);
         List<Translation.Input> inputs = new ArrayList<>();
         Map<String, String> hashes = new TreeMap<>();
         for (Map.Entry<String, Path> file : current.entrySet()) {
@@ -167,12 +170,17 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             }
             inputs.add(new Translation.Input(file.getKey(), file.getValue().toString(), text));
             hashes.put(file.getKey(), hash);
+            changedPackages.add(packageOf(parsed.get(file.getKey())));
         }
-        if (!inputs.isEmpty() || removed) {
-            addValueInferringFiles(current, texts, inputs, hashes, next, output);
+        if (!changedPackages.isEmpty()) {
+            addDependentFiles(current, texts, parsed, changedPackages, inputs, hashes, next, output);
         }
-        List<Translator.Result> results = Translation.run(inputs, new Options(inlineElvis), classpath, javaRoots, output,
-                strictNull);
+        List<Translation.Input> context = new ArrayList<>();
+        for (String sourcePath : next.files.keySet()) {
+            context.add(new Translation.Input(sourcePath, current.get(sourcePath).toString(), texts.get(sourcePath)));
+        }
+        List<Translator.Result> results = Translation.run(inputs, context, new Options(inlineElvis), classpath, javaRoots,
+                output, strictNull);
         for (int i = 0; i < results.size(); i++) {
             Translator.Result result = results.get(i);
             diagnostics.addAll(result.diagnostics());
@@ -213,30 +221,51 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         return texts;
     }
 
-    /** Files with inferred top-level types may depend on the files that changed or were removed, so they are redone too. */
-    private void addValueInferringFiles(Map<String, Path> current, Map<String, String> texts, List<Translation.Input> inputs,
-                                        Map<String, String> hashes, GenerationState next, Path output) throws IOException {
+    /**
+     * Files with inferred top-level types may depend on the files that changed or were removed, and
+     * the other files of such a file's package read its declarations, so they are redone too.
+     */
+    private void addDependentFiles(Map<String, Path> current, Map<String, String> texts, Map<String, SourceFile> parsed,
+                                   Set<String> changedPackages, List<Translation.Input> inputs, Map<String, String> hashes,
+                                   GenerationState next, Path output) throws IOException {
         for (String sourcePath : List.copyOf(next.files.keySet())) {
-            String text = texts.get(sourcePath);
-            if (Translator.infersValueTypes(sourcePath, text)) {
+            SourceFile file = parsed.get(sourcePath);
+            if (Translator.infersValueTypes(file) || changedPackages.contains(packageOf(file))) {
                 deleteOutputs(output, next.files.remove(sourcePath));
+                String text = texts.get(sourcePath);
                 inputs.add(new Translation.Input(sourcePath, current.get(sourcePath).toString(), text));
                 hashes.put(sourcePath, sha256(text));
             }
         }
     }
 
+    private static Map<String, SourceFile> parseAll(Map<String, String> texts) {
+        Map<String, SourceFile> result = new TreeMap<>();
+        texts.forEach((sourcePath, text) ->
+                result.put(sourcePath, SourceParser.parse(sourcePath, Translator.className(sourcePath), text).file()));
+        return result;
+    }
+
+    private static String packageOf(SourceFile file) {
+        return file == null || file.packageName() == null ? "" : file.packageName();
+    }
+
+    /** The package of a removed file, from the directory of the Java it generated. */
+    private static String packageOf(GenerationState.Entry entry) {
+        String java = entry.outputs.isEmpty() ? "" : entry.outputs.getFirst();
+        int slash = java.lastIndexOf('/');
+        return slash < 0 ? "" : java.substring(0, slash).replace('/', '.');
+    }
+
     /**
      * Files that declare the same class, with the error for each. Two such files overwrite each
      * other's Java, and only all files together show it, not just the changed ones.
      */
-    private static Map<String, String> duplicateClasses(Map<String, Path> current, Map<String, String> texts) {
+    private static Map<String, String> duplicateClasses(Map<String, Path> current, Map<String, SourceFile> parsed) {
         Map<String, List<String>> byClass = new TreeMap<>();
-        texts.forEach((sourcePath, text) -> {
-            SourceFile file = SourceParser.parse(sourcePath, Translator.className(sourcePath), text).file();
+        parsed.forEach((sourcePath, file) -> {
             if (file != null) {
-                String name = file.packageName() == null || file.packageName().isEmpty()
-                        ? file.className() : file.packageName() + "." + file.className();
+                String name = packageOf(file).isEmpty() ? file.className() : packageOf(file) + "." + file.className();
                 byClass.computeIfAbsent(name, k -> new ArrayList<>()).add(sourcePath);
             }
         });

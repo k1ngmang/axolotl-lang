@@ -18,14 +18,20 @@ import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.SourceParser;
 
 /**
- * Translates a set of .axl files and writes the Java to a directory. Top-level values whose type
- * depends on library code are first written as drafts typed `Object`; javac then reads their types
- * with the drafts of the other files on its source path.
+ * Translates a set of .axl files and writes the Java to a directory. The translator reads the
+ * declarations of the other files of the build as well: an interface a class implements, a data
+ * class a pattern takes apart. Top-level values whose type depends on library code are first written
+ * as drafts typed `Object`; javac then reads their types with the drafts of the other files on its
+ * source path.
  */
 public final class Translation {
 
     /** An .axl file: its path relative to its source root, how diagnostics name it, and its text. */
     public record Input(String sourcePath, String displayPath, String text) {}
+
+    private static SourceFile parse(Input input) {
+        return SourceParser.parse(input.displayPath(), Translator.className(input.sourcePath()), input.text()).file();
+    }
 
     /** The other files of the build that parsed, so that the translator reads their declarations. */
     private static Options withSiblings(Options options, List<SourceFile> parsed, int own) {
@@ -84,16 +90,28 @@ public final class Translation {
      */
     public static List<Translator.Result> run(List<Input> inputs, Options options, List<Path> classpath,
                                               List<Path> javaRoots, Path outputDir) throws IOException {
-        return run(inputs, options, classpath, javaRoots, outputDir, false);
+        return run(inputs, List.of(), options, classpath, javaRoots, outputDir, false);
     }
 
     /** strictNull: top-level values inferred from Java code without nullness annotations are nullable. */
     public static List<Translator.Result> run(List<Input> inputs, Options options, List<Path> classpath,
                                               List<Path> javaRoots, Path outputDir, boolean strictNull) throws IOException {
+        return run(inputs, List.of(), options, classpath, javaRoots, outputDir, strictNull);
+    }
+
+    /**
+     * @param context the other files of the build, read for their declarations but not translated,
+     *                such as the unchanged files of an incremental build
+     */
+    public static List<Translator.Result> run(List<Input> inputs, List<Input> context, Options options, List<Path> classpath,
+                                              List<Path> javaRoots, Path outputDir, boolean strictNull) throws IOException {
         List<Translator.Result> results = new ArrayList<>();
         List<SourceFile> parsed = new ArrayList<>();
         for (Input input : inputs) {
-            parsed.add(SourceParser.parse(input.displayPath(), Translator.className(input.sourcePath()), input.text()).file());
+            parsed.add(parse(input));
+        }
+        for (Input input : context) {
+            parsed.add(parse(input));
         }
         for (int i = 0; i < inputs.size(); i++) {
             Input input = inputs.get(i);

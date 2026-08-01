@@ -199,24 +199,49 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
-    void changingOneFileRegeneratesOnlyIt() throws IOException {
-        Files.writeString(project.resolve("core/src/main/axl/core/Extra.axl"), "package core\n\nfn extra() -> Int = 1\n");
+    void changingAFileRegeneratesOnlyItsPackage() throws IOException {
+        Path source = Files.createDirectories(project.resolve("core/src/main/axl/extra")).resolve("Extra.axl");
+        Files.writeString(source, "package extra\n\nfn extra() -> Int = 1\n");
         gradle(":core:generateAxl").build();
         Path titles = project.resolve("core/build/generated/axl/main/core/Titles.java");
-        Path extra = project.resolve("core/build/generated/axl/main/core/Extra.java");
+        Path extra = project.resolve("core/build/generated/axl/main/extra/Extra.java");
         long titlesModified = Files.getLastModifiedTime(titles).toMillis();
 
-        Files.writeString(project.resolve("core/src/main/axl/core/Extra.axl"), "package core\n\nfn extra() -> Int = 2\n");
+        Files.writeString(source, "package extra\n\nfn extra() -> Int = 2\n");
         BuildResult result = gradle(":core:generateAxl", "--info").build();
 
         assertTrue(result.getOutput().contains("Translated 1 .axl file(s)"), result.getOutput());
         assertEquals(titlesModified, Files.getLastModifiedTime(titles).toMillis());
         assertTrue(Files.readString(extra).contains("return 2;"));
 
-        Files.delete(project.resolve("core/src/main/axl/core/Extra.axl"));
+        Files.delete(source);
         gradle(":core:generateAxl").build();
         assertTrue(Files.notExists(extra));
         assertTrue(Files.exists(titles));
+    }
+
+    @Test
+    void changingAFileRetranslatesItsPackage() throws IOException {
+        Path core = project.resolve("core/src/main/axl/core");
+        Path greeter = core.resolve("Greeter.axl");
+        Path terse = core.resolve("Terse.axl");
+        Files.writeString(greeter, "package core\n\ninterface Greeter {\n    val name: String\n}\n");
+        Files.writeString(terse, "package core\n\nclass Terse : Greeter {\n    val name: String = \"terse\"\n}\n");
+        gradle(":core:compileJava").build();
+        Path generated = project.resolve("core/build/generated/axl/main/core/Terse.java");
+        assertTrue(Files.readString(generated).contains("public String name()"));
+
+        // The unchanged interface tells what the changed class gives.
+        Files.writeString(terse, "package core\n\nclass Terse : Greeter {\n    val name: String = \"brief\"\n}\n");
+        BuildResult result = gradle(":core:compileJava", "--info").build();
+        assertTrue(result.getOutput().contains("Translated 3 .axl file(s)"), result.getOutput());
+        assertTrue(Files.readString(generated).contains("public String name()"));
+
+        // The changed interface is checked against the unchanged class.
+        Files.writeString(greeter, "package core\n\ninterface Greeter {\n    val name: String\n    fn greet() -> String\n}\n");
+        BuildResult failed = gradle(":core:compileJava").buildAndFail();
+        assertTrue(failed.getOutput().contains(terse + ":3:7: error: `Terse` does not give `fn greet() -> String`"),
+                failed.getOutput());
     }
 
     @Test
