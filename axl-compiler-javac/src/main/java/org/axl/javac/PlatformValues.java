@@ -77,8 +77,14 @@ final class PlatformValues {
             "java.util.Scanner", "java.util.StringJoiner", "java.util.StringTokenizer", "java.util.BitSet", "java.util.HexFormat",
             "java.util.Currency", "java.util.Formatter", "java.util.ServiceLoader", "java.util.Base64", "java.util.Base64.Encoder",
             "java.util.Base64.Decoder", "java.util.concurrent.Executors", "java.util.concurrent.TimeUnit",
-            "java.util.concurrent.CompletableFuture", "java.util.regex.Pattern", "java.util.regex.Matcher",
-            "java.util.regex.MatchResult",
+            "java.util.concurrent.CompletableFuture", "java.util.concurrent.Executor", "java.util.concurrent.ExecutorService",
+            "java.util.concurrent.ScheduledExecutorService", "java.util.concurrent.AbstractExecutorService",
+            "java.util.concurrent.ThreadPoolExecutor", "java.util.concurrent.ScheduledThreadPoolExecutor",
+            "java.util.concurrent.ForkJoinPool", "java.util.concurrent.CountDownLatch", "java.util.concurrent.Semaphore",
+            "java.util.concurrent.locks.Lock", "java.util.concurrent.locks.ReadWriteLock", "java.util.concurrent.locks.ReentrantLock",
+            "java.util.concurrent.locks.ReentrantReadWriteLock", "java.util.concurrent.locks.ReentrantReadWriteLock.ReadLock",
+            "java.util.concurrent.locks.ReentrantReadWriteLock.WriteLock", "java.util.concurrent.locks.StampedLock",
+            "java.util.regex.Pattern", "java.util.regex.Matcher", "java.util.regex.MatchResult",
             "java.io.PrintStream", "java.io.PrintWriter", "java.io.StringWriter", "java.io.StringReader",
             "java.io.ByteArrayOutputStream", "java.io.ByteArrayInputStream", "java.io.InputStream", "java.io.OutputStream",
             "java.io.Reader", "java.io.Writer", "java.io.BufferedReader", "java.io.BufferedWriter", "java.io.InputStreamReader",
@@ -94,7 +100,7 @@ final class PlatformValues {
             "java.util.regex.Matcher.group", "java.util.regex.MatchResult.group", "java.io.BufferedReader.readLine",
             "java.io.File.getParent", "java.io.File.getParentFile", "java.io.File.list", "java.io.File.listFiles",
             "java.nio.file.Files.probeContentType", "java.nio.file.Files.getAttribute", "java.nio.file.Path.getFileName",
-            "java.nio.file.Path.getParent", "java.nio.file.Path.getRoot",
+            "java.nio.file.Path.getParent", "java.nio.file.Path.getRoot", "java.util.concurrent.ForkJoinPool.getUncaughtExceptionHandler",
             "java.time.format.DateTimeFormatter.getZone", "java.time.format.DateTimeFormatter.getResolverFields",
             "java.time.chrono.Chronology.getCalendarType", "java.time.zone.ZoneRules.getTransition",
             "java.time.zone.ZoneRules.nextTransition", "java.time.zone.ZoneRules.previousTransition");
@@ -130,8 +136,9 @@ final class PlatformValues {
 
     /**
      * JDK methods that never return null although nothing says so: string, number and time values,
-     * collection views and factories, files and reflection getters that the specification makes
-     * non-null. Without them strict mode would flag `s.trim().length()` and `for (e in m.entrySet())`.
+     * collection views and factories, files, executors and locks, and reflection getters that the
+     * specification makes non-null. Without them strict mode would flag `s.trim().length()`,
+     * `for (e in m.entrySet())` and `pool.submit({ -> ... })`.
      * Methods that return null for a missing value stay untrusted: `Map.get`, `Queue.poll`,
      * `System.getProperty`, `Class.getAnnotation`, `BufferedReader.readLine`, `Matcher.group`...
      */

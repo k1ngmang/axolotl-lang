@@ -206,6 +206,7 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - The first warning of each Error Prone check in a build names the check and the `@SuppressWarnings` that turns it off.
   - `c.by()` on `class Inc(val by: Int)` says that `by` is a property, read as `c.by`; `r.value()` on a `Result` that no test narrowed says to test it with `is Ok` first or to write `try r`.
   - An unknown type used several times in a file is reported once, at its first use, with the number of the other uses.
+  - Strict null mode trusts `ExecutorService.submit`, the `schedule` methods of `ScheduledExecutorService`, `ForkJoinPool` and the locks of `java.util.concurrent`.
 - Eighth audit:
   - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.
   - `attempt` around a call that returns nothing, also with `else e -> throw`, says that it is a statement, and the exception inside the call is not reported a second time.
