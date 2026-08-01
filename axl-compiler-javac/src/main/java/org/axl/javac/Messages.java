@@ -98,8 +98,9 @@ final class Messages {
     private static final Pattern STATIC_TYPE_VARIABLE = Pattern.compile("^non-static type variable (\\w+) cannot be referenced from a static context$");
     private static final Pattern FOR_EACH = Pattern.compile("^for-each not applicable to expression type; required: array or java\\.lang\\.Iterable; found: (.+)$");
     private static final Pattern UNARY = Pattern.compile("^bad operand type (.+) for unary operator '(.+)'$");
+    // javac qualifies the class of a file, `app.Worker`, and names a nested one plainly.
     private static final Pattern MISSING_METHOD = Pattern.compile(
-            "^(\\w+) is not abstract and does not override abstract method (\\w+)\\((.*)\\) in ([\\w.$]+)$");
+            "^([\\w.$]+) is not abstract and does not override abstract method (\\w+)\\((.*)\\) in ([\\w.$]+)$");
     private static final Pattern RESULT_CLASH = Pattern.compile("^(\\w+)\\((.*)\\) in (\\w+) cannot (?:implement|override) "
             + "\\1\\(.*\\) in ([\\w.$]+); return type (\\S+) is not compatible with (\\S+)$");
     // The declaration of a method of a class, as generated: `public int next() {`.
@@ -1241,17 +1242,19 @@ final class Messages {
         }
         Matcher missingMethod = MISSING_METHOD.matcher(message);
         if (missingMethod.find()) {
-            String boxed = genericInterfaceMethod(javaLines, missingMethod.group(1), missingMethod.group(2),
-                    splitTopLevel(missingMethod.group(3)), missingMethod.group(4), false);
+            String type = simpleNames(missingMethod.group(1));
+            String method = missingMethod.group(2);
+            String boxed = genericInterfaceMethod(javaLines, type, method, splitTopLevel(missingMethod.group(3)),
+                    missingMethod.group(4), false);
             if (boxed != null) {
                 return boxed;
             }
             String parameters = missingMethod.group(3).isEmpty() ? "" : "...";
-            String required = "`" + missingMethod.group(1) + "` must give `fn " + missingMethod.group(2) + "(" + parameters
-                    + ")`, which `" + simpleNames(axlType(missingMethod.group(4))) + "` requires";
-            String property = parameters.isEmpty() ? propertyType(javaLines, missingMethod.group(1), missingMethod.group(2)) : null;
+            String required = "`" + type + "` must give `fn " + method + "(" + parameters + ")`, which `"
+                    + simpleNames(axlType(missingMethod.group(4))) + "` requires";
+            String property = parameters.isEmpty() ? propertyType(javaLines, type, method) : null;
             return property == null ? required : required + "; a property gives a value only to an interface of the same "
-                    + "file, so add `fn " + missingMethod.group(2) + "() -> " + property + " = " + missingMethod.group(2) + "`";
+                    + "package, so add `fn " + method + "() -> " + property + " = " + method + "`";
         }
         Matcher abstractType = ABSTRACT.matcher(message);
         if (abstractType.find()) {
