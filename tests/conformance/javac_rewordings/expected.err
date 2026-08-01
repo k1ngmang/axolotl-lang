@@ -6,6 +6,9 @@ AXL100 app/ExtendsClass.axl:5:33: error: `Animal` is written in Axolotl and cann
 AXL100 app/ForOverNumber.axl:4:15: error: `for` needs a list or another collection, found `Int`
 AXL100 app/ForOverNumber.axl:7:15: error: `for` needs a list or another collection, found `String`; for the characters of a string, use `s.toCharArray()`
 AXL100 app/ImpossibleIs.axl:4:5: error: a value of type `String` can never be `Int`; remove the `is` test
+AXL100 app/InterfaceWithLambda.axl:7:13: error: `Runnable` is an interface and cannot be created; pass the lambda where a `Runnable` is expected, such as `Thread({ -> ... })`, or keep it in a value: `val r: Runnable = { -> ... }`
+AXL100 app/InterfaceWithLambda.axl:8:13: error: `Comparator` is an interface and cannot be created; pass the lambda where a `Comparator<String>` is expected, or keep it in a value: `val c: Comparator<String> = { a, b -> ... }`
+AXL100 app/InterfaceWithLambda.axl:9:13: error: `Supplier` is an interface and cannot be created; pass the lambda where a `Supplier<String>` is expected, or keep it in a value: `val s: Supplier<String> = { -> ... }`
 AXL100 app/ListNarrowing.axl:12:56: error: type mismatch: expected `List<Created>`, found `List<Event>`
 AXL100 app/MissingMethod.axl:5:7: error: `Task` must give `fn run()`, which `Runnable` requires
 AXL100 app/MixedList.axl:7:21: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type

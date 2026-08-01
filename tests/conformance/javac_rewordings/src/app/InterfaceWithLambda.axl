@@ -1,0 +1,12 @@
+package app
+
+import java.util.Comparator
+import java.util.function.Supplier
+
+fn main() {
+    val r = Runnable({ -> println("r") })
+    val c = Comparator<String>({ a, b -> a.compareTo(b) })
+    val s = Supplier<String>({ -> "x" })
+    r.run()
+    println(c.compare("a", "b") + s.get().length())
+}

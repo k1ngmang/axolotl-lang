@@ -316,10 +316,21 @@ final class NullChecker implements TaskListener {
             return;
         }
         TreePath path = trees.getPath(event.getTypeElement());
-        if (path != null) {
-            Scanner scanner = new Scanner(event.getCompilationUnit());
+        if (path == null) {
+            return;
+        }
+        Scanner scanner = new Scanner(event.getCompilationUnit());
+        try {
             scanner.findReassigned(path.getLeaf());
             scanner.scan(path, null);
+        } catch (RuntimeException e) {
+            // Thrown on, it would end the compilation with a stack trace. Code that javac has already
+            // reported is the usual cause, and then its errors say what to fix.
+            if (nullAway == null || !nullAway.sawErrors()) {
+                trees.printMessage(Diagnostic.Kind.ERROR, "the null checks of this file could not finish (" + e
+                        + "); if the file has no other error, this is a bug of the compiler: please report it with the code",
+                        path.getLeaf(), event.getCompilationUnit());
+            }
         }
     }
 
@@ -1420,7 +1431,8 @@ final class NullChecker implements TaskListener {
         /** `Math.abs(x)` unboxes `x`. */
         private void checkPrimitiveArguments(ExecutableElement method, List<? extends ExpressionTree> args) {
             for (int i = 0; i < args.size() && !method.getParameters().isEmpty(); i++) {
-                if (parameterType(method, i, args.size()).getKind().isPrimitive()) {
+                TypeMirror param = parameterType(method, i, args.size());
+                if (param != null && param.getKind().isPrimitive()) {
                     checkUnboxing(args.get(i), true);
                 }
             }
@@ -1444,14 +1456,17 @@ final class NullChecker implements TaskListener {
             Map<Element, Shape> fromArguments = new HashMap<>();
             for (int i = 0; i < args.size(); i++) {
                 TypeMirror param = elementParameterType(method, i, args);
-                if (!(param instanceof TypeVariable)) {
+                if (param != null && !(param instanceof TypeVariable)) {
                     bindWritten(param, shape(args.get(i)), typeOf(args.get(i)), fromArguments);
                 }
             }
             method.getTypeParameters().forEach(v -> written.put(v, fromArguments.getOrDefault(v, Shape.ANY)));
             String takes = "`" + calledName(method) + "` takes";
             for (int i = 0; i < args.size(); i++) {
-                checkTypeArgumentValue(args.get(i), elementParameterType(method, i, args), written, type, owner, takes);
+                TypeMirror param = elementParameterType(method, i, args);
+                if (param != null) {
+                    checkTypeArgumentValue(args.get(i), param, written, type, owner, takes);
+                }
             }
         }
 
@@ -2426,9 +2441,16 @@ final class NullChecker implements TaskListener {
         return name.equals("equals") && params == 1 || (name.equals("hashCode") || name.equals("toString")) && params == 0;
     }
 
-    /** The type of the parameter an argument goes to; the extra arguments of varargs go to its elements. */
+    /**
+     * The type of the parameter an argument goes to; the extra arguments of varargs go to its elements.
+     * Null when the method has no parameter for the argument: javac resolves a call it has already
+     * reported, such as `Runnable({ -> ... })`, to a constructor without parameters.
+     */
     private static TypeMirror parameterType(ExecutableElement method, int index, int argCount) {
         List<? extends VariableElement> params = method.getParameters();
+        if (params.isEmpty() || index >= params.size() && !method.isVarArgs()) {
+            return null;
+        }
         TypeMirror type = params.get(Math.min(index, params.size() - 1)).asType();
         if (method.isVarArgs() && index >= params.size() - 1 && argCount != params.size() && type instanceof ArrayType array) {
             return array.getComponentType();

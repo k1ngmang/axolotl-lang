@@ -133,6 +133,8 @@ final class Messages {
             + "`sorted { a, b -> a.compareTo(b) }`";
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
     private static final Pattern NEW_TYPE = Pattern.compile("\\bnew ([\\w.]+)(<[^(]*>)?\\(");
+    private static final Pattern VALUE_NAME = Pattern.compile("\\bvar (\\w+) = new ");
+    private static final Pattern LAMBDA_ARGUMENT = Pattern.compile("^(?:\\(([\\w\\s,]*)\\)|(\\w+)) ->");
 
     private static final Pattern MUST_GIVE = Pattern.compile("^`(\\w+)` must give `fn ");
     private static final Pattern NO_PACKAGE = Pattern.compile("^package ([\\w.]+) does not exist$");
@@ -1192,6 +1194,16 @@ final class Messages {
         String simple = name.substring(name.lastIndexOf('.') + 1);
         Matcher created = NEW_TYPE.matcher(text);
         String typeArguments = created.find() && created.group(2) != null ? axlType(created.group(2)) : "";
+        Matcher lambda = LAMBDA_ARGUMENT.matcher(text.substring(created.find(0) ? created.end() : text.length()));
+        if (lambda.find() && isInterface(javaName, simple, javaLines)) {
+            // `Runnable({ -> ... })`: the lambda is the implementation, which only a value of the type takes.
+            Matcher value = VALUE_NAME.matcher(text);
+            String parameters = lambda.group(1) != null ? lambda.group(1).strip() : lambda.group(2);
+            return "`" + name + "` is an interface and cannot be created; pass the lambda where a `" + name + typeArguments
+                    + "` is expected" + (simple.equals("Runnable") ? ", such as `Thread({ -> ... })`" : "") + ", or keep it in a value: `val "
+                    + (value.find() ? value.group(1) : "v") + ": " + name + typeArguments + " = { " + (parameters.isEmpty() ? "" : parameters + " ")
+                    + "-> ... }`";
+        }
         String implementation = switch (simple) {
             case "List", "Collection", "Iterable" -> "ArrayList";
             case "Map" -> "HashMap";

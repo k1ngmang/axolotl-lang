@@ -197,6 +197,7 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - A class implementing an interface of another file of the build gets the accessors of the interface's values.
   - No warning about `Integer` in the methods of a class that implements a Java interface such as `Supplier<Int>`, where Java needs the box, and a method named like a Java keyword gets the same error as a function.
   - `is Ok` and `is Err` inside an `if` body no longer crash Error Prone: its AlreadyChecked check, which cannot read the pattern variables, is off, and the Gradle and Maven builds run the same checks as `axl build`.
+  - `Runnable({ -> ... })` and `Supplier<String>({ -> "x" })` no longer crash the null checker; the error says to pass the lambda where the interface is expected or to keep it in a value of that type, and a crash of the checker is reported as an internal error of the file, not as a stack trace.
 - Eighth audit:
   - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.
   - `attempt` around a call that returns nothing, also with `else e -> throw`, says that it is a statement, and the exception inside the call is not reported a second time.

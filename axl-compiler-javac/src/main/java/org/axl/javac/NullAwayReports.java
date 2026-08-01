@@ -48,6 +48,7 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
     private final Trees trees;
     private final List<Reported> reported = new ArrayList<>();
     private final Map<URI, CompilationUnitTree> units = new HashMap<>();
+    private boolean errors;
 
     NullAwayReports(BasicJavacTask task) {
         this.trees = Trees.instance(task);
@@ -65,6 +66,7 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
     @Override
     public void report(JCDiagnostic diagnostic) {
         String message = diagnostic.getMessage(Locale.ROOT);
+        errors |= diagnostic.getType() == DiagnosticType.ERROR;
         if (diagnostic.getType() == DiagnosticType.ERROR && diagnostic.getSource() != null && message.startsWith("[NullAway]")) {
             long start = diagnostic.getStartPosition() < 0 ? diagnostic.getPosition() : diagnostic.getStartPosition();
             URI file = diagnostic.getSource().toUri();
@@ -78,6 +80,11 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
             reported.add(new Reported(file, start));
         }
         prev.report(diagnostic);
+    }
+
+    /** Whether javac or a check reported an error so far. */
+    boolean sawErrors() {
+        return errors;
     }
 
     /** Error Prone gives its errors no end position. */
