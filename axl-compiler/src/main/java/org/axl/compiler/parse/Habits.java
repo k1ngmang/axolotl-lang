@@ -304,10 +304,12 @@ final class Habits {
     /** A cast to a number type, `(Int) x` or `x as Int`, which converts: how Axolotl converts numbers, or null. */
     static String numberConversion(String type) {
         return switch (type) {
-            case "Int", "Integer", "int" -> "Axolotl has no casts; a `Double` becomes an `Int` with `Math.toIntExact(Math.round(x))`, "
-                    + "a `Long` with `Math.toIntExact(x)`";
+            case "Int", "Integer", "int" -> "Axolotl has no casts; a `Double` becomes an `Int` with `Double.valueOf(x).intValue()`, "
+                    + "which drops the fraction as a cast does, or `Math.toIntExact(Math.round(x))`, which rounds; a `Long` with "
+                    + "`Math.toIntExact(x)`";
             case "Long", "long" -> "Axolotl has no casts; an `Int` fits a `Long` as it is, as in `val l: Long = n`, and a `Double` "
-                    + "becomes one with `Math.round(x)`";
+                    + "becomes one with `Double.valueOf(x).longValue()`, which drops the fraction as a cast does, or `Math.round(x)`, "
+                    + "which rounds";
             case "Double", "double", "Float", "float" -> "Axolotl has no casts; an `Int` becomes a `Double` in arithmetic with a "
                     + "`Double`, as in `1.0 * n`, or with `Double.valueOf(n)`";
             default -> null;

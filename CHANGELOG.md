@@ -201,6 +201,7 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - A method with `Int` in a class that implements a Java generic interface with `Integer` there, such as `fn get() -> Int` for `Supplier<Int>`, gets the signature to write in place of javac's "does not override abstract method" and "return type int is not compatible with java.lang.Integer".
   - `fn main(args: Array<String>)` and `fn main(args: String[])` say that `fn main()` already has `args`, read as `List.of(args)`; `abstract class` says that an interface takes the role of an abstract class.
   - System.`in` says that backticks do not quote names, `import java.util.List as JList` that imports have no alias, `o is List<*>` that a type test names the class only, `synchronized`, `volatile` and `outer:` what to use instead, `x.split(":")[0]` gives `List.of(x.split(":")).get(0)`, `Function.identity<String>()` says to give the type to the value, and `import jobs.Job.Job` that `jobs.Job` is the type of the file.
+  - `x.toInt()`, `(Int) x` and a `Double` stored in an `Int` offer `Double.valueOf(x).intValue()`, which drops the fraction, next to `Math.toIntExact(Math.round(x))`, which rounds; `3.7.toInt()` shows the whole literal.
 - Eighth audit:
   - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.
   - `attempt` around a call that returns nothing, also with `else e -> throw`, says that it is a statement, and the exception inside the call is not reported a second time.

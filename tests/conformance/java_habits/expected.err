@@ -21,7 +21,7 @@ AXL001 app/MainStringArray.axl:3:21: error: Axolotl has no arrays, and `fn main(
 AXL001 app/MissingArrow.axl:6:11: error: missing `->` before `println`
 AXL001 app/New.axl:4:14: error: Axolotl creates objects without `new`: `StringBuilder(...)`
 AXL001 app/NewArray.axl:4:20: error: Axolotl has no arrays; use a list, such as `List<Int>` or `ArrayList<Int>()`
-AXL001 app/NumberCast.axl:4:13: error: Axolotl has no casts; a `Double` becomes an `Int` with `Math.toIntExact(Math.round(x))`, a `Long` with `Math.toIntExact(x)`
+AXL001 app/NumberCast.axl:4:13: error: Axolotl has no casts; a `Double` becomes an `Int` with `Double.valueOf(x).intValue()`, which drops the fraction as a cast does, or `Math.toIntExact(Math.round(x))`, which rounds; a `Long` with `Math.toIntExact(x)`
 AXL001 app/ParenCast.axl:5:13: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
 AXL001 app/PublicStatic.axl:3:1: error: declarations are public by default; remove `public`
 AXL001 app/RawString.axl:4:15: error: Axolotl has no raw strings or text blocks (`"""`); write one string with `\n`, or join the lines with `+`

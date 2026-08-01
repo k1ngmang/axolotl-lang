@@ -64,7 +64,8 @@ final class Messages {
     private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
     private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
-    private static final Pattern KOTLIN_CONVERSION = Pattern.compile("\\b(\\w+)\\.(toDouble|toInt|toLong)\\(\\)");
+    // The value may be a literal with a fraction: `3.7.toInt()`.
+    private static final Pattern KOTLIN_CONVERSION = Pattern.compile("\\b(\\d+\\.\\d+|\\w+)\\.(toDouble|toInt|toLong)\\(\\)");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
@@ -310,9 +311,11 @@ final class Messages {
             String value = conversion.group(1);
             return switch (conversion.group(2) + " of " + javaType) {
                 case "toDouble of int", "toDouble of long" -> "; for a `Double`, write `1.0 * " + value + "` or `Double.valueOf(" + value + ")`";
-                case "toInt of double" -> "; for an `Int`, write `Math.toIntExact(Math.round(" + value + "))`";
+                case "toInt of double" -> "; for an `Int`, write `Double.valueOf(" + value + ").intValue()`, which drops the fraction, "
+                        + "or `Math.toIntExact(Math.round(" + value + "))`, which rounds";
                 case "toInt of long" -> "; for an `Int`, write `Math.toIntExact(" + value + ")`";
-                case "toLong of double" -> "; for a `Long`, write `Math.round(" + value + ")`";
+                case "toLong of double" -> "; for a `Long`, write `Double.valueOf(" + value + ").longValue()`, which drops the fraction, "
+                        + "or `Math.round(" + value + ")`, which rounds";
                 case "toLong of int" -> "; an `Int` fits a `Long` as it is: `val l: Long = " + value + "`";
                 default -> "";
             };
@@ -1610,13 +1613,12 @@ final class Messages {
     /** Axolotl has no casts, so name a method that converts. */
     private static String lossyConversion(String from, String to) {
         String conversion = switch (from + " " + to) {
-            case "long int" -> "`Math.toIntExact(x)`";
-            case "double long" -> "`Math.round(x)`";
-            case "double int" -> "`Math.toIntExact(Math.round(x))`";
-            default -> null;
+            case "long int" -> ", for example with `Math.toIntExact(x)`";
+            case "double long" -> ": `Double.valueOf(x).longValue()` drops the fraction, `Math.round(x)` rounds";
+            case "double int" -> ": `Double.valueOf(x).intValue()` drops the fraction, `Math.toIntExact(Math.round(x))` rounds";
+            default -> "";
         };
-        return "`" + axlType(from) + "` does not always fit in `" + axlType(to) + "`; convert it explicitly"
-                + (conversion == null ? "" : ", for example with " + conversion);
+        return "`" + axlType(from) + "` does not always fit in `" + axlType(to) + "`; convert it explicitly" + conversion;
     }
 
     /**

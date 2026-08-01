@@ -6,4 +6,5 @@ fn main() {
     val x = 3.7
     val i = x.toInt()
     println(d + i)
+    println(3.7.toInt())
 }

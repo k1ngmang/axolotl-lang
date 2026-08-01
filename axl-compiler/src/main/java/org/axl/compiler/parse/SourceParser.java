@@ -272,7 +272,7 @@ public final class SourceParser {
         Token beforeClose = last.getType() == AxolotlLexer.RPAREN ? previousToken(tokens, last) : null;
         if (beforeClose != null && beforeClose.getType() == AxolotlLexer.IDENTIFIER
                 && previousToken(tokens, beforeClose).getType() == AxolotlLexer.LPAREN
-                && Character.isUpperCase(beforeClose.getText().charAt(0))) {
+                && (Character.isUpperCase(beforeClose.getText().charAt(0)) || JAVA_TYPES.containsKey(beforeClose.getText()))) {
             String conversion = Habits.numberConversion(beforeClose.getText());
             return error(path, previousToken(tokens, beforeClose), conversion != null ? conversion
                     : "Axolotl has no casts; test the type with `is`: `if (x is " + beforeClose.getText() + ") { ... }`");
