@@ -27,7 +27,6 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Sealed.java", inClass("public static int f(int sealed) { return sealed; }"));
         assertRefused("Switch.java", inClass("public static int f(int n) { switch (n) { case 1: return 2; "
                 + "default: return 3; } }"));
-        assertRefused("Generic.java", inClass("public static <T> T id(T x) { return x; }"));
         assertRefused("Init.java", inClass("static { System.out.println(\"loaded\"); }"));
         assertRefused("Ctor.java", inClass("private Ctor() { System.out.println(\"x\"); }"));
         assertRefused("Prim.java", inClass("public static Class<?> f() { return int.class; }"));
@@ -301,7 +300,6 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Default.java", "package util;\npublic interface Default {\n    default int one() { return 1; }\n}\n");
         assertRefused("Static.java", "package util;\npublic interface Static {\n    static int one() { return 1; }\n}\n");
         assertRefused("Private.java", "package util;\npublic interface Private {\n    int f();\n    private int one() { return 1; }\n}\n");
-        assertRefused("Generic.java", "package util;\npublic interface Generic {\n    <T> T id(T x);\n}\n");
         assertRefused("Checked.java", "package util;\npublic interface Checked {\n    void close() throws java.io.IOException;\n}\n");
         assertRefused("Constant.java", "package util;\npublic interface Constant {\n    int LIMIT = 3;\n    int f();\n}\n");
         assertRefused("Nested.java", "package util;\npublic interface Nested {\n    class Inner {}\n}\n");
@@ -446,6 +444,69 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
                 + "    @java.lang.annotation.Documented public static int f() { return 1; }\n}\n");
         assertTrue(imported, imported.startsWith("package util\nimport java.lang.annotation.Documented\n"));
         assertTrue(imported, imported.contains("\n@Documented\nfn f() -> Int {\n"));
+    }
+
+    public void testConvertsTypeParametersOfTypesAndMethods() {
+        String axl = convert("Generics.java", """
+                package util;
+
+                import java.util.List;
+
+                public final class Generics {
+                    private Generics() {}
+
+                    public record Pair<A, B>(A first, B second) {}
+
+                    public interface Repository<K, V> {
+                        V find(K key);
+                        void save(K key, V value);
+                        <R> List<R> all(R marker);
+                    }
+
+                    public static final class Box<T extends Comparable<T>> {
+                        public final T value;
+
+                        public Box(T value) {
+                            this.value = value;
+                        }
+
+                        public boolean bigger(T other) {
+                            return value.compareTo(other) > 0;
+                        }
+                    }
+
+                    public static <T> T id(T x) {
+                        return x;
+                    }
+
+                    public static <A, B> Pair<B, A> swap(Pair<A, B> p) {
+                        return new Pair<>(p.second(), p.first());
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("\ndata class Pair<A, B>(val first: A, val second: B)\n"));
+        assertTrue(axl, axl.contains("\ninterface Repository<K, V> {\n    fn find(key: K) -> V\n    fn save(key: K, value: V)\n"
+                + "    fn all<R>(marker: R) -> List<R>\n}\n"));
+        assertTrue(axl, axl.contains("\nclass Box<T : Comparable<T>>(val value: T) {\n"));
+        assertTrue(axl, axl.contains("    fn bigger(other: T) -> Boolean {\n        return value.compareTo(other) > 0\n    }\n"));
+        assertTrue(axl, axl.contains("\nfn id<T>(x: T) -> T {\n    return x\n}\n"));
+        assertTrue(axl, axl.contains("\nfn swap<A, B>(p: Pair<A, B>) -> Pair<B, A> {\n    return Pair<>(p.second(), p.first())\n}\n"));
+        assertFalse(axl, axl.contains("import util"));
+        assertEquals("package util\n\ndata class Box<T>(val value: T)\n", convert("Box.java", "package util;\npublic record Box<T>(T value) {}\n"));
+        assertTrue(convert("Plain.java", inClass("public static <T extends Object> T id(T x) { return x; }")).contains("fn id<T : Object>(x: T) -> T {"));
+        myFixture.addFileToProject("org/jspecify/annotations/Nullable.java",
+                "package org.jspecify.annotations;\n@java.lang.annotation.Target(java.lang.annotation.ElementType.TYPE_USE)\n"
+                        + "public @interface Nullable {}\n");
+        String any = convert("Any.java", "package util;\nimport org.jspecify.annotations.Nullable;\npublic final class Any {\n"
+                + "    public static <T extends @Nullable Object> T id(T x) { return x; }\n}\n");
+        assertTrue(any, any.contains("fn id<T>(x: T) -> T {"));
+    }
+
+    public void testRefusesTypeParametersWithoutAOneToOneForm() {
+        assertRefused("Bounds.java", inClass("public static <T extends Number & Comparable<T>> T max(T a) { return a; }"));
+        assertRefused("Super.java", inClass("public static <T extends Comparable<? super T>> T max(T a) { return a; }"));
+        assertRefused("Star.java", inClass("public static <T extends java.util.List<?>> int size(T xs) { return xs.size(); }"));
+        assertRefused("Holder.java", "package util;\npublic final class Holder<T> {\n    public static int one() { return 1; }\n}\n");
     }
 
     public void testRefusesTypesAndPatternsWithoutAOneToOneForm() {
