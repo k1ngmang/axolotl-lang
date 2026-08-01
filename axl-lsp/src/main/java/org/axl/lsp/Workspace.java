@@ -37,6 +37,7 @@ import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
 import org.axl.compiler.ast.Pos;
+import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.Translation;
@@ -220,7 +221,7 @@ final class Workspace {
         String newest = texts.getLast();
         if (!parses(uri, newest)) {
             texts.reversed().stream().skip(1).filter(text -> parses(uri, text)).findFirst()
-                    .ifPresent(text -> rememberParsed(new Document(uri, text, project, this::draftsOf)));
+                    .ifPresent(text -> rememberParsed(new Document(uri, text, project, this::draftsOf, this::siblingsOf)));
         }
         update(uri, newest);
     }
@@ -231,7 +232,7 @@ final class Workspace {
     }
 
     void update(String uri, String text) {
-        Document document = new Document(uri, text, project, this::draftsOf);
+        Document document = new Document(uri, text, project, this::draftsOf, this::siblingsOf);
         open.put(uri, document);
         rememberParsed(document);
         publish(document);
@@ -724,6 +725,47 @@ final class Workspace {
         return token;
     }
 
+    /** A parsed file and the text it was parsed from. */
+    private record Parsed(String text, SourceFile file) {}
+
+    private final Map<Path, Parsed> parsedFiles = new HashMap<>();
+
+    /**
+     * The other .axl files of the module, parsed: open ones from the editor's text, the rest from disk,
+     * parsed again only when their text changed. The translator reads their declarations, as the build does.
+     */
+    private List<SourceFile> siblingsOf(Module module, Path own) {
+        List<SourceFile> result = new ArrayList<>();
+        try {
+            for (Path root : module.axlRoots()) {
+                for (Path file : filesOf(module, root)) {
+                    if (file.equals(own)) {
+                        continue;
+                    }
+                    Document openDocument = findOpen(file);
+                    SourceFile parsed = openDocument != null ? openDocument.ast : parsedFile(file);
+                    if (parsed != null) {
+                        result.add(parsed);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            return result;
+        }
+        return result;
+    }
+
+    private SourceFile parsedFile(Path file) throws IOException {
+        String text = Files.readString(file, StandardCharsets.UTF_8);
+        Parsed cached = parsedFiles.get(file);
+        if (cached == null || !cached.text().equals(text)) {
+            String className = Translator.className(file.getFileName().toString());
+            cached = new Parsed(text, SourceParser.parse(file.toUri().toString(), className, text).file());
+            parsedFiles.put(file, cached);
+        }
+        return cached.file();
+    }
+
     private Document findOpen(Path file) {
         return open.values().stream().filter(d -> d.path.equals(file)).findFirst().orElse(null);
     }
@@ -771,7 +813,7 @@ final class Workspace {
         String text = Files.readString(file, StandardCharsets.UTF_8);
         Document cached = closedDocuments.get(file);
         if (cached == null || !cached.text.equals(text)) {
-            cached = new Document(file.toUri().toString(), text, project, this::draftsOf);
+            cached = new Document(file.toUri().toString(), text, project, this::draftsOf, this::siblingsOf);
             closedDocuments.put(file, cached);
         }
         return cached;

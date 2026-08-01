@@ -359,6 +359,39 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsTheDeclarationsOfTheOtherFilesOfTheModule() throws Exception {
+        Files.writeString(project.resolve("src/main/axl/app/Options.axl"), """
+                package app
+
+                sealed interface Option<T> {
+                    val present: Boolean
+                }
+
+                data class Some<T>(val present: Boolean, val value: T) : Option<T>
+                data class None<T>(val present: Boolean) : Option<T>
+
+                fn parse(s: String) -> Option<Int> = if (s.isEmpty()) None<Int>(false) else Some<Int>(true, s.length())
+                """);
+        workspace.open(List.of(project));
+        // The type of `parsed` and the fields of `Some` are in the other file: without them `value()` would be an Object.
+        String uri = open("Main.axl", """
+                package app
+
+                import app.Options.Some
+
+                fn show(s: String) -> Int {
+                    val parsed = Options.parse(s)
+                    if (parsed is Some) {
+                        return parsed.value() + 1
+                    }
+                    return 0
+                }
+                """);
+        workspace.saved(uri);
+        assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
     void compilesTheTestsAgainWhenAMainFileIsSaved() throws Exception {
         Path test = Files.createDirectories(project.resolve("src/test/axl/app")).resolve("UtilTest.axl");
         String text = "package app\n\nfn check() -> Int = Util.twice(2)\n";

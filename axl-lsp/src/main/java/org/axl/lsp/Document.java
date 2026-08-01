@@ -41,8 +41,17 @@ final class Document {
     private final Options options;
     private GeneratedUnit partial;
 
+    /** The parsed other .axl files of a module, which the translator reads declarations from. */
+    interface Siblings {
+        List<SourceFile> of(Module module, Path own);
+    }
+
     /** drafts: the directory with the Java of the other .axl files of a module. */
     Document(String uri, String text, ProjectModel project, Function<Module, Path> drafts) {
+        this(uri, text, project, drafts, (module, own) -> List.of());
+    }
+
+    Document(String uri, String text, ProjectModel project, Function<Module, Path> drafts, Siblings siblings) {
         this.uri = uri;
         this.path = Path.of(URI.create(uri));
         this.text = text;
@@ -58,7 +67,7 @@ final class Document {
         this.module = project.moduleOf(path, packageName);
         Path root = module.axlRootOf(path);
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
-        this.options = options(module, drafts.apply(module));
+        this.options = options(module, drafts.apply(module)).withSiblings(siblings.of(module, path));
         this.translation = Translator.translate(sourcePath, uri, text, options);
     }
 
