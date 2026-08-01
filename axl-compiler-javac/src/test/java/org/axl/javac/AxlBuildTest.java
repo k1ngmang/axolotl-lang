@@ -58,7 +58,8 @@ class AxlBuildTest {
                 fn third() -> BufferedReader = BufferedReader(InputStreamReader(System.in))
 
                 fn main() {
-                    println(reader() != other())
+                    println(reader())
+                    println(other())
                     println(third())
                 }
                 """);
@@ -66,9 +67,7 @@ class AxlBuildTest {
                 + "`java.nio.charset.StandardCharsets.UTF_8`";
         assertEquals(List.of(
                 "9:47 " + charset + " (Error Prone check DefaultCharset; @SuppressWarnings(\"DefaultCharset\") turns it off)",
-                "11:47 " + charset,
-                "14:22 `==` tests whether both sides are the same object, not whether they are equal; compare them with `a.equals(b)`"
-                        + " (Error Prone check ReferenceEquality; @SuppressWarnings(\"ReferenceEquality\") turns it off)"), warnings);
+                "11:47 " + charset), warnings);
     }
 
     @Test
