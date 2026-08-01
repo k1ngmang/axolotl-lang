@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.tools.Diagnostic;
@@ -18,6 +19,8 @@ public final class DiagnosticTranslator {
     private final Map<Path, GeneratedSource> byJavaFile = new HashMap<>();
     private final Function<Path, String> javaDisplay;
     private final OtherFiles otherFiles;
+    // The Error Prone check behind each warning of generated code.
+    private final Map<AxlDiagnostic, String> checks = new HashMap<>();
 
     public DiagnosticTranslator(List<GeneratedSource> sources, Function<Path, String> javaDisplay) {
         for (GeneratedSource source : sources) {
@@ -70,8 +73,26 @@ public final class DiagnosticTranslator {
         String axlText = line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
         int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, javaColumn,
                 axlText, Messages.placement(translated.message(), javaText));
-        return new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(),
+        var result = new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(),
                 otherFiles.reword(translated.message()));
+        String check = ErrorProneMessages.check(message);
+        if (check != null && severity == AxlDiagnostic.Severity.WARNING) {
+            checks.put(result, check);
+        }
+        return result;
+    }
+
+    /**
+     * The warning with the name of its Error Prone check, so that `@SuppressWarnings` can name it, unless
+     * named already holds the check: one warning per check says it.
+     */
+    public AxlDiagnostic namingCheck(AxlDiagnostic warning, Set<String> named) {
+        String check = checks.get(warning);
+        if (check == null || !named.add(check)) {
+            return warning;
+        }
+        return new AxlDiagnostic(warning.file(), warning.line(), warning.column(), warning.severity(), warning.code(),
+                warning.message() + ErrorProneMessages.suppression(check));
     }
 
     /** javac puts symbol and location details on extra lines. */

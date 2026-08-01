@@ -72,6 +72,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     private final List<DiagnosticsPlugin.Root> roots;
     private final Map<Path, Mapping> mappings = new HashMap<>();
     private final Set<String> reported = new HashSet<>();
+    // The Error Prone checks whose first warning has named them.
+    private final Set<String> namedChecks = new HashSet<>();
 
     AxlDiagnosticHandler(Context context, List<DiagnosticsPlugin.Root> roots) {
         this.log = Log.instance(context);
@@ -92,7 +94,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
             prev.report(diagnostic);
         } else if (ignored(diagnostic)) {
             return;
-        } else if (reported.add(moved.getSource().toUri() + ":" + moved.getLineNumber() + ":" + moved.getMessage(Locale.ROOT))) {
+        } else if (reported.add(moved.getSource().toUri() + ":" + moved.getLineNumber() + ":"
+                + ErrorProneMessages.withoutSuppression(moved.getMessage(Locale.ROOT)))) {
             // One .axl line becomes several Java lines, which can repeat the same error.
             prev.report(moved);
         }
@@ -151,6 +154,10 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         String message = DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT));
         long javaColumn = Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic);
         String translated = Messages.translate(message, mapping.javaLines(), javaLine, javaColumn).message();
+        String check = type == DiagnosticType.WARNING ? ErrorProneMessages.check(message) : null;
+        if (check != null && namedChecks.add(check)) {
+            translated += ErrorProneMessages.suppression(check);
+        }
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
         String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";

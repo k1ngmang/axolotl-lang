@@ -127,7 +127,9 @@ public final class AxlBuild {
         List<AxlDiagnostic> all = List.copyOf(diagnostics);
         diagnostics.removeIf(d -> d.column() == 1 && all.stream().anyMatch(other -> placedBetter(other, d)));
         diagnostics.removeIf(d -> Messages.followsFrom(d, all));
-        return new Result(outcome.success() && diagnostics.stream().noneMatch(AxlDiagnostic::isError), sorted(diagnostics), generated);
+        Set<String> namedChecks = new HashSet<>();
+        List<AxlDiagnostic> reported = sorted(diagnostics).stream().map(d -> translator.namingCheck(d, namedChecks)).toList();
+        return new Result(outcome.success() && reported.stream().noneMatch(AxlDiagnostic::isError), reported, generated);
     }
 
     private String read(Path axl) throws IOException {

@@ -43,6 +43,35 @@ class AxlBuildTest {
     }
 
     @Test
+    void namesTheErrorProneCheckOncePerBuild(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warningsWithChecks(tmp, """
+                package app
+
+                import java.io.BufferedReader
+                import java.io.InputStreamReader
+
+                @SuppressWarnings("DefaultCharset")
+                fn reader() -> BufferedReader = BufferedReader(InputStreamReader(System.in))
+
+                fn other() -> BufferedReader = BufferedReader(InputStreamReader(System.in))
+
+                fn third() -> BufferedReader = BufferedReader(InputStreamReader(System.in))
+
+                fn main() {
+                    println(reader() != other())
+                    println(third())
+                }
+                """);
+        String charset = "this uses the computer's default character set, which differs between computers; pass one, such as "
+                + "`java.nio.charset.StandardCharsets.UTF_8`";
+        assertEquals(List.of(
+                "9:47 " + charset + " (Error Prone check DefaultCharset; @SuppressWarnings(\"DefaultCharset\") turns it off)",
+                "11:47 " + charset,
+                "14:22 `==` tests whether both sides are the same object, not whether they are equal; compare them with `a.equals(b)`"
+                        + " (Error Prone check ReferenceEquality; @SuppressWarnings(\"ReferenceEquality\") turns it off)"), warnings);
+    }
+
+    @Test
     void warnsAboutCodeWithoutEffect(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
@@ -371,7 +400,12 @@ class AxlBuildTest {
         assertTrue(result.success());
     }
 
+    /** The warnings without the Error Prone check that the first warning of each check names. */
     private static List<String> warnings(Path tmp, String source) throws Exception {
+        return warningsWithChecks(tmp, source).stream().map(ErrorProneMessages::withoutSuppression).toList();
+    }
+
+    private static List<String> warningsWithChecks(Path tmp, String source) throws Exception {
         Path src = tmp.resolve("src");
         Files.createDirectories(src.resolve("app"));
         Files.writeString(src.resolve("app/Main.axl"), source);

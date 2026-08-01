@@ -54,6 +54,7 @@ final class ErrorProneMessages {
     private static final Pattern ALWAYS = Pattern.compile("always evaluates to `(\\w+)`");
     private static final Pattern CALL = Pattern.compile("\\w\\(");
     private static final Pattern INTERFACE = Pattern.compile("java\\.\\w+\\.(\\w+)");
+    private static final Pattern SUPPRESSION = Pattern.compile(" \\(Error Prone check \\w+; @SuppressWarnings\\(\"\\w+\"\\) turns it off\\)$");
 
     private ErrorProneMessages() {}
 
@@ -313,5 +314,24 @@ final class ErrorProneMessages {
     private static String tag(String message) {
         Matcher tag = TAG.matcher(message);
         return tag.find() ? tag.group(1) : "";
+    }
+
+    /** The check behind a finding as javac gives it, such as `DefaultCharset`, or null for a message of javac itself. */
+    static String check(String message) {
+        Matcher tag = TAG.matcher(message);
+        return tag.find() ? tag.group(1) : null;
+    }
+
+    /**
+     * How a warning is turned off, for the first warning of each check in a build: the check's name
+     * appears nowhere else in Axolotl's words.
+     */
+    static String suppression(String check) {
+        return " (Error Prone check " + check + "; @SuppressWarnings(\"" + check + "\") turns it off)";
+    }
+
+    /** The message without the check named by {@link #suppression}, the way the other warnings of the check read. */
+    static String withoutSuppression(String message) {
+        return SUPPRESSION.matcher(message).replaceFirst("");
     }
 }
