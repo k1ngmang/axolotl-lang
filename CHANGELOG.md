@@ -202,6 +202,7 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - `fn main(args: Array<String>)` and `fn main(args: String[])` say that `fn main()` already has `args`, read as `List.of(args)`; `abstract class` says that an interface takes the role of an abstract class.
   - System.`in` says that backticks do not quote names, `import java.util.List as JList` that imports have no alias, `o is List<*>` that a type test names the class only, `synchronized`, `volatile` and `outer:` what to use instead, `x.split(":")[0]` gives `List.of(x.split(":")).get(0)`, `Function.identity<String>()` says to give the type to the value, and `import jobs.Job.Job` that `jobs.Job` is the type of the file.
   - `x.toInt()`, `(Int) x` and a `Double` stored in an `Int` offer `Double.valueOf(x).intValue()`, which drops the fraction, next to `Math.toIntExact(Math.round(x))`, which rounds; `3.7.toInt()` shows the whole literal.
+  - `a + b` on `BigDecimal` values and `"a" < "b"` name the method to call: `a.add(b)`, `a.compareTo(b) < 0`.
 - Eighth audit:
   - javac's "incompatible types" is explained as an impossible `is` test only where javac points at the type test; elsewhere it is a type mismatch.
   - `attempt` around a call that returns nothing, also with `else e -> throw`, says that it is a statement, and the exception inside the call is not reported a second time.

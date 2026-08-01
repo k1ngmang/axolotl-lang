@@ -1,0 +1,12 @@
+package app
+
+import java.math.BigDecimal
+
+fn main() {
+    val a = BigDecimal("1.5")
+    val b = BigDecimal("2.5")
+    println(a + b)
+    println(a / b)
+    println(a > b)
+    println("a" < "b")
+}

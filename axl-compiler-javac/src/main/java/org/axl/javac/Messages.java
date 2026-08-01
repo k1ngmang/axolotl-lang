@@ -67,6 +67,7 @@ final class Messages {
     // The value may be a literal with a fraction: `3.7.toInt()`.
     private static final Pattern KOTLIN_CONVERSION = Pattern.compile("\\b(\\d+\\.\\d+|\\w+)\\.(toDouble|toInt|toLong)\\(\\)");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
+    private static final Pattern BIG_OPERANDS = Pattern.compile("^(\\w+)\\s*([-+*/%]|[<>]=?)\\s*(\\w+)");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
     private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
@@ -1031,8 +1032,10 @@ final class Messages {
         }
         Matcher badOperands = BAD_OPERANDS.matcher(message);
         if (badOperands.find()) {
-            return "`" + badOperands.group(1) + "` cannot be applied to `" + axlType(badOperands.group(2)) + "` and `"
-                    + axlType(badOperands.group(3)) + "`";
+            String left = axlType(badOperands.group(2));
+            String right = axlType(badOperands.group(3));
+            return "`" + badOperands.group(1) + "` cannot be applied to `" + left + "` and `" + right + "`"
+                    + operatorMethod(badOperands.group(1), simpleNames(left), simpleNames(right), text, javaColumn);
         }
         if (message.equals("'void' type not allowed here")) {
             return "this function returns nothing, so its result cannot be used as a value";
@@ -1577,6 +1580,40 @@ final class Messages {
             }
         }
         return false;
+    }
+
+    /** `a + b` on `BigDecimal` values and `"a" < "b"`: the method Java has in place of the operator. */
+    private static String operatorMethod(String operator, String left, String right, String text, long javaColumn) {
+        boolean comparison = operator.matches("[<>]=?");
+        boolean bigNumber = left.equals(right) && (left.equals("BigDecimal") || left.equals("BigInteger"));
+        if (!bigNumber && !(comparison && left.equals("String") && right.equals("String"))) {
+            return "";
+        }
+        // javac points at the operator; the operands are named when they are plain names.
+        String a = "a";
+        String b = "b";
+        Matcher operands = BIG_OPERANDS.matcher(text);
+        int start = (int) javaColumn - 1;
+        while (start > 0 && start <= text.length() && Character.isLetterOrDigit(text.charAt(start - 1))) {
+            start--;
+        }
+        if (javaColumn > 0 && javaColumn <= text.length() && operands.region(start, text.length()).lookingAt()
+                && operands.group(2).equals(operator)) {
+            a = operands.group(1);
+            b = operands.group(3);
+        }
+        if (comparison) {
+            return "; compare them with `" + a + ".compareTo(" + b + ") " + operator + " 0`";
+        }
+        String method = switch (operator) {
+            case "+" -> "add(" + b + ")";
+            case "-" -> "subtract(" + b + ")";
+            case "*" -> "multiply(" + b + ")";
+            case "/" -> left.equals("BigDecimal") ? "divide(" + b + ", 10, RoundingMode.HALF_UP)" : "divide(" + b + ")";
+            case "%" -> "remainder(" + b + ")";
+            default -> null;
+        };
+        return method == null ? "" : "; `" + left + "` has methods in place of operators: `" + a + "." + method + "`";
     }
 
     /** `r.value` of an `Ok`: a record of the runtime or the JDK, whose fields are read with `()`. */

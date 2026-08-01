@@ -1,3 +1,7 @@
+AXL100 app/BigDecimalOperators.axl:8:15: error: `+` cannot be applied to `BigDecimal` and `BigDecimal`; `BigDecimal` has methods in place of operators: `a.add(b)`
+AXL100 app/BigDecimalOperators.axl:9:15: error: `/` cannot be applied to `BigDecimal` and `BigDecimal`; `BigDecimal` has methods in place of operators: `a.divide(b, 10, RoundingMode.HALF_UP)`
+AXL100 app/BigDecimalOperators.axl:10:15: error: `>` cannot be applied to `BigDecimal` and `BigDecimal`; compare them with `a.compareTo(b) > 0`
+AXL100 app/BigDecimalOperators.axl:11:17: error: `<` cannot be applied to `String` and `String`; compare them with `a.compareTo(b) < 0`
 AXL100 app/BranchWithoutValue.axl:6:9: error: this gives no value: the call returns nothing, but `String` is expected
 AXL008 app/DataClassAssign.axl:7:7: error: a data class cannot change; create a new `Point` with the new value of `x`
 AXL100 app/EnumCreated.axl:6:13: error: `Color` is an enum and cannot be created; use one of its constants, such as `Color.RED`
