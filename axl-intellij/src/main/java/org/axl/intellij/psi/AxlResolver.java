@@ -1,5 +1,6 @@
 package org.axl.intellij.psi;
 
+import com.intellij.openapi.util.RecursionManager;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
@@ -142,12 +143,26 @@ public final class AxlResolver {
         return Arrays.stream(methods).filter(m -> !overridden.contains(m)).toList();
     }
 
-    /** The class Java sees for an Axolotl type declaration or a Java class; null for other elements. */
+    /** The class Java sees for an Axolotl type declaration or type parameter or a Java class; null for other elements. */
     static @Nullable PsiClass asClass(@Nullable PsiElement element) {
         if (element instanceof AxlTypeDeclaration declaration) {
             return AxlLightClasses.classOf(declaration);
         }
+        if (element instanceof AxlTypeParameter parameter) {
+            PsiTypeParameter light = AxlLightClasses.typeParameterOf(parameter);
+            return light != null ? light : boundClass(parameter);
+        }
         return element instanceof PsiClass cls ? cls : null;
+    }
+
+    /** What a `T` value is known to be while the light form of its declaration is not built: its bound, or any Object. */
+    private static @Nullable PsiClass boundClass(AxlTypeParameter parameter) {
+        AxlType bound = parameter.bound();
+        if (bound == null) {
+            return findClass(parameter, "java.lang.Object");
+        }
+        // `T : U, U : T` would never end.
+        return RecursionManager.doPreventingRecursion(parameter, false, () -> classOf(bound));
     }
 
     /**
@@ -388,13 +403,34 @@ public final class AxlResolver {
                 result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(parent, AxlVariable.class));
             } else if (parent instanceof AxlFunction function) {
                 result.addAll(function.parameters());
-            } else if (parent instanceof AxlTypeDeclaration declaration && type == AxlElementTypes.CLASS) {
-                result.addAll(declaration.fields());
-                result.addAll(declaration.methods());
+                result.addAll(function.typeParameters());
+            } else if (parent instanceof AxlTypeDeclaration declaration) {
+                result.addAll(declaration.typeParameters());
+                if (type == AxlElementTypes.CLASS) {
+                    result.addAll(declaration.fields());
+                    result.addAll(declaration.methods());
+                }
             }
             child = parent;
         }
         return result;
+    }
+
+    /** The type parameter of an enclosing function or type that a name refers to, or null. */
+    public static @Nullable AxlTypeParameter typeParameterNamed(PsiElement place, String name) {
+        for (PsiElement parent = place.getParent(); parent != null && !(parent instanceof AxlFile); parent = parent.getParent()) {
+            List<AxlTypeParameter> parameters = switch (parent) {
+                case AxlFunction function -> function.typeParameters();
+                case AxlTypeDeclaration declaration -> declaration.typeParameters();
+                default -> List.of();
+            };
+            for (AxlTypeParameter parameter : parameters) {
+                if (name.equals(parameter.getName())) {
+                    return parameter;
+                }
+            }
+        }
+        return null;
     }
 
     static @Nullable PsiClass findClass(PsiElement place, String qualifiedName) {

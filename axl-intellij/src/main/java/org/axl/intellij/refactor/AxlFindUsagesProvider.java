@@ -10,6 +10,7 @@ import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlNamedElement;
 import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlTypeParameter;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 
@@ -38,6 +39,9 @@ public final class AxlFindUsagesProvider implements FindUsagesProvider {
         }
         if (element instanceof AxlTypeDeclaration declaration) {
             return declaration.keyword();
+        }
+        if (element instanceof AxlTypeParameter) {
+            return "type parameter";
         }
         return element instanceof AxlVariable variable && !variable.isTopLevel() ? "variable" : "value";
     }

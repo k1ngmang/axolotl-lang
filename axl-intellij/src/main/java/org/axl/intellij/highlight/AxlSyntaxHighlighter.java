@@ -27,6 +27,7 @@ public final class AxlSyntaxHighlighter extends SyntaxHighlighterBase {
     public static final TextAttributesKey PARENTHESES = createTextAttributesKey("AXL_PARENTHESES", DefaultLanguageHighlighterColors.PARENTHESES);
     public static final TextAttributesKey FUNCTION_DECLARATION = createTextAttributesKey("AXL_FUNCTION_DECLARATION", DefaultLanguageHighlighterColors.FUNCTION_DECLARATION);
     public static final TextAttributesKey TYPE_DECLARATION = createTextAttributesKey("AXL_TYPE_DECLARATION", DefaultLanguageHighlighterColors.CLASS_NAME);
+    public static final TextAttributesKey TYPE_PARAMETER = createTextAttributesKey("AXL_TYPE_PARAMETER", DefaultLanguageHighlighterColors.CLASS_NAME);
     public static final TextAttributesKey ENUM_CONSTANT = createTextAttributesKey("AXL_ENUM_CONSTANT", DefaultLanguageHighlighterColors.CONSTANT);
     public static final TextAttributesKey ANNOTATION = createTextAttributesKey("AXL_ANNOTATION", DefaultLanguageHighlighterColors.METADATA);
     public static final TextAttributesKey BAD_CHARACTER = createTextAttributesKey("AXL_BAD_CHARACTER", HighlighterColors.BAD_CHARACTER);

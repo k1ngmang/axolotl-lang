@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.List;
 import org.axl.intellij.highlight.AxlSyntaxHighlighter;
 import org.axl.intellij.psi.AxlFile;
+import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
@@ -127,6 +128,53 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
                 val id = notes.add("buy milk")
                 notes.clear()
                 return notes.name() + " " + id + " " + (notes.find(id) ?: "nothing")
+            }
+            """;
+
+    static final String GENERICS = """
+            package app
+
+            import java.util.ArrayList
+            import java.util.List
+
+            data class Pair<A, B>(val first: A, val second: B)
+
+            interface Repository<K, V> {
+                fn find(key: K) -> V?
+                fn save(key: K, value: V)
+            }
+
+            class Stack<T : Object> {
+                val items: List<T> = ArrayList<T>()
+
+                fn push(item: T) {
+                    items.add(item)
+                }
+
+                fn pop() -> T? = if (items.isEmpty()) null else items.remove(items.size() - 1)
+            }
+
+            fn firstOrNull<T>(xs: List<T>) -> T? = if (xs.isEmpty()) null else xs.get(0)
+
+            fn largest<T : Comparable<T>>(xs: List<T>) -> T? {
+                var best: T? = null
+                for (x in xs) {
+                    if (best == null || x.compareTo(best) > 0) {
+                        best = x
+                    }
+                }
+                return best
+            }
+
+            fn swap<A, B>(p: Pair<A, B>) -> Pair<B, A> = Pair<B, A>(p.second(), p.first())
+
+            fn main() {
+                val pair = Pair<String, Int>("age", 41)
+                println(pair.first().length())
+                val stack = Stack<String>()
+                stack.push("a")
+                println(stack.pop())
+                println(swap(pair).second())
             }
             """;
 
@@ -578,6 +626,43 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(List.of("RED", "GREEN", "BLUE"), highlighted(text, AxlSyntaxHighlighter.ENUM_CONSTANT));
     }
 
+
+    public void testResolvesTypeParametersInsideTheirDeclarations() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Generics.axl", GENERICS);
+        AxlTypeDeclaration pair = file.typeDeclarations().getFirst();
+        AxlTypeDeclaration stack = file.typeDeclarations().get(2);
+        AxlFunction largest = file.functions().get(1);
+        assertSame(pair.typeParameters().get(1), resolveAt("val second: |B)"));
+        assertSame(stack.typeParameters().getFirst(), resolveAt("fn push(item: |T)"));
+        assertSame(stack.typeParameters().getFirst(), resolveAt("ArrayList<|T>()"));
+        assertSame(largest.typeParameters().getFirst(), resolveAt("fn largest<T : Comparable<|T>>"));
+        assertSame(largest.typeParameters().getFirst(), resolveAt("var best: |T? = null"));
+        assertSame(file.functions().get(2).typeParameters().getFirst(), resolveAt("= Pair<B, |A>(p.second()"));
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testCompletesRenamesAndFindsTypeParameters() {
+        List<String> found = complete(GENERICS.replace("fn push(item: T)", "fn push(item: <caret>)"));
+        assertTrue(found.toString(), found.containsAll(List.of("T", "Stack", "Pair", "String")) && !found.contains("items"));
+        found = complete(GENERICS.replace("var best: T? = null", "var best: <caret>"));
+        assertTrue(found.toString(), found.contains("T"));
+        AxlFile file = (AxlFile) myFixture.configureByText("Generics.axl", GENERICS);
+        assertEquals(4, myFixture.findUsages(file.functions().get(1).typeParameters().getFirst()).size());
+        myFixture.renameElement(file.typeDeclarations().get(2).typeParameters().getFirst(), "E");
+        String text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("class Stack<E : Object> {") && text.contains("val items: List<E> = ArrayList<E>()"));
+        assertTrue(text, text.contains("fn push(item: E)") && text.contains("fn pop() -> E?"));
+        assertTrue(text, text.contains("fn largest<T : Comparable<T>>(xs: List<T>) -> T? {") && text.contains("var best: T? = null"));
+    }
+
+    public void testHighlightsTypeParametersWhereTheyAreDeclaredAndUsed() {
+        myFixture.configureByText("Generic.axl", "package app\n\nfn firstOrNull<T>(xs: java.util.List<T>) -> T? = "
+                + "if (xs.isEmpty()) null else xs.get(0)\n\ndata class Pair<A, B>(val first: A, val second: B)\n");
+        String text = myFixture.getFile().getText();
+        assertEquals(List.of("T", "T", "T", "A", "B", "A", "B"), highlighted(text, AxlSyntaxHighlighter.TYPE_PARAMETER));
+        assertEquals(List.of("Pair"), highlighted(text, AxlSyntaxHighlighter.TYPE_DECLARATION));
+    }
 
     public void testHighlightsAnnotationsWithoutTheirArguments() {
         myFixture.configureByText("Marked.axl", COUNTER.replace("class Counter", "@Deprecated\n@java.lang.SuppressWarnings({\"unused\"})\nclass Counter")

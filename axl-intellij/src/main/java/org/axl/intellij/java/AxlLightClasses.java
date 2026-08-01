@@ -23,6 +23,8 @@ import com.intellij.psi.PsiModifierListOwner;
 import com.intellij.psi.PsiParameter;
 import com.intellij.psi.PsiReferenceList;
 import com.intellij.psi.PsiType;
+import com.intellij.psi.PsiTypeParameter;
+import com.intellij.psi.PsiTypeParameterListOwner;
 import com.intellij.psi.SmartPointerManager;
 import com.intellij.psi.impl.light.LightFieldBuilder;
 import com.intellij.psi.impl.light.LightMethodBuilder;
@@ -36,7 +38,9 @@ import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
 import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
@@ -48,6 +52,7 @@ import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlResolver;
 import org.axl.intellij.psi.AxlType;
 import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlTypeParameter;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -317,6 +322,10 @@ public final class AxlLightClasses {
             String name = declaration.getName();
             return file.className().equals(name) ? file.qualifiedClassName() : file.qualifiedClassName() + "." + name;
         }
+        if (target instanceof AxlTypeParameter parameter) {
+            // A `T` erases to its bound; named without the light form of its owner, which is being built.
+            return parameter.bound() == null ? "java.lang.Object" : erasedName(parameter.bound());
+        }
         PsiType java = AxlResolver.javaType(type);
         return java == null ? null : java.getCanonicalText();
     }
@@ -333,6 +342,19 @@ public final class AxlLightClasses {
             }
         }
         return null;
+    }
+
+    /** The light type parameter of a declared one, which the types of the light members name; null while its owner cannot be built. */
+    public static @Nullable PsiTypeParameter typeParameterOf(AxlTypeParameter parameter) {
+        PsiTypeParameterListOwner owner = switch (parameter.getParent()) {
+            case AxlFunction function -> methodOf(function);
+            case AxlTypeDeclaration declaration -> classOf(declaration);
+            default -> null;
+        };
+        if (owner == null) {
+            return null;
+        }
+        return Arrays.stream(owner.getTypeParameters()).filter(t -> Objects.equals(t.getName(), parameter.getName())).findFirst().orElse(null);
     }
 
     /**

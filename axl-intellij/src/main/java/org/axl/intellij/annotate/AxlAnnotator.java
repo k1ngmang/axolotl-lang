@@ -22,7 +22,11 @@ import org.axl.intellij.parser.AxlElementTypes;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlNamedElement;
+import org.axl.intellij.psi.AxlReference;
+import org.axl.intellij.psi.AxlReferenceExpression;
+import org.axl.intellij.psi.AxlResolver;
 import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlTypeParameter;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -34,13 +38,16 @@ import org.jetbrains.annotations.Nullable;
  */
 public final class AxlAnnotator implements Annotator {
 
-    /** Functions, types and enum constants where they are declared. */
+    /** Functions, types, type parameters and enum constants where they are declared. */
     private static @Nullable TextAttributesKey declarationKey(AxlNamedElement named) {
         if (named instanceof AxlFunction) {
             return AxlSyntaxHighlighter.FUNCTION_DECLARATION;
         }
         if (named instanceof AxlTypeDeclaration) {
             return AxlSyntaxHighlighter.TYPE_DECLARATION;
+        }
+        if (named instanceof AxlTypeParameter) {
+            return AxlSyntaxHighlighter.TYPE_PARAMETER;
         }
         boolean constant = named instanceof AxlVariable && named.getParent() instanceof AxlTypeDeclaration type && type.isEnum();
         return constant ? AxlSyntaxHighlighter.ENUM_CONSTANT : null;
@@ -53,6 +60,10 @@ public final class AxlAnnotator implements Annotator {
             if (key != null) {
                 holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(named.getNameIdentifier()).textAttributes(key).create();
             }
+        }
+        if (element instanceof AxlReferenceExpression ref && isTypeParameterUse(ref)) {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(ref.identifier())
+                    .textAttributes(AxlSyntaxHighlighter.TYPE_PARAMETER).create();
         }
         if (element.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD) {
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).range(element)
@@ -95,6 +106,12 @@ public final class AxlAnnotator implements Annotator {
             }
             annotation.create();
         }
+    }
+
+    /** A plain name in a written type that an enclosing declaration takes as a type parameter; told without resolving. */
+    private static boolean isTypeParameterUse(AxlReferenceExpression ref) {
+        return ref.qualifier() == null && ref.identifier() != null && AxlReference.isInType(ref)
+                && AxlResolver.typeParameterNamed(ref, ref.referenceName()) != null;
     }
 
     /** The offset of a 1-based line and column; the compiler counts code points, the document UTF-16 units. */

@@ -172,7 +172,8 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
     }
 
     private static boolean isType(PsiElement declaration) {
-        return declaration instanceof AxlTypeDeclaration || declaration instanceof AxlImport imp && imp.kind() == AxlImport.Kind.TYPE;
+        return declaration instanceof AxlTypeDeclaration || declaration instanceof AxlTypeParameter
+                || declaration instanceof AxlImport imp && imp.kind() == AxlImport.Kind.TYPE;
     }
 
     /** `this` stands for the enclosing class's instance, whose private members are visible too. */

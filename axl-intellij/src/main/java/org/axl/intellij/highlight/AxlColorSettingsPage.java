@@ -24,6 +24,7 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
         new AttributesDescriptor("Braces and parentheses//Parentheses", AxlSyntaxHighlighter.PARENTHESES),
         new AttributesDescriptor("Function declaration", AxlSyntaxHighlighter.FUNCTION_DECLARATION),
         new AttributesDescriptor("Type declaration", AxlSyntaxHighlighter.TYPE_DECLARATION),
+        new AttributesDescriptor("Type parameter", AxlSyntaxHighlighter.TYPE_PARAMETER),
         new AttributesDescriptor("Enum constant", AxlSyntaxHighlighter.ENUM_CONSTANT),
         new AttributesDescriptor("Annotation", AxlSyntaxHighlighter.ANNOTATION),
         new AttributesDescriptor("Bad character", AxlSyntaxHighlighter.BAD_CHARACTER),
@@ -52,6 +53,8 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
                 sealed interface <type>Shape</type>
 
                 data class <type>Circle</type>(val radius: Double) : Shape
+
+                data class <type>Pair</type><<typeParameter>A</typeParameter>, <typeParameter>B</typeParameter>>(val first: <typeParameter>A</typeParameter>, val second: <typeParameter>B</typeParameter>)
 
                 enum <type>Color</type> { <const>RED</const>, <const>GREEN</const> }
 
@@ -85,7 +88,8 @@ public final class AxlColorSettingsPage implements ColorSettingsPage {
     @Override
     public Map<String, TextAttributesKey> getAdditionalHighlightingTagToDescriptorMap() {
         return Map.of("fn", AxlSyntaxHighlighter.FUNCTION_DECLARATION, "type", AxlSyntaxHighlighter.TYPE_DECLARATION,
-                "const", AxlSyntaxHighlighter.ENUM_CONSTANT, "annotation", AxlSyntaxHighlighter.ANNOTATION);
+                "typeParameter", AxlSyntaxHighlighter.TYPE_PARAMETER, "const", AxlSyntaxHighlighter.ENUM_CONSTANT,
+                "annotation", AxlSyntaxHighlighter.ANNOTATION);
     }
 
     @Override
