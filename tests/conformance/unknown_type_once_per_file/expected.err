@@ -1,0 +1,3 @@
+AXL100 expr/Eval.axl:3:12: error: unknown type `Expr` (and 2 more uses in this file); it is declared in expr/Ast.axl: `import expr.Ast.Expr`
+AXL100 expr/Eval.axl:4:8: error: unknown type `Num` (and 3 more uses in this file); it is declared in expr/Ast.axl: `import expr.Ast.Num`
+AXL100 expr/Eval.axl:5:8: error: unknown type `Add` (and 2 more uses in this file); it is declared in expr/Ast.axl: `import expr.Ast.Add`

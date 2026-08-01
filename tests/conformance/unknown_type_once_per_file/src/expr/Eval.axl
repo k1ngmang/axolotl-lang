@@ -1,0 +1,13 @@
+package expr
+
+fn eval(e: Expr) -> Int = when (e) {
+    is Num -> e.v()
+    is Add -> eval(e.a()) + eval(e.b())
+}
+
+fn two(e: Expr) -> Expr = Add(e, e)
+
+fn main() {
+    println(eval(Add(Num(1), Num(2))))
+    println(two(Num(3)))
+}

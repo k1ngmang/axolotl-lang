@@ -1,0 +1,5 @@
+package expr
+
+sealed interface Expr
+data class Num(val v: Int) : Expr
+data class Add(val a: Expr, val b: Expr) : Expr

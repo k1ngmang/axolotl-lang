@@ -1,8 +1,7 @@
 AXL100 app/FileTypeSpelling.axl:5:19: error: unknown type `Pointt`; did you mean `Point`?
 AXL100 app/KotlinMethod.axl:3:28: error: `s` of type `String` has no method `toInt()`; write `Integer.parseInt(s)`
-AXL100 app/Main.axl:3:15: error: unknown type `number`; write `Int` or `Double`
+AXL100 app/Main.axl:3:15: error: unknown type `number` (and 1 more use in this file); write `Int` or `Double`
 AXL100 app/Main.axl:3:26: error: unknown type `string`; write `String`
-AXL100 app/Main.axl:3:37: error: unknown type `number`; write `Int` or `Double`
 AXL100 app/Main.axl:6:5: error: unknown name `console`; print with `println(...)`
 AXL100 app/Main.axl:7:14: error: unknown name `undefined`; write `null`
 AXL100 app/Main.axl:7:32: error: unknown name `None`; write `null`

@@ -128,7 +128,8 @@ public final class AxlBuild {
         diagnostics.removeIf(d -> d.column() == 1 && all.stream().anyMatch(other -> placedBetter(other, d)));
         diagnostics.removeIf(d -> Messages.followsFrom(d, all));
         Set<String> namedChecks = new HashSet<>();
-        List<AxlDiagnostic> reported = sorted(diagnostics).stream().map(d -> translator.namingCheck(d, namedChecks)).toList();
+        List<AxlDiagnostic> reported = Messages.unknownTypesOnce(sorted(diagnostics)).stream()
+                .map(d -> translator.namingCheck(d, namedChecks)).toList();
         return new Result(outcome.success() && reported.stream().noneMatch(AxlDiagnostic::isError), reported, generated);
     }
 

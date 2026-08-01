@@ -6,7 +6,9 @@ import java.lang.reflect.Modifier;
 import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -137,6 +139,7 @@ final class Messages {
             + "|unknown type `(?:\\w+\\.)*(\\w+)`; check the spelling$|`(\\w+)` is declared in |`(\\w+)` is private to "
             + "|`[\\w.]+\\.(\\w+)` is not a type: |`(?:\\w+\\.)*(\\w+)` is the type of the file )");
     private static final Pattern UNKNOWN_USE = Pattern.compile("^unknown (?:function|name|type) `(\\w+)");
+    private static final String UNKNOWN_TYPE = "unknown type `";
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
     private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
             + "`sorted { a, b -> a.compareTo(b) }`";
@@ -226,6 +229,32 @@ final class Messages {
             }
         }
         return javaLine;
+    }
+
+    /**
+     * An unknown type is reported where it is first used in a file, with the number of its other uses;
+     * each of them would repeat the same message and the same import to add. sorted is in file order.
+     */
+    static List<AxlDiagnostic> unknownTypesOnce(List<AxlDiagnostic> sorted) {
+        Map<String, Long> uses = new HashMap<>();
+        for (AxlDiagnostic d : sorted) {
+            if (d.message().startsWith(UNKNOWN_TYPE)) {
+                uses.merge(d.file() + "\n" + d.message(), 1L, Long::sum);
+            }
+        }
+        List<AxlDiagnostic> result = new ArrayList<>();
+        for (AxlDiagnostic d : sorted) {
+            String key = d.file() + "\n" + d.message();
+            Long count = uses.remove(key);
+            if (!d.message().startsWith(UNKNOWN_TYPE) || count != null && count == 1) {
+                result.add(d);
+            } else if (count != null) {
+                String more = " (and " + (count - 1) + " more use" + (count == 2 ? "" : "s") + " in this file)";
+                result.add(new AxlDiagnostic(d.file(), d.line(), d.column(), d.severity(), d.code(),
+                        d.message().replaceFirst("^(" + UNKNOWN_TYPE + "[^`]*`)", "$1" + Matcher.quoteReplacement(more))));
+            }
+        }
+        return result;
     }
 
     /** Whether the error only follows from another error of the same file, which already explains the mistake. */
