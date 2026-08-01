@@ -41,15 +41,22 @@ at a time. Nothing has to be converted before it is useful.
 
 ## What stays in Java
 
-Axolotl has functions and values only. Keep these in Java and call them from Axolotl:
+Axolotl has functions and values, classes with properties and methods, data classes, enums, sealed
+interfaces with values and methods, and type parameters on all of them. Keep these in Java and call
+them from Axolotl:
 
-- classes that extend a class written in Axolotl, and annotation types;
-- code that needs `for` loops over indices, arrays, casts, `switch` or `synchronized`.
+- extending a class written in Axolotl: a class extends a Java class, `class NotFound(val id: String) :
+  RuntimeException(...)`, but Axolotl classes stay final, and an interface with methods takes the role
+  of an abstract class;
+- annotation types;
+- code that needs arrays, casts, `switch`, `synchronized` or labels. Axolotl reads a Java array as
+  `List.of(array)`, converts numbers with methods such as `Math.toIntExact(Math.round(x))`, chooses
+  with `when`, and locks with the classes of `java.util.concurrent`.
 
 Framework entry points work in Axolotl: a `class` with annotated methods is a JUnit test class, a
 Spring controller or a JAX-RS resource, and an annotated `data class` is a Jackson or JPA record.
 
-Most loops over collections become pipes; a `while` loop covers the rest.
+Most loops over collections become pipes; a `while` loop covers the rest, counting loops included.
 
 ## Exceptions and `Result`
 
