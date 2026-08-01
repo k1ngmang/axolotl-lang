@@ -3,6 +3,7 @@ package org.axl.javac;
 import java.lang.reflect.Executable;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -95,6 +96,12 @@ final class Messages {
     private static final Pattern UNARY = Pattern.compile("^bad operand type (.+) for unary operator '(.+)'$");
     private static final Pattern MISSING_METHOD = Pattern.compile(
             "^(\\w+) is not abstract and does not override abstract method (\\w+)\\((.*)\\) in ([\\w.$]+)$");
+    private static final Pattern RESULT_CLASH = Pattern.compile("^(\\w+)\\((.*)\\) in (\\w+) cannot (?:implement|override) "
+            + "\\1\\(.*\\) in ([\\w.$]+); return type (\\S+) is not compatible with (\\S+)$");
+    // The declaration of a method of a class, as generated: `public int next() {`.
+    private static final Pattern CLASS_METHOD = Pattern.compile("^\\s+public (?:static )?(?:final )?([\\w.]+(?:<.*>)?(?:\\[\\])?) (\\w+)\\((.*)\\) \\{$");
+    private static final Pattern IMPLEMENTS = Pattern.compile("\\bimplements (.+?) \\{$");
+    private static final String GENERIC_INTERFACE = "a Java generic interface takes and gives `Integer`, the class behind `Int`";
     private static final Pattern METHOD_DECLARATION = Pattern.compile(
             "^\\s*(?:public |private )?(?:static )?(?!new )[\\w<>?,. @\\[\\]]+ (\\w+)\\([^()]*\\) \\{$");
     private static final Pattern VOID_METHOD = Pattern.compile("\\bstatic void (\\w+)\\(|^\\s*public void (\\w+)\\(");
@@ -137,6 +144,7 @@ final class Messages {
     private static final Pattern LAMBDA_ARGUMENT = Pattern.compile("^(?:\\(([\\w\\s,]*)\\)|(\\w+)) ->");
 
     private static final Pattern MUST_GIVE = Pattern.compile("^`(\\w+)` must give `fn ");
+    private static final Pattern GENERIC_INTERFACE_CLASS = Pattern.compile("^`fn [^`]*` of `(\\w+)` does not implement `");
     private static final Pattern NO_PACKAGE = Pattern.compile("^package ([\\w.]+) does not exist$");
     private static final String LAMBDA_PARAMETERS = " parameters; name them, as in `{ ";
     private static final Pattern TYPED_LAMBDA = Pattern.compile("\\b([A-Z]\\w*)(?:<.*>)? \\w+ = (\\(\\)|it|\\([^()]*\\)|\\w+) ->");
@@ -178,6 +186,10 @@ final class Messages {
         Matcher mustGive = MUST_GIVE.matcher(translated);
         if (mustGive.find()) {
             return Pattern.compile("\\bclass\\s+(" + Pattern.quote(mustGive.group(1)) + ")\\b");
+        }
+        Matcher genericInterface = GENERIC_INTERFACE_CLASS.matcher(translated);
+        if (genericInterface.find()) {
+            return Pattern.compile("\\bclass\\s+(" + Pattern.quote(genericInterface.group(1)) + ")\\b");
         }
         if (translated.startsWith(NO_RESULT_TYPE)) {
             return RESULT_TYPE;
@@ -233,6 +245,10 @@ final class Messages {
         boolean sameLine = cause.line() == effect.line() && cause.column() <= effect.column();
         if (sameLine && (cause.message().startsWith(PIPE_SUBJECT) || cause.message().equals(SORTED_ARITY))) {
             return true;
+        }
+        // javac reports a method that gives `int` for a generic interface's `Integer` at the class and at the method.
+        if (cause.message().contains(GENERIC_INTERFACE) && cause.message().equals(effect.message())) {
+            return cause.line() > effect.line();
         }
         // The names the lambda uses are unknown because its parameters are not declared.
         if (cause.line() == effect.line() && cause.message().contains(LAMBDA_PARAMETERS)) {
@@ -1163,8 +1179,21 @@ final class Messages {
             return "`" + name + "` is an enum and cannot be created; use one of its constants, such as `" + name + "."
                     + firstConstant(javaLines, name) + "`";
         }
+        Matcher resultClash = RESULT_CLASH.matcher(message);
+        if (resultClash.find()) {
+            String boxed = genericInterfaceMethod(javaLines, resultClash.group(3), resultClash.group(1),
+                    splitTopLevel(resultClash.group(2)), resultClash.group(4), true);
+            return boxed != null ? boxed : "`fn " + resultClash.group(1) + "()` of `" + resultClash.group(3) + "` returns `"
+                    + axlType(resultClash.group(5)) + "`, but `" + simpleNames(axlType(resultClash.group(4))) + "` requires `"
+                    + simpleNames(resultClash.group(6)) + "`";
+        }
         Matcher missingMethod = MISSING_METHOD.matcher(message);
         if (missingMethod.find()) {
+            String boxed = genericInterfaceMethod(javaLines, missingMethod.group(1), missingMethod.group(2),
+                    splitTopLevel(missingMethod.group(3)), missingMethod.group(4), false);
+            if (boxed != null) {
+                return boxed;
+            }
             String parameters = missingMethod.group(3).isEmpty() ? "" : "...";
             String required = "`" + missingMethod.group(1) + "` must give `fn " + missingMethod.group(2) + "(" + parameters
                     + ")`, which `" + simpleNames(axlType(missingMethod.group(4))) + "` requires";
@@ -1186,6 +1215,75 @@ final class Messages {
                     + "keep one in a property and give both an interface";
         }
         return null;
+    }
+
+    /**
+     * `fn get() -> Int` in a class that implements `Supplier<Int>`: the generated `int get()` does not
+     * implement `Integer get()`, since a type argument always stands for the class. The message names
+     * the method as written and as it must be written, or is null when the method is not the case.
+     * resultOnly: javac reported the result type, so the parameters agree.
+     */
+    private static String genericInterfaceMethod(String[] javaLines, String className, String method, List<String> required,
+                                                 String interfaceName, boolean resultOnly) {
+        String interfaceSimple = interfaceName.substring(interfaceName.lastIndexOf('.') + 1);
+        Pattern start = Pattern.compile("^(\\s*)(?:public |private |static |final |sealed |non-sealed )*class " + Pattern.quote(className) + "\\b.*$");
+        String end = null;
+        String implemented = null;
+        Matcher declaration = null;
+        for (String line : javaLines) {
+            Matcher header = start.matcher(line);
+            if (end == null && header.find()) {
+                end = header.group(1) + "}";
+                Matcher implementsClause = IMPLEMENTS.matcher(line);
+                implemented = implementsClause.find() ? splitTopLevel(implementsClause.group(1)).stream()
+                        .filter(i -> i.replaceAll("<.*", "").endsWith(interfaceSimple) && i.contains("<")).findFirst().orElse(null) : null;
+            } else if (end != null && line.equals(end)) {
+                break;
+            } else if (end != null) {
+                Matcher found = CLASS_METHOD.matcher(line);
+                if (found.find() && found.group(2).equals(method) && splitTopLevel(found.group(3)).size() == required.size()) {
+                    declaration = found;
+                    break;
+                }
+            }
+        }
+        if (declaration == null || implemented == null) {
+            return null;
+        }
+        List<String> parameters = splitTopLevel(declaration.group(3));
+        List<String> written = new ArrayList<>();
+        List<String> fixed = new ArrayList<>();
+        boolean changed = false;
+        for (int i = 0; i < parameters.size(); i++) {
+            String type = parameters.get(i).substring(0, parameters.get(i).lastIndexOf(' '));
+            String parameterName = parameters.get(i).substring(parameters.get(i).lastIndexOf(' ') + 1);
+            boolean boxed = type.equals("int") && !resultOnly && simpleNames(required.get(i)).equals("Integer");
+            changed |= boxed;
+            written.add(parameterName + ": " + axlType(type));
+            fixed.add(parameterName + ": " + (boxed ? "Integer" : axlType(type)));
+        }
+        String result = declaration.group(1);
+        Boolean genericResult = returnsTypeVariable(interfaceName, method, parameters.size());
+        boolean boxResult = result.equals("int") && (resultOnly || Boolean.TRUE.equals(genericResult) || genericResult == null && !changed);
+        if (!changed && !boxResult) {
+            return null;
+        }
+        String signature = "fn " + method + "(" + String.join(", ", written) + ")" + (result.equals("void") ? "" : " -> " + axlType(result));
+        String fixedSignature = "fn " + method + "(" + String.join(", ", fixed) + ")"
+                + (result.equals("void") ? "" : " -> " + (boxResult ? "Integer" : axlType(result)));
+        return "`" + signature + "` of `" + className + "` does not implement `" + axlType(implemented) + "`: " + GENERIC_INTERFACE
+                + ", so write `" + fixedSignature + "`";
+    }
+
+    /** Whether the method of a JDK interface returns one of its type variables; null when the interface is not a JDK one. */
+    private static Boolean returnsTypeVariable(String interfaceName, String method, int parameterCount) {
+        try {
+            return Arrays.stream(Class.forName(interfaceName, false, Messages.class.getClassLoader()).getMethods())
+                    .filter(m -> m.getName().equals(method) && m.getParameterCount() == parameterCount)
+                    .anyMatch(m -> m.getGenericReturnType() instanceof TypeVariable);
+        } catch (ClassNotFoundException | LinkageError e) {
+            return null;
+        }
     }
 
     /** `List<String>()`: an interface or abstract class cannot be created, a class that implements it can. */

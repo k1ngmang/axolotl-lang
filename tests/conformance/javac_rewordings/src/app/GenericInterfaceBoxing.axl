@@ -1,0 +1,34 @@
+package app
+
+import java.util.Comparator
+import java.util.Iterator
+import java.util.function.Function
+import java.util.function.Supplier
+
+class Seven : Supplier<Int> {
+    fn get() -> Int = 7
+}
+
+class Inc : Function<Int, Int> {
+    fn apply(x: Int) -> Int = x + 1
+}
+
+class Desc : Comparator<Int> {
+    fn compare(a: Int, b: Int) -> Int = Integer.compare(b, a)
+}
+
+class Countdown(val from: Int) : Iterator<Int> {
+    var current: Int = from
+
+    fn hasNext() -> Boolean = current > 0
+
+    fn next() -> Int {
+        current -= 1
+        return current + 1
+    }
+}
+
+fn main() {
+    println(Seven().get() + Inc().apply(1) + Desc().compare(1, 2))
+    println(Countdown(2).next())
+}
