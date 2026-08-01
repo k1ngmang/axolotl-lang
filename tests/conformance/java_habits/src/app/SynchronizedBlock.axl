@@ -1,0 +1,16 @@
+package app
+
+class Counter {
+    var n: Int = 0
+    val lock: Object = Object()
+
+    fn inc() {
+        synchronized (lock) {
+            n += 1
+        }
+    }
+}
+
+fn main() {
+    Counter().inc()
+}

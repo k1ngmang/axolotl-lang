@@ -46,10 +46,17 @@ final class Mistakes {
         if (previous == null) {
             return null;
         }
-        Token typeArguments = previous.getType() == AxolotlLexer.GT ? typeArgumentsOfIs(tokens, previous) : null;
+        // The parser gives up after the `>` of `is List<String>`, at the `>` of `is List<*>`, or at the `*`.
+        Token close = previous.getType() == AxolotlLexer.GT ? previous : at.getType() == AxolotlLexer.GT ? at
+                : at.getType() == AxolotlLexer.STAR && type(SourceParser.nextToken(tokens, at)) == AxolotlLexer.GT
+                ? SourceParser.nextToken(tokens, at) : null;
+        Token typeArguments = close == null ? null : typeArgumentsOfIs(tokens, close);
         if (typeArguments != null) {
-            return new Placed(typeArguments, "a type test cannot check type arguments, which Java does not keep at run "
-                    + "time; write `is " + before(tokens, typeArguments).getText() + "`");
+            String name = before(tokens, typeArguments).getText();
+            boolean star = SourceParser.nextToken(tokens, typeArguments).getType() == AxolotlLexer.STAR;
+            return new Placed(typeArguments, star ? "a type test names the class only, and `is " + name + "` already matches a `"
+                    + name + "` of anything; write `is " + name + "`"
+                    : "a type test cannot check type arguments, which Java does not keep at run time; write `is " + name + "`");
         }
         Placed unfinished = previous.getLine() < at.getLine() ? unfinishedLine(tokens, previous)
                 : at.getType() == AxolotlLexer.RBRACE ? unfinished(tokens, previous) : null;
@@ -113,7 +120,14 @@ final class Mistakes {
         if (next.getType() == AxolotlLexer.COLON && inInterface(tokens, at)) {
             return "an interface lists values: `val " + at.getText() + ": " + text(SourceParser.nextToken(tokens, next)) + "`";
         }
-        String typeArguments = next.getType() == AxolotlLexer.LT ? typeArgumentCall(tokens, at, next) : null;
+        // `Function.identity<String>()`: the type arguments follow the last name of the chain.
+        Token name = at;
+        Token after = next;
+        while (after.getType() == AxolotlLexer.DOT && SourceParser.nextToken(tokens, after).getType() == AxolotlLexer.IDENTIFIER) {
+            name = SourceParser.nextToken(tokens, after);
+            after = SourceParser.nextToken(tokens, name);
+        }
+        String typeArguments = after.getType() == AxolotlLexer.LT ? typeArgumentCall(tokens, at, name, after) : null;
         return typeArguments != null ? typeArguments : missingComma(tokens, at, previous);
     }
 
@@ -132,10 +146,11 @@ final class Mistakes {
     }
 
     /**
-     * `mutableListOf<String>()` and `ArrayList<int>()`, which the parser reads as comparisons. A call
-     * takes type arguments only when it creates an object of a generic class.
+     * `mutableListOf<String>()`, `ArrayList<int>()` and `Function.identity<String>()`, which the parser
+     * reads as comparisons; first is the start of the chain that ends in the name. A call takes type
+     * arguments only when it creates an object of a generic class.
      */
-    private static String typeArgumentCall(CommonTokenStream tokens, Token name, Token open) {
+    private static String typeArgumentCall(CommonTokenStream tokens, Token first, Token name, Token open) {
         StringBuilder arguments = new StringBuilder();
         String primitive = null;
         Token t = SourceParser.nextToken(tokens, open);
@@ -156,8 +171,36 @@ final class Mistakes {
         if (collection != null) {
             return "unknown function `" + name.getText() + "`; write `" + collection + "<" + arguments + ">()`";
         }
-        return Character.isLowerCase(name.getText().charAt(0))
-                ? "Axolotl functions take no type arguments; remove `<" + arguments + ">`" : null;
+        if (!Character.isLowerCase(name.getText().charAt(0))) {
+            return null;
+        }
+        // The type comes from the value the call is stored in, so the example gives it one.
+        Token receiver = first == name ? null : before(tokens, before(tokens, name));
+        String call = tokens.getText(first, name) + "()";
+        return "Axolotl has no type arguments on calls; remove `<" + arguments + ">` and give the type to the value instead: `val "
+                + declaredName(tokens, first) + ": " + typeExample(receiver == null ? "" : receiver.getText(), name.getText(), arguments.toString())
+                + " = " + call + "`";
+    }
+
+    /** The type a call with these type arguments gives, for the JDK's generic factories. */
+    private static String typeExample(String receiver, String method, String arguments) {
+        return switch (method) {
+            case "identity" -> "Function<" + arguments + ", " + arguments + ">";
+            case "emptyList" -> "List<" + arguments + ">";
+            case "emptySet" -> "Set<" + arguments + ">";
+            case "emptyMap" -> "Map<" + arguments + ">";
+            default -> receiver.isEmpty() || !Character.isUpperCase(receiver.charAt(0)) ? "Type" : receiver + "<" + arguments + ">";
+        };
+    }
+
+    /** `f` of `val f = ` before the token, or `v`. */
+    private static String declaredName(CommonTokenStream tokens, Token value) {
+        Token assign = before(tokens, value);
+        Token name = before(tokens, assign);
+        int keyword = type(before(tokens, name));
+        boolean declared = type(assign) == AxolotlLexer.ASSIGN && type(name) == AxolotlLexer.IDENTIFIER
+                && (keyword == AxolotlLexer.VAL || keyword == AxolotlLexer.VAR);
+        return declared ? name.getText() : "v";
     }
 
     /** An unclosed `if` or `attempt` on the line before, or a declaration there without a value. */

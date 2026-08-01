@@ -50,7 +50,7 @@ final class Habits {
                     ? staticImport(tokens, i) : wildcardImport(tokens, i);
             case AxolotlLexer.QUESTION -> followedBy(tokens, i, AxolotlLexer.QUESTION) ? nullish(tokens, i) : ternary(tokens, i);
             case AxolotlLexer.CLASS -> kotlinClass(tokens, i);
-            case AxolotlLexer.COLON -> pythonBlock(tokens, i);
+            case AxolotlLexer.COLON -> label(tokens, i) != null ? label(tokens, i) : pythonBlock(tokens, i);
             case AxolotlLexer.ASSIGN -> followedBy(tokens, i, AxolotlLexer.GT) ? fatArrow(tokens, i) : null;
             case AxolotlLexer.UNKNOWN_CHAR -> unknownChar(tokens, i);
             case AxolotlLexer.AT -> i > 0 && type(tokens, i - 1) == AxolotlLexer.RETURN
@@ -181,13 +181,35 @@ final class Habits {
             // `"""` reads as the empty string `""` and an unclosed `"`.
             case "\"" -> i > 0 && type(tokens, i - 1) == AxolotlLexer.STRING_LITERAL && text(tokens, i - 1).equals("\"\"")
                     && adjacent(tokens, i - 1) ? TEXT_BLOCKS : null;
-            case "`" -> "Axolotl has no template strings; join the parts with `+`: `\"n is \" + n`";
+            case "`" -> quotedName(tokens, i);
             case "#" -> !alone(tokens, i) && startsLine(tokens, i) ? "comments start with `//`" : null;
             case "|" -> unionType(tokens, i) ? "a parameter has one type; Axolotl has no union types, so take a common "
                     + "interface or `Object`" : BIT_OPERATORS;
             case "&" -> BIT_OPERATORS;
             default -> null;
         };
+    }
+
+    /** Kotlin's System.`in`, where a backtick quotes a name, or a JavaScript template string. */
+    private static String quotedName(List<Token> tokens, int i) {
+        boolean name = adjacent(tokens, i) && type(tokens, i + 1) == AxolotlLexer.IDENTIFIER && adjacent(tokens, i + 1)
+                && text(tokens, i + 2).equals("`");
+        if (!name) {
+            return "Axolotl has no template strings; join the parts with `+`: `\"n is \" + n`";
+        }
+        int previous = SourceParser.previousCode(tokens, i);
+        String owner = type(tokens, previous) == AxolotlLexer.DOT ? text(tokens, SourceParser.previousCode(tokens, previous)) + "." : "";
+        return "backticks do not quote names in Axolotl; write the name as it is: `" + owner + text(tokens, i + 1) + "`";
+    }
+
+    /** Java's `outer: while (...)`. */
+    private static String label(List<Token> tokens, int i) {
+        int previous = SourceParser.previousCode(tokens, i);
+        int next = type(tokens, SourceParser.nextCode(tokens, i));
+        boolean loop = next == AxolotlLexer.WHILE || next == AxolotlLexer.FOR;
+        return loop && type(tokens, previous) == AxolotlLexer.IDENTIFIER && startsLine(tokens, previous)
+                ? "Axolotl has no labels such as `" + text(tokens, previous) + ":`; end the loop with its condition, or move it "
+                + "into a function and `return`" : null;
     }
 
     /** `a: String | Int` in a parameter list. */
@@ -217,6 +239,12 @@ final class Habits {
             case "void" -> next == AxolotlLexer.IDENTIFIER && startsDeclaration(tokens, i)
                     && type(tokens, SourceParser.nextCode(tokens, nextIndex)) == AxolotlLexer.LPAREN
                     ? "functions are declared with `fn`: `fn " + text(tokens, nextIndex) + "(...)`" : null;
+            case "synchronized" -> next == AxolotlLexer.LPAREN || modifierPosition(tokens, i)
+                    ? "Axolotl has no `synchronized`; use a class of `java.util.concurrent`, such as `ConcurrentHashMap`, "
+                    + "`AtomicInteger` or `ReentrantLock`" : null;
+            case "volatile" -> modifierPosition(tokens, i)
+                    ? "Axolotl has no `volatile`; use `AtomicBoolean`, `AtomicInteger` or `AtomicReference` from "
+                    + "`java.util.concurrent.atomic`" : null;
             case "switch" -> next == AxolotlLexer.LPAREN
                     ? "Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`" : null;
             case "case" -> startsLine(tokens, i)
@@ -251,13 +279,18 @@ final class Habits {
 
     private static final String AND_OR_NOT = "write `&&`, `||` and `!` instead of `and`, `or` and `not`";
 
-    /** Kotlin's `o as String` and `o as? String`. */
+    /** Kotlin's `o as String` and `o as? String`, and `import java.util.List as JList`. */
     private static String cast(List<Token> tokens, int i, int nextIndex) {
         int previous = SourceParser.previousCode(tokens, i);
         boolean safe = type(tokens, nextIndex) == AxolotlLexer.QUESTION && adjacent(tokens, i);
         int typeName = safe ? SourceParser.nextCode(tokens, nextIndex) : nextIndex;
         if (!VALUE_ENDS.contains(type(tokens, previous)) || type(tokens, typeName) != AxolotlLexer.IDENTIFIER) {
             return null;
+        }
+        int first = lineStart(tokens, i);
+        if (type(tokens, first) == AxolotlLexer.IMPORT) {
+            return "an import has no alias in Axolotl; write `import " + source(tokens, SourceParser.nextCode(tokens, first), previous)
+                    + "` and use `" + text(tokens, previous) + "`; a second type of that name is written with its full name";
         }
         String value = type(tokens, previous) == AxolotlLexer.IDENTIFIER && operandStart(tokens, previous) == previous
                 ? text(tokens, previous) : "x";
@@ -601,6 +634,12 @@ final class Habits {
         if (afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER && array == null) {
             return "Axolotl has no `[]` indexing; call `get`: `" + before + ".get(" + index + ")` for a list, `List.of(" + before
                     + ").get(" + index + ")` for a Java array";
+        }
+        int callee = afterValue && type(tokens, previous) == AxolotlLexer.RPAREN
+                ? SourceParser.previousCode(tokens, matching(tokens, previous, -1)) : -1;
+        if (callee >= 0 && type(tokens, callee) == AxolotlLexer.IDENTIFIER && ARRAY_METHODS.contains(text(tokens, callee))) {
+            return "Axolotl has no `[]` indexing, and `" + text(tokens, callee) + "` gives a Java array; read it as a list: `List.of("
+                    + source(tokens, operandStart(tokens, previous), previous) + ").get(" + index + ")`";
         }
         if (afterValue) {
             String receiver = type(tokens, previous) == AxolotlLexer.IDENTIFIER ? before : "list";

@@ -1,0 +1,8 @@
+package app
+
+import java.util.List as JList
+
+fn main() {
+    val xs: JList<String> = JList.of()
+    println(xs)
+}

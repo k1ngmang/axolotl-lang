@@ -133,7 +133,7 @@ final class Messages {
     // The messages of an import that failed, with the name it would have brought in.
     private static final Pattern FAILED_IMPORT = Pattern.compile("^(?:`[\\w.]+` has no function or value `(\\w+)`"
             + "|unknown type `(?:\\w+\\.)*(\\w+)`; check the spelling$|`(\\w+)` is declared in |`(\\w+)` is private to "
-            + "|`[\\w.]+\\.(\\w+)` is not a type: )");
+            + "|`[\\w.]+\\.(\\w+)` is not a type: |`(?:\\w+\\.)*(\\w+)` is the type of the file )");
     private static final Pattern UNKNOWN_USE = Pattern.compile("^unknown (?:function|name|type) `(\\w+)");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
     private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
@@ -657,6 +657,11 @@ final class Messages {
             String ownerSimple = owner.substring(owner.lastIndexOf('.') + 1);
             if (ownerSimple.isEmpty() || !Character.isUpperCase(ownerSimple.charAt(0))) {
                 return new Translated(ErrorCode.JAVAC, "unknown type `" + name + "`; check the spelling");
+            }
+            // `import jobs.Job.Job`: a file whose only type has the file's name is that type, not a holder of it.
+            if (name.endsWith("." + ownerSimple)) {
+                return new Translated(ErrorCode.JAVAC, "`" + owner + "` is the type of the file " + ownerSimple
+                        + ".axl and needs no import in its package; elsewhere write `import " + owner + "`");
             }
             return new Translated(ErrorCode.IMPORT_MEMBER, "`" + name + "` is not a type: for a function write `import fn "
                     + name + "`, for a value `import val " + name + "`");

@@ -1,4 +1,5 @@
 AXL100 app/ImportDataClass.axl:3:14: error: `Circle` is declared in model/Shapes.axl: `import model.Shapes.Circle`
+AXL100 app/ImportFileType.axl:3:17: error: `jobs.Job` is the type of the file Job.axl and needs no import in its package; elsewhere write `import jobs.Job`
 AXL100 app/ImportPrivate.axl:3:24: error: `hidden` is private to `Strings` and can only be used in that file
 AXL100 app/ImportTypo.axl:3:24: error: `Strings` has no function or value `shuot`; did you mean `shout`?
 AXL100 app/ImportedType.axl:7:13: error: wrong arguments for `area`: expected (Circle), got (Circle, Int)

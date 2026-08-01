@@ -1,0 +1,8 @@
+package app
+
+import java.util.function.Function
+
+fn main() {
+    val f = Function.identity<String>()
+    println(f.apply("x"))
+}

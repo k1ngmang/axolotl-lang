@@ -1,4 +1,5 @@
 AXL001 app/AsCast.axl:3:31: error: Axolotl has no casts; test the type with `is`: `if (o is String) { ... }`
+AXL001 app/BacktickName.axl:6:29: error: backticks do not quote names in Axolotl; write the name as it is: `System.in`
 AXL001 app/ClassReference.axl:4:19: error: Axolotl has no `::class`; the class of a type is `String.class`
 AXL001 app/ColonResult.axl:3:13: error: the result type comes after `->`: `fn f(...) -> Int`
 AXL001 app/Companion.axl:4:5: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program

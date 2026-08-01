@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    outer: while (true) {
+        println("a")
+    }
+}

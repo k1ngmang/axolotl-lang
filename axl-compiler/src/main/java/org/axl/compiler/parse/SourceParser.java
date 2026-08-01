@@ -104,6 +104,8 @@ public final class SourceParser {
                 case "'" -> adjacent(all, i) && all.get(i + 1).getText().equals("'")
                         ? "a character literal holds one character; put one between the quotes"
                         : "unclosed character literal: add `'`";
+                // The `[` before it has been explained, once per message.
+                case "]" -> closesBracket(all, i) ? null : unexpected(']');
                 default -> unexpected(t.getText().codePointAt(0));
             };
         }
@@ -136,6 +138,15 @@ public final class SourceParser {
             return "`" + t.getText() + "` is not a valid name: use the letters A to Z and a to z, digits and `_`";
         }
         return null;
+    }
+
+    private static boolean closesBracket(List<Token> all, int i) {
+        for (int j = i - 1; j >= 0 && all.get(j).getLine() == all.get(i).getLine(); j--) {
+            if (all.get(j).getType() == AxolotlLexer.UNKNOWN_CHAR && all.get(j).getText().equals("[")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** `3.`, `3.f`, `3.toString()` and Kotlin's range `0..10`; after is the token after the dot, or null. */

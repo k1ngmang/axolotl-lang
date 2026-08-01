@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val x = "a:b"
+    println(x.split(":")[0])
+}

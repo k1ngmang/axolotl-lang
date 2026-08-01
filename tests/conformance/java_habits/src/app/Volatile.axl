@@ -1,0 +1,9 @@
+package app
+
+class Flag {
+    volatile var stop: Boolean = false
+}
+
+fn main() {
+    println(Flag().stop)
+}

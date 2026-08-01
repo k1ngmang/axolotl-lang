@@ -1,0 +1,13 @@
+package app
+
+class Counter {
+    var n: Int = 0
+
+    synchronized fn inc() {
+        n += 1
+    }
+}
+
+fn main() {
+    Counter().inc()
+}
