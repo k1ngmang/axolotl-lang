@@ -14,8 +14,11 @@ import java.util.List;
 import java.util.Map;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
+import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlTypeParameter;
+import org.axl.intellij.psi.AxlVariable;
 
 /** Syntax errors in IntelliJ are the ones the compiler reports. */
 public class AxlParserTest extends BasePlatformTestCase {
@@ -150,7 +153,9 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "interface_members/src/app/Main", "value_branches/src/app/Main", "annotations/src/app/Main",
                 "class_literals/src/app/Main", "wildcard_types/src/app/Main", "attempt_throws/src/app/Main",
                 "interface_methods/src/app/Main", "interface_file_type/src/app/Store", "interface_file_type/src/app/Main",
-                "interface_method_errors/src/app/Main", "attempt_statement/src/app/Main", "elvis_throw/src/app/Main")) {
+                "interface_method_errors/src/app/Main", "attempt_statement/src/app/Main", "elvis_throw/src/app/Main",
+                "type_parameters/src/app/Main", "type_parameter_errors/src/app/Main", "type_parameter_static/src/app/Box",
+                "pipe_fallback/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -298,6 +303,70 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertErrors("fn f(n: Int) = when (n) {\n    - foo -> 1\n}\n");
         assertErrors("fn f(n: Int) = when (n) {\n    1 2\n}\n");
         assertErrors("fn f(n: Int) {\n    n is Int = 1\n}\n");
+        assertErrors("fn f<>() = 1\n");
+        assertErrors("data class P<T(val x: T)\n");
+        assertErrors("class C<T : > {}\n");
+    }
+
+    public void testReadsTypeParametersAsDeclarationsOfTheirOwners() {
+        PsiFile file = myFixture.configureByText("Generic.axl", """
+                package app
+
+                data class Pair<A, B>(val first: A, val second: B) : Shape<A>
+
+                class Stack<T : Object> {
+                    val items: List<T> = ArrayList<T>()
+                    fn push(item: T) {
+                    }
+                }
+
+                interface Repository<K, V : Comparable<V>> {
+                    fn find(key: K) -> V?
+                    fn map<R>(f: Function<V, R>) -> List<R>
+                }
+
+                fn largest<T : Comparable<T>>(xs: List<T>) -> T? = null
+
+                fn swap<A, B>(p: Pair<A, B>) -> Pair<B, A> = Pair<B, A>(p.second(), p.first())
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        List<AxlTypeDeclaration> types = ((AxlFile) file).typeDeclarations();
+        assertEquals(List.of("A", "B"), names(types.get(0).typeParameters()));
+        assertEquals(List.of("T"), names(types.get(1).typeParameters()));
+        assertEquals("Object", types.get(1).typeParameters().getFirst().bound().getText());
+        assertEquals(List.of("K", "V"), names(types.get(2).typeParameters()));
+        assertNull(types.get(2).typeParameters().getFirst().bound());
+        assertEquals("Comparable<V>", types.get(2).typeParameters().get(1).bound().getText());
+        assertEquals(List.of(), names(types.get(2).methods().getFirst().typeParameters()));
+        assertEquals(List.of("R"), names(types.get(2).methods().get(1).typeParameters()));
+        AxlFunction largest = ((AxlFile) file).functions().getFirst();
+        assertEquals("Comparable<T>", largest.typeParameters().getFirst().bound().getText());
+        assertEquals("T?", largest.returnType().getText());
+        assertEquals(List.of("xs"), largest.parameters().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("A", "B"), names(((AxlFile) file).functions().get(1).typeParameters()));
+        assertEquals(9, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.TYPE_PARAMETER).length);
+    }
+
+    private static List<String> names(List<AxlTypeParameter> parameters) {
+        return parameters.stream().map(AxlTypeParameter::getName).toList();
+    }
+
+    public void testReadsAFallbackAfterAPipeAsTheFallbackOfTheWholePipe() {
+        PsiFile file = myFixture.configureByText("Pipe.axl", """
+                package app
+
+                fn top(names: List<String>) -> String = names |> sorted |> first ?: "none"
+
+                fn big(xs: List<Int>) -> Int = (xs |> filter { it > 4 } |> first ?: 0) + 1
+
+                fn plain(s: String?) -> String = s ?: "x"
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        PsiElement[] fallbacks = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ELVIS);
+        assertEquals(List.of(AxlElementTypes.PIPE, AxlElementTypes.PIPE, AxlElementTypes.REFERENCE),
+                Arrays.stream(fallbacks).map(e -> e.getFirstChild().getNode().getElementType()).toList());
+        assertEquals(2, PsiTreeUtil.collectElements(fallbacks[0], e -> e.getNode().getElementType() == AxlElementTypes.PIPE_STAGE).length);
+        assertEquals(AxlElementTypes.LITERAL, fallbacks[0].getLastChild().getNode().getElementType());
     }
 
     private int calls(String body) {

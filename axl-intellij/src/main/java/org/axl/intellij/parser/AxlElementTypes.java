@@ -15,6 +15,7 @@ public final class AxlElementTypes {
     public static final IElementType FUNCTION = type("FUNCTION");
     public static final IElementType PARAMETER_LIST = type("PARAMETER_LIST");
     public static final IElementType PARAMETER = type("PARAMETER");
+    public static final IElementType TYPE_PARAMETER = type("TYPE_PARAMETER");
     public static final IElementType TYPE = type("TYPE");
     public static final IElementType VARIABLE = type("VARIABLE");
     public static final IElementType BLOCK = type("BLOCK");

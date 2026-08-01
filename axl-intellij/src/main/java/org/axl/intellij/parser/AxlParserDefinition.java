@@ -20,6 +20,7 @@ import org.axl.intellij.psi.AxlPsiElement;
 import org.axl.intellij.psi.AxlReferenceExpression;
 import org.axl.intellij.psi.AxlType;
 import org.axl.intellij.psi.AxlTypeDeclaration;
+import org.axl.intellij.psi.AxlTypeParameter;
 import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 
@@ -69,6 +70,9 @@ public final class AxlParserDefinition implements ParserDefinition {
         if (type == AxlElementTypes.DATA_CLASS || type == AxlElementTypes.INTERFACE || type == AxlElementTypes.CLASS
                 || type == AxlElementTypes.ENUM) {
             return new AxlTypeDeclaration(node);
+        }
+        if (type == AxlElementTypes.TYPE_PARAMETER) {
+            return new AxlTypeParameter(node);
         }
         if (type == AxlElementTypes.REFERENCE) {
             return new AxlReferenceExpression(node);

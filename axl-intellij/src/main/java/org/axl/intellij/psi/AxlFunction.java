@@ -17,6 +17,11 @@ public final class AxlFunction extends AxlNamedElement {
         super(node);
     }
 
+    /** `<T, U : Bound>` after the name: types only inside the function. */
+    public List<AxlTypeParameter> typeParameters() {
+        return PsiTreeUtil.getChildrenOfTypeAsList(this, AxlTypeParameter.class);
+    }
+
     public List<AxlVariable> parameters() {
         PsiElement list = findChildByType(AxlElementTypes.PARAMETER_LIST);
         return list == null ? List.of() : PsiTreeUtil.getChildrenOfTypeAsList(list, AxlVariable.class);
@@ -58,7 +63,8 @@ public final class AxlFunction extends AxlNamedElement {
         return new ItemPresentation() {
             @Override
             public String getPresentableText() {
-                return getName() + "(" + String.join(", ", parameters().stream().map(PsiElement::getText).toList()) + ")"
+                String parameters = String.join(", ", parameters().stream().map(PsiElement::getText).toList());
+                return getName() + AxlTypeParameter.text(typeParameters()) + "(" + parameters + ")"
                         + (returnType() == null ? "" : " -> " + returnType().getText());
             }
 

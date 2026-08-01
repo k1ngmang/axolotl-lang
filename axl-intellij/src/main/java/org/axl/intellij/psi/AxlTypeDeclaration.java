@@ -37,6 +37,11 @@ public final class AxlTypeDeclaration extends AxlNamedElement {
         return getNode().findChildByType(AxlTokenTypes.of(AxolotlLexer.SEALED)) != null;
     }
 
+    /** `<T, U : Bound>` after the name: types only inside the declaration. */
+    public List<AxlTypeParameter> typeParameters() {
+        return PsiTreeUtil.getChildrenOfTypeAsList(this, AxlTypeParameter.class);
+    }
+
     /** The components of a data class, the fields of a class, the constants of an enum, or the values an interface requires. */
     public List<AxlVariable> fields() {
         return PsiTreeUtil.getChildrenOfTypeAsList(this, AxlVariable.class);
@@ -51,7 +56,7 @@ public final class AxlTypeDeclaration extends AxlNamedElement {
         return new ItemPresentation() {
             @Override
             public String getPresentableText() {
-                return getName();
+                return getName() + AxlTypeParameter.text(typeParameters());
             }
 
             @Override

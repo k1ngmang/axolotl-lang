@@ -172,6 +172,7 @@ public final class AxlParser implements PsiParser {
         b.advanceLexer();
         b.advanceLexer();
         expect(IDENTIFIER, "class name expected");
+        typeParameters();
         if (expect(LPAREN, "`(` expected")) {
             if (!at(RPAREN)) {
                 do {
@@ -189,6 +190,7 @@ public final class AxlParser implements PsiParser {
         consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "class name expected");
+        typeParameters();
         if (consume(LPAREN)) {
             if (!at(RPAREN)) {
                 do {
@@ -246,6 +248,7 @@ public final class AxlParser implements PsiParser {
         consume(SEALED);
         b.advanceLexer();
         expect(IDENTIFIER, "interface name expected");
+        typeParameters();
         supertypes();
         if (consume(LBRACE)) {
             while (!at(RBRACE) && !b.eof()) {
@@ -274,6 +277,7 @@ public final class AxlParser implements PsiParser {
     private void abstractFunction(PsiBuilder.Marker m) {
         b.advanceLexer();
         expect(IDENTIFIER, "function name expected");
+        typeParameters();
         parameters();
         if (consume(ARROW)) {
             type();
@@ -315,6 +319,7 @@ public final class AxlParser implements PsiParser {
         consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "function name expected");
+        typeParameters();
         parameters();
         if (consume(ARROW)) {
             type();
@@ -356,6 +361,28 @@ public final class AxlParser implements PsiParser {
             type();
         }
         param.done(AxlElementTypes.PARAMETER);
+    }
+
+    /**
+     * `<T>` or `<K, V : Comparable<V>>` after the name of a type or a function. Each parameter is a
+     * declaration, which the `T`s in the rest of the declaration refer to.
+     */
+    private void typeParameters() {
+        if (!consume(LT)) {
+            return;
+        }
+        do {
+            PsiBuilder.Marker m = b.mark();
+            if (!expect(IDENTIFIER, "type parameter name expected")) {
+                m.drop();
+                break;
+            }
+            if (consume(COLON)) {
+                type();
+            }
+            m.done(AxlElementTypes.TYPE_PARAMETER);
+        } while (consume(COMMA));
+        expect(GT, "`>` expected");
     }
 
     private void type() {
@@ -533,22 +560,29 @@ public final class AxlParser implements PsiParser {
     private void expression() {
         PsiBuilder.Marker m = b.mark();
         binary(0);
-        if (!at(PIPE)) {
+        if (at(PIPE)) {
+            while (consume(PIPE)) {
+                PsiBuilder.Marker stage = b.mark();
+                expect(IDENTIFIER, "pipe stage expected");
+                if (at(LPAREN) && !newlineBefore()) {
+                    arguments();
+                }
+                if (at(LBRACE) && !newlineBefore()) {
+                    lambda();
+                }
+                stage.done(AxlElementTypes.PIPE_STAGE);
+            }
+            m.done(AxlElementTypes.PIPE);
+            m = m.precede();
+        }
+        // `xs |> first ?: fallback`: the fallback belongs to the whole pipe, as in the grammar.
+        if (at(ELVIS)) {
+            b.advanceLexer();
+            binary(ELVIS_LEVEL + 1);
+            m.done(AxlElementTypes.ELVIS);
+        } else {
             m.drop();
-            return;
         }
-        while (consume(PIPE)) {
-            PsiBuilder.Marker stage = b.mark();
-            expect(IDENTIFIER, "pipe stage expected");
-            if (at(LPAREN) && !newlineBefore()) {
-                arguments();
-            }
-            if (at(LBRACE) && !newlineBefore()) {
-                lambda();
-            }
-            stage.done(AxlElementTypes.PIPE_STAGE);
-        }
-        m.done(AxlElementTypes.PIPE);
     }
 
     private static final int[][] LEVELS = {
