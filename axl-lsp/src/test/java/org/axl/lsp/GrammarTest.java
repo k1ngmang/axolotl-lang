@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,6 +40,40 @@ class GrammarTest {
         assertEquals("keyword.control.axl", scope("keywords", "    in xs) {", 0));
         assertNull(scope("keywords", "val data = in + 1", 4));
         assertNull(scope("keywords", "val data = in + 1", 11));
+    }
+
+    @Test
+    void highlightsBreakContinueAndUseBeforeAResource() {
+        assertEquals("keyword.control.axl", scope("keywords", "break", 0));
+        assertEquals("keyword.control.axl", scope("keywords", "continue", 0));
+        assertEquals("keyword.control.axl", scope("keywords", "use (val reader = open()) {", 0));
+        assertEquals("keyword.control.axl", scope("keywords", "use(val reader = open()) {", 0));
+        assertNull(scope("keywords", "use(reader)", 0));
+        assertNull(scope("keywords", "val use = 1", 4));
+        assertNull(scope("keywords", "use + 1", 0));
+    }
+
+    @Test
+    void readsTheFieldsOfAnEnumWithItsHeader() {
+        for (JsonElement element : REPOSITORY.getAsJsonObject("declarations").getAsJsonArray("patterns")) {
+            JsonObject pattern = element.getAsJsonObject();
+            if (pattern.has("begin") && pattern.get("begin").getAsString().contains("enum")) {
+                Matcher matcher = Pattern.compile(pattern.get("begin").getAsString())
+                        .matcher("enum Planet(val mass: Double, val radius: Map<String, Int>) {");
+                assertTrue(matcher.lookingAt());
+                assertEquals("(val mass: Double, val radius: Map<String, Int>)", matcher.group(3));
+                assertTrue(pattern.getAsJsonObject("beginCaptures").getAsJsonObject("3").has("patterns"));
+                Pattern member = Pattern.compile(pattern.getAsJsonArray("patterns").asList().stream()
+                        .map(JsonElement::getAsJsonObject).filter(p -> p.has("name") && p.get("name").getAsString().contains("enummember"))
+                        .findFirst().orElseThrow().get("match").getAsString());
+                assertTrue(member.matcher("MERCURY(3.3e23, 2.4e6),").lookingAt());
+                assertTrue(member.matcher("GREEN").lookingAt());
+                assertTrue(member.matcher("RED }").lookingAt());
+                assertFalse(member.matcher("Math.PI)").lookingAt());
+                return;
+            }
+        }
+        throw new AssertionError("no rule for the body of an enum");
     }
 
     @Test

@@ -1142,6 +1142,36 @@ class WorkspaceTest {
     }
 
     @Test
+    void classifiesUseBreakContinueAndTheErrorNamesOfHandlers() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn f(xs: java.util.List<Int>) -> Int {
+                    var n = 0
+                    for (x in xs) {
+                        if (x < 0) {
+                            break
+                        }
+                        continue
+                    }
+                    use (val r = java.io.StringReader("x")) {
+                        n += r.read()
+                    } else e -> println("failed " + e.getMessage() +
+                        e)
+                    val use = attempt Integer.parseInt("1") else e -> fallback(e, n)
+                    println(e)
+                    return use + n
+                }
+
+                fn fallback(e: Exception, n: Int) -> Int = n
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("6:12:5:keyword", "8:8:8:keyword", "10:4:3:keyword", "12:11:1:parameter",
+                "12:36:1:parameter", "13:8:1:parameter", "14:8:3:variable", "14:49:1:parameter", "14:63:1:parameter",
+                "15:12:1:variable", "16:11:3:variable")), tokens.toString());
+    }
+
+    @Test
     void completesTheKeywordsOfLoopsDataClassesAndWhen() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 0).stream().map(CompletionItem::getLabel).toList();

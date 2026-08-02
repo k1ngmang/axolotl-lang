@@ -8,15 +8,27 @@ import org.antlr.v4.runtime.Token;
 import org.axl.compiler.parse.AxolotlLexer;
 
 /**
- * The tokens of a file that are parameters of functions and lambdas, or type parameters of
- * functions and types, where they are declared and where their names are used in the declaration.
- * Found from the tokens, so that a file that does not parse is colored too.
+ * The tokens of a file that are parameters of functions, lambdas and the `else e ->` handlers of
+ * `attempt` and `use`, or type parameters of functions and types, where they are declared and where
+ * their names are used in the declaration. Found from the tokens, so that a file that does not
+ * parse is colored too.
  */
 final class ParameterTokens {
 
     /** Keywords that start the next declaration after a function with an expression body. */
     private static final Set<Integer> DECLARATIONS = Set.of(AxolotlLexer.FN, AxolotlLexer.VAL, AxolotlLexer.VAR,
             AxolotlLexer.PRIVATE, AxolotlLexer.CLASS, AxolotlLexer.ENUM, AxolotlLexer.INTERFACE, AxolotlLexer.SEALED);
+
+    /** Tokens after which an expression goes on at the next line: an operator or a dot that wants a right side. */
+    private static final Set<Integer> CONTINUING = Set.of(AxolotlLexer.ARROW, AxolotlLexer.PLUS, AxolotlLexer.MINUS,
+            AxolotlLexer.STAR, AxolotlLexer.SLASH, AxolotlLexer.PERCENT, AxolotlLexer.ANDAND, AxolotlLexer.OROR,
+            AxolotlLexer.EQ, AxolotlLexer.NEQ, AxolotlLexer.LT, AxolotlLexer.LE, AxolotlLexer.GT, AxolotlLexer.GE,
+            AxolotlLexer.ELVIS, AxolotlLexer.PIPE, AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT, AxolotlLexer.ASSIGN,
+            AxolotlLexer.ELSE, AxolotlLexer.IS);
+
+    /** Tokens that start a line of an expression that goes on: `.`, `?.`, `?:` and `|>`. */
+    private static final Set<Integer> CONTINUATIONS = Set.of(AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT, AxolotlLexer.ELVIS,
+            AxolotlLexer.PIPE);
 
     private final List<? extends Token> tokens;
     // The indexes of the default-channel tokens.
@@ -43,9 +55,42 @@ final class ParameterTokens {
                 }
             } else if (parameters.type(k) == AxolotlLexer.LBRACE) {
                 parameters.lambda(k);
+            } else if (parameters.type(k) == AxolotlLexer.ELSE && parameters.type(k + 1) == AxolotlLexer.IDENTIFIER
+                    && parameters.type(k + 2) == AxolotlLexer.ARROW) {
+                parameters.handler(k + 1);
             }
         }
         return parameters.result;
+    }
+
+    /** The error name of `else e -> handler`, used up to the end of the handler, an expression. */
+    private void handler(int name) {
+        mark(List.of(text(name)), name, expressionEnd(name + 2));
+    }
+
+    /**
+     * Where the expression that starts at a position ends: before a `,` or `;` or a closing bracket
+     * outside its own brackets, or at the end of a line that no operator continues.
+     */
+    private int expressionEnd(int k) {
+        int depth = 0;
+        for (; k < code.size(); k++) {
+            int type = type(k);
+            boolean opens = type == AxolotlLexer.LPAREN || type == AxolotlLexer.LBRACE;
+            boolean closes = type == AxolotlLexer.RPAREN || type == AxolotlLexer.RBRACE;
+            if (depth == 0 && (closes || type == AxolotlLexer.COMMA || type == AxolotlLexer.SEMI)) {
+                return k - 1;
+            }
+            if (depth == 0 && k > 0 && line(k) > line(k - 1) && !CONTINUING.contains(type(k - 1)) && !CONTINUATIONS.contains(type)) {
+                return k - 1;
+            }
+            depth += opens ? 1 : closes ? -1 : 0;
+        }
+        return code.size() - 1;
+    }
+
+    private int line(int k) {
+        return tokens.get(code.get(k)).getLine();
     }
 
     /**

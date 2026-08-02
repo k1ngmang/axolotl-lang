@@ -21,7 +21,8 @@ final class SemanticTokensProvider {
     static final SemanticTokensLegend LEGEND = new SemanticTokensLegend(TYPES, List.of());
 
     private static final Set<Integer> KEYWORDS = Set.of(AxolotlLexer.PACKAGE, AxolotlLexer.IMPORT, AxolotlLexer.FN,
-            AxolotlLexer.VAL, AxolotlLexer.VAR, AxolotlLexer.PRIVATE, AxolotlLexer.RETURN, AxolotlLexer.IF,
+            AxolotlLexer.VAL, AxolotlLexer.VAR, AxolotlLexer.PRIVATE, AxolotlLexer.RETURN, AxolotlLexer.BREAK,
+            AxolotlLexer.CONTINUE, AxolotlLexer.IF,
             AxolotlLexer.ELSE, AxolotlLexer.WHILE, AxolotlLexer.FOR, AxolotlLexer.WHEN, AxolotlLexer.IS,
             AxolotlLexer.CLASS, AxolotlLexer.ENUM, AxolotlLexer.INTERFACE, AxolotlLexer.SEALED, AxolotlLexer.THROW,
             AxolotlLexer.TRY, AxolotlLexer.ATTEMPT, AxolotlLexer.TRUE, AxolotlLexer.FALSE, AxolotlLexer.NULL);
@@ -249,11 +250,15 @@ final class SemanticTokensProvider {
         return type(tokens, previousIndex(tokens, first)) == AxolotlLexer.AT;
     }
 
-    /** `data` before `class`, and `in` in `for (x in xs)`; both are ordinary names elsewhere. */
+    /** `data` before `class`, `in` in `for (x in xs)` and `use` before `(val`; all are ordinary names elsewhere. */
     private static boolean isContextualKeyword(List<? extends Token> tokens, int index, Token next, Token previous) {
         String text = tokens.get(index).getText();
         if (text.equals("data")) {
             return next != null && next.getType() == AxolotlLexer.CLASS;
+        }
+        if (text.equals("use")) {
+            int open = nextIndex(tokens, index);
+            return type(tokens, open) == AxolotlLexer.LPAREN && type(tokens, nextIndex(tokens, open)) == AxolotlLexer.VAL;
         }
         if (text.equals("in")) {
             int loopVariable = previousIndex(tokens, index);

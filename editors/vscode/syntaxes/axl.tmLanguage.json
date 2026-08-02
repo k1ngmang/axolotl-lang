@@ -74,15 +74,28 @@
           }
         },
         {
-          "begin": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)",
+          "begin": "\\b(enum)\\s+([\\p{L}_$][\\p{L}\\p{N}_$]*)(\\s*\\((?:[^()]|\\([^()]*\\))*\\))?",
           "beginCaptures": {
             "1": { "name": "keyword.declaration.type.axl" },
-            "2": { "name": "entity.name.type.enum.axl" }
+            "2": { "name": "entity.name.type.enum.axl" },
+            "3": {
+              "patterns": [
+                { "include": "#declarations" },
+                { "include": "#keywords" },
+                { "include": "#operators" },
+                { "include": "#types" }
+              ]
+            }
           },
           "end": "\\}",
           "patterns": [
             { "include": "#comments" },
-            { "name": "variable.other.enummember.axl", "match": "[\\p{L}_$][\\p{L}\\p{N}_$]*" }
+            { "include": "#strings" },
+            { "include": "#numbers" },
+            { "include": "#keywords" },
+            { "name": "variable.other.enummember.axl", "match": "[\\p{L}_$][\\p{L}\\p{N}_$]*(?=\\s*([,(}]|$))" },
+            { "include": "#operators" },
+            { "include": "#types" }
           ]
         },
         {
@@ -120,8 +133,9 @@
     "keywords": {
       "patterns": [
         { "name": "keyword.other.class-literal.axl", "match": "(?<=\\.)class\\b" },
-        { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|throw|try|attempt)\\b" },
+        { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|throw|try|attempt|break|continue)\\b" },
         { "name": "keyword.control.axl", "match": "^\\s*in\\b(?=\\s+[\\p{L}_$(])" },
+        { "name": "keyword.control.axl", "match": "\\buse\\b(?=\\s*\\(\\s*val\\b)" },
         { "name": "keyword.declaration.function.axl", "match": "\\bfn\\b" },
         { "name": "keyword.declaration.type.axl", "match": "\\b(data(?=\\s+class\\b)|class|enum|interface)\\b" },
         { "name": "keyword.declaration.variable.axl", "match": "\\b(val|var)\\b" },
