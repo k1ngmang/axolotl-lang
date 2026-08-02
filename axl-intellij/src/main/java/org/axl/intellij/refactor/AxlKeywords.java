@@ -20,8 +20,8 @@ final class AxlKeywords {
             "enum", "interface", "sealed");
     private static final List<String> IN_CLASS = List.of("val", "var", "fn", "private");
     private static final List<String> IN_INTERFACE = List.of("val", "fn");
-    private static final List<String> STATEMENT = List.of("val", "var", "return", "if", "while", "for", "when", "throw",
-            "try", "attempt", "true", "false", "null");
+    private static final List<String> STATEMENT = List.of("val", "var", "return", "if", "while", "for", "use", "break",
+            "continue", "when", "throw", "try", "attempt", "true", "false", "null");
     private static final List<String> ARM = List.of("is", "else", "true", "false", "null");
     private static final List<String> EXPRESSION = List.of("if", "when", "throw", "try", "attempt", "true", "false", "null");
 

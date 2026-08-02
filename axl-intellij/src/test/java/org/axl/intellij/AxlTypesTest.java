@@ -181,6 +181,49 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
             }
             """;
 
+    /** An enum with fields, classes extending Java classes, a data class with methods and a `use` statement. */
+    static final String EXTENDED = """
+            package app
+
+            enum Planet(val mass: Double, val radius: Double) {
+                MERCURY(3.303e23, 2.4397e6),
+                EARTH(5.976e24, 6.37814e6)
+            }
+
+            class NotFound(val id: String) : RuntimeException("not found: " + id)
+
+            class Loud(val times: Int) : Thread("loud") {
+                var shouted = 0
+
+                fn run() {
+                    shouted += times
+                }
+            }
+
+            data class Money(val cents: Long) : Comparable<Money> {
+                fn compareTo(other: Money) -> Int = Long.compare(cents, other.cents())
+
+                fn plus(other: Money) -> Money = Money(cents + other.cents())
+
+                fn show() -> String = cents + ""
+            }
+
+            fn gravity(p: Planet) -> Double = 6.67300E-11 * p.mass / (p.radius * p.radius)
+
+            fn main() {
+                println(Planet.EARTH.mass)
+                val loud = Loud(3)
+                loud.start()
+                println(loud.shouted + " " + loud.getName())
+                val missing = NotFound("7")
+                println(missing.getMessage() + missing.id)
+                println(Money(250).plus(Money(99)).show())
+                use (val reader = java.io.StringReader("x")) {
+                    println(reader.read())
+                } else e -> println(e.getMessage())
+            }
+            """;
+
     @Override
     protected @NotNull LightProjectDescriptor getProjectDescriptor() {
         return JAVA_21;
@@ -627,6 +670,148 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         List<String> types = highlighted(text, AxlSyntaxHighlighter.TYPE_DECLARATION);
         assertEquals(List.of("Shape", "Circle", "Square", "Color"), types);
         assertEquals(List.of("RED", "GREEN", "BLUE"), highlighted(text, AxlSyntaxHighlighter.ENUM_CONSTANT));
+    }
+
+    public void testHighlightsEnumConstantsButNotEnumFieldsAndUseOnlyBeforeItsResource() {
+        myFixture.configureByText("Extended.axl", EXTENDED.replace("println(Planet.EARTH.mass)", "val use = 1\n    println(Planet.EARTH.mass + use)"));
+        String text = myFixture.getFile().getText();
+        assertEquals(List.of("MERCURY", "EARTH"), highlighted(text, AxlSyntaxHighlighter.ENUM_CONSTANT));
+        assertEquals(List.of("data", "use"), highlighted(text, AxlSyntaxHighlighter.KEYWORD));
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testShowsNoErrorsForTheConformanceCasesOfTheNewStatementsAndMembers() {
+        for (String name : List.of("loop_jumps", "use_resources", "enum_fields", "java_superclass", "data_class_methods",
+                "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io")) {
+            myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
+            assertEquals(name, List.of(), myFixture.doHighlighting().stream()
+                    .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+        }
+    }
+
+    public void testJavaSeesEnumFieldsJavaSuperclassesAndDataClassMethods() {
+        myFixture.addFileToProject("app/Extended.axl", EXTENDED);
+        PsiClass planet = findClass("app.Extended.Planet");
+        assertTrue(planet.isEnum());
+        assertEquals(List.of("MERCURY", "EARTH", "mass", "radius"), Arrays.stream(planet.getFields()).map(PsiField::getName).toList());
+        PsiField mass = planet.findFieldByName("mass", false);
+        assertEquals("double", mass.getType().getPresentableText());
+        assertFalse(mass.hasModifierProperty(PsiModifier.STATIC));
+        assertTrue(mass.hasModifierProperty(PsiModifier.FINAL));
+        assertEquals(1, planet.getConstructors().length);
+        assertEquals(2, planet.getConstructors()[0].getParameterList().getParametersCount());
+
+        PsiClass notFound = findClass("app.Extended.NotFound");
+        assertEquals("java.lang.RuntimeException", notFound.getSuperClass().getQualifiedName());
+        assertEquals(0, notFound.getImplementsListTypes().length);
+        PsiClass loud = findClass("app.Extended.Loud");
+        assertTrue(loud.isInheritor(findClass("java.lang.Thread"), true));
+        assertEquals("int", loud.findFieldByName("shouted", false).getType().getPresentableText());
+        assertEquals("void", loud.findMethodsByName("run", false)[0].getReturnType().getPresentableText());
+
+        PsiClass money = findClass("app.Extended.Money");
+        assertEquals("Comparable<Money>", money.getImplementsListTypes()[0].getPresentableText());
+        assertEquals("Money", money.findMethodsByName("plus", false)[0].getReturnType().getPresentableText());
+        assertEquals("long", money.findMethodsByName("cents", false)[0].getReturnType().getPresentableText());
+        myFixture.configureByText("UseFromJava.java", """
+                package app;
+
+                class UseFromJava {
+                    String f() throws Exception {
+                        double m = Extended.Planet.EARTH.mass + Extended.Planet.MERCURY.radius;
+                        Extended.Loud loud = new Extended.Loud(3);
+                        loud.start();
+                        loud.join();
+                        RuntimeException e = new Extended.NotFound("x");
+                        Extended.Money money = new Extended.Money(1).plus(new Extended.Money(2));
+                        return e.getMessage() + money.show() + money.compareTo(money) + money.cents() + m + loud.shouted;
+                    }
+                }
+                """);
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testEnumFieldsAndDataClassMethodsNavigateToTheirDeclarations() {
+        AxlFile file = (AxlFile) myFixture.addFileToProject("app/Extended.axl", EXTENDED);
+        AxlTypeDeclaration planet = file.typeDeclarations().getFirst();
+        PsiClass light = findClass("app.Extended.Planet");
+        assertSame(planet.fields().getFirst(), light.findFieldByName("mass", false).getNavigationElement());
+        assertSame(planet.fields().get(2), light.findFieldByName("MERCURY", false).getNavigationElement());
+        assertSame(planet, light.getConstructors()[0].getNavigationElement());
+        AxlTypeDeclaration loud = file.typeDeclarations().get(2);
+        assertSame(loud.methods().getFirst(), findClass("app.Extended.Loud").findMethodsByName("run", false)[0].getNavigationElement());
+        assertSame(loud.fields().get(1), findClass("app.Extended.Loud").findFieldByName("shouted", false).getNavigationElement());
+        AxlTypeDeclaration money = file.typeDeclarations().get(3);
+        PsiClass record = findClass("app.Extended.Money");
+        assertSame(money.methods().get(2), record.findMethodsByName("show", false)[0].getNavigationElement());
+        assertSame(money.methods().getFirst(), record.findMethodsByName("compareTo", false)[0].getNavigationElement());
+        assertSame(money.fields().getFirst(), record.findMethodsByName("cents", false)[0].getNavigationElement());
+    }
+
+    public void testResolvesEnumFieldsInheritedMembersDataClassMethodsAndUseLocals() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Extended.axl", EXTENDED);
+        AxlTypeDeclaration planet = file.typeDeclarations().getFirst();
+        assertSame(planet.fields().getFirst(), resolveAt("println(Planet.EARTH.|mass)"));
+        assertSame(planet.fields().get(3), resolveAt("println(Planet.|EARTH.mass)"));
+        assertSame(planet.fields().getFirst(), resolveAt("* p.|mass /"));
+        assertSame(planet.fields().get(1), resolveAt("(p.|radius *"));
+        assertEquals("java.lang.Thread", ((PsiMethod) resolveAt("loud.|start()")).getContainingClass().getQualifiedName());
+        assertEquals("java.lang.Thread", ((PsiMethod) resolveAt("loud.|getName()")).getContainingClass().getQualifiedName());
+        assertSame(file.typeDeclarations().get(2).fields().get(1), resolveAt("println(loud.|shouted"));
+        assertEquals("java.lang.Throwable", ((PsiMethod) resolveAt("missing.|getMessage()")).getContainingClass().getQualifiedName());
+        assertSame(file.typeDeclarations().get(1).fields().getFirst(), resolveAt("missing.|id)"));
+        AxlTypeDeclaration money = file.typeDeclarations().get(3);
+        assertSame(money.methods().get(1), resolveAt("Money(250).|plus(Money(99))"));
+        assertSame(money.methods().get(2), resolveAt("plus(Money(99)).|show()"));
+        assertSame(money.fields().getFirst(), resolveAt("Long.compare(|cents, other.cents())"));
+        assertSame(money.fields().getFirst(), resolveAt("other.|cents())"));
+        assertSame(money.fields().getFirst(), resolveAt("= Money(|cents + other.cents())"));
+        PsiElement reader = resolveAt("println(|reader.read())");
+        assertEquals("reader", ((AxlVariable) reader).getName());
+        assertEquals(org.axl.intellij.parser.AxlElementTypes.VARIABLE, reader.getNode().getElementType());
+        assertEquals("java.io.StringReader", ((PsiMethod) resolveAt("println(reader.|read())")).getContainingClass().getQualifiedName());
+        PsiElement error = resolveAt("println(|e.getMessage())");
+        assertEquals(org.axl.intellij.parser.AxlElementTypes.LAMBDA_PARAMETER, error.getNode().getElementType());
+        assertEquals("java.lang.Throwable", ((PsiMethod) resolveAt("println(e.|getMessage())")).getContainingClass().getQualifiedName());
+    }
+
+    public void testSeesTheResourceOfAUseOnlyInItsBlockAndTheErrorNameOnlyInItsHandler() {
+        myFixture.configureByText("Scope.axl", EXTENDED.replace("} else e -> println(e.getMessage())",
+                "} else e -> println(reader)\n    println(e)"));
+        assertNull(myFixture.getFile().findReferenceAt(myFixture.getFile().getText().indexOf("println(reader)") + 8).resolve());
+        assertNull(myFixture.getFile().findReferenceAt(myFixture.getFile().getText().indexOf("println(e)") + 8).resolve());
+    }
+
+    public void testCompletesEnumFieldsInheritedMembersDataClassMethodsAndUseLocals() {
+        assertCompletes(EXTENDED.replace("println(Planet.EARTH.mass)", "println(Planet.EARTH.<caret>)"), "mass", "radius", "ordinal");
+        assertCompletes(EXTENDED.replace("println(Planet.EARTH.mass)", "println(Planet.<caret>)"), "MERCURY", "EARTH");
+        assertCompletes(EXTENDED.replace("loud.start()", "loud.<caret>"), "start", "shouted", "times", "getName", "run");
+        assertCompletes(EXTENDED.replace("println(missing.getMessage() + missing.id)", "println(missing.<caret>)"), "getMessage", "id");
+        assertCompletes(EXTENDED.replace("println(Money(250).plus(Money(99)).show())", "println(Money(250).<caret>)"),
+                "plus", "show", "cents", "compareTo");
+        assertCompletes(EXTENDED.replace("println(reader.read())", "println(reader.<caret>)"), "read", "close");
+        assertCompletes(EXTENDED.replace("else e -> println(e.getMessage())", "else e -> println(e.<caret>)"), "getMessage");
+        assertCompletes(EXTENDED.replace("fn show() -> String = cents + \"\"", "fn show() -> String = <caret>"), "cents", "plus", "compareTo");
+        List<String> statement = complete(EXTENDED.replace("    loud.start()", "    <caret>\n    loud.start()"));
+        assertTrue(statement.toString(), statement.containsAll(List.of("use", "break", "continue", "print", "readLine")));
+    }
+
+    public void testFindsAndRenamesDataClassMethodsAndEnumFields() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Extended.axl", EXTENDED);
+        AxlTypeDeclaration money = file.typeDeclarations().get(3);
+        assertEquals(1, myFixture.findUsages(money.methods().get(1)).size());
+        assertEquals(1, myFixture.findUsages(money.methods().get(2)).size());
+        assertEquals(5, myFixture.findUsages(money.fields().getFirst()).size());
+        assertEquals(2, myFixture.findUsages(file.typeDeclarations().getFirst().fields().getFirst()).size());
+        myFixture.renameElement(money.methods().get(2), "text");
+        String text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("fn text() -> String = cents") && text.contains(".plus(Money(99)).text())"));
+        myFixture.renameElement(file.typeDeclarations().getFirst().fields().getFirst(), "weight");
+        text = myFixture.getFile().getText();
+        assertTrue(text, text.contains("enum Planet(val weight: Double") && text.contains("println(Planet.EARTH.weight)")
+                && text.contains("* p.weight /"));
     }
 
 

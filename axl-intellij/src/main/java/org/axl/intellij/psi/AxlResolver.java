@@ -401,17 +401,35 @@ public final class AxlResolver {
                 result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(parent, AxlVariable.class));
             } else if (type == AxlElementTypes.WHEN && child.getNode().getElementType() == AxlElementTypes.WHEN_ARM) {
                 result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(parent, AxlVariable.class));
+            } else if (type == AxlElementTypes.USE) {
+                result.addAll(useDeclarations(parent, child));
             } else if (parent instanceof AxlFunction function) {
                 result.addAll(function.parameters());
                 result.addAll(function.typeParameters());
             } else if (parent instanceof AxlTypeDeclaration declaration) {
                 result.addAll(declaration.typeParameters());
-                if (type == AxlElementTypes.CLASS) {
+                // The methods of a class and of a data class read its fields by name.
+                if (type == AxlElementTypes.CLASS || type == AxlElementTypes.DATA_CLASS) {
                     result.addAll(declaration.fields());
                     result.addAll(declaration.methods());
                 }
             }
             child = parent;
+        }
+        return result;
+    }
+
+    /** The resource of a `use` statement inside its block, and the error name of its `else` inside the handler. */
+    private static List<PsiElement> useDeclarations(PsiElement use, PsiElement child) {
+        IElementType kind = child.getNode().getElementType();
+        boolean inBlock = kind == AxlElementTypes.BLOCK;
+        boolean inHandler = !inBlock && kind != AxlElementTypes.VARIABLE && kind != AxlElementTypes.LAMBDA_PARAMETER;
+        List<PsiElement> result = new ArrayList<>();
+        for (AxlVariable variable : PsiTreeUtil.getChildrenOfTypeAsList(use, AxlVariable.class)) {
+            IElementType declared = variable.getNode().getElementType();
+            if (inBlock && declared == AxlElementTypes.VARIABLE || inHandler && declared == AxlElementTypes.LAMBDA_PARAMETER) {
+                result.add(variable);
+            }
         }
         return result;
     }

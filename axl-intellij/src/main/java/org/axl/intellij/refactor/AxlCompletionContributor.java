@@ -19,7 +19,7 @@ import org.jetbrains.annotations.NotNull;
 /** Keywords that fit the place and prelude functions; names and members come from the references themselves. */
 public final class AxlCompletionContributor extends CompletionContributor {
 
-    private static final List<String> PRELUDE = List.of("println", "Ok", "Err");
+    private static final List<String> PRELUDE = List.of("println", "print", "readLine", "Ok", "Err");
     private static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct",
             "limit", "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
 

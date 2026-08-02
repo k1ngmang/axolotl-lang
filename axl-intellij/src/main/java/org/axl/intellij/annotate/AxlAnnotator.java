@@ -27,7 +27,6 @@ import org.axl.intellij.psi.AxlReferenceExpression;
 import org.axl.intellij.psi.AxlResolver;
 import org.axl.intellij.psi.AxlTypeDeclaration;
 import org.axl.intellij.psi.AxlTypeParameter;
-import org.axl.intellij.psi.AxlVariable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -49,8 +48,7 @@ public final class AxlAnnotator implements Annotator {
         if (named instanceof AxlTypeParameter) {
             return AxlSyntaxHighlighter.TYPE_PARAMETER;
         }
-        boolean constant = named instanceof AxlVariable && named.getParent() instanceof AxlTypeDeclaration type && type.isEnum();
-        return constant ? AxlSyntaxHighlighter.ENUM_CONSTANT : null;
+        return named.getNode().getElementType() == AxlElementTypes.ENUM_CONSTANT ? AxlSyntaxHighlighter.ENUM_CONSTANT : null;
     }
 
     @Override

@@ -62,6 +62,20 @@ public class AxlLexerTest extends BasePlatformTestCase {
         assertEquals(6, keywords);
     }
 
+    /** `use` is a name to the lexer; the parser makes it a keyword before `(val`. */
+    public void testHighlightsBreakAndContinueButNotUseAsKeywords() {
+        String text = "break continue use";
+        AxlLexer lexer = new AxlLexer();
+        lexer.start(text, 0, text.length(), 0);
+        List<String> keywords = new ArrayList<>();
+        for (; lexer.getTokenType() != null; lexer.advance()) {
+            if (AxlTokenTypes.KEYWORDS.contains(lexer.getTokenType())) {
+                keywords.add(text.substring(lexer.getTokenStart(), lexer.getTokenEnd()));
+            }
+        }
+        assertEquals(List.of("break", "continue"), keywords);
+    }
+
     private void assertHighlightingMatchesFreshLexing() {
         EditorEx editor = (EditorEx) myFixture.getEditor();
         List<String> incremental = new ArrayList<>();

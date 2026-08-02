@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.intellij.java.AxlLightClasses;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.parser.AxlElementTypes;
@@ -183,7 +184,8 @@ final class AxlExpressionTypes {
     }
 
     private static @Nullable PsiType variableType(PsiElement place, AxlVariable variable) {
-        if (variable.getParent() instanceof AxlTypeDeclaration declaration && declaration.isEnum()) {
+        IElementType kind = variable.getNode().getElementType();
+        if (kind == AxlElementTypes.ENUM_CONSTANT && variable.getParent() instanceof AxlTypeDeclaration declaration) {
             PsiClass cls = AxlResolver.asClass(declaration);
             return cls == null ? null : factory(variable).createType(cls);
         }
@@ -191,7 +193,6 @@ final class AxlExpressionTypes {
         if (narrowed != null || variable.type() != null) {
             return of(narrowed != null ? narrowed : variable.type());
         }
-        IElementType kind = variable.getNode().getElementType();
         if (kind == AxlElementTypes.LOOP_VARIABLE) {
             AxlPsiElement iterable = PsiTreeUtil.getNextSiblingOfType(variable, AxlPsiElement.class);
             return iterable == null ? null : elementType(typeOf(iterable));
@@ -203,10 +204,11 @@ final class AxlExpressionTypes {
         return initializer == null ? null : RecursionManager.doPreventingRecursion(variable, false, () -> typeOf(initializer));
     }
 
-    /** The error of `attempt ... else e ->` is an exception; a lambda parameter has the type the lambda is given. */
+    /** The error of `attempt ... else e ->` and of `use (...) { } else e ->` is an exception; a lambda parameter has the type the lambda is given. */
     private static @Nullable PsiType parameterType(AxlVariable parameter) {
         PsiElement owner = parameter.getParent();
-        if (owner.getNode().getElementType() == AxlElementTypes.ATTEMPT) {
+        IElementType kind = owner.getNode().getElementType();
+        if (kind == AxlElementTypes.ATTEMPT || kind == AxlElementTypes.USE) {
             PsiClass exception = AxlResolver.findClass(parameter, "java.lang.Exception");
             return exception == null ? null : factory(parameter).createType(exception);
         }
@@ -348,7 +350,13 @@ final class AxlExpressionTypes {
         if (token == AxlTokenTypes.INT) {
             return literal.getText().toLowerCase(Locale.ROOT).endsWith("l") ? PsiTypes.longType() : PsiTypes.intType();
         }
-        return token == AxlTokenTypes.FLOAT ? PsiTypes.doubleType() : null;
+        if (token == AxlTokenTypes.FLOAT) {
+            return PsiTypes.doubleType();
+        }
+        if (token == AxlTokenTypes.of(AxolotlLexer.TRUE) || token == AxlTokenTypes.of(AxolotlLexer.FALSE)) {
+            return PsiTypes.booleanType();
+        }
+        return token == AxlTokenTypes.CHAR ? factory(literal).createTypeByFQClassName("java.lang.Character", literal.getResolveScope()) : null;
     }
 
     private static @Nullable PsiType boxed(PsiElement place, @Nullable PsiType type) {
