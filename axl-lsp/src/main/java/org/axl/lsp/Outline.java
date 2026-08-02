@@ -12,7 +12,10 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.SymbolKind;
 
-/** The declarations of a file, with the fields of data classes and interfaces, the members of classes and the constants of enums below them. */
+/**
+ * The declarations of a file, with the fields and methods of data classes and interfaces, the
+ * members of classes and the fields and constants of enums below them.
+ */
 final class Outline {
 
     private final Workspace workspace;
@@ -43,11 +46,11 @@ final class Outline {
             case Decl.Function fn -> symbol(document, fn.namePos(), fn.name(), SymbolKind.Function, List.of());
             case Decl.Value value -> symbol(document, value.namePos(), value.name(), SymbolKind.Constant, List.of());
             case Decl.EnumDecl enumeration -> symbol(document, enumeration.namePos(), enumeration.name(), SymbolKind.Enum,
-                    constants(document, enumeration));
+                    enumMembers(document, enumeration));
             case Decl.ClassDecl classDecl -> symbol(document, classDecl.namePos(), classDecl.name(), SymbolKind.Class,
                     members(document, classDecl));
             case Decl.DataClass data -> symbol(document, data.namePos(), data.name(), SymbolKind.Class,
-                    fields(document, data.fields()));
+                    dataClassMembers(document, data));
             case Decl.Interface iface -> symbol(document, iface.namePos(), iface.name(), SymbolKind.Interface,
                     interfaceMembers(document, iface));
         };
@@ -132,6 +135,23 @@ final class Outline {
         Pos next = index + 1 < starts.size() ? starts.get(index + 1) : null;
         symbol.setRange(new Range(document.position(start), end(document, start, next)));
         return symbol;
+    }
+
+    /** The fields of a data class, then the methods of its body with their text. */
+    private static List<DocumentSymbol> dataClassMembers(Document document, Decl.DataClass data) {
+        List<DocumentSymbol> result = new ArrayList<>(fields(document, data.fields()));
+        List<Pos> starts = data.methods().stream().map(Decl.Function::pos).toList();
+        for (Decl.Function m : data.methods()) {
+            result.add(withBody(document, symbol(document, m.namePos(), m.name(), SymbolKind.Method, List.of()), m.pos(), starts));
+        }
+        return result;
+    }
+
+    /** The fields of an enum, then its constants. */
+    private static List<DocumentSymbol> enumMembers(Document document, Decl.EnumDecl enumeration) {
+        List<DocumentSymbol> result = new ArrayList<>(fields(document, enumeration.fields()));
+        result.addAll(constants(document, enumeration));
+        return result;
     }
 
     private static List<DocumentSymbol> constants(Document document, Decl.EnumDecl enumeration) {

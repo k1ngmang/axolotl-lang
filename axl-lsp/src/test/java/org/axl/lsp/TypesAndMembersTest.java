@@ -15,8 +15,11 @@ import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.Hover;
 import org.eclipse.lsp4j.MessageActionItem;
 import org.eclipse.lsp4j.MessageParams;
+import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
+import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
+import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -145,6 +148,53 @@ class TypesAndMembersTest {
                 println(color.ordinal() + Shapes.area(shape))
                 val k = Counter("k", 2)
                 println(k.count)
+            }
+            """;
+
+    /** An enum with fields, classes extending Java classes, a data class with methods, `use`, `break` and `continue`. */
+    static final String EXTENDED = """
+            package app
+
+            enum Planet(val mass: Double, val radius: Double) {
+                MERCURY(3.303e23, 2.4397e6),
+                EARTH(5.976e24, 6.37814e6)
+            }
+
+            class NotFound(val id: String) : RuntimeException("not found: " + id)
+
+            class Loud(val times: Int) : Thread("loud") {
+                var shouted = 0
+
+                fn run() {
+                    shouted += times
+                }
+            }
+
+            data class Money(val cents: Long) : Comparable<Money> {
+                fn compareTo(other: Money) -> Int = Long.compare(cents, other.cents())
+
+                fn plus(other: Money) -> Money = Money(cents + other.cents())
+            }
+
+            fn gravity(p: Planet) -> Double = 6.67300E-11 * p.mass / (p.radius * p.radius)
+
+            fn main() {
+                println(Planet.EARTH.mass)
+                val loud = Loud(3)
+                loud.start()
+                println(loud.shouted + " " + loud.getName())
+                val missing = NotFound("7")
+                println(missing.getMessage() + missing.id)
+                println(Money(250).plus(Money(99)).cents())
+                use (val reader = java.io.StringReader("x")) {
+                    println(reader.read())
+                } else e -> println(e.getMessage())
+                for (p in Planet.values()) {
+                    if (p.mass > 1.0) {
+                        break
+                    }
+                    continue
+                }
             }
             """;
 
@@ -418,6 +468,86 @@ class TypesAndMembersTest {
             }
         }
         assertEquals(5, new Outline(workspace).symbols(uri).getFirst().getChildren().size() + 1);
+    }
+
+    @Test
+    void hoversEnumFieldsSuperclassArgumentsDataClassMethodsAndTheLocalsOfUse() throws Exception {
+        String uri = open("Extended.axl", EXTENDED);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        assertContains(hoverAt(uri, EXTENDED, "fn gravity(p: |Planet)"), "enum Planet(val mass: Double, val radius: Double)");
+        assertContains(hoverAt(uri, EXTENDED, "val missing = |NotFound(\"7\")"), "class NotFound(val id: String) : RuntimeException(...)");
+        assertContains(hoverAt(uri, EXTENDED, "val loud = |Loud(3)"), "class Loud(val times: Int) : Thread(...)");
+        assertContains(hoverAt(uri, EXTENDED, "println(Money(250).|plus("), "fn plus(other: Money) -> Money");
+        assertContains(hoverAt(uri, EXTENDED, "data class |Money("), "data class Money(val cents: Long) : Comparable<Money> {\n"
+                + "    fn compareTo(other: Money) -> Int\n    fn plus(other: Money) -> Money\n}");
+        assertContains(hoverAt(uri, EXTENDED, "println(Planet.EARTH.|mass)"), "val mass: Double");
+        assertContains(hoverAt(uri, EXTENDED, "* p.|mass /"), "val mass: Double");
+        assertContains(hoverAt(uri, EXTENDED, "println(Planet.|EARTH.mass)"), "EARTH: Planet");
+        assertContains(hoverAt(uri, EXTENDED, "Long.compare(|cents, other"), "val cents: Long");
+        assertContains(hoverAt(uri, EXTENDED, "println(|reader.read())"), "val reader: StringReader");
+        assertContains(hoverAt(uri, EXTENDED, "println(|e.getMessage())"), "e: Exception");
+        assertContains(hoverAt(uri, EXTENDED, "if (|p.mass > 1.0)"), "val p: Planet");
+    }
+
+    @Test
+    void goesToEnumFieldsDataClassMethodsAndTheLocalsOfUse() throws Exception {
+        String uri = open("Extended.axl", EXTENDED);
+        assertEquals(List.of(location(EXTENDED, "enum Planet(val |mass")), definitionsAt(uri, EXTENDED, "println(Planet.EARTH.|mass)"));
+        assertEquals(List.of(location(EXTENDED, "val |radius: Double")), definitionsAt(uri, EXTENDED, "(p.|radius *"));
+        assertEquals(List.of(location(EXTENDED, "    |EARTH(5.976e24")), definitionsAt(uri, EXTENDED, "println(Planet.|EARTH.mass)"));
+        assertEquals(List.of(location(EXTENDED, "fn |plus(other")), definitionsAt(uri, EXTENDED, "println(Money(250).|plus("));
+        assertEquals(List.of(location(EXTENDED, "data class Money(val |cents")), definitionsAt(uri, EXTENDED, "Long.compare(|cents,"));
+        assertEquals(List.of(location(EXTENDED, "use (val |reader")), definitionsAt(uri, EXTENDED, "println(|reader.read())"));
+        assertEquals(List.of(location(EXTENDED, "} else |e ->")), definitionsAt(uri, EXTENDED, "println(|e.getMessage())"));
+        assertEquals(List.of(location(EXTENDED, "for (|p in Planet")), definitionsAt(uri, EXTENDED, "if (|p.mass > 1.0)"));
+    }
+
+    @Test
+    void completesEnumFieldsInheritedMembersAndTheResourceOfUse() throws Exception {
+        String text = EXTENDED.replace("println(Planet.EARTH.mass)", "println(Planet.EARTH.ma)").replace("loud.start()", "loud.st")
+                .replace("println(reader.read())", "println(reader.re)").replace("else e -> println(e.getMessage())", "else e -> println(e.get)")
+                .replace("fn plus(other: Money) -> Money = Money(cents + other.cents())", "fn plus(other: Money) -> Money = Money(ce)");
+        String uri = open("Extended.axl", text);
+        List<String> fields = membersAt(uri, text, "Planet.EARTH.ma|");
+        assertTrue(fields.containsAll(List.of("mass", "radius", "ordinal")), fields.toString());
+        List<String> inherited = membersAt(uri, text, "    loud.st|");
+        assertTrue(inherited.containsAll(List.of("start", "shouted", "getName")), inherited.toString());
+        assertTrue(membersAt(uri, text, "reader.re|").contains("read"), membersAt(uri, text, "reader.re|").toString());
+        assertTrue(membersAt(uri, text, "println(e.get|)").contains("getMessage"), membersAt(uri, text, "println(e.get|)").toString());
+        List<String> inBody = labelsAt(uri, text, "Money(ce|)");
+        assertTrue(inBody.containsAll(List.of("cents", "compareTo", "plus")), inBody.toString());
+    }
+
+    @Test
+    void outlinesEnumFieldsAndDataClassMethods() throws Exception {
+        String uri = open("Extended.axl", EXTENDED);
+        List<DocumentSymbol> symbols = new Outline(workspace).symbols(uri);
+        assertEquals(List.of("Planet", "NotFound", "Loud", "Money", "gravity", "main"), symbols.stream().map(DocumentSymbol::getName).toList());
+        DocumentSymbol planet = symbols.getFirst();
+        assertEquals(List.of("mass", "radius", "MERCURY", "EARTH"), planet.getChildren().stream().map(DocumentSymbol::getName).toList());
+        assertEquals(List.of(SymbolKind.Field, SymbolKind.Field, SymbolKind.EnumMember, SymbolKind.EnumMember),
+                planet.getChildren().stream().map(DocumentSymbol::getKind).toList());
+        assertEquals(new Position(2, 16), planet.getChildren().getFirst().getSelectionRange().getStart());
+        DocumentSymbol money = symbols.get(3);
+        assertEquals(List.of("cents", "compareTo", "plus"), money.getChildren().stream().map(DocumentSymbol::getName).toList());
+        assertEquals(List.of(SymbolKind.Field, SymbolKind.Method, SymbolKind.Method),
+                money.getChildren().stream().map(DocumentSymbol::getKind).toList());
+        List<String> lines = EXTENDED.lines().toList();
+        assertEquals(new Range(new Position(18, 4), new Position(18, lines.get(18).length())), money.getChildren().get(1).getRange());
+        assertEquals(new Range(new Position(20, 4), new Position(20, lines.get(20).length())), money.getChildren().get(2).getRange());
+        assertEquals(new Position(20, 7), money.getChildren().get(2).getSelectionRange().getStart());
+    }
+
+    @Test
+    void completesUseBreakContinueAndTheConsoleFunctions() throws Exception {
+        String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n");
+        List<String> labels = labelsAt(uri, "package app\n\nfn main() {\n\n}\n", "fn main() {\n|\n}");
+        assertTrue(labels.containsAll(List.of("use", "break", "continue", "print", "readLine", "println")), labels.toString());
+    }
+
+    private static String location(String text, String snippet) {
+        int[] position = at(text, snippet);
+        return "Extended.axl:" + position[0] + ":" + position[1];
     }
 
     private void assertMembers(String file, String text, String snippet, String member) throws Exception {

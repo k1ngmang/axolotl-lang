@@ -81,8 +81,15 @@ final class Definitions {
                 yield member(document.module, owner, symbol.name(), argumentTypes);
             }
             case TYPE -> classLocation(document.module, symbol.imported().name());
-            default -> local(current, document, symbol.pos());
+            default -> local(current, document, namePos(document, symbol));
         };
+    }
+
+    /** A field of a data class is positioned at its `val`; its name follows. Other symbols are positioned at their names. */
+    private static Pos namePos(Document document, Symbols.Symbol symbol) {
+        int index = document.firstTokenFrom(symbol.pos());
+        boolean atVal = index < document.tokens.size() && document.tokens.get(index).getType() == AxolotlLexer.VAL;
+        return atVal ? document.nameAfter(symbol.pos(), symbol.name()) : symbol.pos();
     }
 
     /** A member of a Java class after a dot: of the type of what stands before the dot, or inherited by it. */

@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.ast.Decl;
+import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.eclipse.lsp4j.Hover;
@@ -117,33 +118,46 @@ final class Hovers {
         String visibility = decl.isPrivate() ? "private " : "";
         return switch (decl) {
             case Decl.DataClass data -> visibility + "data class " + data.name() + TypeParameters.text(data.typeParams())
-                    + data.fields().stream().map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"))
-                    + supertypes(data.supertypes());
+                    + fields(data.fields()) + supertypes(data.supertypes(), false)
+                    + body(data.methods().stream().map(Hovers::signature).toList());
             case Decl.Interface iface -> visibility + (iface.isSealed() ? "sealed " : "") + "interface " + iface.name()
-                    + TypeParameters.text(iface.typeParams()) + supertypes(iface.supertypes()) + interfaceBody(iface);
+                    + TypeParameters.text(iface.typeParams()) + supertypes(iface.supertypes(), false) + interfaceBody(iface);
             case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + TypeParameters.text(classDecl.typeParams())
                     + classDecl.parameters().stream()
                     .map(p -> (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"))
-                    + supertypes(classDecl.supertypes());
-            case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name();
+                    + supertypes(classDecl.supertypes(), classDecl.superArgs() != null);
+            case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name()
+                    + (enumeration.fields().isEmpty() ? "" : fields(enumeration.fields()));
             case Decl.Function fn -> signature(fn);
             case Decl.Value value -> "val " + value.name();
         };
     }
 
+    /** `(val x: Int, val y: Int)`: the fields of a data class or an enum. */
+    private static String fields(List<Expr.Param> fields) {
+        return fields.stream().map(f -> "val " + f.name() + ": " + typeText(f.type())).collect(Collectors.joining(", ", "(", ")"));
+    }
+
     /** The values and methods an interface requires, one to a line; nothing for an interface that requires none. */
     private static String interfaceBody(Decl.Interface iface) {
-        if (iface.members().isEmpty() && iface.methods().isEmpty()) {
-            return "";
-        }
         List<String> lines = new ArrayList<>();
         iface.members().forEach(m -> lines.add("val " + m.name() + ": " + typeText(m.type())));
         iface.methods().forEach(m -> lines.add(signature(m)));
-        return lines.stream().map(l -> "    " + l).collect(Collectors.joining("\n", " {\n", "\n}"));
+        return body(lines);
     }
 
-    private static String supertypes(List<TypeRef> supertypes) {
-        return supertypes.isEmpty() ? "" : supertypes.stream().map(Hovers::typeText).collect(Collectors.joining(", ", " : ", ""));
+    /** Members in braces, one to a line; nothing for none. */
+    private static String body(List<String> lines) {
+        return lines.isEmpty() ? "" : lines.stream().map(l -> "    " + l).collect(Collectors.joining("\n", " {\n", "\n}"));
+    }
+
+    /** `: Shape, Other`; extended: the first supertype is a Java class extended with constructor arguments, shown as `Thread(...)`. */
+    private static String supertypes(List<TypeRef> supertypes, boolean extended) {
+        List<String> names = new ArrayList<>();
+        for (TypeRef type : supertypes) {
+            names.add(typeText(type) + (extended && names.isEmpty() ? "(...)" : ""));
+        }
+        return names.isEmpty() ? "" : " : " + String.join(", ", names);
     }
 
     static String signature(Decl.Function fn) {

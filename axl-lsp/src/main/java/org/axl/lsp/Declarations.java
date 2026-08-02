@@ -11,9 +11,9 @@ import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 
 /**
- * The declarations in .axl files that member accesses and type names lead to: fields of data
- * classes, members of interfaces, properties and methods of classes, enum constants, and types
- * nested in the class of another file. Each comes with the text a hover shows for it.
+ * The declarations in .axl files that member accesses and type names lead to: fields and methods of
+ * data classes, members of interfaces, properties and methods of classes, constants and fields of
+ * enums, and types nested in the class of another file. Each comes with the text a hover shows for it.
  */
 final class Declarations {
 
@@ -87,13 +87,19 @@ final class Declarations {
 
     private static Found inType(Document document, Decl decl, String name, Supplier<List<String>> argumentTypes) {
         return switch (decl) {
-            case Decl.DataClass data -> field(document, data.fields(), name);
+            case Decl.DataClass data -> {
+                Found field = field(document, data.fields(), name);
+                yield field != null ? field : method(document, data.methods(), name, argumentTypes);
+            }
             case Decl.Interface iface -> {
                 Found value = field(document, iface.members(), name);
                 yield value != null ? value : method(document, iface.methods(), name, argumentTypes);
             }
             case Decl.ClassDecl classDecl -> classMember(document, classDecl, name, argumentTypes);
-            case Decl.EnumDecl enumeration -> constant(document, enumeration, name);
+            case Decl.EnumDecl enumeration -> {
+                Found constant = constant(document, enumeration, name);
+                yield constant != null ? constant : field(document, enumeration.fields(), name);
+            }
             default -> null;
         };
     }

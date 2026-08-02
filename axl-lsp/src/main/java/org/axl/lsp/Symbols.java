@@ -42,7 +42,10 @@ final class Symbols {
         Decl enclosing = enclosingDecl(file, pos);
         if (enclosing instanceof Decl.ClassDecl classDecl) {
             classScope(classDecl, result);
-            enclosing = enclosingMethod(classDecl, pos);
+            enclosing = enclosingMethod(classDecl.methods(), pos);
+        } else if (enclosing instanceof Decl.DataClass data) {
+            dataClassScope(data, result);
+            enclosing = enclosingMethod(data.methods(), pos);
         }
         if (enclosing instanceof Decl.Function fn) {
             for (Expr.Param p : fn.params()) {
@@ -116,10 +119,20 @@ final class Symbols {
         return new Symbol(p.name(), p.mutable() ? Kind.VARIABLE : Kind.LOCAL, p.namePos(), p.type(), null, null);
     }
 
-    /** A method covers its text up to the next one; the last also covers the rest of the class. */
-    private static Decl enclosingMethod(Decl.ClassDecl classDecl, Pos pos) {
+    /** The methods of a data class see its fields and each other by name, as those of a class do. */
+    private static void dataClassScope(Decl.DataClass data, List<Symbol> out) {
+        for (Expr.Param field : data.fields()) {
+            out.add(new Symbol(field.name(), Kind.LOCAL, field.pos(), field.type(), null, null));
+        }
+        for (Decl.Function method : data.methods()) {
+            out.add(new Symbol(method.name(), Kind.FUNCTION, method.namePos(), method.returnType(), method, null));
+        }
+    }
+
+    /** A method covers its text up to the next one; the last also covers the rest of the type. */
+    private static Decl enclosingMethod(List<Decl.Function> methods, Pos pos) {
         Decl.Function found = null;
-        for (Decl.Function method : classDecl.methods()) {
+        for (Decl.Function method : methods) {
             if (before(method.pos(), pos)) {
                 found = method;
             }
