@@ -45,6 +45,7 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
 import org.gradle.work.FileChange;
+import org.gradle.work.Incremental;
 import org.gradle.work.InputChanges;
 
 /** Translates .axl files to .java files and line maps; only changed files are translated again. */
@@ -58,6 +59,13 @@ public abstract class GenerateAxlTask extends DefaultTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     @InputFiles
     public abstract ConfigurableFileCollection getSources();
+
+    /** The .axl sources of the source sets and projects this one compiles against, read for their declarations. */
+    @Incremental
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    @IgnoreEmptyDirectories
+    public abstract ConfigurableFileCollection getContextSources();
 
     @Input
     public abstract Property<Boolean> getInlineElvis();
@@ -102,13 +110,20 @@ public abstract class GenerateAxlTask extends DefaultTask {
             if (change.getChangeType() == ChangeType.REMOVED) {
                 removed = true;
                 if (outputs != null) {
-                    changedPackages.add(packageOf(out, outputs.getFirst()));
+                    changedPackages.add(packageOf(out.relativize(outputs.getFirst())));
                 }
             } else {
                 changed.add(sourcePath);
             }
         }
-        List<Translation.Input> sources = readSources();
+        boolean contextChanged = false;
+        for (FileChange change : changes.getFileChanges(getContextSources())) {
+            if (change.getFileType() != FileType.DIRECTORY) {
+                changedPackages.add(packageOf(Path.of(change.getNormalizedPath())));
+                contextChanged = true;
+            }
+        }
+        List<Translation.Input> sources = readSources(getSources());
         Map<Translation.Input, SourceFile> parsed = parseAll(sources);
         for (Translation.Input source : sources) {
             if (changed.contains(source.sourcePath())) {
@@ -118,8 +133,8 @@ public abstract class GenerateAxlTask extends DefaultTask {
         Map<String, String> duplicates = duplicateClasses(sources, parsed);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         List<Translation.Input> inputs = new ArrayList<>();
-        List<Translation.Input> context = new ArrayList<>();
-        boolean anyChange = removed || !changed.isEmpty();
+        List<Translation.Input> context = readSources(getContextSources());
+        boolean anyChange = removed || contextChanged || !changed.isEmpty();
         for (Translation.Input source : sources) {
             String sourcePath = source.sourcePath();
             if (duplicates.containsKey(sourcePath)) {
@@ -161,9 +176,9 @@ public abstract class GenerateAxlTask extends DefaultTask {
         return file == null || file.packageName() == null ? "" : file.packageName();
     }
 
-    /** The package of a removed file, from the directory of the Java it generated. */
-    private static String packageOf(Path out, Path output) {
-        Path directory = out.relativize(output).getParent();
+    /** The package a relative path tells: of a removed file, from the Java it generated, or of a file of another source set. */
+    private static String packageOf(Path relativePath) {
+        Path directory = relativePath.getParent();
         return directory == null ? "" : directory.toString().replace('\\', '/').replace('/', '.');
     }
 
@@ -191,9 +206,9 @@ public abstract class GenerateAxlTask extends DefaultTask {
     }
 
     /** Every .axl file, sorted by its path relative to its source root; two roots may hold the same path. */
-    private List<Translation.Input> readSources() {
+    private static List<Translation.Input> readSources(ConfigurableFileCollection files) {
         List<Translation.Input> result = new ArrayList<>();
-        getSources().getAsFileTree().visit(details -> {
+        files.getAsFileTree().visit(details -> {
             if (details.isDirectory()) {
                 return;
             }

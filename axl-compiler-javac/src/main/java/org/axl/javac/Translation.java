@@ -105,6 +105,9 @@ public final class Translation {
      */
     public static List<Translator.Result> run(List<Input> inputs, List<Input> context, Options options, List<Path> classpath,
                                               List<Path> javaRoots, Path outputDir, boolean strictNull) throws IOException {
+        if (inputs.isEmpty()) {
+            return List.of();
+        }
         List<Translator.Result> results = new ArrayList<>();
         List<SourceFile> parsed = new ArrayList<>();
         for (Input input : inputs) {

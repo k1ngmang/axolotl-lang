@@ -14,6 +14,10 @@ import java.util.List;
         requiresDependencyResolution = ResolutionScope.TEST)
 public class GenerateTestMojo extends AbstractGenerateMojo {
 
+    /** The main sources, whose declarations the tests read. */
+    @Parameter(defaultValue = "${project.basedir}/src/main/axl")
+    File sourceDirectory;
+
     @Parameter(defaultValue = "${project.basedir}/src/test/axl")
     File testSourceDirectory;
 
@@ -43,6 +47,11 @@ public class GenerateTestMojo extends AbstractGenerateMojo {
     @Override
     List<String> javaRoots() {
         return concat(project.getCompileSourceRoots(), project.getTestCompileSourceRoots());
+    }
+
+    @Override
+    List<Path> contextDirectories() {
+        return List.of(sourceDirectory.toPath());
     }
 
     private static List<String> concat(List<String> a, List<String> b) {

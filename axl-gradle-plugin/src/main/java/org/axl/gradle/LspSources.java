@@ -21,6 +21,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 final class LspSources {
 
     final Set<File> axl = new LinkedHashSet<>();
+    /** The .axl of the dependencies alone, which the generate task reads for their declarations. */
+    final Set<File> dependencyAxl = new LinkedHashSet<>();
     final Set<File> java = new LinkedHashSet<>();
     final Set<File> javaSourcepath = new LinkedHashSet<>();
     final Set<File> classpath = new LinkedHashSet<>();
@@ -50,6 +52,7 @@ final class LspSources {
 
     private void addDependency(Project project, SourceSet sourceSet) {
         axl.addAll(axlDirs(sourceSet));
+        dependencyAxl.addAll(axlDirs(sourceSet));
         javaSourcepath.addAll(javaDirs(project, sourceSet));
     }
 

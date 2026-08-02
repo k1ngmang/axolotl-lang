@@ -1,6 +1,7 @@
 package org.axl.maven;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -28,12 +29,27 @@ class GenerateMojoTest {
     }
 
     private GenerateMojo configure(GenerateMojo mojo, Path base) {
+        project(mojo, base);
+        mojo.sourceDirectory = base.resolve("src/main/axl").toFile();
+        mojo.outputDirectory = base.resolve("target/generated-sources/axl").toFile();
+        return mojo;
+    }
+
+    private GenerateTestMojo testMojo(Path base) {
+        GenerateTestMojo mojo = new GenerateTestMojo();
+        project(mojo, base);
+        mojo.project.getBuild().setTestOutputDirectory(base.resolve("target/test-classes").toString());
+        mojo.sourceDirectory = base.resolve("src/main/axl").toFile();
+        mojo.testSourceDirectory = base.resolve("src/test/axl").toFile();
+        mojo.testOutputDirectory = base.resolve("target/generated-test-sources/axl").toFile();
+        return mojo;
+    }
+
+    private void project(AbstractGenerateMojo mojo, Path base) {
         mojo.project = new MavenProject();
         mojo.project.getModel().setBuild(new Build());
         mojo.project.getBuild().setDirectory(base.resolve("target").toString());
         mojo.project.getBuild().setOutputDirectory(base.resolve("target/classes").toString());
-        mojo.sourceDirectory = base.resolve("src/main/axl").toFile();
-        mojo.outputDirectory = base.resolve("target/generated-sources/axl").toFile();
         mojo.javaRelease = 21;
         mojo.setLog(new SystemStreamLog() {
             @Override
@@ -46,7 +62,6 @@ class GenerateMojoTest {
                 errors.add(content.toString());
             }
         });
-        return mojo;
     }
 
     @Test
@@ -169,6 +184,30 @@ class GenerateMojoTest {
         Files.delete(greeter);
         mojo(base).execute();
         assertEquals("Translated 1 of 2 .axl file(s)", messages.getLast());
+    }
+
+    @Test
+    void testSourcesReadTheDeclarationsOfTheMainSources(@TempDir Path base) throws Exception {
+        Path options = Files.createDirectories(base.resolve("src/main/axl/app")).resolve("Options.axl");
+        Files.writeString(options, "package app\n\nsealed interface Option<T> {\n    val present: Boolean\n}\n\n"
+                + "data class Some<T>(val present: Boolean, val value: T) : Option<T>\n\n"
+                + "fn parse(s: String) -> Option<Int> = Some<Int>(true, s.length())\n");
+        Files.writeString(Files.createDirectories(base.resolve("src/test/axl/app")).resolve("Checks.axl"),
+                "package app\n\nimport app.Options.Some\n\nfn check(s: String) -> Int {\n    val parsed = Options.parse(s)\n"
+                + "    if (parsed is Some) {\n        return parsed.value() + 1\n    }\n    return 0\n}\n");
+        Path checks = base.resolve("target/generated-test-sources/axl/app/Checks.java");
+        GenerateTestMojo mojo = testMojo(base);
+        mojo.execute();
+        assertTrue(Files.readString(checks).contains("Some<Integer>"), Files.readString(checks));
+        assertEquals(List.of(base.resolve("target/generated-test-sources/axl").toString()), mojo.project.getTestCompileSourceRoots());
+
+        // A changed main declaration makes the tests translated again.
+        Files.writeString(options, "package app\n\nsealed interface Option {\n    val present: Boolean\n}\n\n"
+                + "data class Some(val present: Boolean, val value: Int) : Option\n\n"
+                + "fn parse(s: String) -> Option = Some(true, s.length())\n");
+        testMojo(base).execute();
+        assertEquals("Translated 1 of 1 .axl file(s)", messages.getLast());
+        assertFalse(Files.readString(checks).contains("Some<Integer>"), Files.readString(checks));
     }
 
     @Test

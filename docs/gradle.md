@@ -35,6 +35,9 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
   whose checks read their declarations, and files whose top-level values have inferred types; the
   unchanged files are read but not written, and removed files lose their outputs. A change of the Java
   sources, the classpath or an option translates every file again.
+- A source set reads the declarations of the `.axl` sources of the source sets and projects it compiles
+  against, as `test` does of `main`: a test can take apart a data class of the main sources or implement
+  their interfaces, and is translated again when they change.
 - Adds the generated directory to the Java sources, so `compileJava` compiles `.axl` and
   `.java` code together and both see each other. The classpath and the Java sources are inputs
   of the task only for the types of top-level values that call into them.

@@ -44,4 +44,9 @@ public class GenerateMojo extends AbstractGenerateMojo {
     List<String> javaRoots() {
         return project.getCompileSourceRoots();
     }
+
+    @Override
+    List<Path> contextDirectories() {
+        return List.of();
+    }
 }

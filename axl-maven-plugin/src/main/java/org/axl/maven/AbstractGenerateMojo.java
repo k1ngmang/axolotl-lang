@@ -87,6 +87,9 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
 
     abstract List<String> javaRoots();
 
+    /** Directories with .axl files whose declarations the sources read, such as the main sources for the tests. */
+    abstract List<Path> contextDirectories();
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         if (skip) {
@@ -133,8 +136,8 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         } catch (DependencyResolutionRequiredException e) {
             throw new IOException(e);
         }
-        // Options, the plugin and the code inferred types depend on: when they change, everything is redone.
-        next.environment = environment(classpath, javaRoots);
+        // Options, the plugin and the code the files read: when they change, everything is redone.
+        next.environment = environment(classpath, javaRoots, contextDirectories());
         boolean sameEnvironment = next.environment.equals(previous.environment);
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
         Set<String> changedPackages = new HashSet<>();
@@ -178,6 +181,15 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         List<Translation.Input> context = new ArrayList<>();
         for (String sourcePath : next.files.keySet()) {
             context.add(new Translation.Input(sourcePath, current.get(sourcePath).toString(), texts.get(sourcePath)));
+        }
+        Map<String, Path> contextFiles = new TreeMap<>();
+        for (Path dir : contextDirectories()) {
+            if (Files.isDirectory(dir)) {
+                contextFiles.putAll(axlFiles(dir));
+            }
+        }
+        for (Map.Entry<String, String> file : readAll(contextFiles).entrySet()) {
+            context.add(new Translation.Input(file.getKey(), contextFiles.get(file.getKey()).toString(), file.getValue()));
         }
         List<Translator.Result> results = Translation.run(inputs, context, new Options(inlineElvis), classpath, javaRoots,
                 output, strictNull);
@@ -279,8 +291,14 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         return result;
     }
 
-    private String environment(List<Path> classpath, List<Path> javaRoots) throws IOException {
+    private String environment(List<Path> classpath, List<Path> javaRoots, List<Path> contextDirs) throws IOException {
         StringBuilder sb = new StringBuilder("inlineElvis=" + inlineElvis + " strictNull=" + strictNull + " plugin=" + pluginVersion);
+        for (Path dir : contextDirs) {
+            sb.append('\n').append(dir);
+            if (Files.isDirectory(dir)) {
+                appendFiles(sb, dir, ".axl");
+            }
+        }
         List<Path> ownOutputs = ownOutputDirectories();
         for (Path entry : classpath) {
             if (ownOutputs.contains(entry.toAbsolutePath().normalize())) {

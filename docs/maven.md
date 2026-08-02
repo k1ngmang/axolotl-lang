@@ -13,7 +13,7 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
 | Goal                | Default phase           | What it does |
 |---------------------|-------------------------|--------------|
 | `axl:generate`      | `generate-sources`      | `src/main/axl` to `target/generated-sources/axl`, added as a compile source root. |
-| `axl:generate-test` | `generate-test-sources` | `src/test/axl` to `target/generated-test-sources/axl`, added as a test source root. |
+| `axl:generate-test` | `generate-test-sources` | `src/test/axl` to `target/generated-test-sources/axl`, added as a test source root. The tests read the declarations of `src/main/axl`. |
 | `axl:smap`          | `process-classes`       | Rewrites `target/classes` to report `.axl` files and lines and adds a JSR-45 SMAP (see [debugging](debugging.md)). |
 | `axl:smap-test`     | `process-test-classes`  | The same for `target/test-classes`. |
 | `axl:check`         | none                    | Compiles the main sources again with Error Prone and NullAway and prints errors of generated files at their `.axl` lines. |
@@ -25,8 +25,8 @@ directory (`generated-sources_axl-from-src_main_axl.state.json`,
 `.axl` file and the files generated from it, and only changed files are translated again, together
 with the other files of their package, whose checks read their declarations, and files whose top-level
 values have inferred types, which may depend on the changed or removed ones; the unchanged files are
-read but not written. A change of the options, the plugin version, the classpath or the Java sources makes every file
-translated again; for a classpath directory, such as `target/classes` of another module in the
+read but not written. A change of the options, the plugin version, the classpath, the Java sources or,
+for the tests, the main `.axl` sources makes every file translated again; for a classpath directory, such as `target/classes` of another module in the
 reactor, every class file in it counts, while the module's own `target/classes` and
 `target/test-classes` do not. Outputs of removed files are deleted, all of them when the source
 directory itself is removed. Two files that declare the same class are reported as an error even
@@ -51,7 +51,7 @@ The directories are parameters too, without a property:
 
 | Parameter              | Goals                             | Default                             |
 |------------------------|-----------------------------------|-------------------------------------|
-| `sourceDirectory`      | `generate`, `check`, `lsp-config` | `src/main/axl`                      |
+| `sourceDirectory`      | `generate`, `generate-test`, `check`, `lsp-config` | `src/main/axl`     |
 | `outputDirectory`      | `generate`, `check`, `smap`       | `target/generated-sources/axl`      |
 | `classesDirectory`     | `smap`                            | `target/classes`                    |
 | `testSourceDirectory`  | `generate-test`, `lsp-config`     | `src/test/axl`                      |

@@ -93,6 +93,8 @@ public class AxlPlugin implements Plugin<Project> {
                 sourceSet.getTaskName("generate", "Axl"), GenerateAxlTask.class, task -> {
                     task.setDescription("Translates the " + name + " .axl sources to Java.");
                     task.getSources().from(sources);
+                    // The declarations of the source sets this one compiles against, such as main for test.
+                    task.getContextSources().from(project.provider(() -> LspSources.of(project, sourceSet).dependencyAxl));
                     task.getInlineElvis().set(axl.getInlineElvis());
                     task.getStrictNull().set(axl.getStrictNull());
                     task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("generated/axl/" + name));

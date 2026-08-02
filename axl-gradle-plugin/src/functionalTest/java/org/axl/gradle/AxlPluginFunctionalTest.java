@@ -1,6 +1,7 @@
 package org.axl.gradle;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -242,6 +243,60 @@ class AxlPluginFunctionalTest {
         BuildResult failed = gradle(":core:compileJava").buildAndFail();
         assertTrue(failed.getOutput().contains(terse + ":3:7: error: `Terse` does not give `fn greet() -> String`"),
                 failed.getOutput());
+    }
+
+    private static final String OPTIONS = """
+            package core
+
+            sealed interface Option<T> {
+                val present: Boolean
+            }
+
+            data class Some<T>(val present: Boolean, val value: T) : Option<T>
+            data class None<T>(val present: Boolean) : Option<T>
+
+            fn parse(s: String) -> Option<Int> = if (s.isEmpty()) None<Int>(false) else Some<Int>(true, s.length())
+            """;
+
+    private static final String OPTIONS_OF_INT = """
+            package core
+
+            sealed interface Option {
+                val present: Boolean
+            }
+
+            data class Some(val present: Boolean, val value: Int) : Option
+            data class None(val present: Boolean) : Option
+
+            fn parse(s: String) -> Option = if (s.isEmpty()) None(false) else Some(true, s.length())
+            """;
+
+    private static final String CHECKS = """
+            package core
+
+            import core.Options.Some
+
+            fn check(s: String) -> Int {
+                val parsed = Options.parse(s)
+                if (parsed is Some) {
+                    return parsed.value() + 1
+                }
+                return 0
+            }
+            """;
+
+    @Test
+    void testSourcesReadTheDeclarationsOfTheMainSources() throws IOException {
+        Path options = Files.writeString(project.resolve("core/src/main/axl/core/Options.axl"), OPTIONS);
+        Files.writeString(project.resolve("core/src/test/axl/core/Checks.axl"), CHECKS);
+        gradle(":core:compileTestJava").build();
+        Path checks = project.resolve("core/build/generated/axl/test/core/Checks.java");
+        assertTrue(Files.readString(checks).contains("Some<Integer>"), Files.readString(checks));
+
+        // The test file is translated again when a main declaration it reads changes.
+        Files.writeString(options, OPTIONS_OF_INT);
+        gradle(":core:compileTestJava").build();
+        assertFalse(Files.readString(checks).contains("Some<Integer>"), Files.readString(checks));
     }
 
     @Test
