@@ -63,8 +63,7 @@ final class Document {
         this.tokens = indexed(new AxolotlLexer(CharStreams.fromString(text)).getAllTokens());
         String className = Translator.className(path.getFileName().toString());
         this.ast = SourceParser.parse(uri, className, text).file();
-        String packageName = ast != null && ast.packageName() != null ? ast.packageName() : "";
-        this.module = project.moduleOf(path, packageName);
+        this.module = project.moduleOf(path, packageName());
         Path root = module.axlRootOf(path);
         this.sourcePath = (root != null ? root.relativize(path) : path.getFileName()).toString().replace('\\', '/');
         this.options = options(module, drafts.apply(module)).withSiblings(siblings.of(module, path));
@@ -271,6 +270,10 @@ final class Document {
             count++;
         }
         return count;
+    }
+
+    String packageName() {
+        return ast != null && ast.packageName() != null ? ast.packageName() : "";
     }
 
     /** Whether the file has top-level values without a written type, which javac types from other files. */

@@ -422,6 +422,20 @@ class WorkspaceTest {
     }
 
     @Test
+    void translatesAClosedFileAgainWhenAnotherFileOfItsPackageChanges() throws Exception {
+        Path terse = Files.writeString(project.resolve("src/main/axl/app/Terse.axl"),
+                "package app\n\nclass Terse : Greeter {\n    val name: String = \"terse\"\n\n    fn greet() -> String = name\n}\n");
+        String greeter = open("Greeter.axl", "package app\n\ninterface Greeter {\n    val name: String\n    fn greet() -> String\n}\n");
+        workspace.saved(greeter);
+        assertEquals(List.of(), published.getOrDefault(terse.toUri().toString(), List.of()));
+
+        // The Java of Terse generated with the old interface would keep an `@Override` on `greet`.
+        workspace.update(greeter, "package app\n\ninterface Greeter {\n    val name: String\n}\n");
+        workspace.saved(greeter);
+        assertEquals(List.of(), published.getOrDefault(terse.toUri().toString(), List.of()));
+    }
+
+    @Test
     void readsAModuleDescriptionWrittenWhileOpen() throws Exception {
         Path java = Files.createDirectories(project.resolve("lib/app")).resolve("Helper.java");
         Files.writeString(java, "package app;\n\npublic class Helper {\n    public static int one() { return 1; }\n}\n");

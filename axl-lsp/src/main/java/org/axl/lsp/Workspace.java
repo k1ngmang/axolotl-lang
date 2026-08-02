@@ -633,9 +633,16 @@ final class Workspace {
             return;
         }
         try {
-            Path written = unit.writeTo(draftsOf(document.module));
-            // The types of values inferred from the drafts may have changed.
-            closedDocuments.values().removeIf(Document::infersValueTypes);
+            Path drafts = draftsOf(document.module);
+            Path target = drafts.resolve(unit.javaPath());
+            boolean changed = !Files.exists(target) || !Files.readString(target, StandardCharsets.UTF_8).equals(unit.javaSource());
+            Path written = unit.writeTo(drafts);
+            if (changed) {
+                // The types of values inferred from the drafts may have changed, and the other files of
+                // the package read the declarations of this one.
+                closedDocuments.values().removeIf(d -> d != document
+                        && (d.infersValueTypes() || d.packageName().equals(document.packageName())));
+            }
             Path old = draftFiles.put(document.path, written);
             if (old != null && !draftFiles.containsValue(old)) {
                 deleteDraft(old);
