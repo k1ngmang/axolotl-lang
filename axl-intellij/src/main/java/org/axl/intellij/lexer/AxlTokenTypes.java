@@ -32,7 +32,7 @@ public final class AxlTokenTypes {
     public static final IElementType RPAREN = of(AxolotlLexer.RPAREN);
     public static final IElementType AT = of(AxolotlLexer.AT);
 
-    /** `data` before `class` and `in` of `for`: words only where the parser finds them, names elsewhere. */
+    /** `data` before `class`, `in` of `for` and `use` before `(val`: words only where the parser finds them, names elsewhere. */
     public static final IElementType CONTEXTUAL_KEYWORD = new IElementType("CONTEXTUAL_KEYWORD", AxlLanguage.INSTANCE);
 
     public static final TokenSet WHITESPACE = TokenSet.create(TokenType.WHITE_SPACE);
@@ -41,7 +41,8 @@ public final class AxlTokenTypes {
     public static final TokenSet NUMBERS = TokenSet.create(INT, FLOAT);
     public static final TokenSet KEYWORDS = TokenSet.create(of(AxolotlLexer.PACKAGE), of(AxolotlLexer.IMPORT),
             of(AxolotlLexer.FN), of(AxolotlLexer.VAL), of(AxolotlLexer.VAR), of(AxolotlLexer.PRIVATE),
-            of(AxolotlLexer.RETURN), of(AxolotlLexer.IF), of(AxolotlLexer.ELSE), of(AxolotlLexer.WHILE),
+            of(AxolotlLexer.RETURN), of(AxolotlLexer.BREAK), of(AxolotlLexer.CONTINUE), of(AxolotlLexer.IF),
+            of(AxolotlLexer.ELSE), of(AxolotlLexer.WHILE),
             of(AxolotlLexer.FOR), of(AxolotlLexer.WHEN), of(AxolotlLexer.IS), of(AxolotlLexer.CLASS),
             of(AxolotlLexer.ENUM), of(AxolotlLexer.INTERFACE), of(AxolotlLexer.SEALED), of(AxolotlLexer.THROW),
             of(AxolotlLexer.TRY), of(AxolotlLexer.ATTEMPT), of(AxolotlLexer.TRUE), of(AxolotlLexer.FALSE),

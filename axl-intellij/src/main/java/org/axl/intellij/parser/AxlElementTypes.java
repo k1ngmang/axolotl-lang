@@ -22,6 +22,8 @@ public final class AxlElementTypes {
     public static final IElementType RETURN = type("RETURN");
     public static final IElementType IF = type("IF");
     public static final IElementType WHILE = type("WHILE");
+    public static final IElementType USE = type("USE");
+    public static final IElementType JUMP = type("JUMP");
     public static final IElementType ASSIGNMENT = type("ASSIGNMENT");
     public static final IElementType EXPRESSION_STATEMENT = type("EXPRESSION_STATEMENT");
     public static final IElementType LAMBDA = type("LAMBDA");

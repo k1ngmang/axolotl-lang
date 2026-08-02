@@ -155,7 +155,10 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "interface_methods/src/app/Main", "interface_file_type/src/app/Store", "interface_file_type/src/app/Main",
                 "interface_method_errors/src/app/Main", "attempt_statement/src/app/Main", "elvis_throw/src/app/Main",
                 "type_parameters/src/app/Main", "type_parameter_errors/src/app/Main", "type_parameter_static/src/app/Box",
-                "pipe_fallback/src/app/Main")) {
+                "pipe_fallback/src/app/Main", "loop_jumps/src/app/Main", "use_resources/src/app/Main",
+                "enum_fields/src/app/Main", "java_superclass/src/app/Main", "data_class_methods/src/app/Main",
+                "attempt_in_lambda/src/app/Main", "property_inference/src/app/Main", "result_else_narrowing/src/app/Main",
+                "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -287,6 +290,144 @@ public class AxlParserTest extends BasePlatformTestCase {
         file = myFixture.configureByText("Words.axl", "package app\n\ndata class P(val x: Int)\n\nfn f() {\n    for (x in g()) {\n    }\n}\n");
         assertEquals(2, PsiTreeUtil.collectElements(file,
                 e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD).length);
+    }
+
+    public void testReadsUseBreakAndContinueStatements() {
+        PsiFile file = myFixture.configureByText("Use.axl", """
+                package app
+
+                fn lines(text: String) -> Int {
+                    var n = 0
+                    use (val reader: java.io.BufferedReader = open(text)) {
+                        while (true) {
+                            val line = reader.readLine()
+                            if (line == null) {
+                                break
+                            }
+                            if (line.isEmpty()) {
+                                continue
+                            }
+                            n += 1
+                        }
+                    } else e -> println("failed: " + e.getMessage())
+                    use (val t = tracker()) {
+                        println(t)
+                    }
+                    return n
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        PsiElement[] uses = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.USE);
+        assertEquals(2, uses.length);
+        assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.JUMP).length);
+        List<AxlVariable> declared = PsiTreeUtil.getChildrenOfTypeAsList(uses[0], AxlVariable.class);
+        assertEquals(List.of("reader", "e"), declared.stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of(AxlElementTypes.VARIABLE, AxlElementTypes.LAMBDA_PARAMETER),
+                declared.stream().map(v -> v.getNode().getElementType()).toList());
+        assertEquals("java.io.BufferedReader", declared.getFirst().type().getText());
+        assertEquals(List.of("t"), PsiTreeUtil.getChildrenOfTypeAsList(uses[1], AxlVariable.class).stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("use", "use"), Arrays.stream(PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD)).map(PsiElement::getText).toList());
+    }
+
+    public void testKeepsUseAsANameOutsideTheStatement() {
+        PsiFile file = myFixture.configureByText("Names.axl", "package app\n\nfn use(n: Int) -> Int = n\n\nfn f(a: Int) -> Int {\n"
+                + "    val use = use(a)\n    return use + use(1)\n}\n");
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(0, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD).length);
+        assertEquals(0, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.USE).length);
+    }
+
+    public void testReadsEnumFieldsAndTheArgumentsOfConstants() {
+        PsiFile file = myFixture.configureByText("Planets.axl", """
+                package app
+
+                enum Planet(val mass: Double, val radius: Double) {
+                    MERCURY(3.303e23, 2.4397e6),
+                    EARTH(5.976e24, 6.37814e6),
+                }
+
+                enum Level(val code: Int, val label: String?) { LOW(1, "low"), HIGH(3, null) }
+
+                enum Color { RED, GREEN }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        List<AxlTypeDeclaration> enums = ((AxlFile) file).typeDeclarations();
+        assertEquals(List.of("mass", "radius", "MERCURY", "EARTH"), enums.getFirst().fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of(AxlElementTypes.FIELD, AxlElementTypes.FIELD, AxlElementTypes.ENUM_CONSTANT, AxlElementTypes.ENUM_CONSTANT),
+                enums.getFirst().fields().stream().map(f -> f.getNode().getElementType()).toList());
+        assertEquals("Double", enums.getFirst().fields().getFirst().type().getText());
+        assertEquals("String?", enums.get(1).fields().get(1).type().getText());
+        assertEquals(4, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ARGUMENTS).length);
+        assertEquals(6, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ENUM_CONSTANT).length);
+        assertEquals(List.of("RED", "GREEN"), enums.get(2).fields().stream().map(AxlVariable::getName).toList());
+    }
+
+    public void testReadsTheConstructorArgumentsOfAJavaSuperclass() {
+        PsiFile file = myFixture.configureByText("Errors.axl", """
+                package app
+
+                class NotFound(val id: String) : RuntimeException("not found: " + id), java.io.Serializable
+
+                class Worker : Thread("w") {
+                    fn run() {
+                        println(getName())
+                    }
+                }
+
+                class Recent(val limit: Int) : java.util.LinkedHashMap<String, Int>() {
+                    fn removeEldestEntry(eldest: java.util.Map.Entry<String, Int>) -> Boolean = size() > limit
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        List<AxlTypeDeclaration> classes = ((AxlFile) file).typeDeclarations();
+        assertEquals(3, classes.size());
+        for (AxlTypeDeclaration cls : classes) {
+            List<PsiElement> arguments = Arrays.stream(cls.getChildren())
+                    .filter(c -> c.getNode().getElementType() == AxlElementTypes.ARGUMENTS).toList();
+            assertEquals(cls.getName(), 1, arguments.size());
+            assertEquals(cls.getName(), AxlElementTypes.TYPE, arguments.getFirst().getPrevSibling().getNode().getElementType());
+        }
+        assertEquals(List.of("RuntimeException", "java.io.Serializable"),
+                PsiTreeUtil.getChildrenOfTypeAsList(classes.getFirst(), org.axl.intellij.psi.AxlType.class).stream()
+                        .map(PsiElement::getText).toList());
+        assertEquals(List.of("run"), classes.get(1).methods().stream().map(AxlFunction::getName).toList());
+    }
+
+    public void testReadsTheMethodsOfADataClassBody() {
+        PsiFile file = myFixture.configureByText("Money.axl", """
+                package app
+
+                data class Money(val cents: Long) : Comparable<Money> {
+                    fn compareTo(other: Money) -> Int = Long.compare(cents, other.cents())
+
+                    @Override
+                    private fn show() -> String {
+                        return cents + ""
+                    }
+                }
+
+                data class Plain(val x: Int) : Named
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        AxlTypeDeclaration money = ((AxlFile) file).typeDeclarations().getFirst();
+        assertEquals(List.of("cents"), money.fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("compareTo", "show"), money.methods().stream().map(AxlFunction::getName).toList());
+        assertTrue(money.methods().get(1).isPrivate());
+        assertFalse(money.methods().getFirst().isAbstract());
+        assertEquals(List.of(), ((AxlFile) file).typeDeclarations().get(1).methods());
+    }
+
+    public void testRejectsWhatTheGrammarRejectsInTheNewStatementsAndMembers() {
+        assertErrors("fn f() {\n    use (reader = open()) {\n    }\n}\n");
+        assertErrors("fn f() {\n    use (val reader = open())\n}\n");
+        assertErrors("fn f() {\n    use (val reader = open()) {\n    } else\n}\n");
+        assertErrors("enum E(x: Int) { A(1) }\n");
+        assertErrors("enum E(val x: Int) { A(1 }\n");
+        assertErrors("data class P(val x: Int) {\n    val y: Int = 1\n}\n");
+        assertErrors("data class P(val x: Int) : Shape()\n");
+        assertErrors("interface I : Named()\n");
+        assertErrors("class C : Base(1,) {}\n");
     }
 
     public void testRejectsWhatTheGrammarRejectsInNewConstructs() {

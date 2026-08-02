@@ -181,11 +181,32 @@ public final class AxlParser implements PsiParser {
             }
             expect(RPAREN, "`)` expected");
         }
-        supertypes();
+        supertypes(false);
+        if (consume(LBRACE)) {
+            while (!at(RBRACE) && !b.eof()) {
+                dataClassMember();
+            }
+            expect(RBRACE, "`}` expected");
+        }
         m.done(AxlElementTypes.DATA_CLASS);
     }
 
-    /** `class Counter(val name: String, var step: Int) : Named { var count: Int = 0; fn next() -> Int { ... } }` */
+    /** The body of a data class holds methods only, for the interfaces it implements. */
+    private void dataClassMember() {
+        PsiBuilder.Marker m = b.mark();
+        annotations();
+        if (at(FN) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(FN)) {
+            function(m);
+        } else {
+            m.drop();
+            skip("`fn` expected");
+        }
+    }
+
+    /**
+     * `class Counter(val name: String, var step: Int) : Named { var count: Int = 0; fn next() -> Int { ... } }`;
+     * `class Worker : Thread("w")` extends the Java class with those constructor arguments.
+     */
     private void classDeclaration(PsiBuilder.Marker m) {
         consume(PRIVATE);
         b.advanceLexer();
@@ -199,7 +220,7 @@ public final class AxlParser implements PsiParser {
             }
             expect(RPAREN, "`)` expected");
         }
-        supertypes();
+        supertypes(true);
         if (consume(LBRACE)) {
             while (!at(RBRACE) && !b.eof()) {
                 classMember();
@@ -224,15 +245,27 @@ public final class AxlParser implements PsiParser {
         }
     }
 
-    /** `enum Color { RED, GREEN }`: constants only, a trailing comma is fine. */
+    /**
+     * `enum Color { RED, GREEN }`, or `enum Planet(val mass: Double) { MERCURY(3.3e23), EARTH(5.97e24) }` with
+     * fields that each constant gives a value for; a trailing comma is fine.
+     */
     private void enumDeclaration(PsiBuilder.Marker m) {
         consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "enum name expected");
+        if (consume(LPAREN)) {
+            do {
+                field(false);
+            } while (consume(COMMA));
+            expect(RPAREN, "`)` expected");
+        }
         if (expect(LBRACE, "`{` expected")) {
             while (at(IDENTIFIER)) {
                 PsiBuilder.Marker constant = b.mark();
                 b.advanceLexer();
+                if (at(LPAREN)) {
+                    arguments();
+                }
                 constant.done(AxlElementTypes.ENUM_CONSTANT);
                 if (!consume(COMMA)) {
                     break;
@@ -249,7 +282,7 @@ public final class AxlParser implements PsiParser {
         b.advanceLexer();
         expect(IDENTIFIER, "interface name expected");
         typeParameters();
-        supertypes();
+        supertypes(false);
         if (consume(LBRACE)) {
             while (!at(RBRACE) && !b.eof()) {
                 interfaceMember();
@@ -286,12 +319,20 @@ public final class AxlParser implements PsiParser {
         m.done(AxlElementTypes.FUNCTION);
     }
 
-    /** `: Shape, Other` after the name of a data class or an interface. */
-    private void supertypes() {
-        if (consume(COLON)) {
-            do {
-                type();
-            } while (consume(COMMA));
+    /**
+     * `: Shape, Other` after the name of a type. withArguments: a class may follow the first type,
+     * the Java class it extends, with the arguments of its constructor: `: Thread("w"), Runnable`.
+     */
+    private void supertypes(boolean withArguments) {
+        if (!consume(COLON)) {
+            return;
+        }
+        type();
+        if (withArguments && at(LPAREN)) {
+            arguments();
+        }
+        while (consume(COMMA)) {
+            type();
         }
     }
 
@@ -451,6 +492,13 @@ public final class AxlParser implements PsiParser {
             }
             consume(SEMI);
             m.done(AxlElementTypes.RETURN);
+        } else if (at(BREAK) || at(CONTINUE)) {
+            PsiBuilder.Marker m = b.mark();
+            b.advanceLexer();
+            consume(SEMI);
+            m.done(AxlElementTypes.JUMP);
+        } else if (atUseStatement()) {
+            useStatement();
         } else if (at(IF) && !ifExpressionAhead()) {
             ifStatement();
         } else if (at(WHILE)) {
@@ -485,6 +533,36 @@ public final class AxlParser implements PsiParser {
         } else {
             skip("statement expected");
         }
+    }
+
+    /** `use` is a word only before `(val`; a call `use(x)` or a value `use` stays a name. */
+    private boolean atUseStatement() {
+        return at(IDENTIFIER) && "use".equals(b.getTokenText()) && b.lookAhead(1) == AxlTokenTypes.LPAREN
+                && b.lookAhead(2) == AxlTokenTypes.of(VAL);
+    }
+
+    /**
+     * `use (val reader = open()) { ... } else e -> handler`: the resource is a local of the block, the
+     * error name a parameter of the handler, which is an expression as the handler of an `attempt`.
+     */
+    private void useStatement() {
+        PsiBuilder.Marker m = b.mark();
+        b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+        b.advanceLexer();
+        b.advanceLexer();
+        variable();
+        expect(RPAREN, "`)` expected");
+        block(LBRACE);
+        if (consume(ELSE)) {
+            if (at(IDENTIFIER) && b.lookAhead(1) == AxlTokenTypes.of(ARROW)) {
+                PsiBuilder.Marker param = b.mark();
+                b.advanceLexer();
+                param.done(AxlElementTypes.LAMBDA_PARAMETER);
+                b.advanceLexer();
+            }
+            expression();
+        }
+        m.done(AxlElementTypes.USE);
     }
 
     private void forStatement() {
