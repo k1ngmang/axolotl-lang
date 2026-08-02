@@ -155,6 +155,18 @@ import org.axl.compiler.ast.TypeRef;
         final var substituted = type.args().stream().map(Nulls.nonNull(a -> substitute(a, params, args))).toList();
         return new TypeRef(type.pos(), type.name(), substituted, type.nullable());
     }
+    public record RequiredMethod(Decl.Function method, List<String> typeParams) {}
+    public static List<RequiredMethod> requiredMethods(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
+        final var result = new ArrayList<RequiredMethod>();
+        for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
+            final var iface = implemented.iface();
+            final var names = iface.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
+            for (final var method : iface.methods()) {
+                result.add(new RequiredMethod(method, names));
+            }
+        }
+        return result;
+    }
     public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         final var keys = new ArrayList<String>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {

@@ -26,6 +26,7 @@ import org.axl.compiler.ast.Expr.Unary
 import org.axl.compiler.ast.Import
 import org.axl.compiler.ast.Pos
 import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.check.Implementations.RequiredMethod
 import org.axl.compiler.ast.Stmt
 import org.axl.compiler.ast.Stmt.Block
 import org.axl.compiler.ast.Stmt.ExprStmt
@@ -83,6 +84,8 @@ class Generator(
 
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
     var overridden: List<String> = List.of()
+    /** The methods of the interfaces of the build the current class implements, for the types Java boxes. */
+    var requiredMethods: List<RequiredMethod> = List.of()
 
     // The type of the subject of the `when` being emitted, if the code says.
     var subjectTypeOf: TypeRef? = null
@@ -340,12 +343,15 @@ class Generator(
             emitConstructor(classDecl)
         }
         val outerOverridden = overridden
+        val outerRequired = requiredMethods
         overridden = Implementations.required(file, options.siblings(), classDecl.supertypes())
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), classDecl.supertypes())
         for (method in classDecl.methods()) {
             resetCounters()
             emitFunction(method, false)
         }
         overridden = outerOverridden
+        requiredMethods = outerRequired
         emitAccessors(classDecl)
         currentClass = outerClass
         currentMethods = outerMethods
@@ -434,8 +440,10 @@ class Generator(
     /** The methods of a record body, which read the fields by name as a class's do. */
     private fn emitDataClassMethods(dataClass: Decl.DataClass) {
         val outerOverridden = overridden
+        val outerRequired = requiredMethods
         val outerMethods = currentMethods
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), dataClass.supertypes())
         currentMethods = dataClass.methods()
         for (method in dataClass.methods()) {
             resetCounters()
@@ -443,6 +451,7 @@ class Generator(
         }
         currentMethods = outerMethods
         overridden = outerOverridden
+        requiredMethods = outerRequired
     }
 
     private fn emitInterface(iface: Decl.Interface) {
@@ -506,9 +515,14 @@ class Generator(
     }
 
     private fn emitFunction(f: Decl.Function, isStatic: Boolean) {
-        val params = if (isStatic && isMain(f)) "String[] args" else parameters(f.params(), f.pos().line())
+        val required = if (isStatic) null else requiredMethods |> filter { r -> r.method().name().equals(f.name()) &&
+            r.method().params().size() == f.params().size() } |> first
+        val boxed = boxedParameters(f, required)
+        val params = if (isStatic && isMain(f)) "String[] args" else parameters(f.params(), f.pos().line(), boxed)
         val declaredReturn = f.returnType()
-        val resultType = if (declaredReturn == null) "void" else javaType(declaredReturn)
+        val resultType = if (declaredReturn == null) "void"
+            else if (required != null && isTypeVariable(required, required.method().returnType())) boxedType(declaredReturn)
+            else javaType(declaredReturn)
         val modifier = if (isStatic) " static " else " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
         val override = if (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size())) "@Override " else ""
@@ -518,6 +532,7 @@ class Generator(
         resultTypeRef = declaredReturn
         localTypes.clear()
         boxedLocals.clear()
+        boxedLocals.addAll(boxed)
         for (p in f.params()) {
             localTypes.put(p.name(), p.type())
         }
@@ -536,6 +551,28 @@ class Generator(
             em.line(body.end().line(), "}")
         }
     }
+
+    /**
+     * `fn save(key: String, value: Int)` implementing `fn save(key: K, value: V)`: Java has `Integer` where
+     * the interface has a type variable, and `int` would not override.
+     */
+    private fn boxedParameters(f: Decl.Function, required: RequiredMethod?) -> Set<String> {
+        val result = HashSet<String>()
+        if (required == null) {
+            return result
+        }
+        var i = 0
+        while (i < f.params().size()) {
+            if (isTypeVariable(required, required.method().params().get(i).type())) {
+                result.add(f.params().get(i).name())
+            }
+            i += 1
+        }
+        return result
+    }
+
+    private fn isTypeVariable(required: RequiredMethod, type: TypeRef?) -> Boolean =
+        type != null && type.args().isEmpty() && required.typeParams().contains(type.name())
 
     private fn emitStatements(list: List<Stmt>) {
         for (stmt in list) {
@@ -2990,13 +3027,17 @@ private fn annotationValue(e: Expr) -> String = when (e) {
     else -> throw IllegalStateException("not a constant in an annotation at " + e.pos())
 }
 
-private fn parameters(params: List<Expr.Param>, declarationLine: Int) -> String {
+private fn parameters(params: List<Expr.Param>, declarationLine: Int) -> String = parameters(params, declarationLine, Set.of())
+
+/** boxed: the parameters whose type Java boxes, see boxedParameters. */
+private fn parameters(params: List<Expr.Param>, declarationLine: Int, boxed: Set<String>) -> String {
     val sb = StringBuilder()
     var previous = declarationLine
     var i = 0
     while (i < params.size()) {
         val p = params.get(i)
-        val code = annotations(p.annotations()) + javaType(memberType(p)) + " " + p.name()
+        val type = if (boxed.contains(p.name())) boxedType(memberType(p)) else javaType(memberType(p))
+        val code = annotations(p.annotations()) + type + " " + p.name()
         if (p.pos().line() > previous) {
             sb.append(if (i > 0) "," else "").append(Emitter.continued(p.pos().line(), code))
             previous = p.pos().line()

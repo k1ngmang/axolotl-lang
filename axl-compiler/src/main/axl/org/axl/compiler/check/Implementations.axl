@@ -151,6 +151,22 @@ private fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<Ty
     return TypeRef(type.pos(), type.name(), substituted, type.nullable())
 }
 
+/** A method an interface requires, with the interface's type parameters, which Java boxes an `Int` for. */
+data class RequiredMethod(val method: Decl.Function, val typeParams: List<String>)
+
+/** The methods the interfaces among the supertypes require. */
+fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<RequiredMethod> {
+    val result = ArrayList<RequiredMethod>()
+    for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
+        val iface = implemented.iface()
+        val names = iface.typeParams() |> map { p -> p.name() }
+        for (method in iface.methods()) {
+            result.add(RequiredMethod(method, names))
+        }
+    }
+    return result
+}
+
 /** What the interfaces require, as `name/arity`: a value is a method without parameters. */
 fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<String> {
     val keys = ArrayList<String>()

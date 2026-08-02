@@ -1,0 +1,51 @@
+package app
+
+import java.util.HashMap
+
+interface Repository<K, V> {
+    fn find(key: K) -> V?
+    fn save(key: K, value: V)
+    fn same(a: V, b: V) -> Boolean
+    fn total() -> V
+}
+
+interface Scalable<T> {
+    fn scale(factor: T) -> Scalable<T>
+}
+
+class Ages : Repository<String, Int> {
+    val items = HashMap<String, Int>()
+
+    fn find(key: String) -> Int? = items.get(key)
+
+    fn save(key: String, value: Int) {
+        items.put(key, value)
+    }
+
+    fn same(a: Int, b: Int) -> Boolean = a == b
+
+    fn total() -> Int {
+        var sum = 0
+        for (v in items.values()) {
+            sum += v
+        }
+        return sum
+    }
+}
+
+data class Vec(val x: Double) : Scalable<Double> {
+    fn scale(factor: Double) -> Scalable<Double> = Vec(x * factor)
+}
+
+fn main() {
+    val ages = Ages()
+    ages.save("ann", 1000)
+    ages.save("bob", 1000)
+    val repository: Repository<String, Int> = ages
+    println(repository.find("ann") ?: -1)
+    println(repository.find("cid") ?: -1)
+    println(repository.same(1000, 1000))
+    println(ages.same(ages.find("ann") ?: 0, ages.find("bob") ?: 0))
+    println(repository.total())
+    println(Vec(1.5).scale(2.0))
+}

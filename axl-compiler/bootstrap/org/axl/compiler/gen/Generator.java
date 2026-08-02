@@ -27,6 +27,7 @@ import org.axl.compiler.ast.Expr.Unary;
 import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.check.Implementations.RequiredMethod;
 import org.axl.compiler.ast.Stmt;
 import org.axl.compiler.ast.Stmt.Block;
 import org.axl.compiler.ast.Stmt.ExprStmt;
@@ -51,6 +52,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public int patternCount;
     public List<String> overridden;
+    public List<RequiredMethod> requiredMethods;
     public @Nullable TypeRef subjectTypeOf;
     public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
@@ -83,6 +85,7 @@ import org.axl.compiler.check.Whens;
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.patternCount = 0;
         this.overridden = List.of();
+        this.requiredMethods = List.of();
         this.subjectTypeOf = null;
         this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
@@ -309,12 +312,15 @@ import org.axl.compiler.check.Whens;
             emitConstructor(classDecl);
         }
         final var outerOverridden = overridden;
+        final var outerRequired = requiredMethods;
         overridden = Implementations.required(file, options.siblings(), classDecl.supertypes());
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), classDecl.supertypes());
         for (final var method : classDecl.methods()) {
             resetCounters();
             emitFunction(method, false);
         }
         overridden = outerOverridden;
+        requiredMethods = outerRequired;
         emitAccessors(classDecl);
         currentClass = outerClass;
         currentMethods = outerMethods;
@@ -399,8 +405,10 @@ import org.axl.compiler.check.Whens;
     }
     private void emitDataClassMethods(Decl.DataClass dataClass) {
         final var outerOverridden = overridden;
+        final var outerRequired = requiredMethods;
         final var outerMethods = currentMethods;
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), dataClass.supertypes());
         currentMethods = dataClass.methods();
         for (final var method : dataClass.methods()) {
             resetCounters();
@@ -408,6 +416,7 @@ import org.axl.compiler.check.Whens;
         }
         currentMethods = outerMethods;
         overridden = outerOverridden;
+        requiredMethods = outerRequired;
     }
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
@@ -468,9 +477,15 @@ import org.axl.compiler.check.Whens;
         em.line(0, "}");
     }
     private void emitFunction(Decl.Function f, boolean isStatic) {
-        final var params = (isStatic && isMain(f) ? "String[] args" : parameters(f.params(), f.pos().line()));
+        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> r.method().name().equals(f.name()) &&
+                r.method().params().size() == f.params().size())
+                .iterator()));
+        final var boxed = boxedParameters(f, required);
+        final var params = (isStatic && isMain(f) ? "String[] args" : parameters(f.params(), f.pos().line(), boxed));
         final var declaredReturn = f.returnType();
-        final var resultType = (declaredReturn == null ? "void" : javaType(declaredReturn));
+        final var resultType = (declaredReturn == null ? "void" :
+                (required != null && isTypeVariable(required, required.method().returnType()) ? boxedType(declaredReturn) :
+                javaType(declaredReturn)));
         final var modifier = (isStatic ? " static " : " ");
         final var written = f.annotations().stream().anyMatch(a -> a.name().equals("Override"));
         final var override = (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size()) ? "@Override " : "");
@@ -484,6 +499,7 @@ import org.axl.compiler.check.Whens;
         resultTypeRef = declaredReturn;
         localTypes.clear();
         boxedLocals.clear();
+        boxedLocals.addAll(boxed);
         for (final var p : f.params()) {
             localTypes.put(p.name(), p.type());
         }
@@ -501,6 +517,23 @@ import org.axl.compiler.check.Whens;
             em.dedent();
             em.line(body.end().line(), "}");
         }
+    }
+    private Set<String> boxedParameters(Decl.Function f, @Nullable RequiredMethod required) {
+        final var result = new HashSet<String>();
+        if (required == null) {
+            return result;
+        }
+        var i = 0;
+        while (i < f.params().size()) {
+            if (isTypeVariable(required, required.method().params().get(i).type())) {
+                result.add(f.params().get(i).name());
+            }
+            i += 1;
+        }
+        return result;
+    }
+    private boolean isTypeVariable(RequiredMethod required, @Nullable TypeRef type) {
+        return type != null && type.args().isEmpty() && required.typeParams().contains(type.name());
     }
     private void emitStatements(List<Stmt> list) {
         for (final var stmt : list) {
@@ -2725,12 +2758,16 @@ import org.axl.compiler.check.Whens;
         }
     }
     private static String parameters(List<Expr.Param> params, int declarationLine) {
+        return parameters(params, declarationLine, Set.of());
+    }
+    private static String parameters(List<Expr.Param> params, int declarationLine, Set<String> boxed) {
         final var sb = new StringBuilder();
         var previous = declarationLine;
         var i = 0;
         while (i < params.size()) {
             final var p = params.get(i);
-            final var code = annotations(p.annotations()) + javaType(memberType(p)) + " " + p.name();
+            final var type = (boxed.contains(p.name()) ? boxedType(memberType(p)) : javaType(memberType(p)));
+            final var code = annotations(p.annotations()) + type + " " + p.name();
             if (p.pos().line() > previous) {
                 sb.append((i > 0 ? "," : "")).append(Emitter.continued(p.pos().line(), code));
                 previous = p.pos().line();
