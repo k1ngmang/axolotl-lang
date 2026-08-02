@@ -42,6 +42,7 @@ import org.axl.compiler.ast.TypeRef;
     public final IdentityHashMap<Expr.Stage, TypeRef> mapResultTypes;
     public Scope scope;
     public Decl.@Nullable Function current;
+    public Set<String> openTypeParams;
     public @Nullable Stmt lastInLambda;
     public int lambdaDepth;
     public int safeTailDepth;
@@ -71,6 +72,7 @@ import org.axl.compiler.ast.TypeRef;
         this.mapResultTypes = new IdentityHashMap<Expr.Stage, TypeRef>();
         this.scope = new Scope(null, true);
         this.current = null;
+        this.openTypeParams = new HashSet<String>();
         this.lastInLambda = null;
         this.lambdaDepth = 0;
         this.safeTailDepth = 0;
@@ -341,6 +343,8 @@ import org.axl.compiler.ast.TypeRef;
     private void classDecl(Decl.ClassDecl c) {
         currentClass = c;
         currentMethods = c.methods();
+        final var outerOpen = openTypeParams;
+        openTypeParams = openTypeParams(c.typeParams());
         scope = new Scope(scope, false);
         for (final var p : c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type());
@@ -377,8 +381,24 @@ import org.axl.compiler.ast.TypeRef;
         }
         integerAllowed = false;
         pop();
+        openTypeParams = outerOpen;
         currentClass = null;
         currentMethods = List.of();
+    }
+    private Set<String> openTypeParams(List<Decl.TypeParam> params) {
+        final var result = new HashSet<String>(openTypeParams);
+        for (final var p : params) {
+            final var bound = p.bound();
+            if (bound == null || bound.nullable()) {
+                result.add(p.name());
+            } else {
+                result.remove(p.name());
+            }
+        }
+        return result;
+    }
+    private boolean isOpenTypeParam(TypeRef type) {
+        return type.args().isEmpty() && openTypeParams.contains(type.name());
     }
     private void dataClassMethods(Decl.DataClass data) {
         if (data.methods().isEmpty()) {
@@ -389,6 +409,8 @@ import org.axl.compiler.ast.TypeRef;
             declare(f.pos(), f.name(), Kind.FIELD, f.type());
         }
         final var outerMethods = currentMethods;
+        final var outerOpen = openTypeParams;
+        openTypeParams = openTypeParams(data.typeParams());
         currentMethods = data.methods();
         integerAllowed = data.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
         for (final var m : data.methods()) {
@@ -404,6 +426,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         integerAllowed = false;
         currentMethods = outerMethods;
+        openTypeParams = outerOpen;
         pop();
     }
     private boolean declaresType(String name) {
@@ -546,6 +569,8 @@ import org.axl.compiler.ast.TypeRef;
     private void function(Decl.Function f) {
         current = f;
         writtenType(f.returnType(), true);
+        final var outerOpen = openTypeParams;
+        openTypeParams = openTypeParams(f.typeParams());
         scope = new Scope(scope, false);
         for (final var p : f.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type());
@@ -559,6 +584,7 @@ import org.axl.compiler.ast.TypeRef;
             statements(body.statements());
         }
         pop();
+        openTypeParams = outerOpen;
         current = null;
     }
     private void expressionBody(Decl.Function f, Expr body) {
@@ -692,7 +718,7 @@ import org.axl.compiler.ast.TypeRef;
             return null;
         }
         final var type = symbol.type();
-        if (type != null && !type.nullable()) {
+        if (type != null && !type.nullable() && !isOpenTypeParam(type)) {
             return type;
         }
         return null;

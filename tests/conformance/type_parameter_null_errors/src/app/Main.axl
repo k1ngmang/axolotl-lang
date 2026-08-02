@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+
+data class Box<T>(val value: T)
+
+fn unboxLength<T>(b: Box<T>) -> Int = b.value().toString().length()
+
+fn firstLength<T>(xs: List<T>) -> Int {
+    val x = xs.get(0)
+    return x.toString().length()
+}
+
+fn keep<T>(x: T) -> T = x
+
+fn shown<T>(x: T) -> String = x.toString()
+
+class Holder<T>(val item: T) {
+    fn shown() -> String = item.toString()
+}
+
+fn main() {
+    val s: String = keep("a")
+    println(s + unboxLength(Box<String>("b")) + firstLength(List.of("c")) + shown(1) + Holder<Int>(2).shown())
+}

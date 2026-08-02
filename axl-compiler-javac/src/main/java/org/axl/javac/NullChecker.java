@@ -169,8 +169,9 @@ final class NullChecker implements TaskListener {
      * {@code DECLARED} values itself, so where it checks a use, only the other kinds are reported here.
      * {@code ABSENT} is the result of a JDK method that returns null when it has no value, such as `Queue.poll`.
      * {@code UNANNOTATED} is a value from Java code without nullness annotations in a local written with `?`.
+     * {@code OPEN} is a value of a type parameter without a bound, `T`, which stands for nullable types as well.
      */
-    private enum Origin { NONE, HIDDEN, UNANNOTATED, ABSENT, PLATFORM, DECLARED }
+    private enum Origin { NONE, HIDDEN, OPEN, UNANNOTATED, ABSENT, PLATFORM, DECLARED }
 
     /**
      * Which parts of a value may be null: the value itself and, by position, its type arguments. javac
@@ -529,7 +530,7 @@ final class NullChecker implements TaskListener {
         /** NullAway ignores the declared types of locals, so a store into a local without `?` is checked here. */
         private void store(ExpressionTree value, Element local) {
             TypeMirror type = local.asType();
-            boolean nullable = PlatformValues.isNullable(local, type) || nullableLocals.contains(local);
+            boolean nullable = PlatformValues.isNullable(local, type) || nullableLocals.contains(local) || openTypeVariable(type);
             if (type.getKind().isPrimitive()) {
                 // NullAway checks unboxing, unlike stores.
                 checkUnboxing(value, true);
@@ -1658,7 +1659,7 @@ final class NullChecker implements TaskListener {
         private void checkValue(ExpressionTree value, TypeMirror type, Element declaration, boolean nullAwayChecks, String why) {
             if (type.getKind().isPrimitive()) {
                 checkUnboxing(value, nullAwayChecks);
-            } else if (type.getKind() != TypeKind.VOID && !PlatformValues.isNullable(declaration, type)) {
+            } else if (type.getKind() != TypeKind.VOID && !PlatformValues.isNullable(declaration, type) && !openTypeVariable(type)) {
                 reportValue(value, value, nullAwayChecks, ", but " + why);
             }
         }
@@ -1842,7 +1843,8 @@ final class NullChecker implements TaskListener {
                 return Origin.NONE;
             }
             if (element.getKind() == ElementKind.PARAMETER) {
-                return PlatformValues.isNullable(element, element.asType()) ? Origin.DECLARED : Origin.NONE;
+                return PlatformValues.isNullable(element, element.asType()) ? Origin.DECLARED
+                        : openTypeVariable(element.asType()) ? Origin.OPEN : Origin.NONE;
             }
             TypeMirror type = element instanceof ExecutableElement method ? method.getReturnType() : element.asType();
             if (type.getKind().isPrimitive() || type.getKind() == TypeKind.VOID) {
@@ -1850,6 +1852,10 @@ final class NullChecker implements TaskListener {
             }
             if (PlatformValues.isNullable(element, type)) {
                 return Origin.DECLARED;
+            }
+            // A call is typed where it is made, see callOrigin.
+            if (!(element instanceof ExecutableElement) && openTypeVariable(type)) {
+                return Origin.OPEN;
             }
             return strict && PlatformValues.isPlatform(element) ? Origin.PLATFORM : Origin.NONE;
         }
@@ -1913,6 +1919,9 @@ final class NullChecker implements TaskListener {
                 return callOrigin(call, method);
             }
             Origin declared = unknownOrigin(element);
+            if (declared == Origin.NONE && openTypeVariable(typeOf(e))) {
+                return Origin.OPEN;
+            }
             if (declared == Origin.NONE && shape(e).fromJava()) {
                 return Origin.PLATFORM;
             }
@@ -1945,6 +1954,10 @@ final class NullChecker implements TaskListener {
             }
             if (declared != Origin.NONE) {
                 return declared;
+            }
+            // javac types the call with the type argument, `String` for `Box<String>.value()`, and with `T` inside generic code.
+            if (openTypeVariable(typeOf(call))) {
+                return Origin.OPEN;
             }
             if (shape(call).fromJava()) {
                 return Origin.PLATFORM;
@@ -2216,6 +2229,7 @@ final class NullChecker implements TaskListener {
                 return switch (origin) {
                     case PLATFORM, UNANNOTATED -> name + ": it holds a value from Java code without nullness annotations";
                     case HIDDEN -> name + ": it holds a value of a type argument written with `?`";
+                    case OPEN -> name + ": `" + typeOf(e) + "` stands for any type, nullable ones too";
                     case ABSENT -> name + ": it holds the result of a JDK method that returns null when there is no value";
                     default -> name;
                 };
@@ -2245,6 +2259,7 @@ final class NullChecker implements TaskListener {
                 return switch (origin) {
                     case PLATFORM -> name + " comes from Java code without nullness annotations and may be null";
                     case HIDDEN -> name + " may be null: its type is a type argument written with `?`";
+                    case OPEN -> name + " may be null: its type `" + typeOf(e) + "` stands for any type, nullable ones too";
                     case ABSENT -> name + " may be null: the JDK method returns null when there is no value";
                     default -> name + " may be null";
                 };
@@ -2264,7 +2279,9 @@ final class NullChecker implements TaskListener {
                 String changing = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
                 return report(at, origin, false, describe(value) + problem + "; " + changing);
             }
-            return report(at, origin, checked, describe(value) + problem + "; " + fix);
+            String how = origin == Origin.OPEN && fix.equals(FIX)
+                    ? fix + ", or `" + typeOf(value) + " : Object` on the declaration to rule null out" : fix;
+            return report(at, origin, checked, describe(value) + problem + "; " + how);
         }
 
         /** Reports unless NullAway reports the same problem; returns whether anything is wrong. */
@@ -2570,6 +2587,11 @@ final class NullChecker implements TaskListener {
 
     private static boolean nullableAnnotated(TypeMirror type) {
         return type != null && PlatformValues.hasAnnotation(type.getAnnotationMirrors(), "Nullable");
+    }
+
+    /** `T` without a bound is `T extends @Nullable Object` in the generated code: it stands for `String?` as well as `String`. */
+    private static boolean openTypeVariable(TypeMirror type) {
+        return type instanceof TypeVariable variable && nullableAnnotated(variable.getUpperBound());
     }
 
     /** javac loses type annotations inside method bodies when it infers types, but the trees keep them. */

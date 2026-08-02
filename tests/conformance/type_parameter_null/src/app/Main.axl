@@ -1,0 +1,41 @@
+package app
+
+import java.util.List
+
+data class Box<T>(val value: T)
+
+fn shown<T>(x: T) -> String {
+    if (x == null) {
+        return "null"
+    }
+    return x.toString()
+}
+
+fn shownOr<T>(x: T, fallback: String) -> String = x?.toString() ?: fallback
+
+fn plain<T : Object>(x: T) -> String = x.toString()
+
+fn unbox<T>(b: Box<T>) -> String = b.value()?.toString() ?: "empty"
+
+fn first<T>(xs: List<T>) -> String {
+    val x = xs.get(0)
+    return if (x != null) x.toString() else "none"
+}
+
+class Holder<T>(val item: T) {
+    fn shown() -> String = item?.toString() ?: "nothing"
+}
+
+fn main() {
+    val maybe: String? = null
+    println(shown(maybe))
+    println(shown("a"))
+    println(shownOr(maybe, "-"))
+    println(shownOr(3, "-"))
+    println(plain("b"))
+    println(unbox(Box<String?>(null)))
+    println(unbox(Box<Int>(4)))
+    println(first(java.util.Arrays.asList(maybe)))
+    println(Holder<String?>(null).shown())
+    println(Holder<String>("c").shown())
+}

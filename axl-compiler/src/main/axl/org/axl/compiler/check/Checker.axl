@@ -138,6 +138,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     val mapResultTypes: IdentityHashMap<Expr.Stage, TypeRef> = IdentityHashMap<Expr.Stage, TypeRef>()
     var scope: Scope = Scope(null, true)
     var current: Decl.Function? = null
+    /** Type parameters of the enclosing declarations without a bound, or with a nullable one: their values may be null. */
+    var openTypeParams: Set<String> = HashSet<String>()
     var lastInLambda: Stmt? = null
     var lambdaDepth: Int = 0
     var safeTailDepth: Int = 0
@@ -400,6 +402,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     private fn classDecl(c: Decl.ClassDecl) {
         currentClass = c
         currentMethods = c.methods()
+        val outerOpen = openTypeParams
+        openTypeParams = openTypeParams(c.typeParams())
         scope = Scope(scope, false)
         for (p in c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type())
@@ -438,9 +442,26 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         }
         integerAllowed = false
         pop()
+        openTypeParams = outerOpen
         currentClass = null
         currentMethods = List.of()
     }
+
+    /** The open type parameters inside a declaration with these parameters; `T : Object` closes a `T` of the class. */
+    private fn openTypeParams(params: List<Decl.TypeParam>) -> Set<String> {
+        val result = HashSet<String>(openTypeParams)
+        for (p in params) {
+            val bound = p.bound()
+            if (bound == null || bound.nullable()) {
+                result.add(p.name())
+            } else {
+                result.remove(p.name())
+            }
+        }
+        return result
+    }
+
+    private fn isOpenTypeParam(type: TypeRef) -> Boolean = type.args().isEmpty() && openTypeParams.contains(type.name())
 
     /** The methods of a data class see its fields by name, like the methods of a class. */
     private fn dataClassMethods(data: Decl.DataClass) {
@@ -452,6 +473,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
             declare(f.pos(), f.name(), Kind.FIELD, f.type())
         }
         val outerMethods = currentMethods
+        val outerOpen = openTypeParams
+        openTypeParams = openTypeParams(data.typeParams())
         currentMethods = data.methods()
         integerAllowed = data.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
         for (m in data.methods()) {
@@ -465,6 +488,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         }
         integerAllowed = false
         currentMethods = outerMethods
+        openTypeParams = outerOpen
         pop()
     }
 
@@ -607,6 +631,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     private fn function(f: Decl.Function) {
         current = f
         writtenType(f.returnType(), true)
+        val outerOpen = openTypeParams
+        openTypeParams = openTypeParams(f.typeParams())
         scope = Scope(scope, false)
         for (p in f.params()) {
             declare(p.pos(), p.name(), Kind.PARAM, p.type())
@@ -620,6 +646,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
             statements(body.statements())
         }
         pop()
+        openTypeParams = outerOpen
         current = null
     }
 
@@ -741,7 +768,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
             return null
         }
         val type = symbol.type()
-        if (type != null && !type.nullable()) {
+        if (type != null && !type.nullable() && !isOpenTypeParam(type)) {
             return type
         }
         return null

@@ -55,7 +55,8 @@ fn largest<T : Comparable<T>>(xs: List<T>) -> T? { ... }
 ```
 
 `T` on its own stands for any type, nullable ones included, so `Pair<String, Int?>` is allowed and a
-`T` value may be null inside the declaration. `T : Object` takes every type without null, and
+`T` value may be null inside the declaration: it is used like a `String?`, with `?.`, `?:` or a null
+check, and `x.toString()` on it is an error. `T : Object` takes every type without null, and
 `T : Comparable<T>` the types with an order. An object of a generic class is created with its
 arguments, `Pair<String, Int>("age", 41)`, or with `Pair<>(...)` where the type it is stored as tells
 them. Calls of generic functions need no arguments: `largest(numbers)`. The functions of a file whose
