@@ -24,8 +24,8 @@ final class ExtractTryFix extends PsiUpdateModCommandAction<PsiElement> {
     }
 
     /**
-     * Only for a `try` that runs once whenever its statement does: not in a lambda, an `attempt`, a
-     * loop condition or an `else if` condition.
+     * Only for a `try` that runs once whenever its statement does: not in a lambda, an `attempt`, the
+     * handler of a `use`, a loop condition or an `else if` condition.
      */
     static boolean isApplicable(PsiElement tryExpression) {
         PsiElement child = tryExpression;
@@ -34,7 +34,8 @@ final class ExtractTryFix extends PsiUpdateModCommandAction<PsiElement> {
             if (type == AxlElementTypes.BLOCK) {
                 return true;
             }
-            if (type == AxlElementTypes.LAMBDA || type == AxlElementTypes.ATTEMPT) {
+            if (type == AxlElementTypes.LAMBDA || type == AxlElementTypes.ATTEMPT || type == AxlElementTypes.USE
+                    && child.getNode().getElementType() != AxlElementTypes.VARIABLE) {
                 return false;
             }
             boolean elseIf = parent.getParent().getNode().getElementType() == AxlElementTypes.IF;

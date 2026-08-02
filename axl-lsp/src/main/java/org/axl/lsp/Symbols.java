@@ -303,10 +303,10 @@ final class Symbols {
         }
     }
 
-    /** A block that ends with `return` or `throw`, after which the code runs only when its condition failed. */
+    /** A block that ends with `return`, `break`, `continue` or `throw`, after which the code runs only when its condition failed. */
     private static boolean leaves(Stmt.Block block) {
         Stmt last = block.statements().isEmpty() ? null : block.statements().getLast();
-        return last instanceof Stmt.Return || last instanceof Stmt.ExprStmt e && e.expr() instanceof Expr.Throw;
+        return last instanceof Stmt.Return || last instanceof Stmt.Jump || last instanceof Stmt.ExprStmt e && e.expr() instanceof Expr.Throw;
     }
 
     /** The names a condition tests with `is` and their types, where the condition holds or, with holds false, fails. */

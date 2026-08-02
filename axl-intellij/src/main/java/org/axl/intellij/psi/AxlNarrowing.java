@@ -107,7 +107,7 @@ final class AxlNarrowing {
         return null;
     }
 
-    /** A block that ends with `return` or `throw`. */
+    /** A block that ends with `return`, `break`, `continue` or `throw`. */
     private static boolean leaves(PsiElement block) {
         AxlPsiElement last = null;
         for (AxlPsiElement statement : PsiTreeUtil.getChildrenOfTypeAsList(block, AxlPsiElement.class)) {
@@ -117,7 +117,7 @@ final class AxlNarrowing {
             return false;
         }
         IElementType type = last.getNode().getElementType();
-        return type == AxlElementTypes.RETURN || type == AxlElementTypes.EXPRESSION_STATEMENT
+        return type == AxlElementTypes.RETURN || type == AxlElementTypes.JUMP || type == AxlElementTypes.EXPRESSION_STATEMENT
                 && last.getFirstChild().getNode().getElementType() == AxlElementTypes.THROW;
     }
 

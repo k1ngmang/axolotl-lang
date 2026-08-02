@@ -519,6 +519,26 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void narrowsAfterAnIfThatLeavesTheLoop() throws Exception {
+        String text = SHAPES + """
+
+                fn radii(shapes: java.util.List<Shape>) -> Double {
+                    var total = 0.0
+                    for (shape in shapes) {
+                        if (shape !is Circle) {
+                            continue
+                        }
+                        total += shape.radius()
+                    }
+                    return total
+                }
+                """;
+        String uri = open("Shapes.axl", text);
+        assertContains(hoverAt(uri, text, "total += |shape.radius()"), "val shape: Circle");
+        assertEquals(List.of("Shapes.axl:6:40"), definitionsAt(uri, text, "total += shape.|radius()"));
+    }
+
+    @Test
     void outlinesEnumFieldsAndDataClassMethods() throws Exception {
         String uri = open("Extended.axl", EXTENDED);
         List<DocumentSymbol> symbols = new Outline(workspace).symbols(uri);

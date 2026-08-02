@@ -777,6 +777,27 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals("java.lang.Throwable", ((PsiMethod) resolveAt("println(e.|getMessage())")).getContainingClass().getQualifiedName());
     }
 
+    public void testNarrowsAfterAnIfThatLeavesTheLoopAndFoldsTheBodyOfADataClass() {
+        AxlFile file = (AxlFile) myFixture.configureByText("Loop.axl", SHAPES + """
+
+                fn radii(shapes: java.util.List<Shape>) -> Double {
+                    var total = 0.0
+                    for (shape in shapes) {
+                        if (shape !is Circle) {
+                            continue
+                        }
+                        total += shape.radius()
+                    }
+                    return total
+                }
+                """ + EXTENDED.substring(EXTENDED.indexOf("data class Money"), EXTENDED.indexOf("fn gravity")));
+        assertSame(file.typeDeclarations().get(1).fields().get(1), resolveAt("total += shape.|radius()"));
+        var document = myFixture.getEditor().getDocument();
+        List<String> folded = Arrays.stream(new org.axl.intellij.highlight.AxlFoldingBuilder().buildFoldRegions(file, document, false))
+                .map(d -> document.getText(d.getRange())).toList();
+        assertTrue(folded.toString(), folded.stream().anyMatch(text -> text.startsWith("{\n    fn compareTo(other: Money)")));
+    }
+
     public void testSeesTheResourceOfAUseOnlyInItsBlockAndTheErrorNameOnlyInItsHandler() {
         myFixture.configureByText("Scope.axl", EXTENDED.replace("} else e -> println(e.getMessage())",
                 "} else e -> println(reader)\n    println(e)"));
