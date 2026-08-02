@@ -1,11 +1,13 @@
 package org.axl.intellij.actions;
 
 import com.intellij.codeInsight.ExceptionUtil;
+import com.intellij.psi.CommonClassNames;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiAnnotationMemberValue;
 import com.intellij.psi.PsiArrayInitializerMemberValue;
 import com.intellij.psi.PsiAssignmentExpression;
 import com.intellij.psi.PsiBlockStatement;
+import com.intellij.psi.PsiBreakStatement;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiClassObjectAccessExpression;
 import com.intellij.psi.PsiClassType;
@@ -13,6 +15,7 @@ import com.intellij.psi.PsiCodeBlock;
 import com.intellij.psi.PsiCaseLabelElement;
 import com.intellij.psi.PsiComment;
 import com.intellij.psi.PsiConditionalExpression;
+import com.intellij.psi.PsiContinueStatement;
 import com.intellij.psi.PsiDeclarationStatement;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiEnumConstant;
@@ -45,6 +48,9 @@ import com.intellij.psi.PsiPrefixExpression;
 import com.intellij.psi.PsiPrimitiveType;
 import com.intellij.psi.PsiRecordComponent;
 import com.intellij.psi.PsiReferenceExpression;
+import com.intellij.psi.PsiResourceList;
+import com.intellij.psi.PsiResourceListElement;
+import com.intellij.psi.PsiResourceVariable;
 import com.intellij.psi.PsiReturnStatement;
 import com.intellij.psi.PsiStatement;
 import com.intellij.psi.PsiSwitchBlock;
@@ -53,6 +59,7 @@ import com.intellij.psi.PsiSwitchLabeledRuleStatement;
 import com.intellij.psi.PsiSwitchStatement;
 import com.intellij.psi.PsiThisExpression;
 import com.intellij.psi.PsiThrowStatement;
+import com.intellij.psi.PsiTryStatement;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.PsiTypeParameterListOwner;
@@ -66,6 +73,7 @@ import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.JavaRecursiveElementVisitor;
 import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.search.searches.ReferencesSearch;
+import com.intellij.psi.util.InheritanceUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import java.util.ArrayList;
@@ -83,8 +91,10 @@ import org.axl.compiler.Translator;
 /**
  * Converts the subset of Java that maps one to one: a class with static methods and fields and
  * nested records, enums, interfaces and classes, or one record, enum, interface or class, with
- * their annotations and type parameters. Bodies use locals, `if`, `while`, `for` over a collection,
- * `return`, `throw`, `switch` with arrows, `instanceof`, `?:` and class literals.
+ * their annotations and type parameters; a class may extend a Java class, a record have methods and
+ * an enum fields. Bodies use locals, `if`, `while`, `for` over a collection, `break`, `continue`,
+ * `return`, `throw`, `switch` with arrows, `try` with a resource and a `catch`, `instanceof`, `?:`
+ * and class literals.
  */
 final class JavaToAxolotl {
 
@@ -162,9 +172,6 @@ final class JavaToAxolotl {
     }
 
     private String file(PsiJavaFile file, PsiClass cls) {
-        if (!cls.isInterface() && explicitlyExtends(cls)) {
-            throw new Unsupported("subclasses have no Axolotl form");
-        }
         if (file.getPackageName().isEmpty()) {
             throw new Unsupported("classes in the default package have no Axolotl form");
         }
@@ -231,7 +238,7 @@ final class JavaToAxolotl {
 
     /** A class that only holds static members and nested types, which the file's class becomes. */
     private static boolean isStaticHolder(PsiClass cls) {
-        if (cls.isInterface() || cls.isEnum() || cls.isRecord() || cls.getImplementsListTypes().length > 0) {
+        if (cls.isInterface() || cls.isEnum() || cls.isRecord() || cls.getImplementsListTypes().length > 0 || explicitlyExtends(cls)) {
             return false;
         }
         boolean instanceFields = Arrays.stream(cls.getFields()).anyMatch(f -> !f.hasModifierProperty(PsiModifier.STATIC));
@@ -268,8 +275,8 @@ final class JavaToAxolotl {
     }
 
     private void typeDeclaration(PsiClass type) {
-        if (type.getInitializers().length > 0 || !type.isInterface() && explicitlyExtends(type)) {
-            throw new Unsupported("subclasses and initializer blocks have no Axolotl form");
+        if (type.getInitializers().length > 0) {
+            throw new Unsupported("initializer blocks have no Axolotl form");
         }
         if (type.getContainingClass() != null && !type.hasModifierProperty(PsiModifier.STATIC)) {
             throw new Unsupported("inner classes have no Axolotl form; make them static");
@@ -293,10 +300,16 @@ final class JavaToAxolotl {
         return type.getExtendsList() != null && type.getExtendsList().getReferencedTypes().length > 0;
     }
 
-    /** A record without a body is a data class. */
+    /** A record is a data class; the methods of its body, written in the source, become the methods of the data class. */
     private void record(PsiClass type) {
-        if (hasBodyMembers(type)) {
-            throw new Unsupported("records with methods or fields have no Axolotl form");
+        if (!PsiTreeUtil.getChildrenOfAnyType(type, PsiField.class, PsiClass.class).isEmpty()) {
+            throw new Unsupported("records with fields or nested types have no Axolotl form");
+        }
+        List<PsiMethod> methods = PsiTreeUtil.getChildrenOfTypeAsList(type, PsiMethod.class);
+        for (PsiMethod method : methods) {
+            if (method.isConstructor() || method.hasModifierProperty(PsiModifier.STATIC)) {
+                throw new Unsupported("records with constructors or static methods have no Axolotl form");
+            }
         }
         out.append("data class ").append(name(type.getName())).append(typeParameters(type)).append("(");
         PsiRecordComponent[] components = type.getRecordComponents();
@@ -304,31 +317,69 @@ final class JavaToAxolotl {
             out.append(i == 0 ? "" : ", ").append(annotations(components[i], " ")).append("val ").append(name(components[i].getName()))
                     .append(": ").append(withNullable(type(components[i].getType()), nullable(components[i])));
         }
-        out.append(")").append(supertypes(type.getImplementsListTypes())).append("\n");
+        out.append(")").append(supertypes(type.getImplementsListTypes()));
+        if (methods.isEmpty()) {
+            out.append("\n");
+            return;
+        }
+        out.append(" {\n");
+        int body = out.length();
+        for (PsiMethod method : methods) {
+            function(method, 1);
+        }
+        // Each method starts with a blank line; the first follows the brace directly.
+        out.deleteCharAt(body);
+        out.append("}\n");
     }
 
-    private static boolean hasBodyMembers(PsiClass type) {
-        return PsiTreeUtil.getChildrenOfAnyType(type, PsiMethod.class, PsiField.class, PsiClass.class).stream()
-                .anyMatch(m -> !(m instanceof PsiEnumConstant));
-    }
-
-    /** An enum with constants only. */
+    /**
+     * An enum with constants, maybe with fields: `enum Planet(val mass: Double) { EARTH(5.97e24) }`.
+     * Its one constructor sets each field from the parameter of the same name, and the constants
+     * give the arguments. Methods, nested types and constants with bodies have no Axolotl form.
+     */
     private void enumeration(PsiClass type) {
-        if (hasBodyMembers(type) || type.getImplementsListTypes().length > 0) {
-            throw new Unsupported("enums with members have no Axolotl form");
+        // The methods written in the source: `getMethods()` adds `values()` and `valueOf()` to every enum.
+        List<PsiMethod> written = PsiTreeUtil.getChildrenOfTypeAsList(type, PsiMethod.class);
+        if (type.getImplementsListTypes().length > 0 || type.getInnerClasses().length > 0
+                || written.stream().anyMatch(m -> !m.isConstructor())) {
+            throw new Unsupported("enums with methods or nested types have no Axolotl form");
+        }
+        List<PsiField> fields = constructorFields(type, "an enum");
+        for (PsiField field : type.getFields()) {
+            if (field instanceof PsiEnumConstant) {
+                continue;
+            }
+            if (field.hasModifierProperty(PsiModifier.STATIC) || !fields.contains(field)) {
+                throw new Unsupported("every field of an enum is set by its constructor in Axolotl: " + field.getName());
+            }
+            if (!field.hasModifierProperty(PsiModifier.FINAL) || field.hasModifierProperty(PsiModifier.PRIVATE)) {
+                throw new Unsupported("the fields of an enum are public `val`s in Axolotl: " + field.getName());
+            }
         }
         List<String> constants = new ArrayList<>();
         for (PsiField field : type.getFields()) {
-            if (!(field instanceof PsiEnumConstant constant) || constant.getInitializingClass() != null
-                    || constant.getArgumentList() != null && !constant.getArgumentList().isEmpty()) {
-                throw new Unsupported("enum constants with arguments or bodies have no Axolotl form");
+            if (!(field instanceof PsiEnumConstant constant)) {
+                continue;
+            }
+            if (constant.getInitializingClass() != null) {
+                throw new Unsupported("enum constants with bodies have no Axolotl form");
             }
             if (!annotations(constant, " ").isEmpty()) {
                 throw new Unsupported("enum constants take no annotations in Axolotl");
             }
-            constants.add(name(constant.getName()));
+            PsiExpressionList arguments = constant.getArgumentList();
+            int given = arguments == null ? 0 : arguments.getExpressionCount();
+            if (given != fields.size()) {
+                throw new Unsupported("every constant of an enum gives a value for each field in Axolotl: " + constant.getName());
+            }
+            constants.add(name(constant.getName()) + (given == 0 ? "" : arguments(arguments)));
         }
-        out.append("enum ").append(name(type.getName())).append(" { ").append(String.join(", ", constants)).append(" }\n");
+        out.append("enum ").append(name(type.getName()));
+        if (!fields.isEmpty()) {
+            out.append(fields.stream().map(f -> annotations(f, " ") + "val " + name(f.getName()) + ": " + type(f, type))
+                    .collect(Collectors.joining(", ", "(", ")")));
+        }
+        out.append(" { ").append(String.join(", ", constants)).append(" }\n");
     }
 
     /** An interface whose methods take nothing and give a value, which its implementations provide. */
@@ -368,11 +419,12 @@ final class JavaToAxolotl {
 
     /**
      * A class whose one constructor sets each field it takes from the parameter of the same name.
-     * Those fields are the parameters of the Axolotl class, the others its properties.
+     * Those fields are the parameters of the Axolotl class, the others its properties. A class that
+     * extends a Java class passes the arguments of its `super(...)` call after the colon.
      */
     private void classDeclaration(PsiClass type) {
-        List<PsiField> parameters = constructorFields(type);
-        out.append("class ").append(name(type.getName())).append(typeParameters(type)).append("(");
+        List<PsiField> parameters = constructorFields(type, "a class");
+        out.append("class ").append(name(type.getName())).append(typeParameters(type));
         for (int i = 0; i < parameters.size(); i++) {
             PsiField field = parameters.get(i);
             if (field.hasModifierProperty(PsiModifier.PRIVATE)) {
@@ -380,11 +432,11 @@ final class JavaToAxolotl {
             }
             // The field and the constructor parameter are one declaration in Axolotl, which takes both their annotations.
             PsiParameter parameter = type.getConstructors()[0].getParameterList().getParameters()[i];
-            out.append(i == 0 ? "" : ", ").append(annotations(field, " ")).append(annotations(parameter, " "))
+            out.append(i == 0 ? "(" : ", ").append(annotations(field, " ")).append(annotations(parameter, " "))
                     .append(field.hasModifierProperty(PsiModifier.FINAL) ? "val " : "var ")
                     .append(name(field.getName())).append(": ").append(type(field, type));
         }
-        out.append(")").append(supertypes(type.getImplementsListTypes())).append(" {\n");
+        out.append(parameters.isEmpty() ? "" : ")").append(supertypes(type)).append(" {\n");
         for (PsiField field : type.getFields()) {
             if (field.hasModifierProperty(PsiModifier.STATIC)) {
                 if (type.getContainingClass() != null) {
@@ -405,11 +457,42 @@ final class JavaToAxolotl {
         out.append("}\n");
     }
 
-    /** The fields the constructor sets from its parameters, in the order of the parameters. */
-    private List<PsiField> constructorFields(PsiClass type) {
+    /**
+     * `: Thread(name), Runnable`: the Java class a class extends, with the arguments of the `super(...)`
+     * call of its constructor, and the interfaces it implements.
+     */
+    private String supertypes(PsiClass type) {
+        List<String> names = new ArrayList<>();
+        PsiClassType[] extended = type.getExtendsListTypes();
+        if (extended.length > 0) {
+            PsiMethod[] constructors = type.getConstructors();
+            PsiMethodCallExpression call = constructors.length == 0 ? null : superCall(constructors[0]);
+            names.add(classType(extended[0]) + (call == null ? "()" : arguments(call.getArgumentList())));
+        }
+        Arrays.stream(type.getImplementsListTypes()).map(this::classType).forEach(names::add);
+        return names.isEmpty() ? "" : " : " + String.join(", ", names);
+    }
+
+    /** The `super(...)` call that starts a constructor, or null. */
+    private static PsiMethodCallExpression superCall(PsiMethod constructor) {
+        PsiStatement[] statements = constructor.getBody() == null ? PsiStatement.EMPTY_ARRAY : constructor.getBody().getStatements();
+        return statements.length == 0 ? null : superCall(statements[0]);
+    }
+
+    /** The `super(...)` call a statement makes, or null for other statements. */
+    private static PsiMethodCallExpression superCall(PsiStatement statement) {
+        return statement instanceof PsiExpressionStatement expr && expr.getExpression() instanceof PsiMethodCallExpression call
+                && call.getMethodExpression().textMatches("super") ? call : null;
+    }
+
+    /**
+     * The fields the constructor sets from its parameters, in the order of the parameters; a
+     * `super(...)` call may come first. kind: what has the constructor, for the message.
+     */
+    private List<PsiField> constructorFields(PsiClass type, String kind) {
         PsiMethod[] constructors = type.getConstructors();
         if (constructors.length > 1 || constructors.length == 1 && constructors[0].getBody() == null) {
-            throw new Unsupported("a class has one constructor in Axolotl");
+            throw new Unsupported(kind + " has one constructor in Axolotl");
         }
         List<PsiField> fields = new ArrayList<>();
         if (constructors.length == 0) {
@@ -417,8 +500,9 @@ final class JavaToAxolotl {
         }
         PsiMethod constructor = constructors[0];
         Map<PsiParameter, PsiField> set = new HashMap<>();
-        for (PsiStatement statement : constructor.getBody().getStatements()) {
-            PsiField field = fieldSetFromParameter(statement, type, constructor, set);
+        PsiStatement[] statements = constructor.getBody().getStatements();
+        for (int i = superCall(constructor) == null ? 0 : 1; i < statements.length; i++) {
+            PsiField field = fieldSetFromParameter(statements[i], type, constructor, set);
             if (field == null) {
                 throw new Unsupported("a constructor only sets fields from its parameters in Axolotl");
             }
@@ -525,7 +609,9 @@ final class JavaToAxolotl {
         String indent = "    ".repeat(depth);
         out.append("\n");
         leadingComments(method, indent);
-        out.append(indent).append(annotations(method, "\n" + indent)).append(visibility(method)).append("fn ")
+        // A method that overrides one of a Java class stays public, whatever Java allowed it: Axolotl overrides by name.
+        String visibility = method.findSuperMethods().length > 0 ? "" : visibility(method);
+        out.append(indent).append(annotations(method, "\n" + indent)).append(visibility).append("fn ")
                 .append(name(method.getName())).append(typeParameters(method)).append("(");
         if (!main) {
             PsiParameter[] params = method.getParameterList().getParameters();
@@ -732,8 +818,60 @@ final class JavaToAxolotl {
             }
             case PsiThrowStatement thrown -> out.append(indent).append("throw ").append(expression(thrown.getException())).append("\n");
             case PsiSwitchStatement select -> out.append(indent).append(when(select)).append("\n");
+            case PsiBreakStatement jump -> out.append(indent).append(jump(jump, jump.getLabelIdentifier(), "break"));
+            case PsiContinueStatement jump -> out.append(indent).append(jump(jump, jump.getLabelIdentifier(), "continue"));
+            case PsiTryStatement tryStatement -> {
+                out.append(indent);
+                use(tryStatement, depth);
+                out.append("\n");
+            }
             default -> throw new Unsupported("unsupported statement: " + statement.getText());
         }
+    }
+
+    /** `break` or `continue` on a line of its own; Axolotl has no labels. */
+    private static String jump(PsiStatement statement, PsiElement label, String keyword) {
+        if (label != null) {
+            throw new Unsupported("labels have no Axolotl form: " + statement.getText());
+        }
+        return keyword + "\n";
+    }
+
+    /**
+     * `try (var r = open()) { ... } catch (IOException e) { throw new X(e); }` as
+     * `use (val r = open()) { ... } else e -> throw X(e)`: one resource declared in the `try`, one
+     * `catch` of an exception whose body is a call or a `throw`, and no `finally`.
+     */
+    private void use(PsiTryStatement tryStatement, int depth) {
+        String form = "`use (val r = ...) { ... } else e -> handler`";
+        PsiResourceList resources = tryStatement.getResourceList();
+        if (resources == null) {
+            throw new Unsupported("a `try` without resources has no Axolotl form; a failing call takes `attempt call() else e -> handler`");
+        }
+        List<PsiResourceListElement> declared = new ArrayList<>();
+        resources.forEach(declared::add);
+        if (declared.size() != 1 || !(declared.getFirst() instanceof PsiResourceVariable resource) || resource.getInitializer() == null) {
+            throw new Unsupported("a try with resources declares one resource in Axolotl: " + form);
+        }
+        PsiCodeBlock[] handlers = tryStatement.getCatchBlocks();
+        PsiParameter[] caught = tryStatement.getCatchBlockParameters();
+        if (tryStatement.getTryBlock() == null || tryStatement.getFinallyBlock() != null || handlers.length != 1 || caught.length != 1) {
+            throw new Unsupported("a try with resources has one catch and no finally in Axolotl: " + form);
+        }
+        if (!InheritanceUtil.isInheritor(caught[0].getType(), CommonClassNames.JAVA_LANG_EXCEPTION)) {
+            throw new Unsupported("the `else` of `use` handles an Exception, not " + caught[0].getType().getPresentableText());
+        }
+        PsiStatement[] body = handlers[0].getStatements();
+        String handler = switch (body.length == 1 ? body[0] : null) {
+            case PsiExpressionStatement expr when expr.getExpression() instanceof PsiMethodCallExpression -> expression(expr.getExpression());
+            case PsiThrowStatement thrown -> "throw " + expression(thrown.getException());
+            case null, default -> throw new Unsupported("the catch of a try with resources holds one call or `throw` in Axolotl: " + form);
+        };
+        PsiTreeUtil.findChildrenOfType(handlers[0], PsiComment.class).forEach(this::keep);
+        out.append("use (val ").append(name(resource.getName())).append(": ").append(type(resource, tryStatement)).append(" = ")
+                .append(expression(resource.getInitializer())).append(") ");
+        block(tryStatement.getTryBlock(), depth);
+        out.append(" else ").append(name(caught[0].getName())).append(" -> ").append(handler);
     }
 
     private void ifChain(PsiIfStatement ifStatement, int depth) {

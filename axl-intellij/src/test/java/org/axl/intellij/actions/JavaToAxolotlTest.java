@@ -510,7 +510,6 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
     }
 
     public void testRefusesTypesAndPatternsWithoutAOneToOneForm() {
-        assertRefused("WithMethod.java", "package util;\npublic record WithMethod(int a) { int twice() { return a * 2; } }\n");
         assertRefused("Args.java", "package util;\npublic enum Args { A(1); Args(int v) {} }\n");
         assertRefused("Two.java", "package util;\npublic class Two {\n    int a;\n    public Two(int a) { this.a = a; }\n"
                 + "    public Two() { this.a = 1; }\n}\n");
@@ -527,6 +526,235 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
         assertRefused("Inner.java", inClass("class Inner { int a; }"));
         assertRefused("Hidden.java", "package util;\npublic class Hidden {\n    private final int a;\n"
                 + "    public Hidden(int a) { this.a = a; }\n}\n");
+    }
+
+    public void testConvertsEnumsWithFieldsAndAConstructor() {
+        String axl = convert("Planets.java", """
+                package util;
+
+                public final class Planets {
+                    private Planets() {}
+
+                    public enum Planet {
+                        MERCURY(3.303e23, 2.4397e6), EARTH(5.976e24, 6.37814e6);
+
+                        public final double mass;
+                        public final double radius;
+
+                        Planet(double mass, double radius) {
+                            this.mass = mass;
+                            this.radius = radius;
+                        }
+                    }
+
+                    public enum Level {
+                        LOW(1, "low"), HIGH(3, "high");
+
+                        public final int code;
+                        public final String label;
+
+                        Level(int code, String label) {
+                            this.code = code;
+                            this.label = label;
+                        }
+                    }
+
+                    public static double gravity(Planet p) {
+                        return 6.673E-11 * p.mass / (p.radius * p.radius);
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("\nenum Planet(val mass: Double, val radius: Double) { MERCURY(3.303e23, 2.4397e6), EARTH(5.976e24, 6.37814e6) }\n"));
+        assertTrue(axl, axl.contains("\nenum Level(val code: Int, val label: String) { LOW(1, \"low\"), HIGH(3, \"high\") }\n"));
+        assertTrue(axl, axl.contains("\nfn gravity(p: Planet) -> Double {\n    return 6.673E-11 * p.mass / (p.radius * p.radius)\n}\n"));
+        assertEquals("package util\n\nenum Light(val on: Boolean) { ON(true), OFF(false) }\n", convert("Light.java",
+                "package util;\npublic enum Light {\n    ON(true), OFF(false);\n    public final boolean on;\n    Light(boolean on) { this.on = on; }\n}\n"));
+    }
+
+    public void testRefusesEnumsWithoutAOneToOneForm() {
+        assertRefused("Method.java", "package util;\npublic enum Method {\n    A(1);\n    public final int v;\n    Method(int v) { this.v = v; }\n"
+                + "    int twice() { return v * 2; }\n}\n");
+        assertRefused("Two.java", "package util;\npublic enum Two {\n    A(1), B;\n    public final int v;\n    Two(int v) { this.v = v; }\n"
+                + "    Two() { this.v = 0; }\n}\n");
+        assertRefused("Mutable.java", "package util;\npublic enum Mutable {\n    A(1);\n    public int v;\n    Mutable(int v) { this.v = v; }\n}\n");
+        assertRefused("Hidden.java", "package util;\npublic enum Hidden {\n    A(1);\n    private final int v;\n    Hidden(int v) { this.v = v; }\n}\n");
+        assertRefused("Body.java", "package util;\npublic enum Body {\n    A { };\n}\n");
+        assertRefused("Logic.java", "package util;\npublic enum Logic {\n    A(1);\n    public final int v;\n    Logic(int v) { this.v = v * 2; }\n}\n");
+        assertRefused("Missing.java", "package util;\npublic enum Missing {\n    A(1), B;\n    public final int v;\n    Missing(int v) { this.v = v; }\n}\n");
+        assertRefused("Constant.java", "package util;\npublic enum Constant {\n    A;\n    public static final int MAX = 1;\n}\n");
+    }
+
+    public void testConvertsClassesThatExtendAJavaClass() {
+        String axl = convert("Errors.java", """
+                package util;
+
+                import java.util.LinkedHashMap;
+                import java.util.Map;
+
+                public final class Errors {
+                    private Errors() {}
+
+                    public static final class NotFound extends RuntimeException {
+                        public final String id;
+
+                        public NotFound(String id) {
+                            super("not found: " + id);
+                            this.id = id;
+                        }
+                    }
+
+                    public static final class Worker extends Thread {
+                        public Worker() {
+                            super("worker");
+                        }
+
+                        @Override
+                        public void run() {
+                            System.out.println(getName());
+                        }
+                    }
+
+                    public static final class Recent extends LinkedHashMap<String, Integer> {
+                        public final int limit;
+
+                        public Recent(int limit) {
+                            this.limit = limit;
+                        }
+
+                        @Override
+                        protected boolean removeEldestEntry(Map.Entry<String, Integer> eldest) {
+                            return size() > limit;
+                        }
+                    }
+
+                    public static final class Plain extends Object implements Runnable {
+                        public void run() {
+                        }
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("\nclass NotFound(val id: String) : RuntimeException(\"not found: \" + id) {\n}\n"));
+        assertTrue(axl, axl.contains("\nclass Worker : Thread(\"worker\") {\n\n    @Override\n    fn run() {\n        println(getName())\n    }\n}\n"));
+        assertTrue(axl, axl.contains("\nclass Recent(val limit: Int) : LinkedHashMap<String, Integer>() {\n\n    @Override\n"
+                + "    fn removeEldestEntry(eldest: Entry<String, Integer>) -> Boolean {\n        return size() > limit\n    }\n}\n"));
+        assertTrue(axl, axl.contains("\nclass Plain : Object(), Runnable {\n\n    fn run() {\n    }\n}\n"));
+        assertEquals("package util\n\nclass Loud(val times: Int) : Thread() {\n\n    fn run() {\n        println(times)\n    }\n}\n",
+                convert("Loud.java", "package util;\npublic class Loud extends Thread {\n    public final int times;\n"
+                        + "    public Loud(int times) {\n        this.times = times;\n    }\n    public void run() {\n"
+                        + "        System.out.println(times);\n    }\n}\n"));
+    }
+
+    public void testRefusesSuperclassesWithoutAOneToOneForm() {
+        assertRefused("Two.java", "package util;\npublic class Two extends Thread {\n    public Two() { super(\"a\"); }\n"
+                + "    public Two(String n) { super(n); }\n}\n");
+        assertRefused("Later.java", "package util;\npublic class Later extends Thread {\n    public final int n;\n"
+                + "    public Later(int n) { this.n = n; super(); }\n}\n");
+        assertRefused("Work.java", "package util;\npublic class Work extends Thread {\n    public Work(String n) { super(n); System.out.println(n); }\n}\n");
+    }
+
+    public void testConvertsRecordsWithMethodsToDataClassesWithABody() {
+        assertEquals("""
+                package util
+
+                data class Money(val cents: Long) : Comparable<Money> {
+                    @Override
+                    fn compareTo(other: Money) -> Int {
+                        return Long.compare(cents, other.cents())
+                    }
+
+                    fn plus(other: Money) -> Money {
+                        return Money(cents + other.cents())
+                    }
+                }
+                """, convert("Money.java", """
+                package util;
+
+                public record Money(long cents) implements Comparable<Money> {
+                    @Override
+                    public int compareTo(Money other) {
+                        return Long.compare(cents, other.cents());
+                    }
+
+                    public Money plus(Money other) {
+                        return new Money(this.cents + other.cents());
+                    }
+                }
+                """));
+        assertRefused("Accessor.java", "package util;\npublic record Accessor(int a) {\n    public int a() { return a; }\n}\n");
+        assertRefused("Compact.java", "package util;\npublic record Compact(int a) {\n    public Compact { }\n}\n");
+        assertRefused("Static.java", "package util;\npublic record Static(int a) {\n    public static Static one() { return new Static(1); }\n}\n");
+        assertRefused("Field.java", "package util;\npublic record Field(int a) {\n    static final int MAX = 1;\n}\n");
+    }
+
+    public void testConvertsTryWithResourcesToUse() {
+        String axl = convert("Readers.java", """
+                package util;
+
+                import java.io.IOException;
+                import java.io.StringReader;
+
+                public final class Readers {
+                    private Readers() {}
+
+                    public static int count(String text) {
+                        int n = 0;
+                        try (StringReader reader = new StringReader(text)) {
+                            n = reader.read();
+                        } catch (IOException e) {
+                            throw new IllegalStateException(e);
+                        }
+                        try (var second = new StringReader("y")) {
+                            n += second.read();
+                        } catch (Exception e) {
+                            System.out.println(e.getMessage());
+                        }
+                        return n;
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("    use (val reader: StringReader = StringReader(text)) {\n        n = reader.read()\n"
+                + "    } else e -> throw IllegalStateException(e)\n"));
+        assertTrue(axl, axl.contains("    use (val second: StringReader = StringReader(\"y\")) {\n        n += second.read()\n"
+                + "    } else e -> println(e.getMessage())\n    return n\n"));
+    }
+
+    public void testRefusesTriesWithoutAOneToOneForm() {
+        String open = "java.io.StringReader r = new java.io.StringReader(\"x\")";
+        assertRefused("NoCatch.java", inClass("public static void f() { try (" + open + ") { r.read(); } }"));
+        assertRefused("Finally.java", inClass("public static void f() { try (" + open + ") { r.read(); } "
+                + "catch (Exception e) { System.out.println(e); } finally { System.out.println(1); } }"));
+        assertRefused("TwoCatches.java", inClass("public static void f() { try (" + open + ") { r.read(); } "
+                + "catch (java.io.IOException e) { System.out.println(e); } catch (RuntimeException e) { System.out.println(e); } }"));
+        assertRefused("TwoStatements.java", inClass("public static void f() { try (" + open + ") { r.read(); } "
+                + "catch (Exception e) { System.out.println(e); System.out.println(1); } }"));
+        assertRefused("TwoResources.java", inClass("public static void f() { try (" + open + "; var s = new java.io.StringReader(\"y\")) "
+                + "{ r.read(); } catch (Exception e) { System.out.println(e); } }"));
+        assertRefused("Existing.java", inClass("public static void f(java.io.StringReader r) { try (r) { r.read(); } "
+                + "catch (Exception e) { System.out.println(e); } }"));
+        assertRefused("Throwable.java", inClass("public static void f() { try (" + open + ") { r.read(); } "
+                + "catch (Throwable t) { System.out.println(t); } }"));
+        assertRefused("PlainTry.java", inClass("public static void f() { try { System.out.println(1); } "
+                + "catch (Exception e) { System.out.println(e); } }"));
+    }
+
+    public void testConvertsBreakAndContinueWithoutLabels() {
+        String axl = convert("Loops.java", inClass("""
+                public static int firstNegative(java.util.List<Integer> xs) {
+                    int found = 0;
+                    for (int x : xs) {
+                        if (x >= 0) {
+                            continue;
+                        }
+                        found = x;
+                        break;
+                    }
+                    return found;
+                }"""));
+        assertTrue(axl, axl.contains("        if (x >= 0) {\n            continue\n        }\n        found = x\n        break\n    }\n    return found\n"));
+        assertRefused("Labels.java", inClass("public static void f(java.util.List<Integer> xs) { outer: for (int x : xs) { "
+                + "for (int y : xs) { if (y > x) { break outer; } } } }"));
+        assertRefused("Continue.java", inClass("public static void f(java.util.List<Integer> xs) { outer: for (int x : xs) { "
+                + "for (int y : xs) { continue outer; } } }"));
     }
 
     /** A class named after its file, which the helpers below fill in for `CLASS`. */
