@@ -1168,18 +1168,46 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     }
 
     private fn checkArm(arm: Expr.Arm, gives: Boolean, returns: Boolean) {
+        if ((gives || returns) && endsWithIfOfValues(arm.body())) {
+            val use = if (returns) "is returned" else "gives a value"
+            val alternative = if (returns) ", or `return` in each of its branches" else ""
+            error(arm.body().getLast().pos(), ErrorCode.SYNTAX, "this `if` ends a branch of a `when` that " + use + ", so the " +
+                "branch gives no value; write the `if` as a value, `if (c) a else b` without braces" + alternative)
+            armWithIfOfValues(arm.body())
+            return
+        }
         val body = if (returns) Whens.returning(arm) else arm.body()
         if (gives && !endsWithValue(arm.body()) && !endsWithJump(arm.body())) {
             error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value")
-        }
-        if (returns && endsWithIfOfValues(arm.body())) {
-            error(arm.body().getLast().pos(), ErrorCode.SYNTAX, "this `if` ends a branch of a `when` that is returned, so the " +
-                "branch gives no value; write the `if` as a value, `if (c) a else b` without braces, or `return` in each of its branches")
         }
         if (gives) {
             valueArm(body)
         } else {
             statements(body)
+        }
+    }
+
+    /** The branch as it was meant: statements, then the `if` whose branches end with the values that go nowhere. */
+    private fn armWithIfOfValues(body: List<Stmt>) {
+        scope = Scope(scope, false)
+        for (stmt in body.subList(0, body.size() - 1)) {
+            statement(stmt)
+        }
+        valueIf(body.getLast())
+        pop()
+    }
+
+    /** Each branch of the `if` is checked as a branch of the `when`: its last expression is a value, not a statement. */
+    private fn valueIf(stmt: Stmt) {
+        if (stmt is Stmt.If) {
+            expr(stmt.condition())
+            valueArm(stmt.then().statements())
+            val elseBranch = stmt.elseBranch()
+            if (elseBranch != null) {
+                valueIf(elseBranch)
+            }
+        } else if (stmt is Stmt.Block) {
+            valueArm(stmt.statements())
         }
     }
 
