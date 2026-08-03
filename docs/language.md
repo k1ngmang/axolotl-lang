@@ -73,7 +73,8 @@ type has parameters are static and cannot use them; they take their own.
   block and closes it after, also when the block throws. The `else` handles what opening, the block or
   `close()` throws, a call or a `throw`; it is needed when `close()` declares a checked exception.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
-  `break` leaves the loop around it and `continue` goes on with its next round; they have no labels.
+  `break` leaves the loop around it and `continue` goes on with its next round, also from inside a
+  `when` in the loop; they have no labels.
 - Statements end at the end of a line or at `;`. A line starting with `(`, `+` or `-` starts a new
   statement; break long lines after an operator or before `.`, `?.`, `?:` and `|>`. Two statements
   on one line need a `;` between them, and an expression that does nothing, such as `x + 1`,
@@ -242,8 +243,10 @@ fn size(n: Int) -> String = when (n) {
 
 It becomes a Java `switch`. The subject of `is` branches is narrowed in each branch (`when (val e = f())`
 names a subject that is not already a name). A branch is an expression or, after `->`, a block whose last
-expression is the value. Branches with `is` must cover a sealed interface or end with `else`; a `when`
-over constants that gives a value needs an `else`, unless it names every constant of an enum of the file.
+expression is the value; in a `when` statement a branch may also be `break`, `continue` or an assignment:
+`2 -> continue`, `else -> n += x`. Branches with `is` must cover a sealed interface or end with `else`; a
+`when` over constants that gives a value needs an `else`, unless it names every constant of an enum of
+the package.
 Constants are literals, negative numbers or names of constants such as `Color.RED`; a `Long`, `Double` or
 `Boolean` subject is compared branch by branch. A subject that may be null goes to `else`, or to a
 `null ->` branch, which may also stand next to `is` branches. A `when` stands as a statement, after `return` or as

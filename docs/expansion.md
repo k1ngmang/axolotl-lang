@@ -44,6 +44,8 @@ always gives byte-for-byte the same output.
 | `xs \|> first` | `Nulls.first(xs.stream().iterator())`, which gives `null` for an empty pipe and for a null first element |
 | `xs \|> mapResult { f(it) }` | `final java.util.List<T> $p1 = new java.util.ArrayList<>(); for (final var it : xs) { final var $t1 = f(it); if ($t1.isErr()) return Result.propagate($t1); $p1.add(Result.<T>unwrap($t1)); }` |
 | A `var` captured by `?:`, `?.` or `attempt` | copied first: `final var $c1 = count;` |
+| `when (x) { 3 -> { break } ... }` in a loop | `loop$1: for (...) { switch (...) { case 3 -> { break loop$1; } ... } }`; a loop that no `break` leaves from inside a `when` has no label |
+| `2 -> continue`, `else -> n += x` in a `when` statement | `case 2 -> { continue; }`, `default -> { n += x; }` |
 
 Generated names start with `$`, which Axolotl names cannot contain: `$t` for temporaries, `$n` for
 `?.` parameters, `$ex` for `attempt` exceptions, `$c` for copies, `$p` for `mapResult` lists.
