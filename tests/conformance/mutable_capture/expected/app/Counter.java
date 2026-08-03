@@ -19,13 +19,13 @@ import org.jspecify.annotations.*;
         while (count < 3) {
             final var $c1 = fallback;
             final var $c2 = count;
-            System.out.println(Nulls.or(label(count), () -> $c1 + $c2));
+            System.out.println(Nulls.<String>or(label(count), () -> $c1 + $c2));
             count += 1;
         }
         fallback = "zero";
         final @Nullable String text = null;
         final var $c3 = fallback;
-        final var shown = Nulls.or(Nulls.map(text, $n1 -> $n1.concat($c3)), () -> $c3);
+        final var shown = Nulls.<String>or(Nulls.map(text, $n1 -> $n1.concat($c3)), () -> $c3);
         System.out.println(shown);
         final var $c4 = fallback;
         if (Nulls.<String>or(label(0), () -> $c4).equals("zero")) {

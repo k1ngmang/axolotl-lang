@@ -8,20 +8,20 @@ import org.jspecify.annotations.*;
         return n + "!";
     }
     public static Result<Integer, String> length(@Nullable String s, int k) {
-        return new Ok<>(Nulls.present(Nulls.or(Nulls.map(s, $n1 -> $n1.length()), () -> k)).value());
+        return new Ok<>(Nulls.present(Nulls.<Integer>or(Nulls.map(s, $n1 -> $n1.length()), () -> k)).value());
     }
     public static void main(String[] args) {
         final @Nullable String s = " a ";
         final @Nullable String none = null;
-        System.out.println(shout(Nulls.present(Nulls.or(Nulls.map(s, $n1 -> $n1.trim()), () -> "none")).value()));
-        System.out.println(shout(Nulls.present(Nulls.or(Nulls.map(none, $n2 -> $n2.trim()), () -> "none")).value()));
+        System.out.println(shout(Nulls.present(Nulls.<String>or(Nulls.map(s, $n1 -> $n1.trim()), () -> "none")).value()));
+        System.out.println(shout(Nulls.present(Nulls.<String>or(Nulls.map(none, $n2 -> $n2.trim()), () -> "none")).value()));
         final var $t1 = Nulls.map(none, $n3 -> $n3.length());
         System.out.println(Integer.valueOf(Nulls.or($t1, 3)));
         System.out.println(length(null, 4));
         computed(null, null);
     }
     public static void computed(@Nullable String s, @Nullable String t) {
-        System.out.println(Math.max(0, Nulls.present(Nulls.or(Nulls.map(s, $n1 -> $n1.length()), () -> "ab".length())).value()));
-        System.out.println(shout(Nulls.present(Nulls.or(Nulls.map(s, $n2 -> $n2.trim()), () -> Nulls.or(Nulls.map(t, $n3 -> $n3.trim()), () -> "q"))).value()));
+        System.out.println(Math.max(0, Nulls.present(Nulls.<Integer>or(Nulls.map(s, $n1 -> $n1.length()), () -> "ab".length())).value()));
+        System.out.println(shout(Nulls.present(Nulls.<String>or(Nulls.map(s, $n2 -> $n2.trim()), () -> Nulls.<String>or(Nulls.map(t, $n3 -> $n3.trim()), () -> "q"))).value()));
     }
 }

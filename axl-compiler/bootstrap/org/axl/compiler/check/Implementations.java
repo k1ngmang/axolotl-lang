@@ -140,7 +140,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         return values;
     }
-    private static TypeRef substitute(TypeRef type, List<Decl.TypeParam> params, List<TypeRef> args) {
+    public static TypeRef substitute(TypeRef type, List<Decl.TypeParam> params, List<TypeRef> args) {
         if (params.isEmpty() || params.size() != args.size()) {
             return type;
         }

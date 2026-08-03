@@ -1,0 +1,22 @@
+package app
+
+import app.Model.Level
+import app.Model.Shape
+import app.Model.Circle
+import app.Model.Square
+
+fn label(level: Level) -> String = when (level) {
+    Level.LOW -> "low"
+    Level.MID -> "mid"
+    Level.HIGH -> "high"
+}
+
+fn area(s: Shape) -> Double = when (s) {
+    is Circle -> 3.0 * s.radius() * s.radius()
+    is Square -> s.side() * s.side()
+}
+
+fn main() {
+    println(label(Level.MID))
+    println(area(Square(2.0)))
+}

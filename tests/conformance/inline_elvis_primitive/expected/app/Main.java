@@ -6,10 +6,11 @@ import org.jspecify.annotations.*;
     private Main() {}
     public static void main(String[] args) {
         final var s = "abc";
-        final var n = Nulls.or(s.length(), 0);
+        final var $t1 = s.length();
+        final var n = java.util.Objects.nonNull($t1) ? $t1 : 0;
         final @Nullable String maybe = null;
-        final var $t1 = maybe;
-        final var m = java.util.Objects.nonNull($t1) ? $t1 : "none";
+        final var $t2 = maybe;
+        final var m = java.util.Objects.nonNull($t2) ? $t2 : "none";
         System.out.println(n);
         System.out.println(m);
     }

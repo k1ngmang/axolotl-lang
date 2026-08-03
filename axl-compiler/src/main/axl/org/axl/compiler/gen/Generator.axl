@@ -80,6 +80,8 @@ class Generator(
     // `x` read `$s1` where the check holds, as Java scopes pattern variables.
     var smart: Map<String, String> = HashMap<String, String>()
     val patternVariables: IdentityHashMap<Expr.Is, String> = IdentityHashMap<Expr.Is, String>()
+    // The types of the branches of `if` values, taken where the `is` test of the `if` narrowed the names they use.
+    val branchTypes: IdentityHashMap<Expr, TypeRef?> = IdentityHashMap<Expr, TypeRef?>()
     var patternCount: Int = 0
 
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
@@ -358,9 +360,24 @@ class Generator(
         em.dedent()
     }
 
+    /** The written type of a property, or the one its value tells, which may read the class's parameters and typed properties. */
+    private fn propertyTypeOf(p: Decl.Property) -> TypeRef {
+        val type = p.type()
+        if (type != null) {
+            return type
+        }
+        // The checker accepted the property, so its value tells the type: `val items = ArrayList<String>()`.
+        val init = p.init()
+        val inferred: TypeRef? = if (init == null) null else TypeInference.propertyTypes(file, options.siblings(), currentClass).get(p.name())
+        if (inferred == null) {
+            throw IllegalStateException("property " + p.name() + " has no type")
+        }
+        return inferred
+    }
+
     private fn emitConstructor(classDecl: Decl.ClassDecl) {
         val line = classDecl.pos().line()
-        val params = classDecl.parameters() |> map { p -> javaType(propertyType(file, p)) + " " + p.name() }
+        val params = classDecl.parameters() |> map { p -> javaType(propertyTypeOf(p)) + " " + p.name() }
         em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {")
         em.indent()
         val superArgs = classDecl.superArgs()
@@ -374,7 +391,7 @@ class Generator(
         // One method body: the temporaries of the properties must not clash.
         resetCounters()
         for (p in classDecl.properties()) {
-            val stored = nullableType(propertyType(file, p))
+            val stored = nullableType(propertyTypeOf(p))
             em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode({ -> valueCode(p.pos().line(), propertyInit(p), stored) }) + ";")
         }
         em.dedent()
@@ -395,7 +412,7 @@ class Generator(
             val property = propertyNamed(classDecl, member.name())
             val ownMethod = classDecl.methods() |> anyMatch { m -> m.name().equals(member.name()) && m.params().isEmpty() }
             if (property != null && !ownMethod && written.add(member.name())) {
-                em.line(property.pos().line(), "@Override public " + javaType(propertyType(file, property)) + " " +
+                em.line(property.pos().line(), "@Override public " + javaType(propertyTypeOf(property)) + " " +
                     member.name() + "() { return " + member.name() + "; }")
             }
         }
@@ -418,7 +435,7 @@ class Generator(
     private fn field(p: Decl.Property) -> String {
         val visibility = if (p.isPrivate()) "private" else "public"
         val modifier = if (p.mutable()) "" else " final"
-        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyType(file, p)) + " " + p.name()
+        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyTypeOf(p)) + " " + p.name()
     }
 
     private fn emitDataClass(dataClass: Decl.DataClass) {
@@ -606,14 +623,16 @@ class Generator(
         val declared = local.type()
         val init = widened(local.init(), declared)
         val modifiers = if (local.mutable()) "" else "final "
-        val typeCode = if (declared == null) "var" else javaType(declared)
         val whole = withoutParens(init)
+        // `val xs = if (c) List.of() else ys`: javac would give the conditional a wildcard type; the typed branch tells it.
+        val branchType = if (declared == null && whole is Expr.Conditional) typedBranch(whole) else null
+        val typeCode = if (declared != null) javaType(declared) else if (branchType != null) javaType(branchType) else "var"
         if (whole is Expr.When) {
             emitWhen(line, whole, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE)
             localTypes.put(local.name(), declared)
             return
         }
-        val localType = declared ?: typeOf(init)
+        val localType = declared ?: branchType ?: typeOf(init)
         val stored = if (declared == null) null else nullableType(declared)
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
             val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
@@ -626,6 +645,19 @@ class Generator(
         } else {
             boxedLocals.remove(local.name())
         }
+    }
+
+    /** The type of the one typed branch of a conditional whose other branch is a call of unknown type, such as `List.of()`. */
+    private fn typedBranch(c: Expr.Conditional) -> TypeRef? {
+        val thenType = typeOf(c.then())
+        val elseType = typeOf(c.otherwise())
+        if (thenType == null && elseType != null && !elseType.args().isEmpty() && withoutParens(c.then()) is Expr.Call) {
+            return elseType
+        }
+        if (elseType == null && thenType != null && !thenType.args().isEmpty() && withoutParens(c.otherwise()) is Expr.Call) {
+            return thenType
+        }
+        return null
     }
 
     private fn assignStatement(assign: Stmt.Assign) {
@@ -1205,6 +1237,9 @@ class Generator(
     }
 
     private fn typeOf(e: Expr) -> TypeRef? {
+        if (branchTypes.containsKey(e)) {
+            return branchTypes.get(e)
+        }
         val inner = withoutParens(e)
         if (inner is Expr.Name && localTypes.containsKey(inner.name())) {
             return localTypes.get(inner.name())
@@ -1229,7 +1264,29 @@ class Generator(
         if (fromMap != null) {
             return fromMap
         }
-        return TypeInference.typeOf(file, options.siblings(), inner)
+        return infer(inner)
+    }
+
+    /** The file-wide inference, told the types of the locals and the ones the `is` tests around the expression gave. */
+    private fn infer(e: Expr) -> TypeRef? = TypeInference(file, knownTypes(), options.siblings()).of(e)
+
+    private fn knownTypes() -> Map<String, TypeRef> {
+        val result = HashMap<String, TypeRef>()
+        for (local in localTypes.entrySet()) {
+            val type = local.getValue()
+            if (type != null) {
+                result.put(local.getKey(), type)
+            }
+        }
+        for (entry in smart.entrySet()) {
+            for (test in patternVariables.entrySet()) {
+                val target = test.getKey().target()
+                if (test.getValue().equals(entry.getValue()) && target is Expr.Name && target.name().equals(entry.getKey())) {
+                    result.put(entry.getKey(), test.getKey().type())
+                }
+            }
+        }
+        return result
     }
 
     /** `m.get(k)` on a local `Map<K, V>` is a `V?`: the usual left side of `?: List.of()`. */
@@ -1252,7 +1309,7 @@ class Generator(
     private fn commonBranchType(a: TypeRef?, b: TypeRef?, c: Expr.Conditional) -> TypeRef? {
         val same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty()
         return if (a != null && same) TypeRef(a.pos(), a.name(), a.args(), a.nullable() || b!!.nullable())
-            else TypeInference.typeOf(file, options.siblings(), c)
+            else infer(c)
     }
 
     /**
@@ -1523,8 +1580,15 @@ class Generator(
         if (!b.op().equals("==") && !b.op().equals("!=")) {
             return false
         }
-        return (isUnwrapped(b.left()) || isUnwrapped(b.right())) && primitiveOf(b.left()) == null && primitiveOf(b.right()) == null
-            && !isNullLiteral(b.left()) && !isNullLiteral(b.right())
+        return (isUnwrapped(b.left()) || isUnwrapped(b.right()) || bothCharacters(b)) && primitiveOf(b.left()) == null
+            && primitiveOf(b.right()) == null && !isNullLiteral(b.left()) && !isNullLiteral(b.right())
+    }
+
+    /** `Character` has no primitive in Axolotl, so two of them are compared by value, as unwrapped numbers are. */
+    private fn bothCharacters(b: Expr.Binary) -> Boolean {
+        val left = typeOf(b.left())
+        val right = typeOf(b.right())
+        return left != null && right != null && left.name().equals("Character") && right.name().equals("Character")
     }
 
     private fn isUnwrapped(e: Expr) -> Boolean {
@@ -1585,12 +1649,20 @@ class Generator(
     private fn conditional(condition: String, c: Expr.Conditional, inLambda: Boolean) -> String {
         val branches = List.of(c.then(), c.otherwise())
         nestedValues += 1
-        val thenCode = narrowedValue(whenTrue(c.condition()), { -> exprIn(c.then(), inLambda) })
-        val otherwise = narrowedValue(whenFalse(c.condition()), { -> exprIn(c.otherwise(), inLambda) })
+        val thenCode = narrowedValue(whenTrue(c.condition()), { -> remembered(c.then(), inLambda) })
+        val negated = whenFalse(c.condition())
+        val otherwise = narrowedValue(if (negated.isEmpty()) otherCase(c.condition()) else negated,
+            { -> remembered(c.otherwise(), inLambda) })
         nestedValues -= 1
         val thenLine = startLine(c.then())
         val head = joined("(" + condition, " ? ", boxedBranch(thenCode, c.then(), branches), c.pos().line(), thenLine)
         return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")"
+    }
+
+    /** The code of a branch, whose type is noted while the names it uses are narrowed; boxedBranch reads it later. */
+    private fn remembered(branch: Expr, inLambda: Boolean) -> String {
+        branchTypes.put(branch, typeOf(branch))
+        return exprIn(branch, inLambda)
     }
 
     /**
@@ -2929,19 +3001,6 @@ private fn propertyInit(p: Decl.Property) -> Expr {
     return init
 }
 
-private fn propertyType(file: SourceFile, p: Decl.Property) -> TypeRef {
-    val type = p.type()
-    if (type != null) {
-        return type
-    }
-    // The checker accepted the property, so its value tells the type: `val items = ArrayList<String>()`.
-    val init = p.init()
-    val inferred: TypeRef? = if (init == null) null else TypeInference.typeOf(file, init)
-    if (inferred == null) {
-        throw IllegalStateException("property " + p.name() + " has no type")
-    }
-    return inferred
-}
 
 private fn memberType(member: Expr.Param) -> TypeRef {
     val type = member.type()

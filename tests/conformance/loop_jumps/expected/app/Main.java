@@ -22,7 +22,7 @@ import java.util.List;
         while (i < s.length()) {
             final var c = s.charAt(i);
             i += 1;
-            if (c == stop) {
+            if (Nulls.same(c, stop)) {
                 break;
             }
             if (!Character.isDigit(c)) {

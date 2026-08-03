@@ -500,8 +500,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         if (written != null) {
             return written
         }
-        val init = p.init()
-        return if (init == null) null else TypeInference.typeOf(file, init)
+        return TypeInference.propertyTypes(file, siblings, currentClass).get(p.name())
     }
 
     /** `<T>` and `<K : Comparable<K>>`: names of types, distinct and new in this file. */
@@ -1262,11 +1261,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both")
         } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
-            val missing = Exhaustiveness.missingConstants(w, file)
+            val missing = Exhaustiveness.missingConstants(w, file, siblings)
             error(w.pos(), ErrorCode.SYNTAX, if (missing == null) elseMessage(w)
                 else "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch")
         } else if (types && !sawElse) {
-            val problem = Exhaustiveness.typesProblem(w, file)
+            val problem = Exhaustiveness.typesProblem(w, file, siblings)
             if (problem != null) {
                 error(w.pos(), ErrorCode.SYNTAX, problem)
             }
@@ -1295,7 +1294,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
                 }
             }
         }
-        for (decl in file.decls()) {
+        for (decl in Exhaustiveness.declsOf(file, siblings)) {
             if (decl is Decl.EnumDecl && !decl.constants().isEmpty() && namesAll(decl, named)) {
                 return true
             }

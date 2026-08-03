@@ -437,8 +437,7 @@ import org.axl.compiler.ast.TypeRef;
         if (written != null) {
             return written;
         }
-        final var init = p.init();
-        return (init == null ? null : TypeInference.typeOf(file, init));
+        return TypeInference.propertyTypes(file, siblings, currentClass).get(p.name());
     }
     private void typeParams(Decl decl) {
         final List<Decl.TypeParam> params = switch (decl) {
@@ -1118,7 +1117,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void checkArm(Expr.Arm arm, boolean gives, boolean returns) {
-        final var body = (returns ? Whens.returning(arm) : arm.body());
+        final List<Stmt> body = (returns ? Whens.returning(arm) : arm.body());
         if (gives && !endsWithValue(arm.body())) {
             error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value");
         }
@@ -1203,11 +1202,11 @@ import org.axl.compiler.ast.TypeRef;
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both");
         } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
-            final var missing = Exhaustiveness.missingConstants(w, file);
+            final var missing = Exhaustiveness.missingConstants(w, file, siblings);
             error(w.pos(), ErrorCode.SYNTAX, (missing == null ? elseMessage(w) :
                     "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch"));
         } else if (types && !sawElse) {
-            final var problem = Exhaustiveness.typesProblem(w, file);
+            final var problem = Exhaustiveness.typesProblem(w, file, siblings);
             if (problem != null) {
                 error(w.pos(), ErrorCode.SYNTAX, problem);
             }
@@ -1232,7 +1231,7 @@ import org.axl.compiler.ast.TypeRef;
                 }
             }
         }
-        for (final var decl : file.decls()) {
+        for (final var decl : Exhaustiveness.declsOf(file, siblings)) {
             if (decl instanceof Decl.EnumDecl decl$1 && !decl$1.constants().isEmpty() && namesAll(decl$1, named)) {
                 return true;
             }

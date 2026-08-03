@@ -1,6 +1,7 @@
 package org.axl.compiler.check;
 import axl.lang.*;
 import org.jspecify.annotations.*;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -11,9 +12,9 @@ import org.axl.compiler.ast.TypeRef;
 
 @NullMarked public final class Exhaustiveness {
     private Exhaustiveness() {}
-    public static @Nullable String missingConstants(Expr.When w, SourceFile file) {
+    public static @Nullable String missingConstants(Expr.When w, SourceFile file, List<SourceFile> siblings) {
         final var named = constantNames(w);
-        for (final var decl : file.decls()) {
+        for (final var decl : declsOf(file, siblings)) {
             if (decl instanceof Decl.EnumDecl decl$1) {
                 final var prefix = decl$1.name() + ".";
                 final var mentioned = decl$1.constants().stream().anyMatch(c -> named.contains(c) || named.contains(prefix + c));
@@ -25,11 +26,11 @@ import org.axl.compiler.ast.TypeRef;
         }
         return null;
     }
-    public static @Nullable String typesProblem(Expr.When w, SourceFile file) {
+    public static @Nullable String typesProblem(Expr.When w, SourceFile file, List<SourceFile> siblings) {
         final var tested = testedNames(w);
-        for (final var decl : file.decls()) {
+        for (final var decl : declsOf(file, siblings)) {
             if (decl instanceof Decl.Interface decl$1) {
-                final var implementations = implementationsOf(decl$1.name(), file);
+                final var implementations = implementationsOf(decl$1.name(), file, siblings);
                 if (!tested.isEmpty() && implementations.containsAll(tested)) {
                     return problemWith(decl$1, implementations, tested);
                 }
@@ -47,8 +48,22 @@ import org.axl.compiler.ast.TypeRef;
         }
         return "this `when` does not test " + quoted(missing.stream().map(Nulls.nonNull(c -> "is " + c)).toList()) + "; add a branch for each, or an `else ->` branch";
     }
-    private static List<String> implementationsOf(String name, SourceFile file) {
-        return file.decls().stream().filter(d -> extendsType(d, name)).map(Nulls.nonNull(d -> nameOf(d))).toList();
+    private static List<String> implementationsOf(String name, SourceFile file, List<SourceFile> siblings) {
+        return declsOf(file, siblings).stream().filter(d -> extendsType(d, name)).map(Nulls.nonNull(d -> nameOf(d))).toList();
+    }
+    public static List<Decl> declsOf(SourceFile file, List<SourceFile> siblings) {
+        final var result = new ArrayList<Decl>(file.decls());
+        for (final var sibling : siblings) {
+            if (samePackage(file, sibling)) {
+                result.addAll(sibling.decls());
+            }
+        }
+        return result;
+    }
+    private static boolean samePackage(SourceFile file, SourceFile other) {
+        final var own = file.packageName();
+        final var theirs = other.packageName();
+        return (own == null ? Boolean.valueOf(theirs == null) : own.equals(theirs));
     }
     private static boolean extendsType(Decl decl, String name) {
         return supertypesOf(decl).stream().anyMatch(t -> simpleName(t.name()).equals(name));

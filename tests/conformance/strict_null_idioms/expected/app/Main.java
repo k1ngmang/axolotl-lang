@@ -32,7 +32,7 @@ import java.util.List;
         System.out.println(Nulls.first(names.stream().sorted(java.util.Comparator.naturalOrder()).map(Nulls.nonNull(it -> it.length())).iterator()));
         System.out.println(size(true));
         System.out.println(fallback());
-        final var env = Nulls.or(System.getenv("AXL_SURELY_NOT_SET"), () -> "none");
+        final var env = Nulls.<String>or(System.getenv("AXL_SURELY_NOT_SET"), () -> "none");
         System.out.println(env.length());
     }
 }

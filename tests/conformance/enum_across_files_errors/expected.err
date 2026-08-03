@@ -1,0 +1,2 @@
+AXL001 app/Main.axl:7:36: error: this `when` does not name `Level.HIGH`; add a branch for each, or an `else ->` branch
+AXL001 app/Main.axl:12:31: error: this `when` does not test `is Square`; add a branch for each, or an `else ->` branch

@@ -1,0 +1,22 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+fn rest(xs: List<String>) -> List<String> {
+    val items = if (xs.isEmpty()) List.of() else xs.subList(1, xs.size())
+    return items
+}
+
+fn index(xs: List<String>) -> Map<String, Int> {
+    val byName: Map<String, Int> = Map.of("a", 1)
+    val result = if (xs.isEmpty()) Map.of() else byName
+    return result
+}
+
+fn main() {
+    println(rest(List.of("a", "b", "c")))
+    println(rest(List.of()))
+    println(index(List.of("a")))
+    println(index(List.of()))
+}

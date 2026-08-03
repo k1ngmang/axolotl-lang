@@ -135,7 +135,7 @@ fn requiredValues(file: SourceFile, siblings: List<SourceFile>, supertypes: List
 }
 
 /** `T` of `interface Repository<T>` is `User` in `class Users : Repository<User>`. */
-private fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<TypeRef>) -> TypeRef {
+fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<TypeRef>) -> TypeRef {
     if (params.isEmpty() || params.size() != args.size()) {
         return type
     }

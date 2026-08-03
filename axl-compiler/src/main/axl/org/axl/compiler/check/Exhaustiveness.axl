@@ -1,5 +1,6 @@
 package org.axl.compiler.check
 
+import java.util.ArrayList
 import java.util.HashSet
 import java.util.List
 import java.util.Set
@@ -8,12 +9,12 @@ import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.TypeRef
 
-// What a `when` without `else` leaves out, named for the error, when the file declares the cases.
+// What a `when` without `else` leaves out, named for the error, when the file or its package declares the cases.
 
-/** The constants of the file's enum that the `when` names some of but not all, or null. */
-fn missingConstants(w: Expr.When, file: SourceFile) -> String? {
+/** The constants of an enum of the package that the `when` names some of but not all, or null. */
+fn missingConstants(w: Expr.When, file: SourceFile, siblings: List<SourceFile>) -> String? {
     val named = constantNames(w)
-    for (decl in file.decls()) {
+    for (decl in declsOf(file, siblings)) {
         if (decl is Decl.EnumDecl) {
             val prefix = decl.name() + "."
             val mentioned = decl.constants() |> anyMatch { c -> named.contains(c) || named.contains(prefix + c) }
@@ -26,12 +27,12 @@ fn missingConstants(w: Expr.When, file: SourceFile) -> String? {
     return null
 }
 
-/** What to add to a `when` whose `is` branches test classes that implement an interface of the file, or null. */
-fn typesProblem(w: Expr.When, file: SourceFile) -> String? {
+/** What to add to a `when` whose `is` branches test classes that implement an interface of the package, or null. */
+fn typesProblem(w: Expr.When, file: SourceFile, siblings: List<SourceFile>) -> String? {
     val tested = testedNames(w)
-    for (decl in file.decls()) {
+    for (decl in declsOf(file, siblings)) {
         if (decl is Decl.Interface) {
-            val implementations = implementationsOf(decl.name(), file)
+            val implementations = implementationsOf(decl.name(), file, siblings)
             if (!tested.isEmpty() && implementations.containsAll(tested)) {
                 return problemWith(decl, implementations, tested)
             }
@@ -51,8 +52,25 @@ private fn problemWith(i: Decl.Interface, implementations: List<String>, tested:
     return "this `when` does not test " + quoted(missing |> map { c -> "is " + c }) + "; add a branch for each, or an `else ->` branch"
 }
 
-private fn implementationsOf(name: String, file: SourceFile) -> List<String> =
-    file.decls() |> filter { d -> extendsType(d, name) } |> map { d -> nameOf(d) }
+private fn implementationsOf(name: String, file: SourceFile, siblings: List<SourceFile>) -> List<String> =
+    declsOf(file, siblings) |> filter { d -> extendsType(d, name) } |> map { d -> nameOf(d) }
+
+/** The declarations of the file and of the other files of its package, which a `when` may name as well. */
+fn declsOf(file: SourceFile, siblings: List<SourceFile>) -> List<Decl> {
+    val result = ArrayList<Decl>(file.decls())
+    for (sibling in siblings) {
+        if (samePackage(file, sibling)) {
+            result.addAll(sibling.decls())
+        }
+    }
+    return result
+}
+
+private fn samePackage(file: SourceFile, other: SourceFile) -> Boolean {
+    val own = file.packageName()
+    val theirs = other.packageName()
+    return if (own == null) theirs == null else own.equals(theirs)
+}
 
 private fn extendsType(decl: Decl, name: String) -> Boolean =
     supertypesOf(decl) |> anyMatch { t -> simpleName(t.name()).equals(name) }

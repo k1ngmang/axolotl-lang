@@ -1,0 +1,18 @@
+package app
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+data class Square(val side: Double) : Shape
+data class Dot() : Shape
+
+fn size(s: Shape) -> Double = if (s is Circle) s.radius() else if (s is Square) s.side() else 0.0
+
+fn label(s: Shape) -> String = if (s is Circle) "circle " + s.radius() else if (s is Square) "square " + s.side() else "dot"
+
+fn main() {
+    println(size(Circle(1.5)))
+    println(size(Square(2.0)))
+    println(size(Dot()))
+    println(label(Square(3.0)))
+}

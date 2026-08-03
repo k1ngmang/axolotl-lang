@@ -14,7 +14,7 @@ import org.jspecify.annotations.*;
             if ($t2.isErr()) return Result.propagate($t2);
             $t1 = Result.unwrap($t2);
         }
-        final var n = ($t1 && s != null ? s.length() : Integer.valueOf(0));
+        final var n = ($t1 && s != null ? s.length() : 0);
         return new Ok<>(n);
     }
     public static void main(String[] args) {

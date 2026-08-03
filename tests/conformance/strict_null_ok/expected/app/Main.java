@@ -13,7 +13,7 @@ import java.util.ArrayList;
         }
         System.out.println(java.util.Objects.requireNonNull(text.trim()).length());
         final var missing = System.getenv("AXL_SURELY_NOT_SET");
-        System.out.println(Nulls.or(missing, () -> "unset"));
+        System.out.println(Nulls.<String>or(missing, () -> "unset"));
         System.out.println("" + Nulls.map(missing, $n1 -> $n1.length()));
         final var n = Integer.parseInt("5");
         System.out.println(n + 1);

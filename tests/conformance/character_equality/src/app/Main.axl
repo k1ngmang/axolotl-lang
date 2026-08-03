@@ -1,0 +1,17 @@
+package app
+
+data class Token(val ch: Character)
+
+fn same(a: Character, b: Character) -> Boolean = a == b
+
+fn closes(token: Token, ch: Character) -> Boolean = token.ch() == ch
+
+fn differ(a: Token, b: Token) -> Boolean = a.ch() != b.ch()
+
+fn main() {
+    println(same('я', 'я'))
+    println(closes(Token('я'), 'я'))
+    println(differ(Token('я'), Token('ю')))
+    println(differ(Token('я'), Token('я')))
+    println(Token('я').ch() == 'я')
+}

@@ -1,0 +1,17 @@
+package app
+
+import java.util.List
+
+class Timer(val label: String) {
+    val started = System.nanoTime()
+    val upper = label.toUpperCase()
+    val parts = List.of(label)
+    val size = label.length()
+    var elapsed = started - started
+
+    fn show() -> String = upper + " " + parts.size() + " " + size + " " + (System.nanoTime() >= started) + " " + elapsed
+}
+
+fn main() {
+    println(Timer("label").show())
+}

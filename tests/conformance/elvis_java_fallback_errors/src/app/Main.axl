@@ -1,0 +1,9 @@
+package app
+
+fn shows(t: String) { println(t) }
+
+fn main() {
+    val s: String? = null
+    shows(s?.trim() ?: System.getProperty("axl.surely.not.set"))
+    shows(s?.trim() ?: "fine")
+}

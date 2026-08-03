@@ -1,0 +1,14 @@
+package app
+
+fn parse(s: String) -> Result<Int, String> = if (s.isEmpty()) Err("empty") else Ok(s.length())
+
+fn describe(r: Result<Int, String>) -> String = if (r is Err) "error " + r.error() else "value " + r.value()
+
+fn flipped(r: Result<Int, String>) -> String = if (r is Ok) "value " + r.value() else "error " + r.error()
+
+fn main() {
+    println(describe(parse("")))
+    println(describe(parse("abc")))
+    println(flipped(parse("")))
+    println(flipped(parse("ab")))
+}

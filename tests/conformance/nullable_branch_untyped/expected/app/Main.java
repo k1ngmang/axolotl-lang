@@ -5,10 +5,10 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static @Nullable Integer next(boolean c, @Nullable Integer n, int k) {
-        return (c ? n : Nulls.box(k + 1));
+        return (c ? n : Integer.valueOf(k + 1));
     }
     public static @Nullable Integer size(boolean c, @Nullable Integer n, String s) {
-        return (c ? n : Nulls.box(s.length()));
+        return (c ? n : Integer.valueOf(s.length()));
     }
     public static @Nullable Integer nested(boolean c, @Nullable Integer n) {
         return (c ? n : Integer.valueOf((!c ? 42 : 7)));
@@ -16,23 +16,23 @@ import org.jspecify.annotations.*;
     public static void chosen(int c, @Nullable Integer n, int k) {
         final var r = switch (c) {
             case 1 -> n;
-            default -> Nulls.box(k + 1);
+            default -> Integer.valueOf(k + 1);
         };
         System.out.println(r);
     }
     public static void nestedUntyped(boolean c, boolean d, @Nullable String s) {
-        final var v = (c ? Integer.valueOf(((d ? 42 : 3))) : Nulls.box(Nulls.map(s, $n1 -> $n1.length())));
+        final var v = (c ? Integer.valueOf(((d ? 42 : 3))) : Nulls.map(s, $n1 -> $n1.length()));
         System.out.println(v);
     }
     public static void javaBranch(int k, @Nullable String s) {
-        final var v = (k == 1 ? Nulls.box(Math.abs(-1)) : Nulls.box(Nulls.map(s, $n1 -> $n1.length())));
+        final var v = (k == 1 ? Integer.valueOf(Math.abs(-1)) : Nulls.map(s, $n1 -> $n1.length()));
         System.out.println(v);
         final var w = switch (k) {
-            case 1 -> Nulls.box("ab".length());
-            default -> Nulls.box(Nulls.map(s, $n2 -> $n2.length()));
+            case 1 -> Integer.valueOf("ab".length());
+            default -> Nulls.map(s, $n2 -> $n2.length());
         };
         System.out.println(w);
-        System.out.println(Nulls.or(((k == 1 ? Nulls.box(((s == null ? Math.abs(-3) : Integer.valueOf(2)))) : Nulls.box(Nulls.map(s, $n3 -> $n3.length())))), 5));
+        System.out.println(Nulls.or(((k == 1 ? Integer.valueOf(((s == null ? Math.abs(-3) : 2))) : Nulls.map(s, $n3 -> $n3.length()))), 5));
     }
     public static void main(String[] args) {
         System.out.println(next(true, null, 1));

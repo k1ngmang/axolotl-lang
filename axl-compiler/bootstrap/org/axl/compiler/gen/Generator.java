@@ -50,6 +50,7 @@ import org.axl.compiler.check.Whens;
     public Emitter em;
     public Map<String, String> smart;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
+    public final IdentityHashMap<Expr, @Nullable TypeRef> branchTypes;
     public int patternCount;
     public List<String> overridden;
     public List<RequiredMethod> requiredMethods;
@@ -83,6 +84,7 @@ import org.axl.compiler.check.Whens;
         this.em = new Emitter();
         this.smart = new HashMap<String, String>();
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
+        this.branchTypes = new IdentityHashMap<Expr, @Nullable TypeRef>();
         this.patternCount = 0;
         this.overridden = List.of();
         this.requiredMethods = List.of();
@@ -326,9 +328,21 @@ import org.axl.compiler.check.Whens;
         currentMethods = outerMethods;
         em.dedent();
     }
+    private TypeRef propertyTypeOf(Decl.Property p) {
+        final var type = p.type();
+        if (type != null) {
+            return type;
+        }
+        final var init = p.init();
+        final @Nullable TypeRef inferred = (init == null ? null : TypeInference.propertyTypes(file, options.siblings(), currentClass).get(p.name()));
+        if (inferred == null) {
+            throw new IllegalStateException("property " + p.name() + " has no type");
+        }
+        return inferred;
+    }
     private void emitConstructor(Decl.ClassDecl classDecl) {
         final var line = classDecl.pos().line();
-        final var params = classDecl.parameters().stream().map(Nulls.nonNull(p -> javaType(propertyType(file, p)) + " " + p.name())).toList();
+        final var params = classDecl.parameters().stream().map(Nulls.nonNull(p -> javaType(propertyTypeOf(p)) + " " + p.name())).toList();
         em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {");
         em.indent();
         final var superArgs = classDecl.superArgs();
@@ -341,7 +355,7 @@ import org.axl.compiler.check.Whens;
         }
         resetCounters();
         for (final var p : classDecl.properties()) {
-            final var stored = nullableType(propertyType(file, p));
+            final var stored = nullableType(propertyTypeOf(p));
             em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode(() -> valueCode(p.pos().line(), propertyInit(p), stored)) + ";");
         }
         em.dedent();
@@ -359,7 +373,7 @@ import org.axl.compiler.check.Whens;
             final var property = propertyNamed(classDecl, member.name());
             final var ownMethod = classDecl.methods().stream().anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
             if (property != null && !ownMethod && written.add(member.name())) {
-                em.line(property.pos().line(), "@Override public " + javaType(propertyType(file, property)) + " " +
+                em.line(property.pos().line(), "@Override public " + javaType(propertyTypeOf(property)) + " " +
                         member.name() +
                         "() { return " +
                         member.name() +
@@ -383,7 +397,7 @@ import org.axl.compiler.check.Whens;
     private String field(Decl.Property p) {
         final var visibility = (p.isPrivate() ? "private" : "public");
         final var modifier = (p.mutable() ? "" : " final");
-        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyType(file, p)) + " " + p.name();
+        return annotations(p.annotations()) + visibility + modifier + " " + javaType(propertyTypeOf(p)) + " " + p.name();
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
@@ -583,26 +597,38 @@ import org.axl.compiler.check.Whens;
         final var declared = local.type();
         final var init = widened(local.init(), declared);
         final var modifiers = (local.mutable() ? "" : "final ");
-        final var typeCode = (declared == null ? "var" : javaType(declared));
         final var whole = withoutParens(init);
-        if (whole instanceof Expr.When whole$1) {
-            emitWhen(line, whole$1, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE);
+        final var branchType = (declared == null && whole instanceof Expr.Conditional whole$1 ? typedBranch(whole$1) : null);
+        final var typeCode = (declared != null ? javaType(declared) : (branchType != null ? javaType(branchType) : "var"));
+        if (whole instanceof Expr.When whole$2) {
+            emitWhen(line, whole$2, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE);
             localTypes.put(local.name(), declared);
             return;
         }
-        final var localType = Nulls.or(declared, () -> typeOf(init));
+        final var localType = Nulls.or(declared, () -> Nulls.or(branchType, () -> typeOf(init)));
         final var stored = (declared == null ? null : nullableType(declared));
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
-            final var code = (init instanceof Expr.Try init$2 ? unwrapTry(line, init$2) : valueCode(line, init, stored));
+            final var code = (init instanceof Expr.Try init$3 ? unwrapTry(line, init$3) : valueCode(line, init, stored));
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
         });
         localTypes.put(local.name(), localType);
-        final var unwrapped = whole instanceof Expr.Try whole$3 || whole instanceof Expr.Elvis whole$4;
+        final var unwrapped = whole instanceof Expr.Try whole$4 || whole instanceof Expr.Elvis whole$5;
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name());
         } else {
             boxedLocals.remove(local.name());
         }
+    }
+    private @Nullable TypeRef typedBranch(Expr.Conditional c) {
+        final var thenType = typeOf(c.then());
+        final var elseType = typeOf(c.otherwise());
+        if (thenType == null && elseType != null && !elseType.args().isEmpty() && withoutParens(c.then()) instanceof Expr.Call) {
+            return elseType;
+        }
+        if (elseType == null && thenType != null && !thenType.args().isEmpty() && withoutParens(c.otherwise()) instanceof Expr.Call) {
+            return thenType;
+        }
+        return null;
     }
     private void assignStatement(Stmt.Assign assign) {
         final var line = assign.pos().line();
@@ -1078,6 +1104,9 @@ import org.axl.compiler.check.Whens;
         return !(leftOther || rightOther);
     }
     private @Nullable TypeRef typeOf(Expr e) {
+        if (branchTypes.containsKey(e)) {
+            return branchTypes.get(e);
+        }
         final var inner = withoutParens(e);
         if (inner instanceof Expr.Name inner$1 && localTypes.containsKey(inner$1.name())) {
             return localTypes.get(inner$1.name());
@@ -1099,7 +1128,28 @@ import org.axl.compiler.check.Whens;
         if (fromMap != null) {
             return fromMap;
         }
-        return TypeInference.typeOf(file, options.siblings(), inner);
+        return infer(inner);
+    }
+    private @Nullable TypeRef infer(Expr e) {
+        return new TypeInference(file, knownTypes(), options.siblings()).of(e);
+    }
+    private Map<String, TypeRef> knownTypes() {
+        final var result = new HashMap<String, TypeRef>();
+        for (final var local : localTypes.entrySet()) {
+            final var type = local.getValue();
+            if (type != null) {
+                result.put(local.getKey(), type);
+            }
+        }
+        for (final var entry : smart.entrySet()) {
+            for (final var test : patternVariables.entrySet()) {
+                final var target = test.getKey().target();
+                if (test.getValue().equals(entry.getValue()) && target instanceof Expr.Name target$1 && target$1.name().equals(entry.getKey())) {
+                    result.put(entry.getKey(), test.getKey().type());
+                }
+            }
+        }
+        return result;
     }
     private @Nullable TypeRef mapGet(Expr e) {
         if (!(e instanceof Expr.Call e$1) || !e$1.name().equals("get") || e$1.args().size() != 1 || e$1.safe()) {
@@ -1119,7 +1169,7 @@ import org.axl.compiler.check.Whens;
     private @Nullable TypeRef commonBranchType(@Nullable TypeRef a, @Nullable TypeRef b, Expr.Conditional c) {
         final var same = a != null && b != null && a.name().equals(b.name()) && a.args().isEmpty() && b.args().isEmpty();
         return (a != null && same ? new TypeRef(a.pos(), a.name(), a.args(), a.nullable() || java.util.Objects.requireNonNull(b).nullable()) :
-                TypeInference.typeOf(file, options.siblings(), c));
+                infer(c));
     }
     private String elvisCode(Expr.Elvis elvis, String left) {
         final var right = elvis.right();
@@ -1382,9 +1432,15 @@ import org.axl.compiler.check.Whens;
         if (!b.op().equals("==") && !b.op().equals("!=")) {
             return false;
         }
-        return (isUnwrapped(b.left()) || isUnwrapped(b.right())) && primitiveOf(b.left()) == null && primitiveOf(b.right()) == null &&
+        return (isUnwrapped(b.left()) || isUnwrapped(b.right()) || bothCharacters(b)) && primitiveOf(b.left()) == null &&
+                primitiveOf(b.right()) == null &&
                 !isNullLiteral(b.left()) &&
                 !isNullLiteral(b.right());
+    }
+    private boolean bothCharacters(Expr.Binary b) {
+        final var left = typeOf(b.left());
+        final var right = typeOf(b.right());
+        return left != null && right != null && left.name().equals("Character") && right.name().equals("Character");
     }
     private boolean isUnwrapped(Expr e) {
         final var inner = withoutParens(e);
@@ -1430,12 +1486,18 @@ import org.axl.compiler.check.Whens;
     private String conditional(String condition, Expr.Conditional c, boolean inLambda) {
         final var branches = List.of(c.then(), c.otherwise());
         nestedValues += 1;
-        final var thenCode = narrowedValue(whenTrue(c.condition()), () -> exprIn(c.then(), inLambda));
-        final var otherwise = narrowedValue(whenFalse(c.condition()), () -> exprIn(c.otherwise(), inLambda));
+        final var thenCode = narrowedValue(whenTrue(c.condition()), () -> remembered(c.then(), inLambda));
+        final var negated = whenFalse(c.condition());
+        final var otherwise = narrowedValue((negated.isEmpty() ? otherCase(c.condition()) : negated),
+                () -> remembered(c.otherwise(), inLambda));
         nestedValues -= 1;
         final var thenLine = startLine(c.then());
         final var head = joined("(" + condition, " ? ", boxedBranch(thenCode, c.then(), branches), c.pos().line(), thenLine);
         return joined(head, " : ", boxedBranch(otherwise, c.otherwise(), branches), thenLine, startLine(c.otherwise())) + ")";
+    }
+    private String remembered(Expr branch, boolean inLambda) {
+        branchTypes.put(branch, typeOf(branch));
+        return exprIn(branch, inLambda);
     }
     private String boxedBranch(String code, Expr branch, List<Expr> branches) {
         final var type = typeOf(branch);
@@ -1884,7 +1946,7 @@ import org.axl.compiler.check.Whens;
             i += 1;
         }
         final var step = steps.get(created);
-        final var args = argsCode(Nulls.or(step.args(), () -> List.of()), inLambda, step.line());
+        final var args = argsCode(Nulls.<List<Expr>>or(step.args(), () -> List.of()), inLambda, step.line());
         final var prefix = "new " + path + "." + step.name() + "(" + args + ")";
         return chainFrom(prefix, steps, created + 1, inLambda, startLine(chain.base()));
     }
@@ -1916,7 +1978,7 @@ import org.axl.compiler.check.Whens;
     }
     private String stepOnLine(Chains.Step step, boolean inLambda, List<Chains.Step> steps, int index, int baseLine) {
         final var text = stepText(step, inLambda);
-        final var previous = (index == 0 ? Integer.valueOf(baseLine) : steps.get(index - 1).line());
+        final var previous = (index == 0 ? baseLine : steps.get(index - 1).line());
         return (step.line() > previous ? Emitter.continued(step.line(), text) : text);
     }
     private String stepText(Chains.Step step, boolean inLambda) {
@@ -2654,18 +2716,6 @@ import org.axl.compiler.check.Whens;
             throw new IllegalStateException("property " + p.name() + " has no initializer");
         }
         return init;
-    }
-    private static TypeRef propertyType(SourceFile file, Decl.Property p) {
-        final var type = p.type();
-        if (type != null) {
-            return type;
-        }
-        final var init = p.init();
-        final @Nullable TypeRef inferred = (init == null ? null : TypeInference.typeOf(file, init));
-        if (inferred == null) {
-            throw new IllegalStateException("property " + p.name() + " has no type");
-        }
-        return inferred;
     }
     private static TypeRef memberType(Expr.Param member) {
         final var type = member.type();

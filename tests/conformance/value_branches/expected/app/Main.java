@@ -24,7 +24,7 @@ import org.jspecify.annotations.*;
         return value;
     }
     public static int size(boolean flag, @Nullable String s) {
-        return (flag ? Nulls.or(Nulls.map(s, $n1 -> $n1.length()), () -> 0) : Integer.valueOf(-1));
+        return (flag ? Nulls.<Integer>or(Nulls.map(s, $n1 -> $n1.length()), () -> 0) : -1);
     }
     public static Result<String, String> checked(int n) {
         final var $t1 = load(n);

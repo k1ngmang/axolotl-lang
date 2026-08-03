@@ -763,10 +763,15 @@ final class Messages {
                         : "`null` is passed for `" + parameter + "`, which does not accept null; make its type nullable with `?`");
             }
             boolean name = IDENTIFIER.matcher(value).matches() && !GENERATED.matcher(value).find();
-            String subject = name ? "`" + value + "`" : "the argument";
+            // `a ?: b` and `a?.b()` are passed as the values of `Nulls.or` and `Nulls.map`.
+            boolean elvis = value.contains("Nulls.or(");
+            String subject = name ? "`" + value + "`" : elvis ? "the value of `?:`" : value.contains("Nulls.map(") ? "the value of `?.`"
+                    : "the argument";
             String check = name ? "check `if (" + value + " != null)`" : "a null check";
-            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, subject
-                    + " may be null, but the parameter does not accept null: use `?:` or " + check);
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, elvis
+                    ? subject + " may be null, since its fallback may be null, but the parameter does not accept null: use a "
+                    + "fallback that is not null or a null check"
+                    : subject + " may be null, but the parameter does not accept null: use `?:` or " + check);
         }
         String plain = NULLAWAY_LINK.matcher(message.substring("[NullAway] ".length())).replaceAll("");
         Matcher selector = NULLABLE_SELECTOR.matcher(plain);

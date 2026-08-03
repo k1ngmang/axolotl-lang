@@ -5,6 +5,7 @@ import java.util.HashMap
 import java.util.HashSet
 import java.util.List
 import java.util.Map
+import java.util.Set
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.Import
@@ -43,8 +44,8 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         is Expr.Binary -> binary(expr)
         is Expr.Elvis -> elvis(expr)
         is Expr.Is -> simple("Boolean", expr.pos())
-        is Expr.Name -> topLevelValue(expr.name())
-        is Expr.Call -> if (expr.target() == null) call(expr) else siblingCall(expr)
+        is Expr.Name -> known.get(expr.name()) ?: topLevelValue(expr.name())
+        is Expr.Call -> if (expr.target() == null) call(expr) else (siblingCall(expr) ?: member(expr))
         is Expr.GenericNew -> if (expr.typeArgs().isEmpty()) null else TypeRef(expr.pos(), expr.type(), expr.typeArgs(), false)
         is Expr.NotNull -> nonNull(of(expr.target()))
         is Expr.Conditional -> common(of(expr.then()), of(expr.otherwise()))
@@ -167,6 +168,233 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         return if (own == null) theirs == null else own.equals(theirs)
     }
 
+    /**
+     * `p.x()` on a data class or class of the build, `s.length()` on a String, `System.nanoTime()`: what
+     * the receiver's declaration or the JDK's gives, when the receiver's type is known.
+     */
+    private fn member(c: Expr.Call) -> TypeRef? {
+        val target = c.target()
+        if (target == null) {
+            return null
+        }
+        if (target is Expr.Name && Character.isUpperCase(target.name().charAt(0)) && !known.containsKey(target.name())) {
+            return staticCall(target.name(), c)
+        }
+        val receiver = of(target)
+        if (receiver == null) {
+            return null
+        }
+        val type = if (c.args().isEmpty()) (fieldOf(receiver, c.name()) ?: jdkMethod(receiver, c)) else jdkMethod(receiver, c)
+        return if (type == null || !c.safe()) type else TypeRef(type.pos(), type.name(), type.args(), true)
+    }
+
+    /** The field a data class or class of the build gives under this name, with the receiver's type arguments. */
+    private fn fieldOf(receiver: TypeRef, name: String) -> TypeRef? {
+        val decl = typeNamed(receiver.name())
+        if (decl == null) {
+            return null
+        }
+        val params = typeParamsOf(decl)
+        if (!params.isEmpty() && params.size() != receiver.args().size()) {
+            return null
+        }
+        val field = fieldsOf(decl) |> filter { f -> f.name().equals(name) } |> first
+        val type = field?.type()
+        return if (type == null) null else Implementations.substitute(type, params, receiver.args())
+    }
+
+    private fn typeNamed(name: String) -> Decl? {
+        val simple = simpleName(name)
+        for (decl in file.decls()) {
+            if ((decl is Decl.DataClass || decl is Decl.ClassDecl) && decl.name().equals(simple)) {
+                return decl
+            }
+        }
+        for (sibling in siblings) {
+            if (samePackage(sibling)) {
+                for (decl in sibling.decls()) {
+                    if ((decl is Decl.DataClass || decl is Decl.ClassDecl) && decl.name().equals(simple)) {
+                        return decl
+                    }
+                }
+            }
+        }
+        return null
+    }
+
+    /** A few methods of the types every program uses, typed as javac types them. */
+    private fn jdkMethod(receiver: TypeRef, c: Expr.Call) -> TypeRef? {
+        val name = c.name()
+        val owner = simpleName(receiver.name())
+        val pos = c.pos()
+        val arity = c.args().size()
+        if (name.equals("toString") && arity == 0) {
+            return simple("String", pos)
+        }
+        if (name.equals("hashCode") && arity == 0) {
+            return simple("Int", pos)
+        }
+        if (name.equals("equals") && arity == 1) {
+            return simple("Boolean", pos)
+        }
+        if (owner.equals("String")) {
+            if (STRING_STRINGS.contains(name)) {
+                return simple("String", pos)
+            }
+            if (STRING_INTS.contains(name)) {
+                return simple("Int", pos)
+            }
+            if (STRING_BOOLEANS.contains(name)) {
+                return simple("Boolean", pos)
+            }
+            return if (name.equals("charAt")) simple("Character", pos) else null
+        }
+        if (COLLECTIONS.contains(owner)) {
+            if (name.equals("size") || name.equals("indexOf")) {
+                return simple("Int", pos)
+            }
+            if (name.equals("isEmpty") || name.equals("contains") || name.equals("add")) {
+                return simple("Boolean", pos)
+            }
+            if ((name.equals("subList") || name.equals("reversed")) && owner.equals("List")) {
+                return nonNull(receiver)
+            }
+            val element = receiver.args().size() == 1 && arity <= 1 && (name.equals("get") || name.equals("getFirst") || name.equals("getLast"))
+            return if (element) receiver.args().getFirst() else null
+        }
+        if (MAPS.contains(owner)) {
+            if (name.equals("size")) {
+                return simple("Int", pos)
+            }
+            if (name.equals("isEmpty") || name.equals("containsKey") || name.equals("containsValue")) {
+                return simple("Boolean", pos)
+            }
+            if (receiver.args().size() != 2) {
+                return null
+            }
+            val value = receiver.args().get(1)
+            if (name.equals("keySet")) {
+                return TypeRef(pos, "Set", List.of(receiver.args().get(0)), false)
+            }
+            if (name.equals("values")) {
+                return TypeRef(pos, "Collection", List.of(value), false)
+            }
+            return if (name.equals("get") && arity == 1) TypeRef(pos, value.name(), value.args(), true) else null
+        }
+        return null
+    }
+
+    /** `System.nanoTime()`, `Math.max(a, b)`, `Integer.parseInt(s)`, `Instant.now()`: the JDK's static methods every program uses. */
+    private fn staticCall(owner: String, c: Expr.Call) -> TypeRef? {
+        val name = c.name()
+        val pos = c.pos()
+        val arity = c.args().size()
+        if (owner.equals("System")) {
+            if (name.equals("nanoTime") || name.equals("currentTimeMillis")) {
+                return simple("Long", pos)
+            }
+            if (name.equals("lineSeparator")) {
+                return simple("String", pos)
+            }
+            return if ((name.equals("getProperty") || name.equals("getenv")) && arity == 1) TypeRef(pos, "String", ArrayList<TypeRef>(), true) else null
+        }
+        if (owner.equals("Math")) {
+            if (MATH_DOUBLES.contains(name)) {
+                return simple("Double", pos)
+            }
+            if (name.equals("round") && arity == 1) {
+                return simple("Long", pos)
+            }
+            if (!(name.equals("max") || name.equals("min") || name.equals("abs")) || arity == 0) {
+                return null
+            }
+            var widest: TypeRef? = null
+            for (arg in c.args()) {
+                val type = of(arg)
+                if (type == null || !numbers.contains(type.name())) {
+                    return null
+                }
+                widest = if (widest == null || numbers.indexOf(type.name()) > numbers.indexOf(widest.name())) nonNull(type) else widest
+            }
+            return widest
+        }
+        if (owner.equals("Integer") || owner.equals("Long") || owner.equals("Double") || owner.equals("Boolean")) {
+            val own = if (owner.equals("Integer")) "Int" else owner
+            if (name.startsWith("parse") || name.equals("valueOf") || name.equals("sum") || name.equals("max") || name.equals("min")) {
+                return simple(own, pos)
+            }
+            if (name.equals("compare") || name.equals("signum") || name.equals("bitCount")) {
+                return simple("Int", pos)
+            }
+            return if (name.equals("toString") || name.equals("toHexString") || name.equals("toBinaryString")) simple("String", pos) else null
+        }
+        if (owner.equals("Character")) {
+            if (name.startsWith("is")) {
+                return simple("Boolean", pos)
+            }
+            if (name.equals("toUpperCase") || name.equals("toLowerCase") || name.equals("valueOf")) {
+                return simple("Character", pos)
+            }
+            return if (name.equals("getNumericValue") || name.equals("compare") || name.equals("digit")) simple("Int", pos) else null
+        }
+        if (owner.equals("String")) {
+            return if (name.equals("valueOf") || name.equals("join") || name.equals("format")) simple("String", pos) else null
+        }
+        if (owner.equals("Objects")) {
+            if (name.equals("equals") || name.equals("isNull") || name.equals("nonNull")) {
+                return simple("Boolean", pos)
+            }
+            if (name.equals("hash") || name.equals("hashCode")) {
+                return simple("Int", pos)
+            }
+            if (name.equals("toString")) {
+                return simple("String", pos)
+            }
+            return if (name.equals("requireNonNull") && arity >= 1) nonNull(of(c.args().getFirst())) else null
+        }
+        if (owner.equals("List") || owner.equals("Set")) {
+            // `List.of()` without elements is typed by what it goes to, which javac decides.
+            return if (name.equals("of") && arity > 0) elementsOf(owner, c.args(), pos) else null
+        }
+        // The static methods of the JDK's value types give that type: `Instant.now()`, `Duration.ofMillis(5L)`, `Path.of("x")`.
+        if (VALUE_TYPES.contains(owner)) {
+            return simple(if (owner.equals("Paths")) "Path" else owner, pos)
+        }
+        return null
+    }
+
+    /** `List.of(1, 2)` is a `List<Int>` when every element has that type. */
+    private fn elementsOf(owner: String, args: List<Expr>, pos: Pos) -> TypeRef? {
+        var element: TypeRef? = null
+        for (arg in args) {
+            val type = of(arg)
+            if (type == null || type.nullable() || (element != null && !sameType(element, type))) {
+                return null
+            }
+            element = type
+        }
+        return if (element == null) null else TypeRef(pos, owner, List.of(element), false)
+    }
+
+    private fn typeParamsOf(decl: Decl) -> List<Decl.TypeParam> = when (decl) {
+        is Decl.DataClass -> decl.typeParams()
+        is Decl.ClassDecl -> decl.typeParams()
+        else -> List.of()
+    }
+
+    /** The fields of a data class, or the parameters and typed properties of a class, as read by `x.name()`. */
+    private fn fieldsOf(decl: Decl) -> List<Expr.Param> = when (decl) {
+        is Decl.DataClass -> decl.fields()
+        is Decl.ClassDecl -> {
+            val fields = ArrayList<Expr.Param>(decl.parameters() |> map { p -> Expr.Param(p.pos(), p.name(), p.type(), List.of()) })
+            for (p in decl.properties()) {
+                fields.add(Expr.Param(p.pos(), p.name(), p.type(), List.of()))
+            }
+            fields
+        }
+        else -> List.of()
+    }
+
     private fn isImportedFunction(name: String) -> Boolean =
         file.imports().stream().anyMatch({ i -> i.kind() != Import.Kind.TYPE && i.simpleName().equals(name) })
 
@@ -181,6 +409,20 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
 }
 
 private val numbers: List<String> = List.of("Int", "Long", "Double")
+
+private val STRING_STRINGS: Set<String> = Set.of("toUpperCase", "toLowerCase", "trim", "strip", "stripLeading", "stripTrailing",
+    "substring", "replace", "replaceAll", "replaceFirst", "repeat", "concat", "formatted", "intern", "indent")
+private val STRING_INTS: Set<String> = Set.of("length", "indexOf", "lastIndexOf", "compareTo", "compareToIgnoreCase", "codePointAt")
+private val STRING_BOOLEANS: Set<String> = Set.of("isEmpty", "isBlank", "startsWith", "endsWith", "contains", "equalsIgnoreCase",
+    "matches", "contentEquals")
+private val COLLECTIONS: Set<String> = Set.of("List", "ArrayList", "LinkedList", "Set", "HashSet", "LinkedHashSet", "TreeSet", "Collection")
+private val MAPS: Set<String> = Set.of("Map", "HashMap", "LinkedHashMap", "TreeMap", "ConcurrentHashMap")
+private val MATH_DOUBLES: Set<String> = Set.of("sqrt", "pow", "floor", "ceil", "random", "log", "log10", "exp", "sin", "cos", "tan",
+    "atan2", "hypot", "cbrt", "rint", "toRadians", "toDegrees")
+private val VALUE_TYPES: Set<String> = Set.of("Instant", "Duration", "LocalDate", "LocalDateTime", "LocalTime", "ZonedDateTime",
+    "Path", "Paths", "UUID", "BigDecimal", "BigInteger", "URI")
+
+private fn simpleName(name: String) -> String = name.substring(name.lastIndexOf('.') + 1)
 
 private val comparisons: List<String> = List.of("==", "!=", "<", "<=", ">", ">=", "&&", "||")
 
@@ -203,6 +445,32 @@ fn typeOf(file: SourceFile, expr: Expr) -> TypeRef? = TypeInference(file, HashMa
 /** The type of an expression, also through the functions of the other files of the build. */
 fn typeOf(file: SourceFile, siblings: List<SourceFile>, expr: Expr) -> TypeRef? =
     TypeInference(file, HashMap<String, TypeRef>(), siblings).of(expr)
+
+/**
+ * The parameters and properties of a class with their types, written or told by their values, which
+ * may read the parameters and the properties set before them: `val upper = label.toUpperCase()`.
+ */
+fn propertyTypes(file: SourceFile, siblings: List<SourceFile>, c: Decl.ClassDecl?) -> Map<String, TypeRef> {
+    val result = HashMap<String, TypeRef>()
+    if (c == null) {
+        return result
+    }
+    for (p in c.parameters()) {
+        val type = p.type()
+        if (type != null) {
+            result.put(p.name(), type)
+        }
+    }
+    val inference = TypeInference(file, result, siblings)
+    for (p in c.properties()) {
+        val init = p.init()
+        val type = p.type() ?: (if (init == null) null else inference.of(init))
+        if (type != null) {
+            result.put(p.name(), type)
+        }
+    }
+    return result
+}
 
 private fn sameType(a: TypeRef, b: TypeRef) -> Boolean {
     if (!a.name().equals(b.name()) || a.args().size() != b.args().size()) {
