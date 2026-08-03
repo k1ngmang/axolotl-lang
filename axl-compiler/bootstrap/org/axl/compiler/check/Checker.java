@@ -1117,13 +1117,18 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void checkArm(Expr.Arm arm, boolean gives, boolean returns) {
-        final List<Stmt> body = (returns ? Whens.returning(arm) : arm.body());
-        if (gives && !endsWithValue(arm.body())) {
-            error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value");
+        if ((gives || returns) && endsWithIfOfValues(arm.body())) {
+            final var use = (returns ? "is returned" : "gives a value");
+            final var alternative = (returns ? ", or `return` in each of its branches" : "");
+            error(arm.body().getLast().pos(), ErrorCode.SYNTAX, "this `if` ends a branch of a `when` that " + use + ", so the " +
+                    "branch gives no value; write the `if` as a value, `if (c) a else b` without braces" +
+                    alternative);
+            armWithIfOfValues(arm.body());
+            return;
         }
-        if (returns && endsWithIfOfValues(arm.body())) {
-            error(arm.body().getLast().pos(), ErrorCode.SYNTAX, "this `if` ends a branch of a `when` that is returned, so the " +
-                    "branch gives no value; write the `if` as a value, `if (c) a else b` without braces, or `return` in each of its branches");
+        final List<Stmt> body = (returns ? Whens.returning(arm) : arm.body());
+        if (gives && !endsWithValue(arm.body()) && !endsWithJump(arm.body())) {
+            error(arm.pos(), ErrorCode.SYNTAX, "each branch of a `when` that gives a value ends with the value");
         }
         if (gives) {
             valueArm(body);
@@ -1131,8 +1136,31 @@ import org.axl.compiler.ast.TypeRef;
             statements(body);
         }
     }
+    private void armWithIfOfValues(List<Stmt> body) {
+        scope = new Scope(scope, false);
+        for (final var stmt : body.subList(0, body.size() - 1)) {
+            statement(stmt);
+        }
+        valueIf(body.getLast());
+        pop();
+    }
+    private void valueIf(Stmt stmt) {
+        if (stmt instanceof Stmt.If stmt$1) {
+            expr(stmt$1.condition());
+            valueArm(stmt$1.then().statements());
+            final var elseBranch = stmt$1.elseBranch();
+            if (elseBranch != null) {
+                valueIf(elseBranch);
+            }
+        } else if (stmt instanceof Stmt.Block stmt$2) {
+            valueArm(stmt$2.statements());
+        }
+    }
     private boolean endsWithValue(List<Stmt> body) {
         return !body.isEmpty() && body.getLast() instanceof Stmt.ExprStmt;
+    }
+    private boolean endsWithJump(List<Stmt> body) {
+        return !body.isEmpty() && body.getLast() instanceof Stmt.Jump;
     }
     private boolean endsWithIfOfValues(List<Stmt> body) {
         if (body.isEmpty()) {

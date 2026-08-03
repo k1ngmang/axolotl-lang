@@ -62,11 +62,14 @@ import org.axl.compiler.check.Whens;
     public boolean inPropertyInit;
     public int lambdaDepth;
     public List<Expr> whenValues;
+    public @Nullable String loopLabel;
+    public boolean inSwitch;
     public int tempCount;
     public int nullCount;
     public int exceptionCount;
     public int copyCount;
     public int listCount;
+    public int loopCount;
     public Map<String, String> copies;
     public @Nullable String returnType;
     public @Nullable TypeRef resultTypeRef;
@@ -96,11 +99,14 @@ import org.axl.compiler.check.Whens;
         this.inPropertyInit = false;
         this.lambdaDepth = 0;
         this.whenValues = List.of();
+        this.loopLabel = null;
+        this.inSwitch = false;
         this.tempCount = 0;
         this.nullCount = 0;
         this.exceptionCount = 0;
         this.copyCount = 0;
         this.listCount = 0;
+        this.loopCount = 0;
         this.copies = Map.of();
         this.returnType = null;
         this.resultTypeRef = null;
@@ -170,6 +176,7 @@ import org.axl.compiler.check.Whens;
         exceptionCount = 0;
         copyCount = 0;
         listCount = 0;
+        loopCount = 0;
         patternCount = 0;
         smart = new HashMap<String, String>();
         copies = Map.of();
@@ -566,7 +573,7 @@ import org.axl.compiler.check.Whens;
                 returnStatement(stmt$3);
             }
             case Stmt.Jump stmt$4 -> {
-                em.line(stmt$4.pos().line(), (stmt$4.isBreak() ? "break;" : "continue;"));
+                em.line(stmt$4.pos().line(), jumpCode(stmt$4));
             }
             case Stmt.Use stmt$5 -> {
                 useStatement(stmt$5);
@@ -823,12 +830,13 @@ import org.axl.compiler.check.Whens;
     private void emitWhile(Stmt.While loop) {
         final var line = loop.pos().line();
         final var condition = loop.condition();
+        final var label = newLoopLabel(loop.body());
         final var plain = Captures.capturedIn(condition, analysis).isEmpty();
         if (plain && !Lifts.needed(condition)) {
-            em.line(line, "while (" + expr(condition) + ") {");
-            narrowed(whenTrue(condition), () -> emitBlock(loop.body()));
+            em.line(line, loopHead(label) + "while (" + expr(condition) + ") {");
+            inLoop(label, () -> narrowed(whenTrue(condition), () -> emitBlock(loop.body())));
         } else {
-            em.line(line, "while (true) {");
+            em.line(line, loopHead(label) + "while (true) {");
             em.indent();
             final var split = (plain ? shortCircuitWithLift(condition) : null);
             if (split != null) {
@@ -836,7 +844,7 @@ import org.axl.compiler.check.Whens;
             } else {
                 withCopies(line, condition, () -> em.line(line, "if (" + negated(lifted(line, condition).code()) + ") break;"));
             }
-            narrowed(whenTrue(condition), () -> emitStatements(loop.body().statements()));
+            inLoop(label, () -> narrowed(whenTrue(condition), () -> emitStatements(loop.body().statements())));
             em.dedent();
         }
         em.line(loop.body().end().line(), "}");
@@ -882,6 +890,8 @@ import org.axl.compiler.check.Whens;
         elseLabel = elseLabelOf(w, subjectType, byIndex);
         final var outerSubject = subjectTypeOf;
         subjectTypeOf = subjectType;
+        final var outerSwitch = inSwitch;
+        inSwitch = true;
         var i = 0;
         while (i < w.arms().size()) {
             final var arm = w.arms().get(i);
@@ -889,6 +899,7 @@ import org.axl.compiler.check.Whens;
             narrowed(whole, () -> emitArm(arm, narrowedName, form, index));
             i += 1;
         }
+        inSwitch = outerSwitch;
         whenValues = outerValues;
         elseLabel = outerElse;
         subjectTypeOf = outerSubject;
@@ -1040,12 +1051,39 @@ import org.axl.compiler.check.Whens;
     }
     private void emitFor(Stmt.For loop) {
         final var line = loop.pos().line();
+        final var label = newLoopLabel(loop.body());
         withCopies(line, loop.iterable(), () -> {
             final var name = (loop.name().equals("_") ? "$unused" + newPattern() : loop.name());
-            em.line(line, "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {");
+            em.line(line, loopHead(label) + "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {");
         });
-        emitBlock(loop.body());
+        inLoop(label, () -> emitBlock(loop.body()));
         em.line(loop.body().end().line(), "}");
+    }
+    private @Nullable String newLoopLabel(Stmt.Block body) {
+        if (!breaksInWhen(body.statements())) {
+            return null;
+        }
+        loopCount += 1;
+        return "loop$" + loopCount;
+    }
+    private String loopHead(@Nullable String label) {
+        return (label == null ? "" : label + ": ");
+    }
+    private void inLoop(@Nullable String label, Runnable body) {
+        final var outerLabel = loopLabel;
+        final var outerSwitch = inSwitch;
+        loopLabel = label;
+        inSwitch = false;
+        body.run();
+        loopLabel = outerLabel;
+        inSwitch = outerSwitch;
+    }
+    private String jumpCode(Stmt.Jump stmt) {
+        final var label = loopLabel;
+        if (stmt.isBreak() && inSwitch && label != null) {
+            return "break " + label + ";";
+        }
+        return (stmt.isBreak() ? "break;" : "continue;");
     }
     private void emitBlock(Stmt.Block block) {
         final var outer = smart;
@@ -2962,6 +3000,43 @@ import org.axl.compiler.check.Whens;
     private static boolean exitsIf(Stmt.If ifStmt) {
         final var elseBranch = ifStmt.elseBranch();
         return elseBranch != null && exits(ifStmt.then()) && exits(elseBranch);
+    }
+    private static boolean breaksInWhen(List<Stmt> body) {
+        return body.stream().anyMatch(s -> breaksSwitch(s, false));
+    }
+    private static boolean breaksSwitch(Stmt stmt, boolean inWhen) {
+        switch (stmt) {
+            case Stmt.Jump stmt$1 -> {
+                return inWhen && stmt$1.isBreak();
+            }
+            case Stmt.Block stmt$2 -> {
+                return stmt$2.statements().stream().anyMatch(s -> breaksSwitch(s, inWhen));
+            }
+            case Stmt.If stmt$3 -> {
+                final var elseBranch = stmt$3.elseBranch();
+                return breaksSwitch(stmt$3.then(), inWhen) || (elseBranch != null && breaksSwitch(elseBranch, inWhen));
+            }
+            case Stmt.Use stmt$4 -> {
+                return breaksSwitch(stmt$4.body(), inWhen);
+            }
+            case Stmt.ExprStmt stmt$5 -> {
+                return armsBreak(stmt$5.expr());
+            }
+            case Stmt.Return stmt$6 -> {
+                final var value = stmt$6.value();
+                return value != null && armsBreak(value);
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+    private static boolean armsBreak(Expr e) {
+        final var w = withoutParens(e);
+        if (!(w instanceof Expr.When w$1)) {
+            return false;
+        }
+        return w$1.arms().stream().anyMatch(a -> a.body().stream().anyMatch(s -> breaksSwitch(s, true)));
     }
     private static boolean loopsForever(Stmt.While loop) {
         final var condition = loop.condition();

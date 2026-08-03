@@ -56,6 +56,7 @@ import org.axl.compiler.ast.Stmt.While;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.parse.AxolotlParser.AdditiveContext;
 import org.axl.compiler.parse.AxolotlParser.ArgumentsContext;
+import org.axl.compiler.parse.AxolotlParser.AssignOpContext;
 import org.axl.compiler.parse.AxolotlParser.AssignStatementContext;
 import org.axl.compiler.parse.AxolotlParser.AnnotationArgContext;
 import org.axl.compiler.parse.AxolotlParser.AnnotationContext;
@@ -360,7 +361,10 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Return(pos(ctx.start), result);
     }
     private static Stmt.Assign buildAssign(AssignStatementContext ctx) {
-        final var target = buildPostfix(ctx.postfixExpression());
+        return assignment(pos(ctx.start), ctx.postfixExpression(), ctx.assignOp(), ctx.expression());
+    }
+    private static Stmt.Assign assignment(Pos start, PostfixExpressionContext targetCtx, AssignOpContext op, ExpressionContext valueCtx) {
+        final var target = buildPostfix(targetCtx);
         final var assignable = target instanceof Expr.Name target$1 || target instanceof Expr.Member target$2;
         if (!assignable) {
             throw new Rejected(target.pos(), "only a variable or a field can be assigned");
@@ -368,7 +372,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (hasSafeStep(target)) {
             throw new Rejected(target.pos(), "cannot assign through `?.`; check for null first: `if (x != null) { x.f = v }`");
         }
-        return new Assign(pos(ctx.start), target, ctx.assignOp().getText(), buildExpr(ctx.expression()));
+        return new Assign(start, target, op.getText(), buildExpr(valueCtx));
     }
     private static Stmt.If buildIf(IfStatementContext ctx) {
         return new If(pos(ctx.start), buildExpr(ctx.expression()), buildBlock(ctx.block(0)), elseBranch(ctx));
@@ -617,9 +621,23 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             conditions.add(buildCondition(condition));
         }
         final var blockCtx = arm.block();
-        final List<Stmt> body = (blockCtx != null ? buildStatements(blockCtx.statement()) :
-                List.of(new ExprStmt(pos(arm.expression().start), buildExpr(arm.expression()))));
+        final List<Stmt> body = (blockCtx != null ? buildStatements(blockCtx.statement()) : List.of(armStatement(arm)));
         return new Arm(pos(arm.start), conditions, body, blockCtx != null);
+    }
+    private static Stmt armStatement(WhenArmContext arm) {
+        final var breakWord = arm.BREAK();
+        if (breakWord != null) {
+            return new Stmt.Jump(pos(breakWord.getSymbol()), true);
+        }
+        final var continueWord = arm.CONTINUE();
+        if (continueWord != null) {
+            return new Stmt.Jump(pos(continueWord.getSymbol()), false);
+        }
+        final var op = arm.assignOp();
+        if (op != null) {
+            return assignment(pos(arm.postfixExpression().start), arm.postfixExpression(), op, arm.expression());
+        }
+        return new ExprStmt(pos(arm.expression().start), buildExpr(arm.expression()));
     }
     private static Expr.Cond buildCondition(WhenConditionContext condition) {
         if (condition.IS() != null) {
