@@ -112,12 +112,18 @@ class Generator(
     // The values of the branches of the `when` being emitted as a value, for boxedBranch.
     var whenValues: List<Expr> = List.of()
 
+    // The label of the loop being emitted, when a `break` inside one of its `when`s must name it, and whether
+    // the code being emitted is inside such a `when`, where Java's plain `break` would leave the switch only.
+    var loopLabel: String? = null
+    var inSwitch: Boolean = false
+
     // Per function: counters of generated names and the copies of captured `var`s.
     var tempCount: Int = 0
     var nullCount: Int = 0
     var exceptionCount: Int = 0
     var copyCount: Int = 0
     var listCount: Int = 0
+    var loopCount: Int = 0
     var copies: Map<String, String> = Map.of()
 
     // The Java result type of the function whose body is being emitted; null inside a lambda.
@@ -186,6 +192,7 @@ class Generator(
         exceptionCount = 0
         copyCount = 0
         listCount = 0
+        loopCount = 0
         patternCount = 0
         smart = HashMap<String, String>()
         copies = Map.of()
@@ -602,7 +609,7 @@ class Generator(
             is Stmt.Local -> localStatement(stmt)
             is Stmt.Assign -> assignStatement(stmt)
             is Stmt.Return -> returnStatement(stmt)
-            is Stmt.Jump -> em.line(stmt.pos().line(), if (stmt.isBreak()) "break;" else "continue;")
+            is Stmt.Jump -> em.line(stmt.pos().line(), jumpCode(stmt))
             is Stmt.Use -> useStatement(stmt)
             is Stmt.If -> ifStatement(stmt)
             is Stmt.While -> emitWhile(stmt)
@@ -887,13 +894,14 @@ class Generator(
     private fn emitWhile(loop: Stmt.While) {
         val line = loop.pos().line()
         val condition = loop.condition()
+        val label = newLoopLabel(loop.body())
         val plain = Captures.capturedIn(condition, analysis).isEmpty()
         if (plain && !Lifts.needed(condition)) {
-            em.line(line, "while (" + expr(condition) + ") {")
-            narrowed(whenTrue(condition), { -> emitBlock(loop.body()) })
+            em.line(line, loopHead(label) + "while (" + expr(condition) + ") {")
+            inLoop(label, { -> narrowed(whenTrue(condition), { -> emitBlock(loop.body()) }) })
         } else {
             // Copies and lifted `try`s must run on every iteration, before the condition.
-            em.line(line, "while (true) {")
+            em.line(line, loopHead(label) + "while (true) {")
             em.indent()
             val split = if (plain) shortCircuitWithLift(condition) else null
             if (split != null) {
@@ -902,7 +910,7 @@ class Generator(
             } else {
                 withCopies(line, condition, { -> em.line(line, "if (" + negated(lifted(line, condition).code()) + ") break;") })
             }
-            narrowed(whenTrue(condition), { -> emitStatements(loop.body().statements()) })
+            inLoop(label, { -> narrowed(whenTrue(condition), { -> emitStatements(loop.body().statements()) }) })
             em.dedent()
         }
         em.line(loop.body().end().line(), "}")
@@ -957,6 +965,8 @@ class Generator(
         elseLabel = elseLabelOf(w, subjectType, byIndex)
         val outerSubject = subjectTypeOf
         subjectTypeOf = subjectType
+        val outerSwitch = inSwitch
+        inSwitch = true
         var i = 0
         while (i < w.arms().size()) {
             val arm = w.arms().get(i)
@@ -964,6 +974,7 @@ class Generator(
             narrowed(whole, { -> emitArm(arm, narrowedName, form, index) })
             i += 1
         }
+        inSwitch = outerSwitch
         whenValues = outerValues
         elseLabel = outerElse
         subjectTypeOf = outerSubject
@@ -1146,12 +1157,44 @@ class Generator(
 
     private fn emitFor(loop: Stmt.For) {
         val line = loop.pos().line()
+        val label = newLoopLabel(loop.body())
         withCopies(line, loop.iterable(), { ->
             val name = if (loop.name().equals("_")) "$unused" + newPattern() else loop.name()
-            em.line(line, "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {")
+            em.line(line, loopHead(label) + "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {")
         })
-        emitBlock(loop.body())
+        inLoop(label, { -> emitBlock(loop.body()) })
         em.line(loop.body().end().line(), "}")
+    }
+
+    /** `loop$1`, for a loop that a `break` inside one of its `when`s leaves: Java's `break` names the loop to leave a switch. */
+    private fn newLoopLabel(body: Stmt.Block) -> String? {
+        if (!breaksInWhen(body.statements())) {
+            return null
+        }
+        loopCount += 1
+        return "loop$" + loopCount
+    }
+
+    private fn loopHead(label: String?) -> String = if (label == null) "" else label + ": "
+
+    /** Emits the body of a loop, whose jumps leave this loop and no longer a `when` around it. */
+    private fn inLoop(label: String?, body: Runnable) {
+        val outerLabel = loopLabel
+        val outerSwitch = inSwitch
+        loopLabel = label
+        inSwitch = false
+        body.run()
+        loopLabel = outerLabel
+        inSwitch = outerSwitch
+    }
+
+    /** A `break` inside a `when` names the loop, as a plain one would leave the switch only; `continue` leaves it anyway. */
+    private fn jumpCode(stmt: Stmt.Jump) -> String {
+        val label = loopLabel
+        if (stmt.isBreak() && inSwitch && label != null) {
+            return "break " + label + ";"
+        }
+        return if (stmt.isBreak()) "break;" else "continue;"
     }
 
     private fn emitBlock(block: Stmt.Block) {
@@ -3221,6 +3264,35 @@ private fn whenLeaves(e: Expr) -> Boolean {
 private fn exitsIf(ifStmt: Stmt.If) -> Boolean {
     val elseBranch = ifStmt.elseBranch()
     return elseBranch != null && exits(ifStmt.then()) && exits(elseBranch)
+}
+
+/** Whether a `break` of the loop stands inside a `when` of its body, which becomes a switch that Java's `break` leaves instead. */
+private fn breaksInWhen(body: List<Stmt>) -> Boolean = body |> anyMatch { s -> breaksSwitch(s, false) }
+
+/** inWhen: inside the arms of a `when` of the loop. A nested loop has jumps of its own, and a lambda none. */
+private fn breaksSwitch(stmt: Stmt, inWhen: Boolean) -> Boolean = when (stmt) {
+    is Stmt.Jump -> inWhen && stmt.isBreak()
+    is Stmt.Block -> stmt.statements() |> anyMatch { s -> breaksSwitch(s, inWhen) }
+    is Stmt.If -> {
+        val elseBranch = stmt.elseBranch()
+        breaksSwitch(stmt.then(), inWhen) || (elseBranch != null && breaksSwitch(elseBranch, inWhen))
+    }
+    is Stmt.Use -> breaksSwitch(stmt.body(), inWhen)
+    is Stmt.ExprStmt -> armsBreak(stmt.expr())
+    is Stmt.Return -> {
+        val value = stmt.value()
+        value != null && armsBreak(value)
+    }
+    else -> false
+}
+
+/** The arms of a `when` that is a statement or returned hold a `break`; a `when` that gives a value cannot. */
+private fn armsBreak(e: Expr) -> Boolean {
+    val w = withoutParens(e)
+    if (w !is Expr.When) {
+        return false
+    }
+    return w.arms() |> anyMatch { a -> a.body() |> anyMatch { s -> breaksSwitch(s, true) } }
 }
 
 private fn loopsForever(loop: Stmt.While) -> Boolean {

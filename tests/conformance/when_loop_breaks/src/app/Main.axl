@@ -1,0 +1,81 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+sealed interface Shape
+data class Circle(val r: Int) : Shape
+data class Dot(val tag: String) : Shape
+
+// A `break` inside a `when` leaves the loop, not only the switch the `when` becomes.
+fn main() {
+    for (x in List.of(1, 2, 3, 4)) {
+        when (x) {
+            3 -> { break }
+            else -> { println("saw " + x) }
+        }
+        println("after when " + x)
+    }
+    var i = 0
+    while (i < 10) {
+        i += 1
+        when (i) {
+            2 -> { continue }
+            4 -> { break }
+            else -> { print(i + " ") }
+        }
+        print("| ")
+    }
+    println("i=" + i)
+    println("sum=" + sumUntilDot(List.of(Circle(1), Dot("stop"), Circle(2))))
+    println(firstOrNone(List.of(1, 2)) + " " + firstOrNone(List.of(2, 1)))
+    nested()
+}
+
+fn sumUntilDot(shapes: List<Shape>) -> Int {
+    var sum = 0
+    for (s in shapes) {
+        when (s) {
+            is Circle -> { sum += s.r() }
+            is Dot -> { break }
+        }
+    }
+    return sum
+}
+
+fn firstOrNone(xs: List<Int>) -> Int {
+    for (x in xs) {
+        return when (x) {
+            1 -> { break }
+            else -> x
+        }
+    }
+    return -1
+}
+
+// Only the loop a `break` leaves is labeled: the inner loop here, and the loop inside the lambda.
+fn nested() {
+    val seen = ArrayList<Int>()
+    for (row in List.of(List.of(1, 2, 3), List.of(4, 5, 6))) {
+        for (x in row) {
+            if (x > 0) {
+                when (x) {
+                    2, 5 -> { break }
+                    else -> { seen.add(x) }
+                }
+            }
+        }
+        if (row.size() > 5) {
+            break
+        }
+    }
+    List.of(10, 20) |> forEach {
+        for (y in List.of(it, it + 1)) {
+            when (y) {
+                20 -> { break }
+                else -> { seen.add(y) }
+            }
+        }
+    }
+    println(seen)
+}
