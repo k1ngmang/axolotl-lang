@@ -1,0 +1,3 @@
+AXL001 app/Main.axl:9:18: error: `break` cannot leave a `when` that gives a value; write the `when` as a statement
+AXL001 app/Main.axl:10:18: error: `continue` cannot leave a `when` that gives a value; write the `when` as a statement
+AXL001 app/Main.axl:11:13: error: each branch of a `when` that gives a value ends with the value

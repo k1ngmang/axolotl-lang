@@ -55,6 +55,7 @@ import org.axl.compiler.ast.Stmt.While
 import org.axl.compiler.ast.TypeRef
 import org.axl.compiler.parse.AxolotlParser.AdditiveContext
 import org.axl.compiler.parse.AxolotlParser.ArgumentsContext
+import org.axl.compiler.parse.AxolotlParser.AssignOpContext
 import org.axl.compiler.parse.AxolotlParser.AssignStatementContext
 import org.axl.compiler.parse.AxolotlParser.AnnotationArgContext
 import org.axl.compiler.parse.AxolotlParser.AnnotationContext
@@ -347,8 +348,11 @@ private fn buildReturn(ctx: ReturnStatementContext) -> Stmt.Return {
     return Return(pos(ctx.start), result)
 }
 
-private fn buildAssign(ctx: AssignStatementContext) -> Stmt.Assign {
-    val target = buildPostfix(ctx.postfixExpression())
+private fn buildAssign(ctx: AssignStatementContext) -> Stmt.Assign =
+    assignment(pos(ctx.start), ctx.postfixExpression(), ctx.assignOp(), ctx.expression())
+
+private fn assignment(start: Pos, targetCtx: PostfixExpressionContext, op: AssignOpContext, valueCtx: ExpressionContext) -> Stmt.Assign {
+    val target = buildPostfix(targetCtx)
     val assignable = target is Expr.Name || target is Expr.Member
     if (!assignable) {
         throw Rejected(target.pos(), "only a variable or a field can be assigned")
@@ -356,7 +360,7 @@ private fn buildAssign(ctx: AssignStatementContext) -> Stmt.Assign {
     if (hasSafeStep(target)) {
         throw Rejected(target.pos(), "cannot assign through `?.`; check for null first: `if (x != null) { x.f = v }`")
     }
-    return Assign(pos(ctx.start), target, ctx.assignOp().getText(), buildExpr(ctx.expression()))
+    return Assign(start, target, op.getText(), buildExpr(valueCtx))
 }
 
 private fn buildIf(ctx: IfStatementContext) -> Stmt.If =
@@ -594,9 +598,25 @@ private fn buildArm(arm: WhenArmContext) -> Expr.Arm {
         conditions.add(buildCondition(condition))
     }
     val blockCtx = arm.block()
-    val body: List<Stmt> = if (blockCtx != null) buildStatements(blockCtx.statement())
-        else List.of(ExprStmt(pos(arm.expression().start), buildExpr(arm.expression())))
+    val body: List<Stmt> = if (blockCtx != null) buildStatements(blockCtx.statement()) else List.of(armStatement(arm))
     return Arm(pos(arm.start), conditions, body, blockCtx != null)
+}
+
+/** The one statement of an arm without braces: its value, or a jump or an assignment, statements elsewhere too. */
+private fn armStatement(arm: WhenArmContext) -> Stmt {
+    val breakWord = arm.BREAK()
+    if (breakWord != null) {
+        return Stmt.Jump(pos(breakWord.getSymbol()), true)
+    }
+    val continueWord = arm.CONTINUE()
+    if (continueWord != null) {
+        return Stmt.Jump(pos(continueWord.getSymbol()), false)
+    }
+    val op = arm.assignOp()
+    if (op != null) {
+        return assignment(pos(arm.postfixExpression().start), arm.postfixExpression(), op, arm.expression())
+    }
+    return ExprStmt(pos(arm.expression().start), buildExpr(arm.expression()))
 }
 
 private fn buildCondition(condition: WhenConditionContext) -> Expr.Cond {

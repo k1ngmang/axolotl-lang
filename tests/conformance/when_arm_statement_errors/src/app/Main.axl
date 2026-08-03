@@ -1,0 +1,16 @@
+package app
+
+import java.util.List
+
+fn main() {
+    var n = 0
+    for (x in List.of(1, 2, 3)) {
+        val label = when (x) {
+            1 -> break
+            2 -> continue
+            3 -> n += x
+            else -> "other"
+        }
+        println(label)
+    }
+}

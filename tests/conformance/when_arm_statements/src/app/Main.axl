@@ -1,0 +1,32 @@
+package app
+
+import java.util.List
+
+class Counter(var count: Int)
+
+// A jump or an assignment stands after `->` without braces, as it does elsewhere.
+fn main() {
+    var n = 0
+    for (x in List.of(1, 2, 3, 4, 5)) {
+        when (x) {
+            2 -> continue
+            4 -> break
+            else -> n += x
+        }
+        println("added " + x)
+    }
+    println(n)
+    var s = ""
+    val c = Counter(0)
+    for (w in List.of("a", "bb", "ccc")) {
+        when (w.length()) {
+            1 -> s = w
+            else -> s += w
+        }
+        when (w) {
+            "bb" -> c.count += 10
+            else -> c.count += 1
+        }
+    }
+    println(s + " " + c.count)
+}

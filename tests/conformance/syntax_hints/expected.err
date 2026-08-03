@@ -1,6 +1,5 @@
 AXL001 app/Apply.axl:4:36: error: Axolotl has no `apply`; keep the object in a `val` and call its methods one by one
 AXL001 app/ArgsIndex.axl:4:17: error: Axolotl has no `[]` indexing, and `args` is a Java array; read it as a list: `List.of(args).get(0)`
-AXL001 app/AssignInWhenBranch.axl:6:16: error: an assignment in a `when` branch goes in braces: `1 -> { s = "one" }`
 AXL001 app/AttemptWithoutElse.axl:4:5: error: `attempt` needs `else`: `attempt f() else e -> ...`
 AXL001 app/CallOpenAcrossLines.axl:5:13: error: missing `)` at the end of the line
 AXL001 app/ClassParameterWithoutVal.axl:3:11: error: a parameter of a class is a property; write `val v: Int`, or `var v: Int` if it changes

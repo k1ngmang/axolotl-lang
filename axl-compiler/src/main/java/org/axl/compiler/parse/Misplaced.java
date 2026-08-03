@@ -23,9 +23,6 @@ final class Misplaced {
     private static final Set<Integer> STATEMENT_WORDS = Set.of(AxolotlLexer.RETURN, AxolotlLexer.IF, AxolotlLexer.WHILE,
             AxolotlLexer.FOR, AxolotlLexer.WHEN, AxolotlLexer.THROW);
 
-    private static final Set<Integer> ASSIGNMENTS = Set.of(AxolotlLexer.ASSIGN, AxolotlLexer.PLUS_ASSIGN,
-            AxolotlLexer.MINUS_ASSIGN, AxolotlLexer.STAR_ASSIGN, AxolotlLexer.SLASH_ASSIGN, AxolotlLexer.PERCENT_ASSIGN);
-
     private static final Set<Integer> CONDITION_OPERATORS = Set.of(AxolotlLexer.LT, AxolotlLexer.GT, AxolotlLexer.LE,
             AxolotlLexer.GE, AxolotlLexer.EQ, AxolotlLexer.NEQ, AxolotlLexer.ANDAND, AxolotlLexer.OROR);
 
@@ -78,16 +75,15 @@ final class Misplaced {
         return null;
     }
 
-    /** Kotlin's `1 -> s = "one"`, `1 -> return "a"` and `n > 0 -> "pos"`. */
+    /** Kotlin's `1 -> return "a"` and `n > 0 -> "pos"`. */
     private static Placed whenBranch(CommonTokenStream tokens, Token at, Token previous) {
         Token first = SourceParser.lineStart(tokens, at);
         if (!SourceParser.inWhenBraces(tokens, first)) {
             return null;
         }
         Token arrow = arrowBefore(tokens, first, at);
-        if (arrow != null && (ASSIGNMENTS.contains(at.getType()) || at.getType() == AxolotlLexer.RETURN && previous == arrow)) {
-            String kind = at.getType() == AxolotlLexer.RETURN ? "a `return`" : "an assignment";
-            return new Placed(at, kind + " in a `when` branch goes in braces: `" + text(tokens, first, arrow) + " -> { "
+        if (arrow != null && at.getType() == AxolotlLexer.RETURN && previous == arrow) {
+            return new Placed(at, "a `return` in a `when` branch goes in braces: `" + text(tokens, first, arrow) + " -> { "
                     + restOfLine(tokens, SourceParser.nextToken(tokens, arrow)) + " }`", true);
         }
         Token semicolon = arrow == null ? null : semicolonBefore(tokens, arrow, at);
