@@ -1,0 +1,8 @@
+package app
+
+import app.Lines.Holder
+
+fn len(h: Holder) -> Int = when (h.inner()) {
+    is String -> h.inner().length()
+    else -> -1
+}

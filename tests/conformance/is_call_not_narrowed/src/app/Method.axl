@@ -1,0 +1,23 @@
+package app
+
+import app.Chain.None
+import app.Chain.Option
+import app.Chain.Punct
+import app.Chain.Some
+import app.Chain.Token
+import java.util.List
+
+class Parser(val tokens: List<Token>) {
+    var index = 0
+
+    fn peek() -> Option<Token> = if (index < tokens.size()) Some<Token>(tokens.get(index)) else None<Token>()
+
+    // In a method, `first is Some` takes the data class apart, so the tested call has no name in the Java.
+    fn closes() -> Boolean {
+        val first = peek()
+        if (first is Some && first.value() is Punct && first.value().ch().equals(']')) {
+            return true
+        }
+        return false
+    }
+}

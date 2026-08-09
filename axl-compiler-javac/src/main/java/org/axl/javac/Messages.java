@@ -90,6 +90,10 @@ final class Messages {
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
     // `is` becomes a type pattern in a switch or after instanceof.
     private static final Pattern TYPE_PATTERN = Pattern.compile("\\bcase [\\w.<>]+ \\w+(?:\\$\\d+)? ->|\\binstanceof\\b");
+    // A chain of names and calls that ends in a call, such as `first$1.value()` or `m.get("k")`.
+    private static final String CALL_CHAIN = "(?:[\\w$]+(?:\\([^()]*\\))?\\.)*[\\w$]+\\([^()]*\\)";
+    // `first$1` of a type test or record pattern, which stands for what the author tested.
+    private static final Pattern GENERATED_BINDING = Pattern.compile("\\w+\\$\\d+");
     private static final Pattern PRIMITIVE_ARGUMENT = Pattern.compile("[<,]\\s*(int|long|double|boolean|char)\\s*[,>]");
     private static final Pattern SELF_REFERENCE = Pattern.compile(
             "^cannot infer type for local variable (\\w+); \\(cannot use 'var' on self-referencing variable\\)$");
@@ -1058,7 +1062,7 @@ final class Messages {
             // `r.value` after `is Ok`: the narrowing took the record apart, so the whole `r` is still a Result.
             boolean resultMember = location.contains("axl.lang.Result") && (name.equals("value") || name.equals("error"));
             boolean resultField = unknown.group(1).equals("variable") && resultMember;
-            Tested tested = inThisFile || resultField ? null : testedWithoutNarrowing(location, text, javaLines);
+            Tested tested = inThisFile || resultField ? null : testedWithoutNarrowing(location, text, javaLines, axlText);
             if (tested != null) {
                 return notNarrowed(tested);
             }
@@ -1502,34 +1506,57 @@ final class Messages {
     }
 
     /**
-     * `x` or `b.v` when an `is` test of it comes before this line in the same function: the translator
-     * narrows only a `val` local or parameter, and leaves other tests without a binding.
+     * `x`, `b.v` or `b.v()` when an `is` test of it comes before this line in the same function: the translator
+     * narrows only a `val` local or parameter, and leaves other tests without a binding. A member missing on
+     * a class or interface is looked for after a call tested with `is`; axlText names the call as written.
      */
-    private static Tested testedWithoutNarrowing(String location, String text, String[] javaLines) {
-        int ofType = location.indexOf(" of type ");
-        if (!location.startsWith("variable ") || ofType < 0) {
+    private static Tested testedWithoutNarrowing(String location, String text, String[] javaLines, String axlText) {
+        String variable = variableName(location);
+        if (variable == null && !location.startsWith("class ") && !location.startsWith("interface ")) {
             return null;
         }
-        String name = Pattern.quote(location.substring("variable ".length(), ofType));
+        String subject = variable != null ? "(?:\\w+\\.)*" + Pattern.quote(variable) : CALL_CHAIN;
         // An `if` condition, the left side of `&&`, or the subject of a `when`.
-        Pattern test = Pattern.compile("((?:\\w+\\.)*" + name + ") instanceof [\\w.<>]+(?:\\)| &&)"
-                + "|\\bswitch \\(((?:\\w+\\.)*" + name + ")\\) \\{");
+        Pattern test = Pattern.compile("(?<![\\w.$])(" + subject + ") instanceof ([\\w.<>]+)(?:\\)| &&)"
+                + "|\\bswitch \\((" + subject + ")\\) \\{");
         int line = Arrays.asList(javaLines).lastIndexOf(text);
         for (int j = line; j >= 0 && !METHOD_DECLARATION.matcher(javaLines[j]).find(); j--) {
             Matcher found = test.matcher(javaLines[j]);
-            String tested = !found.find() ? null : found.group(1) != null ? found.group(1) : found.group(2);
-            if (tested != null && Pattern.compile("(?<![\\w.])" + Pattern.quote(tested + ".")).matcher(text).find()) {
-                return new Tested(tested, found.group(2) != null);
+            while (found.find()) {
+                String tested = found.group(1) != null ? found.group(1) : found.group(3);
+                if (!Pattern.compile("(?<![\\w.$])" + Pattern.quote(tested + ".")).matcher(text).find()) {
+                    continue;
+                }
+                boolean inWhen = found.group(3) != null;
+                if (GENERATED_BINDING.matcher(tested).matches()) {
+                    // The binding of a record pattern holds a component, `first.value()` of `first is Some`.
+                    String written = inWhen ? null : testedInLine(axlText, found.group(2));
+                    return new Tested(written != null ? written : componentCall(tested, javaLines), inWhen, true);
+                }
+                if (variable == null) {
+                    String written = inWhen ? null : testedInLine(axlText, found.group(2));
+                    return new Tested(written != null ? written : hideGenerated(tested).replace("new ", ""), inWhen, true);
+                }
+                return new Tested(tested, inWhen, false);
             }
         }
         return null;
     }
 
-    /** A value tested with `is`, and whether as the subject of a `when`. */
-    private record Tested(String value, boolean subject) {}
+    /** A value tested with `is`: whether as the subject of a `when`, and whether it is a call, null when unknown. */
+    private record Tested(String value, boolean subject, boolean call) {}
 
     private static String notNarrowed(Tested tested) {
         String value = tested.value();
+        if (tested.call() && value == null) {
+            return "the value tested with `is` here is a call, so `is` does not narrow it; copy it to a `val` first and test that";
+        }
+        if (tested.call()) {
+            String name = calledName(value);
+            String problem = "`" + value + "` is a call, so `is` does not narrow it; ";
+            return tested.subject() ? problem + "name the subject: `when (val " + name + " = " + value + ")`"
+                    : problem + "copy it to a `val` first: `val " + name + " = " + value + "`, and test `" + name + "`";
+        }
         String name = value.substring(value.lastIndexOf('.') + 1);
         if (!value.contains(".")) {
             return "`" + value + "` is a `var`, so `is` does not narrow it; copy it to a `val` first, or declare it with "
@@ -1538,6 +1565,71 @@ final class Messages {
         String problem = "`" + value + "` is a property, so `is` does not narrow it; ";
         return tested.subject() ? problem + "name the subject: `when (val " + name + " = " + value + ")`"
                 : problem + "copy it to a local `val` first: `val " + name + " = " + value + "`";
+    }
+
+    /**
+     * `first.value()` of `first.value() is Punct` in the .axl line, or null: the call or chain of calls tested
+     * for the type, as written.
+     */
+    private static String testedInLine(String axlText, String type) {
+        String simple = type.replaceFirst("<.*", "").replaceFirst("^.*\\.", "");
+        Matcher test = Pattern.compile("\\s+is\\s+" + Pattern.quote(simple) + "\\b").matcher(axlText);
+        while (test.find()) {
+            int start = test.start();
+            int depth = 0;
+            while (start > 0) {
+                char c = axlText.charAt(start - 1);
+                if (c == ')') {
+                    depth++;
+                } else if (c == '(') {
+                    if (depth == 0) {
+                        break;
+                    }
+                    depth--;
+                } else if (depth == 0 && !Character.isJavaIdentifierPart(c) && c != '.') {
+                    break;
+                }
+                start--;
+            }
+            String tested = axlText.substring(start, test.start());
+            if (tested.contains("(")) {
+                return tested;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * `first.value()` for the binding `first$1` of the record pattern `first instanceof Some(var first$1)`:
+     * the component at the binding's position, called on what was tested. Null when the pattern is not found.
+     */
+    private static String componentCall(String binding, String[] javaLines) {
+        Pattern pattern = Pattern.compile("([\\w$.]+) instanceof ([\\w.]+)(?:<[^()]*>)?\\(([^()]*\\bvar " + Pattern.quote(binding) + "\\b[^()]*)\\)");
+        for (String line : javaLines) {
+            Matcher found = pattern.matcher(line);
+            if (!found.find()) {
+                continue;
+            }
+            List<String> bindings = splitTopLevel(found.group(3));
+            int index = bindings.indexOf("var " + binding);
+            Matcher record = Arrays.stream(javaLines)
+                    .map(l -> Pattern.compile("\\brecord " + Pattern.quote(simpleNames(found.group(2))) + "(?:<[^()]*>)?\\(([^()]*)\\)").matcher(l))
+                    .filter(Matcher::find).findFirst().orElse(null);
+            List<String> components = record == null ? List.of() : splitTopLevel(record.group(1));
+            if (index < 0 || index >= components.size()) {
+                return null;
+            }
+            String component = components.get(index);
+            return hideGenerated(found.group(1)) + "." + component.substring(component.lastIndexOf(' ') + 1) + "()";
+        }
+        return null;
+    }
+
+    /** `value` for `first.value()`, the name a copy of the call's result would take; `t` for a call with arguments. */
+    private static String calledName(String call) {
+        String method = call.replaceFirst("\\(.*$", "");
+        method = method.substring(method.lastIndexOf('.') + 1);
+        return call.endsWith("()") && IDENTIFIER.matcher(method).matches() ? method : "t";
     }
 
     /** `r` of `variable r of type ...`, the way javac names the location of a member; null for a class or an expression. */

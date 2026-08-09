@@ -1,0 +1,5 @@
+AXL100 app/Chain.axl:15:66: error: `first.value()` is a call, so `is` does not narrow it; copy it to a `val` first: `val value = first.value()`, and test `value`
+AXL100 app/Lines.axl:13:26: error: `h.inner()` is a call, so `is` does not narrow it; copy it to a `val` first: `val inner = h.inner()`, and test `inner`
+AXL100 app/Lines.axl:20:30: error: `first.value()` is a call, so `is` does not narrow it; copy it to a `val` first: `val value = first.value()`, and test `value`
+AXL100 app/Method.axl:18:70: error: `first.value()` is a call, so `is` does not narrow it; copy it to a `val` first: `val value = first.value()`, and test `value`
+AXL100 app/When.axl:6:28: error: `h.inner()` is a call, so `is` does not narrow it; name the subject: `when (val inner = h.inner())`

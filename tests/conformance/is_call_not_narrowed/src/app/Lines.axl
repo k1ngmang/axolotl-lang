@@ -1,0 +1,23 @@
+package app
+
+import app.Chain.Option
+import app.Chain.Punct
+import app.Chain.Some
+import app.Chain.Token
+
+data class Holder(val inner: Object)
+
+// The test is on the line of the `if`, the use in its body.
+fn len(h: Holder) -> Int {
+    if (h.inner() is String) {
+        return h.inner().length()
+    }
+    return -1
+}
+
+fn closes(first: Option<Token>) -> Boolean {
+    if (first is Some && first.value() is Punct) {
+        return first.value().ch().equals(']')
+    }
+    return false
+}

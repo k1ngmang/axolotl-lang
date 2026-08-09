@@ -1,0 +1,19 @@
+package app
+
+sealed interface Option<T>
+
+data class Some<T>(val value: T) : Option<T>
+data class None<T>() : Option<T>
+
+sealed interface Token
+
+data class Punct(val ch: Character) : Token
+data class Word(val text: String) : Token
+
+// A type test narrows a `val` or a parameter, not the result of a call, also when every step is a `val`.
+fn closes(first: Option<Token>) -> Boolean {
+    if (first is Some && first.value() is Punct && first.value().ch().equals(']')) {
+        return true
+    }
+    return false
+}
