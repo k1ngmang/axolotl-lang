@@ -57,7 +57,8 @@ fn largest<T : Comparable<T>>(xs: List<T>) -> T? { ... }
 `T` on its own stands for any type, nullable ones included, so `Pair<String, Int?>` is allowed and a
 `T` value may be null inside the declaration: it is used like a `String?`, with `?.`, `?:` or a null
 check, and `x.toString()` on it is an error. `T : Object` takes every type without null, and
-`T : Comparable<T>` the types with an order. An object of a generic class is created with its
+`T : Comparable<T>` the types with an order; a type argument outside the bound, `Sorted<Object>`, is an error
+that names the bound and the types that fit it. An object of a generic class is created with its
 arguments, `Pair<String, Int>("age", 41)`, or with `Pair<>(...)` where the type it is stored as tells
 them. Calls of generic functions need no arguments: `largest(numbers)`. The functions of a file whose
 type has parameters are static and cannot use them; they take their own.
@@ -71,7 +72,8 @@ type has parameters are static and cannot use them; they take their own.
 - `if (c) { ... } else if (d) { ... } else { ... }`, `while (c) { ... }`, `return e`.
 - `use (val reader = Files.newBufferedReader(path)) { ... } else e -> println(e)` opens a resource for the
   block and closes it after, also when the block throws. The `else` handles what opening, the block or
-  `close()` throws, a call or a `throw`; it is needed when `close()` declares a checked exception.
+  `close()` throws, a call or a `throw`; it is needed when `close()` declares a checked exception. Without it, the error names the resource whose `close()` throws: `close()` of `BufferedReader` can
+  throw `IOException`.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
   `break` leaves the loop around it and `continue` goes on with its next round, also from inside a
   `when` in the loop; they have no labels.
@@ -224,7 +226,9 @@ fn describe(shape: Shape) -> String {
 }
 ```
 
-A `var` can be tested but is not narrowed, since it may change.
+A `var` can be tested but is not narrowed, since it may change. Neither is the result of a call, such as
+`first.value() is Punct`: copy it to a `val` first (`val value = first.value()`) and test that, or name the
+subject of a `when`: `when (val value = first.value())`.
 
 `when` chooses a branch by type or by constant:
 
@@ -365,7 +369,8 @@ fn doubled(s: String) -> Result<Int, String> {
 ```
 
 - `attempt X else e -> Y` runs `X`; an `Exception` becomes `Err(Y)`. Without a name the exception
-  is not available: `attempt X else Y`.
+  is not available: `attempt X else Y`. `Y` is the error of the `Result` and cannot be `null` unless the error type is written with `?`:
+  `val r: Result<String?, Exception?> = attempt ... else e -> null`.
 - `==` on strings, data classes and other values that define their own equality is an error: it would
   compare the objects, not their values; write `a.equals(b)`. `==` on numbers, booleans and enum constants
   compares the values.
