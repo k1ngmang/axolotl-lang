@@ -380,7 +380,7 @@ final class Mistakes {
         return null;
     }
 
-    /** `if (x = 1)`, `fn f(x: Int = 1)` and `f(x = 1)`. */
+    /** `if (x = 1)`, `fn f(x: Int = 1)`, `f(x = 1)` and `while ((line = readLine()) != null)`. */
     private static String assignment(CommonTokenStream tokens, Token at, Token previous) {
         Token paren = enclosingParen(tokens, at);
         if (paren == null) {
@@ -399,10 +399,32 @@ final class Mistakes {
             return "parameters have no default values in Axolotl; declare a second function with fewer parameters";
         }
         int beforeName = type(before(tokens, previous));
-        if (previous.getType() == AxolotlLexer.IDENTIFIER && (beforeName == AxolotlLexer.LPAREN || beforeName == AxolotlLexer.COMMA)) {
-            return "Axolotl has no named arguments; pass the values in the order of the parameters";
+        if (previous.getType() != AxolotlLexer.IDENTIFIER || beforeName != AxolotlLexer.LPAREN && beforeName != AxolotlLexer.COMMA) {
+            return null;
         }
-        return null;
+        // A `(` after a name or `>` opens a call, whose arguments may be named; any other `(` groups a value.
+        boolean call = beforeName == AxolotlLexer.COMMA || type(beforeParen) == AxolotlLexer.IDENTIFIER
+                || type(beforeParen) == AxolotlLexer.GT;
+        return call ? "Axolotl has no named arguments; pass the values in the order of the parameters"
+                : assignedValue(tokens, previous, paren);
+    }
+
+    /** `(line = readLine())` used as a value, as in Java's reading loop: the name stands in its place. */
+    private static String assignedValue(CommonTokenStream tokens, Token name, Token paren) {
+        Token close = matchingClose(tokens, paren);
+        String statement = close == null ? name.getText() + " = ..." : tokens.getText(name, before(tokens, close));
+        String message = "an assignment is a statement, not a value: write `" + statement + "` on its own line";
+        Token outer = before(tokens, paren);
+        Token keyword = before(tokens, outer);
+        Token outerClose = type(outer) == AxolotlLexer.LPAREN ? matchingClose(tokens, outer) : null;
+        if (close == null || outerClose == null || type(keyword) != AxolotlLexer.IF && type(keyword) != AxolotlLexer.WHILE) {
+            return message + ", then use `" + name.getText() + "` in its place";
+        }
+        Token first = SourceParser.nextToken(tokens, outer);
+        Token last = before(tokens, outerClose);
+        String head = first == paren ? "" : tokens.getText(first, before(tokens, paren)) + " ";
+        String tail = last == close ? "" : " " + tokens.getText(SourceParser.nextToken(tokens, close), last);
+        return message + ", then `" + keyword.getText() + " (" + head + name.getText() + tail + ")`";
     }
 
     /** Java's `x -> x + 1` and `(a, b) -> a + b` as an argument or a value. */
@@ -517,6 +539,19 @@ final class Mistakes {
             if (type == AxolotlLexer.RPAREN) {
                 depth++;
             } else if (type == AxolotlLexer.LPAREN && --depth == 0) {
+                return tokens.get(i);
+            }
+        }
+        return null;
+    }
+
+    private static Token matchingClose(CommonTokenStream tokens, Token open) {
+        int depth = 0;
+        for (int i = open.getTokenIndex(); i < tokens.size(); i++) {
+            int type = tokens.get(i).getType();
+            if (type == AxolotlLexer.LPAREN) {
+                depth++;
+            } else if (type == AxolotlLexer.RPAREN && --depth == 0) {
                 return tokens.get(i);
             }
         }

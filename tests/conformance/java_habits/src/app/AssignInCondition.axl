@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    var line: String? = null
+    while ((line = readLine()) != null) {
+        println(line)
+    }
+}

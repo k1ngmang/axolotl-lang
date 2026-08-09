@@ -1,5 +1,7 @@
 AXL001 app/AbstractClass.axl:3:1: error: Axolotl has no `abstract` classes, since a class cannot be extended; write an interface with the values and methods each class gives, `interface Animal { fn sound() -> String }`, and a method with a body as a function that takes the interface
 AXL001 app/ArrayIndex.axl:5:18: error: Axolotl has no `[]` indexing, and `parts` is a Java array; read it as a list: `List.of(parts).get(1)`
+AXL001 app/AssignAsValue.axl:5:16: error: an assignment is a statement, not a value: write `x = 2` on its own line, then use `x` in its place
+AXL001 app/AssignInCondition.axl:5:18: error: an assignment is a statement, not a value: write `line = readLine()` on its own line, then `while (line != null)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
 AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
