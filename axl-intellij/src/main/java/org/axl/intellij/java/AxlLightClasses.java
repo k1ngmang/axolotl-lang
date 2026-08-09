@@ -103,7 +103,7 @@ public final class AxlLightClasses {
      * that, from the last translation that worked, so that its types keep their members.
      */
     private static @Nullable PsiClass build(AxlFile file) {
-        Options options = new Options(false).withJavaTypes(new PsiJavaTypes(file));
+        Options options = TranslationOptions.of(file);
         Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(), options);
         GeneratedUnit unit = result.unit() != null ? result.unit() : withoutErrorLines(file, options, result.diagnostics());
         if (unit == null) {

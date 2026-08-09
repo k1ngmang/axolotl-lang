@@ -22,7 +22,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
+import org.axl.compiler.Translator;
 import org.axl.intellij.highlight.AxlSyntaxHighlighter;
+import org.axl.intellij.java.TranslationOptions;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlTypeDeclaration;
@@ -346,6 +348,37 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(store.findMethodsByName("get", false)[0].hasModifierProperty(PsiModifier.ABSTRACT));
         assertTrue(store.findMethodsByName("describe", false)[0].hasModifierProperty(PsiModifier.STATIC));
         assertEquals(2, store.findMethodsByName("put", false)[0].getParameterList().getParametersCount());
+    }
+
+    public void testReadsTheDeclarationsOfTheOtherFilesOfTheModule() {
+        myFixture.addFileToProject("app/Types.axl", """
+                package app
+
+                interface Greeter {
+                    val name: String
+                }
+
+                sealed interface Option<T>
+                data class Some<T>(val value: T) : Option<T>
+                """);
+        AxlFile terse = (AxlFile) myFixture.addFileToProject("app/Terse.axl", """
+                package app
+
+                class Terse : Greeter {
+                    val name: String = "t"
+                }
+
+                fn f(o: Option<String>) -> Int = if (o is Some) o.value().length() else 0
+                """);
+        PsiMethod[] name = findClass("app.Terse").findMethodsByName("name", false);
+        assertEquals(1, name.length);
+        assertEquals("String", name[0].getReturnType().getPresentableText());
+        assertTrue(name[0].hasModifierProperty(PsiModifier.PUBLIC));
+        String java = Translator.translate(terse.sourcePath(), terse.getName(), terse.getText(), TranslationOptions.of(terse)).unit().javaSource();
+        assertTrue(java, java.contains("o instanceof Some<String>"));
+        myFixture.configureFromExistingVirtualFile(terse.getVirtualFile());
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
     }
 
     public void testCopiesTheAnnotationsOfTheGeneratedClasses() {

@@ -13,9 +13,8 @@ import com.intellij.psi.PsiElement;
 import com.intellij.psi.util.PsiTreeUtil;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
-import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
-import org.axl.intellij.java.PsiJavaTypes;
+import org.axl.intellij.java.TranslationOptions;
 import org.axl.intellij.lexer.AxlTokenTypes;
 import org.axl.intellij.highlight.AxlSyntaxHighlighter;
 import org.axl.intellij.parser.AxlElementTypes;
@@ -81,8 +80,7 @@ public final class AxlAnnotator implements Annotator {
         if (document == null) {
             return;
         }
-        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(),
-                new Options(false).withJavaTypes(new PsiJavaTypes(file)));
+        Translator.Result result = Translator.translate(file.sourcePath(), file.getName(), file.getText(), TranslationOptions.of(file));
         boolean psiErrors = PsiTreeUtil.hasErrorElements(file);
         for (AxlDiagnostic d : result.diagnostics()) {
             if (d.code() == ErrorCode.SYNTAX && psiErrors || d.line() < 1 || d.line() > document.getLineCount()) {

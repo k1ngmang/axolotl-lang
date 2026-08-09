@@ -11,9 +11,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
-import com.intellij.openapi.roots.ModuleRootManager;
 import com.intellij.openapi.roots.OrderEnumerator;
-import com.intellij.openapi.roots.ProjectFileIndex;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.UserDataHolderEx;
@@ -24,15 +22,14 @@ import com.intellij.psi.PsiFile;
 import com.intellij.psi.util.PsiTreeUtil;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.axl.intellij.java.TranslationOptions;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlImport;
 import org.jetbrains.annotations.NotNull;
@@ -77,24 +74,9 @@ public final class AxlExternalAnnotator extends ExternalAnnotator<AxlExternalAnn
         return new Request(module, virtualFile.getPath(), command, VirtualFileManager.getInstance().getModificationCount());
     }
 
-    /**
-     * The source roots to check with a file: the production roots of its module, and for a test its
-     * test roots too, with the production roots of the modules it depends on, where Gradle puts
-     * the main sources of a project.
-     */
+    /** The source roots to check with a file: those whose other files the translation in the IDE reads. */
     static List<String> sourceRoots(Module module, VirtualFile file) {
-        boolean test = ProjectFileIndex.getInstance(module.getProject()).isInTestSourceContent(file);
-        Set<String> roots = new LinkedHashSet<>();
-        for (VirtualFile root : ModuleRootManager.getInstance(module).getSourceRoots(test)) {
-            roots.add(root.getPath());
-        }
-        if (test) {
-            for (VirtualFile root : OrderEnumerator.orderEntries(module).withoutSdk().withoutLibraries()
-                    .withoutModuleSourceEntries().productionOnly().recursively().sources().getRoots()) {
-                roots.add(root.getPath());
-            }
-        }
-        return new ArrayList<>(roots);
+        return TranslationOptions.sourceRoots(module, file).stream().map(VirtualFile::getPath).toList();
     }
 
     @Override
