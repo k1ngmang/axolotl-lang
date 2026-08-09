@@ -582,7 +582,12 @@ final class Messages {
 
     /** @param javaColumn 1-based column javac points at in the line, or a non-positive value if unknown */
     static Translated translate(String message, String[] javaLines, int javaLine, long javaColumn) {
-        Translated translated = rewrite(withoutFileClass(message, javaLines), javaLines, javaLine, javaColumn);
+        return translate(message, javaLines, javaLine, javaColumn, "");
+    }
+
+    /** @param axlText the .axl line the diagnostic is about, or an empty string if unknown */
+    static Translated translate(String message, String[] javaLines, int javaLine, long javaColumn, String axlText) {
+        Translated translated = rewrite(withoutFileClass(message, javaLines), javaLines, javaLine, javaColumn, axlText);
         String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
         if (translated.message().contains("`Comparable<") && text.contains("Comparator.naturalOrder()")) {
             return new Translated(translated.code(), "`sorted` needs elements that can be compared, and these cannot; "
@@ -626,7 +631,7 @@ final class Messages {
         return result;
     }
 
-    private static Translated rewrite(String message, String[] javaLines, int javaLine, long javaColumn) {
+    private static Translated rewrite(String message, String[] javaLines, int javaLine, long javaColumn, String axlText) {
         String text = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
         if (message.startsWith(NullChecker.STRICT_PREFIX)) {
             return new Translated(ErrorCode.STRICT_NULL, message.substring(NullChecker.STRICT_PREFIX.length()));
@@ -719,7 +724,7 @@ final class Messages {
                     + clash.group(3) + "(" + argumentList(clash.group(4)) + ")` differ only in type arguments, which Java "
                     + "does not keep at run time; give one of them another name");
         }
-        return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines, javaColumn)).replaceAll(""));
+        return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines, javaColumn, axlText)).replaceAll(""));
     }
 
     /**
@@ -869,8 +874,15 @@ final class Messages {
         return javacMessage(message, text, javaLines, -1);
     }
 
-    /** Plain javac errors, in Axolotl's words and type names; javaColumn is where javac points in text, if known. */
     private static String javacMessage(String message, String text, String[] javaLines, long javaColumn) {
+        return javacMessage(message, text, javaLines, javaColumn, "");
+    }
+
+    /**
+     * Plain javac errors, in Axolotl's words and type names; javaColumn is where javac points in text, if
+     * known, and axlText is the .axl line, if known.
+     */
+    private static String javacMessage(String message, String text, String[] javaLines, long javaColumn, String axlText) {
         Matcher lambdaReturn = LAMBDA_RETURN.matcher(message);
         if (lambdaReturn.find()) {
             return "the lambda returns `" + axlType(lambdaReturn.group(1)) + "`, but `" + axlType(lambdaReturn.group(2))
@@ -892,8 +904,7 @@ final class Messages {
         }
         Attempt attempt = Attempt.in(text);
         if (voidResult && attempt != null) {
-            return ATTEMPT_STATEMENT + "write it on a line of its own: `attempt " + attempt.value().replaceFirst("^new ", "")
-                    + " else e -> ...`";
+            return ATTEMPT_STATEMENT + "write it on a line of its own: `attempt " + attemptedCall(attempt, axlText) + " else e -> ...`";
         }
         if (text.contains("Nulls.or(") && message.endsWith(" is not a functional interface)")) {
             return "the right side of `?:` returns nothing, so it cannot be the value when the left side is null";
@@ -1164,6 +1175,45 @@ final class Messages {
         }
         String structural = structuralMessage(message, text, javaLines);
         return structural != null ? structural : message;
+    }
+
+    /**
+     * The call of an `attempt` as the .axl line writes it: the Java text would show `new`. A line with several
+     * takes the one that calls the same method; without the line, a placeholder stands for the call.
+     */
+    private static String attemptedCall(Attempt attempt, String axlText) {
+        String method = attempt.value().replaceFirst("\\(.*$", "").replaceFirst("^.*\\.", "");
+        String first = null;
+        Matcher keyword = ATTEMPT.matcher(axlText);
+        while (keyword.find()) {
+            String call = callAfterAttempt(axlText, keyword.end());
+            if (call != null && call.replaceFirst("\\(.*$", "").endsWith(method)) {
+                return call;
+            }
+            first = first == null ? call : first;
+        }
+        return first != null ? first : "<the call>";
+    }
+
+    /** The text from the index to the `else` of the same `attempt`, outside of parentheses, or null. */
+    private static String callAfterAttempt(String axlText, int start) {
+        int depth = 0;
+        for (int i = start; i < axlText.length(); i++) {
+            char c = axlText.charAt(i);
+            Matcher literal = c == '"' ? STRING_LITERAL.matcher(axlText).region(i, axlText.length()) : null;
+            if (literal != null && literal.lookingAt()) {
+                i = literal.end() - 1;
+            } else if (c == '(' || c == '[' || c == '{') {
+                depth++;
+            } else if (c == ')' || c == ']' || c == '}') {
+                depth--;
+            } else if (depth == 0 && axlText.startsWith("else", i) && i > start && Character.isWhitespace(axlText.charAt(i - 1))
+                    && (i + 4 == axlText.length() || !Character.isJavaIdentifierPart(axlText.charAt(i + 4)))) {
+                String call = axlText.substring(start, i).strip();
+                return call.isEmpty() ? null : call;
+            }
+        }
+        return null;
     }
 
     /**

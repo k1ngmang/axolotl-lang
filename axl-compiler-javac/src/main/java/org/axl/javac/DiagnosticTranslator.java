@@ -61,16 +61,15 @@ public final class DiagnosticTranslator {
         if (Messages.alwaysFailsUnhandled(message, javaText)) {
             severity = AxlDiagnostic.Severity.ERROR;
         }
-        Messages.Translated translated = Messages.translate(message, javaLines, javaLine, javaColumn);
+        Messages.Translated translated = Messages.translate(message, javaLines, javaLine, javaColumn, axlText(source, javaLine));
         int reportedLine = Messages.javaLine(translated.message(), javaLines, javaLine);
         if (reportedLine != javaLine) {
             javaLine = reportedLine;
             javaText = javaLines[javaLine - 1];
             javaColumn = Columns.javaColumn(javaLines, javaLine, diagnostic);
         }
-        int axlLine = source.unit().lineMap().nearestAxlLine(javaLine);
-        int line = Math.max(axlLine, 1);
-        String axlText = line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
+        int line = Math.max(source.unit().lineMap().nearestAxlLine(javaLine), 1);
+        String axlText = axlText(source, javaLine);
         int column = Columns.find(javaLines, source.unit().lineMap(), javaLine, javaColumn,
                 axlText, Messages.placement(translated.message(), javaText));
         var result = new AxlDiagnostic(source.displayPath(), line, column, severity, translated.code(),
@@ -80,6 +79,12 @@ public final class DiagnosticTranslator {
             checks.put(result, check);
         }
         return result;
+    }
+
+    /** The .axl line a line of the generated file came from, or an empty string. */
+    private static String axlText(GeneratedSource source, int javaLine) {
+        int line = Math.max(source.unit().lineMap().nearestAxlLine(javaLine), 1);
+        return line <= source.axlLines().size() ? source.axlLines().get(line - 1) : "";
     }
 
     /**

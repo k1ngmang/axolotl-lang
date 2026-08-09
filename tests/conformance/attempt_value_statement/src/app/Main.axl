@@ -1,0 +1,20 @@
+package app
+
+import java.util.concurrent.ArrayBlockingQueue
+
+data class Item(val name: String)
+
+class Box(val q: ArrayBlockingQueue<Item>) {
+    fn submit(x: Item) {
+        if (!q.offer(x)) {
+            throw IllegalStateException("full")
+        }
+    }
+}
+
+// The hint shows the call as written, not the Java it became.
+fn main() {
+    val b = Box(ArrayBlockingQueue<Item>(1))
+    val r = attempt b.submit(Item("a")) else e -> e.getMessage()
+    println(r)
+}

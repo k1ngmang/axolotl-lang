@@ -153,13 +153,13 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         int axlLine = Math.max(1, mapping.lineMap().nearestAxlLine(javaLine));
         String message = DiagnosticTranslator.oneLine(diagnostic.getMessage(Locale.ROOT));
         long javaColumn = Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic);
-        String translated = Messages.translate(message, mapping.javaLines(), javaLine, javaColumn).message();
+        AxlFile axl = mapping.axl();
+        String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
+        String translated = Messages.translate(message, mapping.javaLines(), javaLine, javaColumn, axlText).message();
         String check = type == DiagnosticType.WARNING ? ErrorProneMessages.check(message) : null;
         if (check != null && namedChecks.add(check)) {
             translated += ErrorProneMessages.suppression(check);
         }
-        AxlFile axl = mapping.axl();
-        String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
         String javaText = javaLine >= 1 && javaLine <= mapping.javaLines().length ? mapping.javaLines()[javaLine - 1] : "";
         int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, javaColumn, axlText,
                 Messages.placement(translated, javaText));
