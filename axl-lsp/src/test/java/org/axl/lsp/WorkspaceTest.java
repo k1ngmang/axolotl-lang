@@ -1207,6 +1207,32 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsBreakContinueAndReturnAsTheHandlerOfAnAttemptStatement() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn send(i: Int) {
+                    println(i)
+                }
+
+                fn f(xs: java.util.List<Int>) -> String {
+                    for (x in xs) {
+                        attempt send(x) else e -> continue
+                        attempt send(x) else break
+                    }
+                    attempt send(0) else e -> return "failed " + e.getMessage()
+                    return "ok"
+                }
+                """);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("8:29:1:parameter", "8:34:8:keyword", "9:29:5:keyword", "11:25:1:parameter",
+                "11:30:6:keyword", "11:49:1:parameter")), tokens.toString());
+        assertEquals(List.of(11), definitionLines(uri, 11, 49));
+        assertEquals(List.of("f", "send"), new Outline(workspace).symbols(uri).stream().map(DocumentSymbol::getName).sorted().toList());
+    }
+
+    @Test
     void completesTheKeywordsOfLoopsDataClassesAndWhen() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 0).stream().map(CompletionItem::getLabel).toList();
