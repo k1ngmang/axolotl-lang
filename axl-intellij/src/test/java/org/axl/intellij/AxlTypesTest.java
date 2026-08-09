@@ -534,6 +534,35 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
                 .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
     }
 
+    public void testResolvesTheErrorInTheExitOfAnAttemptStatement() {
+        myFixture.configureByText("Main.axl", """
+                package app
+
+                fn send(i: Int) {
+                    println(i)
+                }
+
+                fn describe(i: Int) -> String {
+                    attempt send(i) else e -> return "failed: " + e.getMessage()
+                    return "sent"
+                }
+                """);
+        PsiElement error = resolveAt("\"failed: \" + |e.getMessage()");
+        assertTrue(error.toString(), error instanceof AxlVariable variable && variable.getName().equals("e"));
+        assertEquals(error.getTextOffset(), myFixture.getFile().getText().indexOf("e -> return"));
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
+    public void testShowsTheErrorsOfTheExitsOfAnAttemptStatement() {
+        myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "attempt_exit_errors", "src", "app", "Main.axl")));
+        List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
+                .map(h -> h.getDescription()).toList();
+        assertEquals(errors.toString(), 5, errors.size());
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`break` is used inside a `while` or `for` loop")));
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`return` cannot leave a `when` that gives a value")));
+    }
+
     public void testFindsAndRenamesInterfaceMethods() {
         AxlFile file = (AxlFile) myFixture.configureByText("Notes.axl", NOTES);
         AxlTypeDeclaration notes = file.typeDeclarations().getFirst();
@@ -748,7 +777,7 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
     public void testShowsNoErrorsForTheConformanceCasesOfTheNewStatementsAndMembers() {
         for (String name : List.of("loop_jumps", "use_resources", "enum_fields", "java_superclass", "data_class_methods",
                 "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io",
-                "when_arm_statements")) {
+                "when_arm_statements", "attempt_exits")) {
             myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
             assertEquals(name, List.of(), myFixture.doHighlighting().stream()
                     .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());

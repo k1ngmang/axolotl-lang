@@ -18,6 +18,8 @@ import org.jetbrains.annotations.NotNull;
 public final class AxlParser implements PsiParser {
 
     private PsiBuilder b;
+    // Where the expression statement being read starts: an `attempt` there may end in an exit.
+    private int statementStart = -1;
 
     @Override
     public @NotNull ASTNode parse(@NotNull IElementType root, @NotNull PsiBuilder builder) {
@@ -511,6 +513,7 @@ public final class AxlParser implements PsiParser {
         } else if (startsExpression()) {
             PsiBuilder.Marker m = b.mark();
             PsiBuilder.Marker target = b.mark();
+            statementStart = b.getCurrentOffset();
             expression();
             boolean assigned = assignment(target);
             consume(SEMI);
@@ -518,6 +521,17 @@ public final class AxlParser implements PsiParser {
         } else {
             skip("statement expected");
         }
+    }
+
+    /** The handler of an `attempt` on a line of its own may be `break`, `continue` or `return value`. */
+    private void attemptExit() {
+        PsiBuilder.Marker m = b.mark();
+        boolean returns = at(RETURN);
+        b.advanceLexer();
+        if (returns && !newlineBefore() && startsExpression()) {
+            expression();
+        }
+        m.done(returns ? AxlElementTypes.RETURN : AxlElementTypes.JUMP);
     }
 
     private void jump() {
@@ -767,6 +781,7 @@ public final class AxlParser implements PsiParser {
             prefix();
             m.done(AxlElementTypes.THROW);
         } else if (at(ATTEMPT)) {
+            boolean statement = b.getCurrentOffset() == statementStart;
             PsiBuilder.Marker m = b.mark();
             b.advanceLexer();
             expression();
@@ -777,7 +792,11 @@ public final class AxlParser implements PsiParser {
                     param.done(AxlElementTypes.LAMBDA_PARAMETER);
                     b.advanceLexer();
                 }
-                expression();
+                if (statement && (at(BREAK) || at(CONTINUE) || at(RETURN))) {
+                    attemptExit();
+                } else {
+                    expression();
+                }
             }
             m.done(AxlElementTypes.ATTEMPT);
         } else {

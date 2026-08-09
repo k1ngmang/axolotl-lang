@@ -158,7 +158,8 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "pipe_fallback/src/app/Main", "loop_jumps/src/app/Main", "use_resources/src/app/Main",
                 "enum_fields/src/app/Main", "java_superclass/src/app/Main", "data_class_methods/src/app/Main",
                 "attempt_in_lambda/src/app/Main", "property_inference/src/app/Main", "result_else_narrowing/src/app/Main",
-                "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main", "when_arm_statements/src/app/Main")) {
+                "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main", "when_arm_statements/src/app/Main",
+                "attempt_exits/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -360,6 +361,38 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertTrue(Arrays.stream(assignments).allMatch(a -> a.getParent().getNode().getElementType() == AxlElementTypes.WHEN_ARM));
         assertEquals(8, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.WHEN_ARM).length);
         assertErrors("fn f(n: Int) {\n    when (n) {\n        1 -> n + 1 = 2\n    }\n}\n");
+    }
+
+    public void testReadsBreakContinueAndReturnAsTheHandlerOfAnAttemptStatement() {
+        PsiFile file = myFixture.configureByText("Exits.axl", """
+                package app
+
+                fn send(i: Int) {
+                    println(i)
+                }
+
+                fn f(xs: java.util.List<Int>) -> Int {
+                    for (x in xs) {
+                        attempt send(x) else e -> continue
+                        attempt send(x) else break;
+                        attempt send(x) else e -> return e.getMessage().length()
+                    }
+                    attempt send(0) else return -1
+                    attempt send(1) else e -> return
+                    return 1
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        PsiElement[] attempts = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ATTEMPT);
+        assertEquals(5, attempts.length);
+        PsiElement[] jumps = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.JUMP);
+        assertEquals(List.of("continue", "break"), Arrays.stream(jumps).map(PsiElement::getText).toList());
+        PsiElement[] returns = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.RETURN
+                && e.getParent().getNode().getElementType() == AxlElementTypes.ATTEMPT);
+        assertEquals(List.of("return e.getMessage().length()", "return -1", "return"), Arrays.stream(returns).map(PsiElement::getText).toList());
+        assertTrue(Arrays.stream(jumps).allMatch(e -> e.getParent().getNode().getElementType() == AxlElementTypes.ATTEMPT));
+        assertErrors("fn f() -> Int {\n    val r = attempt g() else e -> return 1\n    return 2\n}\n");
+        assertErrors("fn f() {\n    for (x in xs) {\n        (attempt g() else break)\n    }\n}\n");
     }
 
     public void testKeepsUseAsANameOutsideTheStatement() {
