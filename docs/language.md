@@ -384,6 +384,11 @@ fn doubled(s: String) -> Result<Int, String> {
   `Thread.sleep(1L)` are called when they declare a checked exception. The handler is a call or a `throw`.
   Alone in a lambda, `{ -> attempt Thread.sleep(1L) else e -> println(e) }`, such an `attempt` is the
   lambda's statement too, except in a pipe stage that gives a value, such as `map`, where it is the value.
+  The handler may also leave the loop or the function: `attempt send(i) else e -> continue`, `else e -> break`,
+  `else e -> return -1`, `else return`. It is a `catch` in the generated `try`, so `break` and `continue` need a loop
+  around them and `return` needs a value when the function has a result; `e` is available in the `return` value.
+  These exits stand only on a line of its own, not in `val r = attempt ...`, and `break` and `continue` not inside a
+  lambda or a `when` that gives a value.
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
   `Result`. The error types must match; convert them first with `mapErr`:
   `try parse(s).mapErr({ code -> "error " + code })`.
