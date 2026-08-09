@@ -43,6 +43,22 @@ class AxlBuildTest {
     }
 
     @Test
+    void namesTheTypesWhoseTypeArgumentsDifferWithoutErrorPronesReason(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                data class Box<T>(val value: T)
+
+                fn main() {
+                    println(Box<Int>(1).equals(Box<String>("a")))
+                }
+                """);
+        assertEquals(List.of(
+                "6:25 `Box<Int>` and `Box<String>` are never equal: the type arguments differ, so this `equals` is always false"),
+                warnings);
+    }
+
+    @Test
     void namesTheErrorProneCheckOncePerBuild(@TempDir Path tmp) throws Exception {
         List<String> warnings = warningsWithChecks(tmp, """
                 package app

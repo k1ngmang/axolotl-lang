@@ -30,7 +30,9 @@ final class ErrorProneMessages {
     private static final Pattern DIVISION_BY_ZERO = Pattern.compile("[/%]\\s*0[lL]?\\b(?!\\.)");
     private static final Pattern IDENTITY = Pattern.compile("^\\[IdentityBinaryExpression] .*equivalent to `(.+?)`");
     private static final Pattern OBJECT_TO_STRING = Pattern.compile("^\\[ObjectToString] ([\\w.$]+) is final and does not override");
-    private static final Pattern EQUALS_TYPES = Pattern.compile("^\\[EqualsIncompatibleType] .*incompatible types (.+) and (.+)$");
+    // Types with the same class but other type arguments get a sentence more, "They are incompatible because ...".
+    private static final Pattern EQUALS_TYPES = Pattern.compile(
+            "^\\[EqualsIncompatibleType] .*incompatible types (.+?) and (.+?)(\\. They are incompatible because .*)?$");
     private static final Pattern COLLECTION_TYPES = Pattern.compile(
             "^\\[CollectionIncompatibleType] Argument '(.+?)' .*its type (.+?) is not compatible with its collection's type argument (.+)$");
     private static final Pattern FORMAT_TYPE = Pattern.compile("'([\\w.$]+)' cannot be formatted using '(.+?)'");
@@ -289,8 +291,9 @@ final class ErrorProneMessages {
     private static String withAxolotlTypes(String message) {
         Matcher equalsTypes = EQUALS_TYPES.matcher(message);
         if (equalsTypes.find()) {
+            String reason = equalsTypes.group(3) == null ? "" : ": the type arguments differ";
             return "`" + Messages.axlType(equalsTypes.group(1)) + "` and `" + Messages.axlType(equalsTypes.group(2))
-                    + "` are never equal, so this `equals` is always false";
+                    + "` are never equal" + reason + ", so this `equals` is always false";
         }
         Matcher collectionTypes = COLLECTION_TYPES.matcher(message);
         if (collectionTypes.find()) {
