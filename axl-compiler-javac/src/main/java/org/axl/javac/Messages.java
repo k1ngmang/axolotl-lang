@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -123,6 +124,8 @@ final class Messages {
     // A lambda where the type is not an interface: `fn f() -> Int = { return 1 }`.
     private static final Pattern NOT_FUNCTIONAL = Pattern.compile("^incompatible types: [\\w.<>, ]+ is not a functional interface$");
     private static final Pattern TYPE_ARITY = Pattern.compile("^wrong number of type arguments; required (\\d+)$");
+    private static final Pattern OUT_OF_BOUNDS = Pattern.compile("^type argument (.+?) is not within bounds of type-variable (\\w+)$");
+    private static final String WITHIN_BOUND = "; use a type within the bound";
     private static final Pattern IMPORTED_TWICE = Pattern.compile(
             "^a type with the same simple name is already defined by the single-type-import of ([\\w.]+)$");
     private static final Pattern CALL_WITH_NULL = Pattern.compile("(?:new )?([\\w.]+)\\(([^()]*\\bnull\\b[^()]*)\\)");
@@ -1174,6 +1177,10 @@ final class Messages {
         if (arity.find()) {
             return typeArity(Integer.parseInt(arity.group(1)), text);
         }
+        Matcher outOfBounds = OUT_OF_BOUNDS.matcher(message);
+        if (outOfBounds.find()) {
+            return outOfBounds(simpleNames(axlType(outOfBounds.group(1))), outOfBounds.group(2), text, javaLines);
+        }
         if (message.equals("illegal forward reference")) {
             return "a top-level value is used before it is declared; move its declaration up";
         }
@@ -1256,8 +1263,90 @@ final class Messages {
         return "this type takes " + required + " type argument" + (required == 1 ? "" : "s");
     }
 
+    /**
+     * `Sorted<Object>` for `class Sorted<T : Comparable<T>>`: the first generic type of the line with the type
+     * argument, and the bound of its type parameter as the class of the file or a library declares it. For a
+     * class of another file the message ends in {@link #WITHIN_BOUND}, and the build completes it.
+     */
+    private static String outOfBounds(String argument, String variable, String text, String[] javaLines) {
+        Matcher generic = GENERIC_TYPE.matcher(text);
+        while (generic.find()) {
+            List<String> arguments = splitTopLevel(angleArguments(text, generic.end()));
+            if (arguments.stream().noneMatch(a -> simpleNames(axlType(a)).equals(argument))) {
+                continue;
+            }
+            String owner = simpleNames(generic.group(1));
+            String parameters = typeParameters(generic.group(1), javaLines);
+            String bound = parameters == null ? null : boundOf(parameters, variable);
+            return bound != null ? typeArgumentBound(argument, variable, owner, bound)
+                    : "`" + argument + "` does not fit the bound of `" + variable + "` of `" + owner + "`" + WITHIN_BOUND;
+        }
+        return "`" + argument + "` does not fit the bound of the type parameter `" + variable + "`" + WITHIN_BOUND;
+    }
+
+    /** The type parameters of a type of the file or of a library class, as Java declares them, or null. */
+    private static String typeParameters(String type, String[] javaLines) {
+        String simple = type.substring(type.lastIndexOf('.') + 1);
+        Pattern declaration = Pattern.compile("\\b(?:class|interface|record|enum) " + Pattern.quote(simple) + "<");
+        for (String line : javaLines) {
+            Matcher declared = declaration.matcher(line);
+            if (declared.find()) {
+                return angleArguments(line, declared.end());
+            }
+        }
+        Pattern imported = Pattern.compile("^import ([\\w.]+\\." + Pattern.quote(simple) + ");$");
+        List<String> candidates = new ArrayList<>(List.of("java.lang." + simple, "java.util." + simple));
+        Arrays.stream(javaLines).map(l -> imported.matcher(l.strip())).filter(Matcher::find).forEach(m -> candidates.addFirst(m.group(1)));
+        if (type.contains(".")) {
+            candidates.addFirst(type);
+        }
+        for (String name : candidates) {
+            try {
+                return Arrays.stream(Class.forName(name, false, Messages.class.getClassLoader()).getTypeParameters())
+                        .map(p -> p.getName() + Arrays.stream(p.getBounds()).map(java.lang.reflect.Type::getTypeName)
+                                .filter(b -> !b.equals("java.lang.Object")).map(b -> " extends " + b).collect(Collectors.joining(" &")))
+                        .collect(Collectors.joining(", "));
+            } catch (ClassNotFoundException | LinkageError e) {
+                // Try the next package.
+            }
+        }
+        return null;
+    }
+
+    /** `Comparable<T>` of `T extends Comparable<T>, U` for `T`, or null when the parameter has no bound. */
+    static String boundOf(String parameters, String variable) {
+        for (String parameter : splitTopLevel(parameters)) {
+            if (parameter.startsWith(variable + " extends ")) {
+                return parameter.substring((variable + " extends ").length());
+            }
+        }
+        return null;
+    }
+
+    /** The message about a type argument outside the bound of a type parameter, with the bound as Axolotl writes it. */
+    static String typeArgumentBound(String argument, String variable, String owner, String bound) {
+        String written = simpleNames(axlType(bound));
+        String erased = written.replaceFirst("<.*", "").replaceFirst(" &.*", "");
+        String advice = switch (erased) {
+            case "Comparable" -> "use a type that is `Comparable`, such as `String` or `Int`";
+            case "Number" -> "use a type that is a `Number`, such as `Int` or `Double`";
+            case "Enum" -> "use an enum";
+            default -> "use a type that is `" + erased + "`";
+        };
+        return "`" + argument + "` does not fit `" + variable + " : " + written + "` of `" + owner + "`; " + advice;
+    }
+
+    /** The message of {@link #outOfBounds} for a type of another file, completed with the bound found there. */
+    static String outOfBoundsOf(String message, Function<String, String> typeParameters) {
+        Matcher unknownBound = Pattern.compile("^`(\\S+)` does not fit the bound of `(\\w+)` of `(\\w+)`" + Pattern.quote(WITHIN_BOUND) + "$")
+                .matcher(message);
+        String parameters = unknownBound.find() ? typeParameters.apply(unknownBound.group(3)) : null;
+        String bound = parameters == null ? null : boundOf(parameters, unknownBound.group(2));
+        return bound == null ? message : typeArgumentBound(unknownBound.group(1), unknownBound.group(2), unknownBound.group(3), bound);
+    }
+
     /** `A, B<C>` of the `<A, B<C>>` that starts after the index; the rest of the text when it is not closed. */
-    private static String angleArguments(String text, int start) {
+    static String angleArguments(String text, int start) {
         int depth = 1;
         for (int i = start; i < text.length(); i++) {
             depth += text.charAt(i) == '<' ? 1 : text.charAt(i) == '>' ? -1 : 0;

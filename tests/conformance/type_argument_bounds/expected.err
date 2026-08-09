@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:20:22: error: `Object` does not fit `T : Comparable<T>` of `Sorted`; use a type that is `Comparable`, such as `String` or `Int`
+AXL100 app/Main.axl:21:22: error: `String` does not fit `T : Number` of `Box`; use a type that is a `Number`, such as `Int` or `Double`
+AXL100 app/Main.axl:22:22: error: `String` does not fit `E : Enum<E>` of `EnumSet`; use an enum

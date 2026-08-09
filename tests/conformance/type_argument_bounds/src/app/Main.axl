@@ -1,0 +1,24 @@
+package app
+
+import app.Bounded.Box
+import java.util.ArrayList
+import java.util.EnumSet
+import java.util.List
+
+class Sorted<T : Comparable<T>> {
+    val items = ArrayList<T>()
+
+    fn add(x: T) {
+        items.add(x)
+    }
+
+    fn all() -> List<T> = List.copyOf(items)
+}
+
+// The bound comes from the class of this file, of another file of the build, or of the JDK.
+fn main() {
+    val bad = Sorted<Object>()
+    val wrapped: Box<String>? = null
+    val set: EnumSet<String>? = null
+    println("" + bad + wrapped + set)
+}

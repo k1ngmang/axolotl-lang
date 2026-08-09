@@ -72,7 +72,21 @@ final class OtherFiles {
                         + name + "`";
             }
         }
-        return message;
+        return Messages.outOfBoundsOf(message, this::typeParameters);
+    }
+
+    /** The type parameters of a generic type of the build, as its Java declares them, or null. */
+    private String typeParameters(String type) {
+        Pattern declaration = Pattern.compile("^    (?:public |private )?(?:static |sealed |final )*(?:record|class|interface) "
+                + Pattern.quote(type) + "<", Pattern.MULTILINE);
+        for (GeneratedSource source : sources) {
+            String java = source.unit().javaSource();
+            Matcher found = declaration.matcher(java);
+            if (found.find()) {
+                return Messages.angleArguments(java, found.end());
+            }
+        }
+        return null;
     }
 
     /** Whether a type of the build has a method without parameters of this name, such as a field of a data class. */
