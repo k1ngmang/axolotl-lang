@@ -637,39 +637,42 @@ import org.axl.compiler.ast.TypeRef;
             case Stmt.Jump stmt$4 -> {
                 jump(stmt$4);
             }
-            case Stmt.Use stmt$5 -> {
-                use(stmt$5);
+            case Stmt.AttemptExit stmt$5 -> {
+                attemptExit(stmt$5);
             }
-            case Stmt.If stmt$6 -> {
-                expr(stmt$6.condition());
-                statements(stmt$6.then().statements());
-                final var elseBranch = stmt$6.elseBranch();
+            case Stmt.Use stmt$6 -> {
+                use(stmt$6);
+            }
+            case Stmt.If stmt$7 -> {
+                expr(stmt$7.condition());
+                statements(stmt$7.then().statements());
+                final var elseBranch = stmt$7.elseBranch();
                 if (elseBranch != null) {
                     statement(elseBranch);
                 }
             }
-            case Stmt.While stmt$7 -> {
-                expr(stmt$7.condition());
-                loopDepth = loopDepth + 1;
-                statements(stmt$7.body().statements());
-                loopDepth = loopDepth - 1;
-            }
-            case Stmt.For stmt$8 -> {
-                expr(stmt$8.iterable());
-                scope = new Scope(scope, false);
-                if (!stmt$8.name().equals("_")) {
-                    declare(stmt$8.namePos(), stmt$8.name(), Kind.LOOP_VARIABLE, null);
-                }
+            case Stmt.While stmt$8 -> {
+                expr(stmt$8.condition());
                 loopDepth = loopDepth + 1;
                 statements(stmt$8.body().statements());
                 loopDepth = loopDepth - 1;
+            }
+            case Stmt.For stmt$9 -> {
+                expr(stmt$9.iterable());
+                scope = new Scope(scope, false);
+                if (!stmt$9.name().equals("_")) {
+                    declare(stmt$9.namePos(), stmt$9.name(), Kind.LOOP_VARIABLE, null);
+                }
+                loopDepth = loopDepth + 1;
+                statements(stmt$9.body().statements());
+                loopDepth = loopDepth - 1;
                 pop();
             }
-            case Stmt.ExprStmt stmt$9 -> {
-                expressionStatement(stmt$9);
+            case Stmt.ExprStmt stmt$10 -> {
+                expressionStatement(stmt$10);
             }
-            case Stmt.Block stmt$10 -> {
-                statements(stmt$10.statements());
+            case Stmt.Block stmt$11 -> {
+                statements(stmt$11.statements());
             }
         }
     }
@@ -818,16 +821,35 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void attemptStatementShape(Expr.Attempt a) {
-        final var body = unparenthesized(a.body());
-        if (!(body instanceof Expr.Call body$1) && !(body instanceof Expr.GenericNew body$2)) {
-            error(a.body().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own runs a call: " +
-                    "`attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`");
-        }
+        attemptBodyShape(a.body());
         final var handler = unparenthesized(a.handler());
-        if (!(handler instanceof Expr.Call handler$3) && !(handler instanceof Expr.GenericNew handler$4) && !(handler instanceof Expr.Throw handler$5)) {
+        if (!(handler instanceof Expr.Call handler$1) && !(handler instanceof Expr.GenericNew handler$2) && !(handler instanceof Expr.Throw handler$3)) {
             error(a.handler().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own needs a handler that does something: " +
                     "a call such as `println(e)`, or `throw IllegalStateException(e)`");
         }
+    }
+    private void attemptBodyShape(Expr body) {
+        final var call = unparenthesized(body);
+        if (!(call instanceof Expr.Call call$1) && !(call instanceof Expr.GenericNew call$2)) {
+            error(body.pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own runs a call: " +
+                    "`attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`");
+        }
+    }
+    private void attemptExit(Stmt.AttemptExit stmt) {
+        attemptBodyShape(stmt.body());
+        lambdaDepth = lambdaDepth + 1;
+        attemptDepth = attemptDepth + 1;
+        expr(stmt.body());
+        attemptDepth = attemptDepth - 1;
+        lambdaDepth = lambdaDepth - 1;
+        scope = new Scope(scope, false);
+        final var errorName = stmt.errorName();
+        final var errorPos = stmt.errorNamePos();
+        if (errorName != null && errorPos != null) {
+            declare(errorPos, errorName, Kind.PARAM, null);
+        }
+        statement(stmt.exit());
+        pop();
     }
     private String assignmentProblem(String name, Symbol symbol) {
         final var kind = symbol.kind();

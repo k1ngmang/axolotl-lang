@@ -1,0 +1,14 @@
+package app
+
+import java.util.List
+
+fn send(i: Int) {
+    println(i)
+}
+
+fn main() {
+    for (i in List.of(1, 2)) {
+        val sent = attempt send(i) else e -> continue
+        println(sent)
+    }
+}

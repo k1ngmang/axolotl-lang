@@ -532,37 +532,42 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Stmt.Jump stmt$6 -> {
             }
-            case Stmt.Use stmt$7 -> {
-                names(stmt$7.resource(), hidden, out);
-                statement(stmt$7.body(), with(hidden, Set.of(stmt$7.name())), out);
-                final var handler = stmt$7.handler();
+            case Stmt.AttemptExit stmt$7 -> {
+                names(stmt$7.body(), hidden, out);
                 final var errorName = stmt$7.errorName();
+                statement(stmt$7.exit(), (errorName == null ? hidden : with(hidden, Set.of(errorName))), out);
+            }
+            case Stmt.Use stmt$8 -> {
+                names(stmt$8.resource(), hidden, out);
+                statement(stmt$8.body(), with(hidden, Set.of(stmt$8.name())), out);
+                final var handler = stmt$8.handler();
+                final var errorName = stmt$8.errorName();
                 if (handler != null) {
                     names(handler, (errorName == null ? hidden : with(hidden, Set.of(errorName))), out);
                 }
             }
-            case Stmt.If stmt$8 -> {
-                names(stmt$8.condition(), hidden, out);
-                statement(stmt$8.then(), hidden, out);
-                final var otherwise = stmt$8.elseBranch();
+            case Stmt.If stmt$9 -> {
+                names(stmt$9.condition(), hidden, out);
+                statement(stmt$9.then(), hidden, out);
+                final var otherwise = stmt$9.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise, hidden, out);
                 }
             }
-            case Stmt.While stmt$9 -> {
-                names(stmt$9.condition(), hidden, out);
-                statement(stmt$9.body(), hidden, out);
+            case Stmt.While stmt$10 -> {
+                names(stmt$10.condition(), hidden, out);
+                statement(stmt$10.body(), hidden, out);
             }
-            case Stmt.For stmt$10 -> {
-                names(stmt$10.iterable(), hidden, out);
-                track(stmt$10.name(), elementOf(stmt$10.iterable(), hidden), null);
-                statement(stmt$10.body(), with(hidden, Set.of(stmt$10.name())), out);
+            case Stmt.For stmt$11 -> {
+                names(stmt$11.iterable(), hidden, out);
+                track(stmt$11.name(), elementOf(stmt$11.iterable(), hidden), null);
+                statement(stmt$11.body(), with(hidden, Set.of(stmt$11.name())), out);
             }
-            case Stmt.ExprStmt stmt$11 -> {
-                names(stmt$11.expr(), hidden, out);
+            case Stmt.ExprStmt stmt$12 -> {
+                names(stmt$12.expr(), hidden, out);
             }
-            case Stmt.Block stmt$12 -> {
-                statements(stmt$12.statements(), hidden, out);
+            case Stmt.Block stmt$13 -> {
+                statements(stmt$13.statements(), hidden, out);
             }
         }
     }

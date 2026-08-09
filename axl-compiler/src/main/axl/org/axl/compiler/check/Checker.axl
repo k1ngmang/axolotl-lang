@@ -694,6 +694,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
             is Stmt.Assign -> assign(stmt)
             is Stmt.Return -> returnStatement(stmt)
             is Stmt.Jump -> jump(stmt)
+            is Stmt.AttemptExit -> attemptExit(stmt)
             is Stmt.Use -> use(stmt)
             is Stmt.If -> {
                 expr(stmt.condition())
@@ -876,16 +877,38 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
 
     /** On a line of its own `attempt` becomes a `try`, so its call and its handler must be statements in Java. */
     private fn attemptStatementShape(a: Expr.Attempt) {
-        val body = unparenthesized(a.body())
-        if (body !is Expr.Call && body !is Expr.GenericNew) {
-            error(a.body().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own runs a call: " +
-                "`attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`")
-        }
+        attemptBodyShape(a.body())
         val handler = unparenthesized(a.handler())
         if (handler !is Expr.Call && handler !is Expr.GenericNew && handler !is Expr.Throw) {
             error(a.handler().pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own needs a handler that does something: " +
                 "a call such as `println(e)`, or `throw IllegalStateException(e)`")
         }
+    }
+
+    private fn attemptBodyShape(body: Expr) {
+        val call = unparenthesized(body)
+        if (call !is Expr.Call && call !is Expr.GenericNew) {
+            error(body.pos(), ErrorCode.SYNTAX, "`attempt` on a line of its own runs a call: " +
+                "`attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`")
+        }
+    }
+
+    /** `attempt send() else e -> continue`: the exit runs in the `catch`, so it leaves what a statement there would. */
+    private fn attemptExit(stmt: Stmt.AttemptExit) {
+        attemptBodyShape(stmt.body())
+        lambdaDepth = lambdaDepth + 1
+        attemptDepth = attemptDepth + 1
+        expr(stmt.body())
+        attemptDepth = attemptDepth - 1
+        lambdaDepth = lambdaDepth - 1
+        scope = Scope(scope, false)
+        val errorName = stmt.errorName()
+        val errorPos = stmt.errorNamePos()
+        if (errorName != null && errorPos != null) {
+            declare(errorPos, errorName, Kind.PARAM, null)
+        }
+        statement(stmt.exit())
+        pop()
     }
 
     private fn assignmentProblem(name: String, symbol: Symbol) -> String {

@@ -115,6 +115,10 @@ class Captures(val analysis: Analysis) {
                 }
             }
             is Stmt.Jump -> { }
+            is Stmt.AttemptExit -> {
+                visit(stmt.body(), true)
+                statement(stmt.exit(), inLambda)
+            }
             is Stmt.Use -> {
                 visit(stmt.resource(), inLambda)
                 statement(stmt.body(), inLambda)
@@ -168,6 +172,13 @@ fn capturedIn(expr: Expr, analysis: Analysis, rootElvisInlined: Boolean) -> List
     } else {
         captures.visit(expr, false)
     }
+    return ArrayList<String>(captures.names)
+}
+
+/** The call of an `attempt` that leaves: its exit is a statement of its own, which copies what it needs itself. */
+fn inAttemptCall(body: Expr, analysis: Analysis) -> List<String> {
+    val captures = Captures(analysis)
+    captures.visit(body, true)
     return ArrayList<String>(captures.names)
 }
 

@@ -25,6 +25,12 @@ import java.util.List;
             @Nullable Pos errorNamePos,
             @Nullable Expr handler) implements Stmt {}
     public record Jump(Pos pos, boolean isBreak) implements Stmt {}
+    public record AttemptExit(
+            Pos pos,
+            Expr body,
+            @Nullable String errorName,
+            @Nullable Pos errorNamePos,
+            Stmt exit) implements Stmt {}
     public record If(Pos pos, Expr condition, Block then, @Nullable Stmt elseBranch) implements Stmt {}
     public record While(Pos pos, Expr condition, Block body) implements Stmt {}
     public record For(Pos pos, Pos namePos, String name, Expr iterable, Block body) implements Stmt {}

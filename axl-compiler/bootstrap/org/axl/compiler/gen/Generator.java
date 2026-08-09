@@ -580,27 +580,30 @@ import org.axl.compiler.check.Whens;
             case Stmt.Jump stmt$4 -> {
                 em.line(stmt$4.pos().line(), jumpCode(stmt$4));
             }
-            case Stmt.Use stmt$5 -> {
-                useStatement(stmt$5);
+            case Stmt.AttemptExit stmt$5 -> {
+                attemptExitStatement(stmt$5);
             }
-            case Stmt.If stmt$6 -> {
-                ifStatement(stmt$6);
+            case Stmt.Use stmt$6 -> {
+                useStatement(stmt$6);
             }
-            case Stmt.While stmt$7 -> {
-                emitWhile(stmt$7);
+            case Stmt.If stmt$7 -> {
+                ifStatement(stmt$7);
             }
-            case Stmt.For stmt$8 -> {
-                emitFor(stmt$8);
+            case Stmt.While stmt$8 -> {
+                emitWhile(stmt$8);
             }
-            case Stmt.ExprStmt stmt$9 -> {
-                exprStatement(stmt$9);
+            case Stmt.For stmt$9 -> {
+                emitFor(stmt$9);
             }
-            case Stmt.Block stmt$10 -> {
-                em.line(stmt$10.pos().line(), "{");
+            case Stmt.ExprStmt stmt$10 -> {
+                exprStatement(stmt$10);
+            }
+            case Stmt.Block stmt$11 -> {
+                em.line(stmt$11.pos().line(), "{");
                 em.indent();
-                emitStatements(stmt$10.statements());
+                emitStatements(stmt$11.statements());
                 em.dedent();
-                em.line(stmt$10.end().line(), "}");
+                em.line(stmt$11.end().line(), "}");
             }
         }
     }
@@ -1744,6 +1747,22 @@ import org.axl.compiler.check.Whens;
         }
         em.dedent();
         em.line(line, "}");
+    }
+    private void attemptExitStatement(Stmt.AttemptExit stmt) {
+        final var line = stmt.pos().line();
+        final var errorName = stmt.errorName();
+        final var error = (errorName != null ? errorName : "$ex" + nextException());
+        withCopiesOf(line, Captures.inAttemptCall(stmt.body(), analysis), () -> {
+            em.line(line, "try {");
+            em.indent();
+            em.line(line, exprIn(stmt.body(), true) + ";");
+            em.dedent();
+            em.line(line, "} catch (Exception " + error + ") {");
+            em.indent();
+            statement(stmt.exit());
+            em.dedent();
+            em.line(line, "}");
+        });
     }
     private int nextException() {
         exceptionCount += 1;
@@ -3093,11 +3112,14 @@ import org.axl.compiler.check.Whens;
             case Stmt.Use stmt$4 -> {
                 return leavesThroughJava(stmt$4.body(), inWhen, inWrapper);
             }
-            case Stmt.ExprStmt stmt$5 -> {
-                return armsLeave(stmt$5.expr(), inWrapper);
+            case Stmt.AttemptExit stmt$5 -> {
+                return leavesThroughJava(stmt$5.exit(), inWhen, inWrapper);
             }
-            case Stmt.Return stmt$6 -> {
-                final var value = stmt$6.value();
+            case Stmt.ExprStmt stmt$6 -> {
+                return armsLeave(stmt$6.expr(), inWrapper);
+            }
+            case Stmt.Return stmt$7 -> {
+                final var value = stmt$7.value();
                 return value != null && armsLeave(value, inWrapper);
             }
             default -> {

@@ -201,9 +201,17 @@ statement
     | ifStatement                                           # ifStatementAlt
     | WHILE LPAREN expression RPAREN block                  # whileStatement
     | FOR LPAREN identifier {_input.LT(1).getText().equals("in")}? IDENTIFIER expression RPAREN block   # forStatement
+    | ATTEMPT expression ELSE (identifier ARROW)? attemptExit SEMI?   # attemptExitStatement
     | postfixExpression assignOp expression SEMI?           # assignStatement
     | expression SEMI?                                      # expressionStatement
     | SEMI                                                  # emptyStatement
+    ;
+
+// The handler of an `attempt` on a line of its own may leave the loop or the function.
+attemptExit
+    : BREAK
+    | CONTINUE
+    | RETURN ({sameLine()}? expression)?
     ;
 
 ifStatement

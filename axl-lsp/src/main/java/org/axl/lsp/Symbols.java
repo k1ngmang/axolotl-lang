@@ -261,6 +261,13 @@ final class Symbols {
                 case Stmt.Block block -> block(block, pos, fn, out);
                 case Stmt.Assign assign -> expr(assign.value(), pos, fn, out);
                 case Stmt.Jump jump -> { }
+                case Stmt.AttemptExit attempt -> {
+                    expr(attempt.body(), pos, fn, out);
+                    if (attempt.errorName() != null && before(attempt.errorNamePos(), pos)) {
+                        out.add(new Symbol(attempt.errorName(), Kind.PARAMETER, attempt.errorNamePos(), null, fn, null));
+                    }
+                    statements(List.of(attempt.exit()), pos, fn, out);
+                }
                 case Stmt.Use use -> {
                     expr(use.resource(), pos, fn, out);
                     if (before(use.body().pos(), pos) && before(pos, use.body().end())) {

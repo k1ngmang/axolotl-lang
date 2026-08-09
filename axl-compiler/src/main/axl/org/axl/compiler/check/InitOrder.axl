@@ -569,6 +569,11 @@ class InitOrder(val file: SourceFile) {
                 }
             }
             is Stmt.Jump -> { }
+            is Stmt.AttemptExit -> {
+                names(stmt.body(), hidden, out)
+                val errorName = stmt.errorName()
+                statement(stmt.exit(), if (errorName == null) hidden else with(hidden, Set.of(errorName)), out)
+            }
             is Stmt.Use -> {
                 names(stmt.resource(), hidden, out)
                 statement(stmt.body(), with(hidden, Set.of(stmt.name())), out)

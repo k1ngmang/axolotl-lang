@@ -61,6 +61,8 @@ import org.axl.compiler.parse.AxolotlParser.AssignStatementContext;
 import org.axl.compiler.parse.AxolotlParser.AnnotationArgContext;
 import org.axl.compiler.parse.AxolotlParser.AnnotationContext;
 import org.axl.compiler.parse.AxolotlParser.AnnotationValueContext;
+import org.axl.compiler.parse.AxolotlParser.AttemptExitContext;
+import org.axl.compiler.parse.AxolotlParser.AttemptExitStatementContext;
 import org.axl.compiler.parse.AxolotlParser.AttemptExpressionContext;
 import org.axl.compiler.parse.AxolotlParser.BlockContext;
 import org.axl.compiler.parse.AxolotlParser.BreakStatementContext;
@@ -325,13 +327,16 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
                 return new For(pos(ctx$9.start), pos(ctx$9.identifier().start), nameOf(ctx$9.identifier()),
                         buildExpr(ctx$9.expression()), buildBlock(ctx$9.block()));
             }
-            case AssignStatementContext ctx$10 -> {
-                return buildAssign(ctx$10);
+            case AttemptExitStatementContext ctx$10 -> {
+                return buildAttemptExit(ctx$10);
             }
-            case ExpressionStatementContext ctx$11 -> {
-                return new ExprStmt(pos(ctx$11.start), buildExpr(ctx$11.expression()));
+            case AssignStatementContext ctx$11 -> {
+                return buildAssign(ctx$11);
             }
-            case EmptyStatementContext ctx$12 -> {
+            case ExpressionStatementContext ctx$12 -> {
+                return new ExprStmt(pos(ctx$12.start), buildExpr(ctx$12.expression()));
+            }
+            case EmptyStatementContext ctx$13 -> {
                 return null;
             }
             default -> {
@@ -359,6 +364,19 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var value = ctx.expression();
         final @Nullable Expr result = (value == null ? null : buildExpr(value));
         return new Return(pos(ctx.start), result);
+    }
+    private static Stmt.AttemptExit buildAttemptExit(AttemptExitStatementContext ctx) {
+        final var name = ctx.identifier();
+        final @Nullable String errorName = (name == null ? null : nameOf(name));
+        final @Nullable Pos errorPos = (name == null ? null : pos(name.start));
+        return new Stmt.AttemptExit(pos(ctx.start), buildExpr(ctx.expression()), errorName, errorPos, buildExit(ctx.attemptExit()));
+    }
+    private static Stmt buildExit(AttemptExitContext ctx) {
+        if (ctx.RETURN() == null) {
+            return new Stmt.Jump(pos(ctx.start), ctx.BREAK() != null);
+        }
+        final var value = ctx.expression();
+        return new Return(pos(ctx.start), (value == null ? null : buildExpr(value)));
     }
     private static Stmt.Assign buildAssign(AssignStatementContext ctx) {
         return assignment(pos(ctx.start), ctx.postfixExpression(), ctx.assignOp(), ctx.expression());

@@ -1,0 +1,5 @@
+AXL001 app/Main.axl:10:31: error: `break` is used inside a `while` or `for` loop
+AXL001 app/Main.axl:16:40: error: `continue` is used inside a `while` or `for` loop, not in a lambda; a lambda ends with `return`
+AXL001 app/Main.axl:25:43: error: `break` cannot leave a `when` that gives a value; write the `when` as a statement
+AXL001 app/Main.axl:29:43: error: `return` cannot leave a `when` that gives a value; write the `when` as a statement or as `return when ...`
+AXL001 app/Main.axl:35:13: error: `attempt` on a line of its own runs a call: `attempt conn.commit() else e -> ...`; to use a value, keep the result in a `val`

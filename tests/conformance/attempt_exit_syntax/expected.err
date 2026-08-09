@@ -1,0 +1,1 @@
+AXL001 app/Main.axl:11:46: error: `continue` can only be the handler of an `attempt` on a line of its own

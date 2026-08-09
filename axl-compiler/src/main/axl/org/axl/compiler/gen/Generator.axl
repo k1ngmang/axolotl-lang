@@ -617,6 +617,7 @@ class Generator(
             is Stmt.Assign -> assignStatement(stmt)
             is Stmt.Return -> returnStatement(stmt)
             is Stmt.Jump -> em.line(stmt.pos().line(), jumpCode(stmt))
+            is Stmt.AttemptExit -> attemptExitStatement(stmt)
             is Stmt.Use -> useStatement(stmt)
             is Stmt.If -> ifStatement(stmt)
             is Stmt.While -> emitWhile(stmt)
@@ -1970,6 +1971,24 @@ class Generator(
         }
         em.dedent()
         em.line(line, "}")
+    }
+
+    /** `attempt send() else e -> continue`: the exit is the statement in the `catch`. */
+    private fn attemptExitStatement(stmt: Stmt.AttemptExit) {
+        val line = stmt.pos().line()
+        val errorName = stmt.errorName()
+        val error = if (errorName != null) errorName else "$ex" + nextException()
+        withCopiesOf(line, Captures.inAttemptCall(stmt.body(), analysis), { ->
+            em.line(line, "try {")
+            em.indent()
+            em.line(line, exprIn(stmt.body(), true) + ";")
+            em.dedent()
+            em.line(line, "} catch (Exception " + error + ") {")
+            em.indent()
+            statement(stmt.exit())
+            em.dedent()
+            em.line(line, "}")
+        })
     }
 
     private fn nextException() -> Int {
@@ -3375,6 +3394,7 @@ private fn leavesThroughJava(stmt: Stmt, inWhen: Boolean, inWrapper: Boolean) ->
         leavesThroughJava(stmt.then(), inWhen, wrapped) || (elseBranch != null && leavesThroughJava(elseBranch, inWhen, wrapped))
     }
     is Stmt.Use -> leavesThroughJava(stmt.body(), inWhen, inWrapper)
+    is Stmt.AttemptExit -> leavesThroughJava(stmt.exit(), inWhen, inWrapper)
     is Stmt.ExprStmt -> armsLeave(stmt.expr(), inWrapper)
     is Stmt.Return -> {
         val value = stmt.value()

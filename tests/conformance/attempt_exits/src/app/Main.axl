@@ -1,0 +1,129 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+fn send(i: Int) {
+    if (i % 2 == 0) {
+        throw IllegalStateException("even " + i)
+    }
+}
+
+fn parse(s: String) {
+    Integer.parseInt(s)
+}
+
+fn small(i: Int) -> Result<Boolean, String> = Ok(i < 4)
+
+// `continue` and `break` as the handler leave the loop around the call.
+fn loops() {
+    for (i in List.of(1, 2, 3, 4, 5)) {
+        attempt send(i) else e -> continue
+        println("sent " + i)
+    }
+    for (i in List.of(1, 2, 3)) {
+        attempt send(i) else break
+        println("sent " + i)
+    }
+    var n = 0
+    while (n < 6) {
+        n += 1
+        attempt send(n) else e -> continue
+        print(n + " ")
+    }
+    println()
+}
+
+// `return` leaves the function, with a value or without.
+fn first(i: Int) -> Int {
+    attempt send(i) else e -> return -1
+    return 1
+}
+
+fn describe(s: String) -> String {
+    attempt parse(s) else e -> return "bad: " + e.getMessage()
+    return "number"
+}
+
+fn quiet(i: Int) {
+    attempt send(i) else return
+    println("quiet " + i)
+}
+
+// A `break` only leaves the loop it is in.
+fn nested() {
+    val seen = ArrayList<String>()
+    for (row in List.of(1, 3)) {
+        for (col in List.of(1, 2, 3)) {
+            attempt send(col) else e -> break
+            seen.add(row + ":" + col)
+        }
+        attempt send(row + 1) else e -> continue
+        seen.add("row " + row)
+    }
+    println(seen)
+}
+
+// The break names the loop when it stands in the `switch` of a `when`.
+fn inWhen() {
+    for (i in List.of(1, 2, 3)) {
+        when (i) {
+            1 -> {
+                attempt send(i) else e -> break
+                println("one")
+            }
+            else -> {
+                attempt send(i) else e -> continue
+                println("other " + i)
+            }
+        }
+    }
+    for (i in List.of(1, 2, 3, 4)) {
+        when (i) {
+            2 -> { attempt send(i) else e -> break }
+            else -> { println("saw " + i) }
+        }
+    }
+}
+
+// Also inside an `if` whose condition is split around a `try`.
+fn inSplitIf() -> Result<Int, String> {
+    var total = 0
+    for (i in List.of(1, 2, 3, 4)) {
+        if (i > 3 || try small(i)) {
+            attempt send(i) else e -> break
+            total += i
+        }
+    }
+    return Ok(total)
+}
+
+// What the handler may use: the error and a `var`.
+fn withVar() -> String {
+    var last = 0
+    for (i in List.of(1, 2, 3)) {
+        last = i
+        attempt send(last) else e -> return e.getMessage() + " after " + last
+    }
+    return "none"
+}
+
+fn inLambda() {
+    List.of(1, 3, 4, 5) |> forEach { x ->
+        attempt send(x) else e -> return
+        println("lambda " + x)
+    }
+}
+
+fn main() {
+    loops()
+    println(first(1) + " " + first(2))
+    println(describe("12") + ", " + describe("x"))
+    quiet(1)
+    quiet(2)
+    nested()
+    inWhen()
+    println(inSplitIf())
+    println(withVar())
+    inLambda()
+}

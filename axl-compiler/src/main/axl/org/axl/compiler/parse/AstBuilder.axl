@@ -60,6 +60,8 @@ import org.axl.compiler.parse.AxolotlParser.AssignStatementContext
 import org.axl.compiler.parse.AxolotlParser.AnnotationArgContext
 import org.axl.compiler.parse.AxolotlParser.AnnotationContext
 import org.axl.compiler.parse.AxolotlParser.AnnotationValueContext
+import org.axl.compiler.parse.AxolotlParser.AttemptExitContext
+import org.axl.compiler.parse.AxolotlParser.AttemptExitStatementContext
 import org.axl.compiler.parse.AxolotlParser.AttemptExpressionContext
 import org.axl.compiler.parse.AxolotlParser.BlockContext
 import org.axl.compiler.parse.AxolotlParser.BreakStatementContext
@@ -318,6 +320,7 @@ private fn buildStatement(ctx: StatementContext) -> Stmt? = when (ctx) {
     is WhileStatementContext -> While(pos(ctx.start), buildExpr(ctx.expression()), buildBlock(ctx.block()))
     is ForStatementContext -> For(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()),
         buildExpr(ctx.expression()), buildBlock(ctx.block()))
+    is AttemptExitStatementContext -> buildAttemptExit(ctx)
     is AssignStatementContext -> buildAssign(ctx)
     is ExpressionStatementContext -> ExprStmt(pos(ctx.start), buildExpr(ctx.expression()))
     is EmptyStatementContext -> null
@@ -346,6 +349,21 @@ private fn buildReturn(ctx: ReturnStatementContext) -> Stmt.Return {
     val value = ctx.expression()
     val result: Expr? = if (value == null) null else buildExpr(value)
     return Return(pos(ctx.start), result)
+}
+
+private fn buildAttemptExit(ctx: AttemptExitStatementContext) -> Stmt.AttemptExit {
+    val name = ctx.identifier()
+    val errorName: String? = if (name == null) null else nameOf(name)
+    val errorPos: Pos? = if (name == null) null else pos(name.start)
+    return Stmt.AttemptExit(pos(ctx.start), buildExpr(ctx.expression()), errorName, errorPos, buildExit(ctx.attemptExit()))
+}
+
+private fn buildExit(ctx: AttemptExitContext) -> Stmt {
+    if (ctx.RETURN() == null) {
+        return Stmt.Jump(pos(ctx.start), ctx.BREAK() != null)
+    }
+    val value = ctx.expression()
+    return Return(pos(ctx.start), if (value == null) null else buildExpr(value))
 }
 
 private fn buildAssign(ctx: AssignStatementContext) -> Stmt.Assign =

@@ -132,35 +132,39 @@ import org.axl.compiler.check.Analysis;
             }
             case Stmt.Jump stmt$4 -> {
             }
-            case Stmt.Use stmt$5 -> {
-                visit(stmt$5.resource(), inLambda);
-                statement(stmt$5.body(), inLambda);
-                final var handler = stmt$5.handler();
+            case Stmt.AttemptExit stmt$5 -> {
+                visit(stmt$5.body(), true);
+                statement(stmt$5.exit(), inLambda);
+            }
+            case Stmt.Use stmt$6 -> {
+                visit(stmt$6.resource(), inLambda);
+                statement(stmt$6.body(), inLambda);
+                final var handler = stmt$6.handler();
                 if (handler != null) {
                     visit(handler, inLambda);
                 }
             }
-            case Stmt.If stmt$6 -> {
-                visit(stmt$6.condition(), inLambda);
-                statement(stmt$6.then(), inLambda);
-                final var otherwise = stmt$6.elseBranch();
+            case Stmt.If stmt$7 -> {
+                visit(stmt$7.condition(), inLambda);
+                statement(stmt$7.then(), inLambda);
+                final var otherwise = stmt$7.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise, inLambda);
                 }
             }
-            case Stmt.While stmt$7 -> {
-                visit(stmt$7.condition(), inLambda);
-                statement(stmt$7.body(), inLambda);
-            }
-            case Stmt.For stmt$8 -> {
-                visit(stmt$8.iterable(), inLambda);
+            case Stmt.While stmt$8 -> {
+                visit(stmt$8.condition(), inLambda);
                 statement(stmt$8.body(), inLambda);
             }
-            case Stmt.ExprStmt stmt$9 -> {
-                visit(stmt$9.expr(), inLambda);
+            case Stmt.For stmt$9 -> {
+                visit(stmt$9.iterable(), inLambda);
+                statement(stmt$9.body(), inLambda);
             }
-            case Stmt.Block stmt$10 -> {
-                statements(stmt$10.statements(), inLambda);
+            case Stmt.ExprStmt stmt$10 -> {
+                visit(stmt$10.expr(), inLambda);
+            }
+            case Stmt.Block stmt$11 -> {
+                statements(stmt$11.statements(), inLambda);
             }
         }
     }
@@ -186,6 +190,11 @@ import org.axl.compiler.check.Analysis;
         } else {
             captures.visit(expr, false);
         }
+        return new ArrayList<String>(captures.names);
+    }
+    public static List<String> inAttemptCall(Expr body, Analysis analysis) {
+        final var captures = new Captures(analysis);
+        captures.visit(body, true);
         return new ArrayList<String>(captures.names);
     }
     public static List<String> inStatementChain(Chains.Chain chain, Analysis analysis) {

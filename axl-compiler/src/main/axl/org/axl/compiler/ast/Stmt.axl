@@ -39,6 +39,18 @@ data class Use(
 /** `break` or `continue`, inside a loop. */
 data class Jump(val pos: Pos, val isBreak: Boolean) : Stmt
 
+/**
+ * `attempt call() else e -> exit` on a line of its own, where exit, a Jump or a Return, leaves the loop or the
+ * function when the call throws. errorName and errorNamePos are null without `e ->`.
+ */
+data class AttemptExit(
+    val pos: Pos,
+    val body: Expr,
+    val errorName: String?,
+    val errorNamePos: Pos?,
+    val exit: Stmt
+) : Stmt
+
 /** elseBranch is null, a Block or another If. */
 data class If(val pos: Pos, val condition: Expr, val then: Block, val elseBranch: Stmt?) : Stmt
 

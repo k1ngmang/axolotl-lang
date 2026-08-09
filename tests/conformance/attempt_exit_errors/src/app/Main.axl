@@ -1,0 +1,37 @@
+package app
+
+import java.util.List
+
+fn send(i: Int) {
+    println(i)
+}
+
+fn once() {
+    attempt send(1) else e -> break
+}
+
+fn lambda() {
+    for (i in List.of(1, 2)) {
+        List.of(3) |> forEach {
+            attempt send(it) else e -> continue
+        }
+    }
+}
+
+fn value() -> Int {
+    for (i in List.of(1, 2)) {
+        val label = when (i) {
+            1 -> {
+                attempt send(i) else e -> break
+                "one"
+            }
+            else -> {
+                attempt send(i) else e -> return 2
+                "other"
+            }
+        }
+        println(label)
+    }
+    attempt 1 + 2 else e -> return 0
+    return 1
+}

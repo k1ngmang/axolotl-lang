@@ -20,23 +20,26 @@ import org.axl.compiler.ast.Stmt;
             case Stmt.Jump stmt$4 -> {
                 return false;
             }
-            case Stmt.Use stmt$5 -> {
-                return usesIt(stmt$5.resource()) || usesIt(stmt$5.body()) || (stmt$5.handler() != null && !"it".equals(stmt$5.errorName()) && usesIt(Nulls.sure(stmt$5.handler())));
+            case Stmt.AttemptExit stmt$5 -> {
+                return usesIt(stmt$5.body()) || (!"it".equals(stmt$5.errorName()) && usesIt(stmt$5.exit()));
             }
-            case Stmt.If stmt$6 -> {
-                return usesIt(stmt$6.condition()) || usesIt(stmt$6.then()) || (stmt$6.elseBranch() != null && usesIt(Nulls.sure(stmt$6.elseBranch())));
+            case Stmt.Use stmt$6 -> {
+                return usesIt(stmt$6.resource()) || usesIt(stmt$6.body()) || (stmt$6.handler() != null && !"it".equals(stmt$6.errorName()) && usesIt(Nulls.sure(stmt$6.handler())));
             }
-            case Stmt.While stmt$7 -> {
-                return usesIt(stmt$7.condition()) || usesIt(stmt$7.body());
+            case Stmt.If stmt$7 -> {
+                return usesIt(stmt$7.condition()) || usesIt(stmt$7.then()) || (stmt$7.elseBranch() != null && usesIt(Nulls.sure(stmt$7.elseBranch())));
             }
-            case Stmt.For stmt$8 -> {
-                return usesIt(stmt$8.iterable()) || usesIt(stmt$8.body());
+            case Stmt.While stmt$8 -> {
+                return usesIt(stmt$8.condition()) || usesIt(stmt$8.body());
             }
-            case Stmt.ExprStmt stmt$9 -> {
-                return usesIt(stmt$9.expr());
+            case Stmt.For stmt$9 -> {
+                return usesIt(stmt$9.iterable()) || usesIt(stmt$9.body());
             }
-            case Stmt.Block stmt$10 -> {
-                return stmt$10.statements().stream().anyMatch(it -> usesIt(it));
+            case Stmt.ExprStmt stmt$10 -> {
+                return usesIt(stmt$10.expr());
+            }
+            case Stmt.Block stmt$11 -> {
+                return stmt$11.statements().stream().anyMatch(it -> usesIt(it));
             }
         }
     }

@@ -101,12 +101,20 @@ final class Mistakes {
                     : endsLine(tokens, at) ? "a block goes in braces: `{ ... }`, not after `:`" : null;
             case AxolotlLexer.ASSIGN -> assignment(tokens, at, previous);
             case AxolotlLexer.RETURN -> previous.getType() == AxolotlLexer.ASSIGN
-                    ? "a body after `=` is the value itself; remove `return`" : null;
+                    ? "a body after `=` is the value itself; remove `return`" : attemptExit(tokens, at, previous);
+            case AxolotlLexer.BREAK, AxolotlLexer.CONTINUE -> attemptExit(tokens, at, previous);
             case AxolotlLexer.ARROW -> inParameters(tokens, at) ? "missing `)` before `->`" : javaLambda(tokens, previous);
             case AxolotlLexer.IDENTIFIER -> identifier(tokens, at, previous);
             default -> missingComma(tokens, at, previous);
         };
         return message == null ? null : new Placed(at, message);
+    }
+
+    /** `val r = attempt f() else e -> break`: only a statement of its own can leave the loop or the function. */
+    private static String attemptExit(CommonTokenStream tokens, Token at, Token previous) {
+        boolean handler = previous.getType() == AxolotlLexer.ARROW || previous.getType() == AxolotlLexer.ELSE;
+        return handler && lineHas(tokens, at.getLine(), AxolotlLexer.ATTEMPT)
+                ? "`" + at.getText() + "` can only be the handler of an `attempt` on a line of its own" : null;
     }
 
     private static final String INTERFACE_METHOD_BODY = "a method of an interface has no body; it ends after `)` or its "
