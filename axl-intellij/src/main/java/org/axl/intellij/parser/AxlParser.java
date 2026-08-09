@@ -493,10 +493,7 @@ public final class AxlParser implements PsiParser {
             consume(SEMI);
             m.done(AxlElementTypes.RETURN);
         } else if (at(BREAK) || at(CONTINUE)) {
-            PsiBuilder.Marker m = b.mark();
-            b.advanceLexer();
-            consume(SEMI);
-            m.done(AxlElementTypes.JUMP);
+            jump();
         } else if (atUseStatement()) {
             useStatement();
         } else if (at(IF) && !ifExpressionAhead()) {
@@ -515,24 +512,38 @@ public final class AxlParser implements PsiParser {
             PsiBuilder.Marker m = b.mark();
             PsiBuilder.Marker target = b.mark();
             expression();
-            if (AxlTokenTypes.ASSIGN_OPERATORS.contains(b.getTokenType())) {
-                if (isPostfix(b.getLatestDoneMarker())) {
-                    target.drop();
-                } else {
-                    target.error("only a name, a member or a call result can be assigned");
-                }
-                b.advanceLexer();
-                expression();
-                consume(SEMI);
-                m.done(AxlElementTypes.ASSIGNMENT);
-            } else {
-                target.drop();
-                consume(SEMI);
-                m.done(AxlElementTypes.EXPRESSION_STATEMENT);
-            }
+            boolean assigned = assignment(target);
+            consume(SEMI);
+            m.done(assigned ? AxlElementTypes.ASSIGNMENT : AxlElementTypes.EXPRESSION_STATEMENT);
         } else {
             skip("statement expected");
         }
+    }
+
+    private void jump() {
+        PsiBuilder.Marker m = b.mark();
+        b.advanceLexer();
+        consume(SEMI);
+        m.done(AxlElementTypes.JUMP);
+    }
+
+    /**
+     * The operator and the value of an assignment after its target, the expression just parsed, when
+     * an assignment operator follows; the target marker is dropped, or marks what cannot be assigned.
+     */
+    private boolean assignment(PsiBuilder.Marker target) {
+        if (!AxlTokenTypes.ASSIGN_OPERATORS.contains(b.getTokenType())) {
+            target.drop();
+            return false;
+        }
+        if (isPostfix(b.getLatestDoneMarker())) {
+            target.drop();
+        } else {
+            target.error("only a name, a member or a call result can be assigned");
+        }
+        b.advanceLexer();
+        expression();
+        return true;
     }
 
     /** `use` is a word only before `(val`; a call `use(x)` or a value `use` stays a name. */
@@ -942,8 +953,18 @@ public final class AxlParser implements PsiParser {
         if (expect(ARROW, "`->` expected")) {
             if (at(LBRACE) && !lambdaAhead()) {
                 block();
+            } else if (at(BREAK) || at(CONTINUE)) {
+                jump();
             } else {
+                // A value, or an assignment, a statement elsewhere, which stands in a `when` statement like a jump.
+                PsiBuilder.Marker body = b.mark();
+                PsiBuilder.Marker target = b.mark();
                 expression();
+                if (assignment(target)) {
+                    body.done(AxlElementTypes.ASSIGNMENT);
+                } else {
+                    body.drop();
+                }
             }
         }
         consume(SEMI);

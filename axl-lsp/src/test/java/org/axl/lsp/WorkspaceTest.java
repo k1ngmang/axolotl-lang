@@ -1172,6 +1172,41 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsJumpsAndAssignmentsAsTheArmsOfAWhenStatement() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                class Counter(var count: Int)
+
+                fn main() {
+                    var n = 0
+                    val c = Counter(0)
+                    for (x in java.util.List.of(1, 2, 3, 4, 5)) {
+                        when (x) {
+                            2 -> continue
+                            4 -> break
+                            else -> n += x
+                        }
+                        when (x) {
+                            1 -> c.count += 10
+                            else -> c.count = n
+                        }
+                    }
+                    println(n + c.count)
+                }
+                """);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("9:17:8:keyword", "10:17:5:keyword", "11:12:4:keyword", "11:20:1:variable",
+                "11:25:1:variable", "14:17:1:variable", "15:12:4:keyword")), tokens.toString());
+        assertTrue(hover(uri, 11, 20).contains("var n: Int"), hover(uri, 11, 20));
+        assertEquals(List.of(7), definitionLines(uri, 11, 25));
+        assertEquals(List.of(2), definitionLines(uri, 14, 19));
+        assertEquals(List.of(5), definitionLines(uri, 15, 30));
+        assertEquals(List.of("Counter", "main"), new Outline(workspace).symbols(uri).stream().map(DocumentSymbol::getName).toList());
+    }
+
+    @Test
     void completesTheKeywordsOfLoopsDataClassesAndWhen() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 0).stream().map(CompletionItem::getLabel).toList();

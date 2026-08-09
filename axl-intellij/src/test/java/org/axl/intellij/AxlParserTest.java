@@ -158,7 +158,7 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "pipe_fallback/src/app/Main", "loop_jumps/src/app/Main", "use_resources/src/app/Main",
                 "enum_fields/src/app/Main", "java_superclass/src/app/Main", "data_class_methods/src/app/Main",
                 "attempt_in_lambda/src/app/Main", "property_inference/src/app/Main", "result_else_narrowing/src/app/Main",
-                "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main")) {
+                "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main", "when_arm_statements/src/app/Main")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -328,6 +328,38 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(List.of("t"), PsiTreeUtil.getChildrenOfTypeAsList(uses[1], AxlVariable.class).stream().map(AxlVariable::getName).toList());
         assertEquals(List.of("use", "use"), Arrays.stream(PsiTreeUtil.collectElements(file,
                 e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD)).map(PsiElement::getText).toList());
+    }
+
+    public void testReadsJumpsAndAssignmentsAsTheArmsOfAWhenStatement() {
+        PsiFile file = myFixture.configureByText("Arms.axl", """
+                package app
+
+                class Counter(var count: Int)
+
+                fn f(xs: java.util.List<Int>, c: Counter) -> Int {
+                    var n = 0
+                    for (x in xs) {
+                        when (x) {
+                            2 -> continue
+                            4 -> break
+                            1 -> n = x
+                            else -> n += x
+                        }
+                        when (x) {
+                            3 -> c.count += 10; else -> c.count = n
+                        }
+                    }
+                    return when (n) { 0 -> -1 else -> n }
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        PsiElement[] jumps = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.JUMP);
+        assertEquals(List.of("continue", "break"), Arrays.stream(jumps).map(PsiElement::getText).toList());
+        PsiElement[] assignments = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.ASSIGNMENT);
+        assertEquals(List.of("n = x", "n += x", "c.count += 10", "c.count = n"), Arrays.stream(assignments).map(PsiElement::getText).toList());
+        assertTrue(Arrays.stream(assignments).allMatch(a -> a.getParent().getNode().getElementType() == AxlElementTypes.WHEN_ARM));
+        assertEquals(8, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.WHEN_ARM).length);
+        assertErrors("fn f(n: Int) {\n    when (n) {\n        1 -> n + 1 = 2\n    }\n}\n");
     }
 
     public void testKeepsUseAsANameOutsideTheStatement() {

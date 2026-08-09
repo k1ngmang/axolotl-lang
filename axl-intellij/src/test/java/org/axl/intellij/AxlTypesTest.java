@@ -470,6 +470,37 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("is declared twice")));
     }
 
+    public void testShowsTheErrorsOfJumpsAndAssignmentsInAWhenThatGivesAValue() {
+        myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "when_arm_statement_errors", "src", "app", "Main.axl")));
+        List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
+                .map(h -> h.getDescription()).toList();
+        assertEquals(errors.toString(), 3, errors.size());
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`break` cannot leave a `when` that gives a value")));
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`continue` cannot leave a `when` that gives a value")));
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("each branch of a `when` that gives a value ends with the value")));
+    }
+
+    public void testNarrowsAndResolvesInTheAssignmentArmsOfAWhenStatement() {
+        AxlFile shapes = (AxlFile) myFixture.configureByText("Shapes.axl", SHAPES.replace("fn main() {", """
+                fn total(shapes: java.util.List<Shape>) -> Double {
+                    var total = 0.0
+                    for (shape in shapes) {
+                        when (shape) {
+                            is Circle -> total += shape.radius()
+                            is Square -> total = shape.side()
+                            else -> continue
+                        }
+                    }
+                    return total
+                }
+
+                fn main() {"""));
+        assertSame(shapes.typeDeclarations().get(1).fields().get(1), resolveAt("total += shape.|radius()"));
+        assertSame(shapes.typeDeclarations().get(2).fields().get(1), resolveAt("total = shape.|side()"));
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
     public void testFindsAndRenamesInterfaceMethods() {
         AxlFile file = (AxlFile) myFixture.configureByText("Notes.axl", NOTES);
         AxlTypeDeclaration notes = file.typeDeclarations().getFirst();
@@ -683,7 +714,8 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
 
     public void testShowsNoErrorsForTheConformanceCasesOfTheNewStatementsAndMembers() {
         for (String name : List.of("loop_jumps", "use_resources", "enum_fields", "java_superclass", "data_class_methods",
-                "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io")) {
+                "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io",
+                "when_arm_statements")) {
             myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
             assertEquals(name, List.of(), myFixture.doHighlighting().stream()
                     .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
