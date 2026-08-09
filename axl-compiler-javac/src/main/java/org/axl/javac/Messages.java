@@ -506,6 +506,12 @@ final class Messages {
         List<String> arguments = resultType == null ? List.of() : splitTopLevel(typeArgumentList(resultType));
         String type = arguments.size() == 2 && !arguments.get(error ? 1 : 0).contains("@Nullable") ? axlType(arguments.get(error ? 1 : 0)) : null;
         String expression = (error ? attempt.error() : attempt.value()).replaceFirst("^new ", "");
+        if (error && expression.equals("null")) {
+            String written = type == null ? "write the error type with `?`"
+                    : "write the error type with `?`: `Result<" + axlType(arguments.get(0)) + ", " + type + "?>`";
+            return "the `else` of `attempt` gives the error of the `Result` and cannot be `null`; give it the exception, "
+                    + "`else e -> e`, or " + written;
+        }
         String side = error ? "the error of `attempt` may be null: `" + expression + "`"
                 : "the value of `attempt` may be null: `" + expression + "`";
         if (type == null) {

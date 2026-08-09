@@ -1250,8 +1250,35 @@ final class NullChecker implements TaskListener {
                 report(result, origin, false, describe(result) + ", but the result type has no `?` there; " + FIX);
                 return;
             }
+            boolean attemptError = parent.getLeaf() instanceof MethodInvocationTree call
+                    && trees.getElement(parent) instanceof ExecutableElement callee
+                    && callee.getSimpleName().contentEquals("attempt") && isRuntime(callee)
+                    && call.getArguments().indexOf(lambda.getLeaf()) == 1;
+            if (attemptError) {
+                // The `else` gives the error of the `Result`; a written error type says whether it may be null.
+                if (!Boolean.TRUE.equals(targetTypeArgNullable(parent, 1))) {
+                    report(result, origin, false, attemptErrorNullable(result, parent));
+                }
+                return;
+            }
             reportValue(result, result, isNullMarked(iface), ", but the lambda must not return null: " + name
                     + " returns `" + typeName(returned) + "` here");
+        }
+
+        /** `else e -> null` of an `attempt`: the error of the `Result` may be null, but its type is not written with `?`. */
+        private String attemptErrorNullable(ExpressionTree result, TreePath attempt) {
+            TypeMirror type = trees.getTypeMirror(attempt);
+            String value = type instanceof DeclaredType declared && declared.getTypeArguments().size() == 2
+                    ? typeName(declared.getTypeArguments().getFirst()).replace("?", "") : "T";
+            boolean literal = unwrap(result).getKind() == Tree.Kind.NULL_LITERAL;
+            String error = literal ? "Exception" : typeName(typeOf(result)).replace("?", "");
+            String written = "write the error type with `?`, as in `Result<" + value + ", " + error + "?>`";
+            if (literal) {
+                return "the `else` of `attempt` gives the error of the `Result` and cannot be `null`; give it the exception, "
+                        + "`else e -> e`, or " + written;
+            }
+            return describe(result) + ", but the `else` of `attempt` gives the error of the `Result`, which cannot be null; "
+                    + "give a fallback with `?:`, or " + written;
         }
 
         private boolean resultMayBeNull(TreePath lambda, TypeElement iface, ExecutableElement method, TypeMirror returned) {

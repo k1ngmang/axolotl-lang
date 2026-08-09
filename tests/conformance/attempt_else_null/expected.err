@@ -1,0 +1,4 @@
+AXL102 app/Main.axl:8:119: error: the `else` of `attempt` gives the error of the `Result` and cannot be `null`; give it the exception, `else e -> e`, or write the error type with `?`: `Result<String?, String?>`
+AXL102 app/Main.axl:13:68: error: the `else` of `attempt` gives the error of the `Result` and cannot be `null`; give it the exception, `else e -> e`, or write the error type with `?`, as in `Result<String, Exception?>`
+AXL102 app/Main.axl:14:53: error: the `else` of `attempt` gives the error of the `Result` and cannot be `null`; give it the exception, `else e -> e`, or write the error type with `?`, as in `Result<Int, Exception?>`
+AXL102 app/Main.axl:15:71: error: the result of `maybe()` may be null, but the `else` of `attempt` gives the error of the `Result`, which cannot be null; give a fallback with `?:`, or write the error type with `?`, as in `Result<String, String?>`

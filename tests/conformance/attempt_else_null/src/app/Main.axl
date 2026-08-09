@@ -1,0 +1,18 @@
+package app
+
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.TimeUnit
+
+fn maybe() -> String? = null
+
+fn written(q: ArrayBlockingQueue<String>) -> Result<String?, String> = attempt q.poll(1L, TimeUnit.MILLISECONDS) else e -> null
+
+// The `else` of `attempt` gives the error of the `Result`, so `null` needs an error type written with `?`.
+fn main() {
+    val q = ArrayBlockingQueue<String>(1)
+    val next = attempt q.poll(1L, TimeUnit.MILLISECONDS) else e -> null
+    val parsed = attempt Integer.parseInt("x") else null
+    val message = attempt q.poll(1L, TimeUnit.MILLISECONDS) else e -> maybe()
+    val typed: Result<String?, Exception?> = attempt q.poll(1L, TimeUnit.MILLISECONDS) else e -> null
+    println("" + next + parsed + message + typed + written(q))
+}
