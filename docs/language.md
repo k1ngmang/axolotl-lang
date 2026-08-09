@@ -160,7 +160,11 @@ The parameters of the class and the properties in its body are fields: `val` one
 has a value, and a type when the value does not tell it: `val items = ArrayList<String>()` and `var
 count = 0` need none, `val cache: Map<String, Int>? = null` does. It is set after the parameters, in order. Methods are the `fn`s in the body
 and read the fields by name. `private` hides a property or a method. A class cannot extend another one
-and is created like a data class: `Counter("c", 1)`; it may implement interfaces of its package and Java interfaces.
+and is created like a data class: `Counter("c", 1)`; it may implement interfaces of its package and Java interfaces. For a generic Java interface of the JDK write `Int`,
+`Long`, `Double` or `Boolean` as the type argument and in the methods, as for your own interfaces: `class Doubler :
+Function<Int, Int> { fn apply(x: Int) -> Int = x * 2 }`. An interface from a library or from your own Java files needs
+`Integer`, `Long`, `Double` or `Boolean` in the method signatures, since the compiler does not look into it. A property
+without a written type may be initialized by a method of its class that has a written result type (`val total = compute()`).
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
