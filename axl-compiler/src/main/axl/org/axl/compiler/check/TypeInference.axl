@@ -22,6 +22,9 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
 
     val inProgress: HashSet<String> = HashSet<String>()
 
+    /** The methods of the class whose properties are being typed: a call without a receiver may be to one. */
+    var methods: List<Decl.Function> = List.of()
+
     fn value(value: Decl.Value) -> TypeRef? {
         if (value.type() != null) {
             return value.type()
@@ -124,6 +127,11 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
     }
 
     private fn call(c: Expr.Call) -> TypeRef? {
+        val own = methods |> filter { m -> m.name().equals(c.name()) && m.params().size() == c.args().size() }
+        if (!own.isEmpty()) {
+            // A type parameter of the method is not a type the property can have.
+            return if (own.size() == 1 && own.getFirst().typeParams().isEmpty()) own.getFirst().returnType() else null
+        }
         val candidates = ArrayList<Decl.Function>()
         for (decl in file.decls()) {
             if (decl is Decl.Function && decl.name().equals(c.name()) && decl.params().size() == c.args().size()) {
@@ -462,6 +470,7 @@ fn propertyTypes(file: SourceFile, siblings: List<SourceFile>, c: Decl.ClassDecl
         }
     }
     val inference = TypeInference(file, result, siblings)
+    inference.methods = c.methods()
     for (p in c.properties()) {
         val init = p.init()
         val type = p.type() ?: (if (init == null) null else inference.of(init))

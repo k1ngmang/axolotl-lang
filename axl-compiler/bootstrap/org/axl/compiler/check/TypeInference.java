@@ -19,11 +19,13 @@ import org.axl.compiler.ast.TypeRef;
     public final Map<String, TypeRef> known;
     public final List<SourceFile> siblings;
     public final HashSet<String> inProgress;
+    public List<Decl.Function> methods;
     public TypeInference(SourceFile file, Map<String, TypeRef> known, List<SourceFile> siblings) {
         this.file = file;
         this.known = known;
         this.siblings = siblings;
         this.inProgress = new HashSet<String>();
+        this.methods = List.of();
     }
     public @Nullable TypeRef value(Decl.Value value) {
         if (value.type() != null) {
@@ -148,6 +150,10 @@ import org.axl.compiler.ast.TypeRef;
         return (right != null && left != null && sameType(left, right) ? right : null);
     }
     private @Nullable TypeRef call(Expr.Call c) {
+        final var own = methods.stream().filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();
+        if (!own.isEmpty()) {
+            return (own.size() == 1 && own.getFirst().typeParams().isEmpty() ? own.getFirst().returnType() : null);
+        }
         final var candidates = new ArrayList<Decl.Function>();
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Function decl$1 && decl$1.name().equals(c.name()) && decl$1.params().size() == c.args().size()) {
@@ -466,6 +472,7 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         final var inference = new TypeInference(file, result, siblings);
+        inference.methods = c.methods();
         for (final var p : c.properties()) {
             final var init = p.init();
             final var type = Nulls.or(p.type(), () -> ((init == null ? null : inference.of(init))));

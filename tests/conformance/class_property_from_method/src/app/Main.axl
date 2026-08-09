@@ -1,0 +1,27 @@
+package app
+
+import java.util.List
+
+fn base() -> String = "top level"
+
+class Account(val owner: String, val cents: Int) {
+    val balance = compute()
+    val doubled = scaled(2)
+    val label = base()
+    val names = parts()
+    val first = names.getFirst()
+
+    fn compute() -> Int = cents * 2
+    fn scaled(n: Int) -> Int = n * cents
+    fn base() -> String = "method of " + owner
+    fn parts() -> List<String> = List.of(owner, "x")
+}
+
+fn main() {
+    val account = Account("ann", 5)
+    println(account.balance)
+    println(account.doubled)
+    println(account.label)
+    println(account.names)
+    println(account.first)
+}
