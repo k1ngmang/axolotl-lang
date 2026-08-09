@@ -36,6 +36,7 @@ import org.axl.compiler.ast.Stmt.Return;
 import org.axl.compiler.ast.TypeRef;
 import org.axl.compiler.check.Analysis;
 import org.axl.compiler.check.Checker;
+import org.axl.compiler.check.Exhaustiveness;
 import org.axl.compiler.check.Implementations;
 import org.axl.compiler.check.TypeInference;
 import org.axl.compiler.check.Whens;
@@ -51,6 +52,7 @@ import org.axl.compiler.check.Whens;
     public Map<String, String> smart;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public final IdentityHashMap<Expr, @Nullable TypeRef> branchTypes;
+    public @Nullable TypeRef storedType;
     public int patternCount;
     public List<String> overridden;
     public List<RequiredMethod> requiredMethods;
@@ -89,6 +91,7 @@ import org.axl.compiler.check.Whens;
         this.smart = new HashMap<String, String>();
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.branchTypes = new IdentityHashMap<Expr, @Nullable TypeRef>();
+        this.storedType = null;
         this.patternCount = 0;
         this.overridden = List.of();
         this.requiredMethods = List.of();
@@ -617,7 +620,9 @@ import org.axl.compiler.check.Whens;
         final var localType = Nulls.or(declared, () -> Nulls.or(branchType, () -> typeOf(init)));
         final var stored = (declared == null ? null : nullableType(declared));
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
+            storedType = declared;
             final var code = (init instanceof Expr.Try init$3 ? unwrapTry(line, init$3) : valueCode(line, init, stored));
+            storedType = null;
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
         });
         localTypes.put(local.name(), localType);
@@ -669,8 +674,12 @@ import org.axl.compiler.check.Whens;
             emitWhen(line, whole$1, "", WhenForm.RESULT);
             return;
         }
-        withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), () ->
-                em.line(line, "return " + valueCode(line, widened(value, resultTypeRef), returnType) + ";"));
+        withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), () -> {
+            storedType = resultTypeRef;
+            final var code = valueCode(line, widened(value, resultTypeRef), returnType);
+            storedType = null;
+            em.line(line, "return " + code + ";");
+        });
     }
     private void ifStatement(Stmt.If ifStmt) {
         final var split = shortCircuitWithLift(ifStmt.condition());
@@ -812,12 +821,39 @@ import org.axl.compiler.check.Whens;
             return Map.of();
         }
         final var target = test$1.target();
-        final var accessor = resultAccessor(test$1.type());
-        if (!(target instanceof Expr.Name target$2) || accessor == null || !neverChanges(target$2)) {
+        if (!(target instanceof Expr.Name target$2) || !neverChanges(target$2)) {
             return Map.of();
         }
-        final var remaining = (accessor.equals("value") ? "error" : "value");
-        return Map.of(target$2.name(), "!" + remaining + ":" + bareName(target$2.name()));
+        final var accessor = resultAccessor(test$1.type());
+        if (accessor != null) {
+            final var remaining = (accessor.equals("value") ? "error" : "value");
+            return Map.of(target$2.name(), "!" + remaining + ":" + bareName(target$2.name()));
+        }
+        final var other = otherImplementation(test$1.type(), typeOf(target$2));
+        return (other == null ? Map.of() : Map.of(target$2.name(), "((" + other + ") " + bareName(target$2.name()) + ")"));
+    }
+    private @Nullable String otherImplementation(TypeRef tested, @Nullable TypeRef subject) {
+        if (subject == null) {
+            return null;
+        }
+        final var parent = declaredType(subject.name());
+        if (!(parent instanceof Decl.Interface parent$1) || !parent$1.isSealed()) {
+            return null;
+        }
+        final var testedName = tested.name().substring(tested.name().lastIndexOf('.') + 1);
+        final var implementations = Exhaustiveness.declsOf(file, options.siblings()).stream()
+                .filter(d -> isTypeDecl(d) && (supertypesOf(d).stream().anyMatch(t -> t.name().equals(subject.name()))))
+                .map(Nulls.nonNull(d -> d.name())).toList();
+        if (implementations.size() != 2 || !implementations.contains(testedName)) {
+            return null;
+        }
+        final var otherName = (implementations.get(0).equals(testedName) ? implementations.get(1) : implementations.get(0));
+        final var other = new TypeRef(tested.pos(), otherName, List.of(), false);
+        final var otherDecl = declaredType(otherName);
+        if (otherDecl != null && !typeParamsOf(otherDecl).isEmpty() && argumentsOf(other, subject) == null) {
+            return null;
+        }
+        return testedType(other, subject);
     }
     private Map<String, String> narrowedAfter(Stmt.If ifStmt) {
         final var thenExits = exits(ifStmt.then());
@@ -1414,7 +1450,9 @@ import org.axl.compiler.check.Whens;
                 return lambdaCode(e$17);
             }
             case Expr.Pipe e$18 -> {
-                return pipeCode(exprIn(e$18.source(), inLambda), e$18.source(), e$18.stages(), a -> exprIn(a, inLambda));
+                final var target = storedType;
+                storedType = null;
+                return pipeCode(exprIn(e$18.source(), inLambda), e$18.source(), e$18.stages(), a -> exprIn(a, inLambda), target);
             }
             case Expr.Try e$19 -> {
                 throw new IllegalStateException("try at " + e$19.pos() + " should have been lifted");
@@ -1711,22 +1749,26 @@ import org.axl.compiler.check.Whens;
         exceptionCount += 1;
         return exceptionCount;
     }
+    private String testedSubject(Expr target, boolean inLambda) {
+        final var known = (target instanceof Expr.Name target$1 ? smart.get(target$1.name()) : null);
+        return (target instanceof Expr.Name target$2 && known != null && known.startsWith("((") ? target$2.name() : exprIn(target, inLambda));
+    }
     private String typeCheck(Expr.Is check, boolean inLambda) {
         final var type = testedType(check.type(), typeOf(check.target()));
         final var target = check.target();
         if (!(target instanceof Expr.Name target$1) || !neverChanges(target$1)) {
-            final var plainTest = exprIn(target, inLambda) + " instanceof " + type;
+            final var plainTest = testedSubject(target, inLambda) + " instanceof " + type;
             return (check.negated() ? "!(" + plainTest + ")" : plainTest);
         }
         final var taken = recordPattern(check.type(), typeOf(target$1), target$1.name(), bareName(target$1.name()));
         if (taken != null) {
             patternVariables.put(check, taken.marker());
-            final var test = exprIn(target$1, inLambda) + " instanceof " + taken.label();
+            final var test = testedSubject(target$1, inLambda) + " instanceof " + taken.label();
             return (check.negated() ? "!(" + test + ")" : test);
         }
         final var variable = patternVariable(target$1.name());
         patternVariables.put(check, variable);
-        final var test = exprIn(target$1, inLambda) + " instanceof " + type + " " + variable;
+        final var test = testedSubject(target$1, inLambda) + " instanceof " + type + " " + variable;
         return (check.negated() ? "!(" + test + ")" : test);
     }
     private @Nullable String resultAccessor(TypeRef type) {
@@ -2471,10 +2513,10 @@ import org.axl.compiler.check.Whens;
         }
         final Function<Expr, String> argOf = a -> argCodes.getOrDefault(a, "");
         if (mapResult == stages.size()) {
-            return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf), false);
+            return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false);
         }
         final var items = (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) :
-                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf));
+                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null));
         final var list = mapResultLoop(line, stages.get(mapResult), items);
         final var rest = stages.subList(mapResult + 1, stages.size());
         if (rest.isEmpty()) {
@@ -2525,11 +2567,12 @@ import org.axl.compiler.check.Whens;
         }
         return type;
     }
-    private String pipeCode(String source, Expr sourceExpr, List<Expr.Stage> stages, Function<Expr, String> arg) {
+    private String pipeCode(String source, Expr sourceExpr, List<Expr.Stage> stages, Function<Expr, String> arg, @Nullable TypeRef target) {
         final var sb = new StringBuilder(parenthesized(source, sourceExpr)).append(".stream()");
         var terminal = false;
         var previousLine = startLine(sourceExpr);
         var index = 0;
+        var element = elementTypeOf(typeOf(sourceExpr));
         for (final var stage : stages) {
             final var stageBody = stage.lambda();
             final var outerStage = valueStage;
@@ -2541,7 +2584,12 @@ import org.axl.compiler.check.Whens;
                 previousLine = stage.pos().line();
             }
             final var next = (index + 1 < stages.size() ? stages.get(index + 1) : null);
-            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next));
+            final var mapsLater = stages.subList(index + 1, stages.size()).stream().anyMatch(s -> MAPPING_STAGES.contains(s.name()));
+            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element,
+                    (mapsLater ? null : elementTypeOf(target)));
+            if (MAPPING_STAGES.contains(stage.name())) {
+                element = analysis.mapResultTypes().get(stage);
+            }
             index += 1;
             if (Checker.TERMINAL_STAGES.contains(stage.name())) {
                 terminal = true;
@@ -2550,7 +2598,7 @@ import org.axl.compiler.check.Whens;
         return (terminal ? sb.toString() : sb.append(".toList()").toString());
     }
     private void appendStage(StringBuilder sb, Expr.Stage stage, String lambdaText, Function<Expr, String> arg,
-            boolean nullsDropped) {
+            boolean nullsDropped, @Nullable TypeRef element, @Nullable TypeRef targetElement) {
         final var name = stage.name();
         switch (name) {
             case "limit", "skip" -> {
@@ -2566,8 +2614,8 @@ import org.axl.compiler.check.Whens;
                 sb.insert(0, "Nulls.first(").append(".iterator())");
             }
             case "map" -> {
-                final var element = analysis.mapResultTypes().get(stage);
-                final var witness = (element == null ? "" : "<" + boxedType(element) + ">");
+                final var mapped = analysis.mapResultTypes().get(stage);
+                final var witness = (mapped == null ? "" : "<" + boxedType(mapped) + ">");
                 final var wrap = (nullsDropped ? "Nulls.nullable(" : "Nulls.nonNull(");
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))");
             }
@@ -2581,8 +2629,11 @@ import org.axl.compiler.check.Whens;
                 if (dropsNulls(stage)) {
                     sb.insert(0, "Nulls.nonNulls(").append(')');
                 }
-                final var kept = keptType(stage);
-                if (kept != null) {
+                final var kept = keptType(stage, element, targetElement);
+                if (kept != null && kept.contains("<")) {
+                    final var variable = newTemp();
+                    sb.append(".map(").append(variable).append(" -> (").append(kept).append(") ").append(variable).append(")");
+                } else if (kept != null) {
                     sb.append(".<").append(kept).append(">map(").append(kept).append(".class::cast)");
                 }
             }
@@ -2591,7 +2642,10 @@ import org.axl.compiler.check.Whens;
             }
         }
     }
-    private @Nullable String keptType(Expr.Stage stage) {
+    private @Nullable TypeRef elementTypeOf(@Nullable TypeRef type) {
+        return (type == null || type.nullable() || type.args().size() != 1 || MAP_TYPES.contains(type.name()) ? null : type.args().getFirst());
+    }
+    private @Nullable String keptType(Expr.Stage stage, @Nullable TypeRef element, @Nullable TypeRef targetElement) {
         final var lambda = stage.lambda();
         if (lambda == null || lambda.params().size() > 1 || (lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda))) {
             return null;
@@ -2603,8 +2657,14 @@ import org.axl.compiler.check.Whens;
         }
         final var tested = body$1.type();
         final var name = tested.name();
+        if (targetElement != null && !plainName(targetElement.name()).equals(plainName(name))) {
+            return null;
+        }
         final var hasArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err");
-        return (hasArguments ? null : boxedType(tested));
+        if (hasArguments) {
+            return (element != null && isResultType(element) && element.args().size() == 2 ? testedType(tested, element) : null);
+        }
+        return testedType(tested, element);
     }
     private boolean dropsNulls(Expr.Stage stage) {
         final var lambda = stage.lambda();
@@ -2682,6 +2742,7 @@ import org.axl.compiler.check.Whens;
             "Double", "double");
     private static final Map<String, String> BOXED_NAMES = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
             "Double", "Double");
+    private static final Set<String> MAPPING_STAGES = Set.of("map", "mapResult", "flatMap");
     private static final Set<String> NUMBERS = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character");
     private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte", "Character", "char",
             "Float", "float");
@@ -2913,6 +2974,9 @@ import org.axl.compiler.check.Whens;
                 return List.of();
             }
         }
+    }
+    private static String plainName(String name) {
+        return name.substring(name.lastIndexOf('.') + 1);
     }
     private static List<TypeRef> supertypesOf(Decl decl) {
         switch (decl) {

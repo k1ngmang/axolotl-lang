@@ -12,7 +12,7 @@ import app.Options.Some;
         if (parsed instanceof Some<Integer> parsed$1) {
             return "some " + (parsed$1.value() + 1);
         }
-        return "none " + parsed.present();
+        return "none " + ((None<Integer>) parsed).present();
     }
     public static String describe(String s) {
         final var parsed = Options.parse(s);

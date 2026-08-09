@@ -389,6 +389,8 @@ fn doubled(s: String) -> Result<Int, String> {
   `try parse(s).mapErr({ code -> "error " + code })`.
 - After `if (r is Err) { ...; return }` the `r` is an `Ok` and `r.value()` reads its value; after `if (r is Ok) { return }`
   it is an `Err` and `r.error()` reads the error, as in the `else` branch of such an `if`. (`r` must be a `val` or a parameter.)
+  The same holds for a sealed interface of the build with two implementations: after `if (o is None) { return }` an
+  `Option<T>` is a `Some`, and `if (o is None) "none" else o.value()` reads the value in its `else`.
 - A `Result` also has `isOk()`, `isErr()`, `map({ v -> ... })`, which changes the value of an `Ok`, and
   `getOrElse(fallback)`.
 - `try` binds like a unary operator and works anywhere in an expression:
@@ -425,6 +427,8 @@ numbers |> forEach { println(it) }
 
 `filter { it is Circle }` keeps the circles and the elements after it are `Circle`s: `shapes |> filter { it is
 Circle } |> map { it.radius() }` is a `List<Double>`, and `filter { it is Circle }` alone is a `List<Circle>`.
+`Ok`, `Err` and a generic data class keep the type arguments of the elements: `results |> filter { it is Ok }
+|> map { it.value() }` on a `List<Result<Int, String>>` is a `List<Int>`.
 A `map` that gives null may be followed by `filter { it != null }`, which drops the nulls and gives a list
 without them.
 

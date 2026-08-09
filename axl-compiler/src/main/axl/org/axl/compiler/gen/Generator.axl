@@ -35,6 +35,7 @@ import org.axl.compiler.ast.Stmt.Return
 import org.axl.compiler.ast.TypeRef
 import org.axl.compiler.check.Analysis
 import org.axl.compiler.check.Checker
+import org.axl.compiler.check.Exhaustiveness
 import org.axl.compiler.check.Implementations
 import org.axl.compiler.check.TypeInference
 import org.axl.compiler.check.Whens
@@ -45,6 +46,8 @@ private val BOXED_NAMES: Map<String, String> = Map.of("Int", "Integer", "Long", 
     "Double", "Double")
 
 // Types whose values Java unboxes in a conditional, as Axolotl or Java names them.
+private val MAPPING_STAGES: Set<String> = Set.of("map", "mapResult", "flatMap")
+
 private val NUMBERS: Set<String> = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character")
 
 // `s ?: 0` with `s: Short?`: the number is converted, so that both sides have the type on the left.
@@ -82,6 +85,8 @@ class Generator(
     val patternVariables: IdentityHashMap<Expr.Is, String> = IdentityHashMap<Expr.Is, String>()
     // The types of the branches of `if` values, taken where the `is` test of the `if` narrowed the names they use.
     val branchTypes: IdentityHashMap<Expr, TypeRef?> = IdentityHashMap<Expr, TypeRef?>()
+    // The written type a value goes to, which a pipe stored as a `List<Token>` keeps instead of narrowing to `List<Num>`.
+    var storedType: TypeRef? = null
     var patternCount: Int = 0
 
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
@@ -644,7 +649,9 @@ class Generator(
         val localType = declared ?: branchType ?: typeOf(init)
         val stored = if (declared == null) null else nullableType(declared)
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
+            storedType = declared
             val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
+            storedType = null
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
         })
         localTypes.put(local.name(), localType)
@@ -702,7 +709,10 @@ class Generator(
             return
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), { ->
-            em.line(line, "return " + valueCode(line, widened(value, resultTypeRef), returnType) + ";")
+            storedType = resultTypeRef
+            val code = valueCode(line, widened(value, resultTypeRef), returnType)
+            storedType = null
+            em.line(line, "return " + code + ";")
         })
     }
 
@@ -874,12 +884,44 @@ class Generator(
             return Map.of()
         }
         val target = test.target()
-        val accessor = resultAccessor(test.type())
-        if (target !is Expr.Name || accessor == null || !neverChanges(target)) {
+        if (target !is Expr.Name || !neverChanges(target)) {
             return Map.of()
         }
-        val remaining = if (accessor.equals("value")) "error" else "value"
-        return Map.of(target.name(), "!" + remaining + ":" + bareName(target.name()))
+        val accessor = resultAccessor(test.type())
+        if (accessor != null) {
+            val remaining = if (accessor.equals("value")) "error" else "value"
+            return Map.of(target.name(), "!" + remaining + ":" + bareName(target.name()))
+        }
+        val other = otherImplementation(test.type(), typeOf(target))
+        return if (other == null) Map.of() else Map.of(target.name(), "((" + other + ") " + bareName(target.name()) + ")")
+    }
+
+    /**
+     * `if (o is None) { return }` on an `Option<T>` of the build with the two implementations `Some` and
+     * `None`: afterwards `o` is a `Some`, which a cast tells Java, with the type arguments the subject gives.
+     */
+    private fn otherImplementation(tested: TypeRef, subject: TypeRef?) -> String? {
+        if (subject == null) {
+            return null
+        }
+        val parent = declaredType(subject.name())
+        if (parent !is Decl.Interface || !parent.isSealed()) {
+            return null
+        }
+        val testedName = tested.name().substring(tested.name().lastIndexOf('.') + 1)
+        val implementations = Exhaustiveness.declsOf(file, options.siblings())
+            |> filter { d -> isTypeDecl(d) && (supertypesOf(d) |> anyMatch { t -> t.name().equals(subject.name()) }) }
+            |> map { d -> d.name() }
+        if (implementations.size() != 2 || !implementations.contains(testedName)) {
+            return null
+        }
+        val otherName = if (implementations.get(0).equals(testedName)) implementations.get(1) else implementations.get(0)
+        val other = TypeRef(tested.pos(), otherName, List.of(), false)
+        val otherDecl = declaredType(otherName)
+        if (otherDecl != null && !typeParamsOf(otherDecl).isEmpty() && argumentsOf(other, subject) == null) {
+            return null
+        }
+        return testedType(other, subject)
     }
 
     private fn narrowedAfter(ifStmt: Stmt.If) -> Map<String, String> {
@@ -1561,7 +1603,12 @@ class Generator(
         is Expr.Paren -> parenCode(e, inLambda)
         is Expr.Attempt -> attemptCode(e)
         is Expr.Lambda -> lambdaCode(e)
-        is Expr.Pipe -> pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) })
+        is Expr.Pipe -> {
+            // A pipe inside the source or a stage is not the value stored.
+            val target = storedType
+            storedType = null
+            pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) }, target)
+        }
         is Expr.Try -> throw IllegalStateException("try at " + e.pos() + " should have been lifted")
         is Expr.When -> throw IllegalStateException("when at " + e.pos() + " should have been lifted")
     }
@@ -1930,23 +1977,29 @@ class Generator(
         return exceptionCount
     }
 
+    /** The subject of an `is` test: a name narrowed by a cast after an exit is tested as itself, not as the cast. */
+    private fn testedSubject(target: Expr, inLambda: Boolean) -> String {
+        val known = if (target is Expr.Name) smart.get(target.name()) else null
+        return if (target is Expr.Name && known != null && known.startsWith("((")) target.name() else exprIn(target, inLambda)
+    }
+
     /** `x instanceof T $s1` when `x` can be narrowed, which a name that never changes can. */
     private fn typeCheck(check: Expr.Is, inLambda: Boolean) -> String {
         val type = testedType(check.type(), typeOf(check.target()))
         val target = check.target()
         if (target !is Expr.Name || !neverChanges(target)) {
-            val plainTest = exprIn(target, inLambda) + " instanceof " + type
+            val plainTest = testedSubject(target, inLambda) + " instanceof " + type
             return if (check.negated()) "!(" + plainTest + ")" else plainTest
         }
         val taken = recordPattern(check.type(), typeOf(target), target.name(), bareName(target.name()))
         if (taken != null) {
             patternVariables.put(check, taken.marker())
-            val test = exprIn(target, inLambda) + " instanceof " + taken.label()
+            val test = testedSubject(target, inLambda) + " instanceof " + taken.label()
             return if (check.negated()) "!(" + test + ")" else test
         }
         val variable = patternVariable(target.name())
         patternVariables.put(check, variable)
-        val test = exprIn(target, inLambda) + " instanceof " + type + " " + variable
+        val test = testedSubject(target, inLambda) + " instanceof " + type + " " + variable
         return if (check.negated()) "!(" + test + ")" else test
     }
 
@@ -2765,10 +2818,10 @@ class Generator(
         }
         val argOf: Function<Expr, String> = { a -> argCodes.getOrDefault(a, "") }
         if (mapResult == stages.size()) {
-            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf), false)
+            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false)
         }
         val items = if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
-            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf)
+            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null)
         val list = mapResultLoop(line, stages.get(mapResult), items)
         val rest = stages.subList(mapResult + 1, stages.size())
         if (rest.isEmpty()) {
@@ -2828,11 +2881,14 @@ class Generator(
     }
 
     /** Pipe stages as a Java stream; without a terminal stage the result is a List. */
-    private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>) -> String {
+    /** target: the written type the pipe's list goes to, whose element type a narrowing `filter` keeps. */
+    private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>, target: TypeRef?) -> String {
         val sb = StringBuilder(parenthesized(source, sourceExpr)).append(".stream()")
         var terminal = false
         var previousLine = startLine(sourceExpr)
         var index = 0
+        // The type of the elements, as far as the source and the `map` stages tell.
+        var element = elementTypeOf(typeOf(sourceExpr))
         for (stage in stages) {
             val stageBody = stage.lambda()
             val outerStage = valueStage
@@ -2844,7 +2900,13 @@ class Generator(
                 previousLine = stage.pos().line()
             }
             val next = if (index + 1 < stages.size()) stages.get(index + 1) else null
-            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next))
+            // The written type says what the elements are only when no later stage maps them.
+            val mapsLater = stages.subList(index + 1, stages.size()) |> anyMatch { s -> MAPPING_STAGES.contains(s.name()) }
+            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element,
+                if (mapsLater) null else elementTypeOf(target))
+            if (MAPPING_STAGES.contains(stage.name())) {
+                element = analysis.mapResultTypes().get(stage)
+            }
             index += 1
             if (Checker.TERMINAL_STAGES.contains(stage.name())) {
                 terminal = true
@@ -2854,7 +2916,7 @@ class Generator(
     }
 
     private fn appendStage(sb: StringBuilder, stage: Expr.Stage, lambdaText: String, arg: Function<Expr, String>,
-                           nullsDropped: Boolean) {
+                           nullsDropped: Boolean, element: TypeRef?, targetElement: TypeRef?) {
         val name = stage.name()
         when (name) {
             "limit", "skip" -> sb.append('.').append(name).append('(').append(arg.apply(stage.args().getFirst())).append(')')
@@ -2862,8 +2924,8 @@ class Generator(
             "count" -> sb.append(".count()")
             "first" -> sb.insert(0, "Nulls.first(").append(".iterator())")
             "map" -> {
-                val element = analysis.mapResultTypes().get(stage)
-                val witness = if (element == null) "" else "<" + boxedType(element) + ">"
+                val mapped = analysis.mapResultTypes().get(stage)
+                val witness = if (mapped == null) "" else "<" + boxedType(mapped) + ">"
                 val wrap = if (nullsDropped) "Nulls.nullable(" else "Nulls.nonNull("
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))")
             }
@@ -2878,8 +2940,12 @@ class Generator(
                 if (dropsNulls(stage)) {
                     sb.insert(0, "Nulls.nonNulls(").append(')')
                 }
-                val kept = keptType(stage)
-                if (kept != null) {
+                val kept = keptType(stage, element, targetElement)
+                if (kept != null && kept.contains("<")) {
+                    // A cast carries the type arguments, which `Ok.class::cast` would lose.
+                    val variable = newTemp()
+                    sb.append(".map(").append(variable).append(" -> (").append(kept).append(") ").append(variable).append(")")
+                } else if (kept != null) {
                     sb.append(".<").append(kept).append(">map(").append(kept).append(".class::cast)")
                 }
             }
@@ -2887,11 +2953,16 @@ class Generator(
         }
     }
 
+    /** The element type of a `List<T>` or another collection with one type argument. */
+    private fn elementTypeOf(type: TypeRef?) -> TypeRef? =
+        if (type == null || type.nullable() || type.args().size() != 1 || MAP_TYPES.contains(type.name())) null else type.args().getFirst()
+
     /**
      * `filter { it is Circle }` keeps only circles, so the elements become `Circle`s, which the next
-     * stages and the list that is built can use as such. Ok and Err have type arguments to keep, so they are left.
+     * stages and the list that is built can use as such. `Ok`, `Err` and a generic data class take
+     * the type arguments the elements give, `Ok<Integer, String>` for a `List<Result<Int, String>>`.
      */
-    private fn keptType(stage: Expr.Stage) -> String? {
+    private fn keptType(stage: Expr.Stage, element: TypeRef?, targetElement: TypeRef?) -> String? {
         val lambda = stage.lambda()
         if (lambda == null || lambda.params().size() > 1 || (lambda.params().isEmpty() && !analysis.implicitIt().contains(lambda))) {
             return null
@@ -2903,8 +2974,15 @@ class Generator(
         }
         val tested = body.type()
         val name = tested.name()
+        // `val nums: List<Token> = tokens |> filter { it is Num }`: Java lists are invariant, so the elements stay `Token`s.
+        if (targetElement != null && !plainName(targetElement.name()).equals(plainName(name))) {
+            return null
+        }
         val hasArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err")
-        return if (hasArguments) null else boxedType(tested)
+        if (hasArguments) {
+            return if (element != null && isResultType(element) && element.args().size() == 2) testedType(tested, element) else null
+        }
+        return testedType(tested, element)
     }
 
     /** `filter { it != null }`: Nulls.nonNulls tells NullAway too that the elements are not null. */
@@ -3196,6 +3274,8 @@ private fn typeParamsOf(decl: Decl) -> List<Decl.TypeParam> = when (decl) {
     is Decl.Function -> decl.typeParams()
     else -> List.of()
 }
+
+private fn plainName(name: String) -> String = name.substring(name.lastIndexOf('.') + 1)
 
 private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
     is Decl.DataClass -> decl.supertypes()

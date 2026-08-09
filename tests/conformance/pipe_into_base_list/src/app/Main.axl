@@ -1,0 +1,18 @@
+package app
+
+import java.util.List
+
+sealed interface Token
+data class Num(val n: Int) : Token
+data class Word(val w: String) : Token
+
+fn numbers(tokens: List<Token>) -> List<Token> = tokens |> filter { it is Num }
+
+fn main() {
+    val tokens: List<Token> = List.of(Num(1), Word("a"), Num(2))
+    val kept: List<Token> = tokens |> filter { it is Num }
+    val nums = tokens |> filter { it is Num }
+    println(kept.size())
+    println(numbers(tokens))
+    println(nums.getFirst().n() + nums.getLast().n())
+}

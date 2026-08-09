@@ -1,0 +1,13 @@
+package app
+
+import java.util.function.Function
+
+class Box<T>(val value: T) {
+    fn map<T>(f: Function<T, T>) -> T = f.apply(value)
+}
+
+data class Pair<A, B>(val first: A, val second: B) {
+    fn swapped<B>() -> Pair<B, A> = Pair<B, A>(second, first)
+}
+
+fn main() {}

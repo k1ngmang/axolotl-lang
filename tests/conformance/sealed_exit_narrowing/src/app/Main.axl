@@ -1,0 +1,33 @@
+package app
+
+sealed interface Option<T>
+data class Some<T>(val value: T) : Option<T>
+data class None<T>() : Option<T>
+
+sealed interface Shape
+data class Circle(val radius: Double) : Shape
+data class Dot() : Shape
+
+fn describe(o: Option<Int>) -> String {
+    if (o is None) {
+        return "none"
+    }
+    return "some " + o.value()
+}
+
+fn label(o: Option<String>) -> String = if (o is None) "none" else o.value()
+
+fn radius(s: Shape) -> Double {
+    if (s is Dot) {
+        return 0.0
+    }
+    return s.radius()
+}
+
+fn main() {
+    println(describe(Some<Int>(3)))
+    println(describe(None<Int>()))
+    println(label(Some<String>("x")))
+    println(radius(Circle(2.5)))
+    println(radius(Dot()))
+}

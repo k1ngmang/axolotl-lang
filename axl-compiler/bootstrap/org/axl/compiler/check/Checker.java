@@ -43,6 +43,7 @@ import org.axl.compiler.ast.TypeRef;
     public Scope scope;
     public Decl.@Nullable Function current;
     public Set<String> openTypeParams;
+    public List<String> enclosingTypeParams;
     public @Nullable Stmt lastInLambda;
     public int lambdaDepth;
     public int safeTailDepth;
@@ -73,6 +74,7 @@ import org.axl.compiler.ast.TypeRef;
         this.scope = new Scope(null, true);
         this.current = null;
         this.openTypeParams = new HashSet<String>();
+        this.enclosingTypeParams = List.of();
         this.lastInLambda = null;
         this.lambdaDepth = 0;
         this.safeTailDepth = 0;
@@ -374,11 +376,13 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
         integerAllowed = c.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
+        enclosingTypeParams = c.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : c.methods()) {
             checkReserved(m.namePos(), m.name());
             typeParams(m);
             function(m);
         }
+        enclosingTypeParams = List.of();
         integerAllowed = false;
         pop();
         openTypeParams = outerOpen;
@@ -413,6 +417,7 @@ import org.axl.compiler.ast.TypeRef;
         openTypeParams = openTypeParams(data.typeParams());
         currentMethods = data.methods();
         integerAllowed = data.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
+        enclosingTypeParams = data.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : data.methods()) {
             checkReserved(m.namePos(), m.name());
             if (m.params().isEmpty() && (data.fields().stream().anyMatch(f -> f.name().equals(m.name())))) {
@@ -424,6 +429,7 @@ import org.axl.compiler.ast.TypeRef;
             typeParams(m);
             function(m);
         }
+        enclosingTypeParams = List.of();
         integerAllowed = false;
         currentMethods = outerMethods;
         openTypeParams = outerOpen;
@@ -458,6 +464,9 @@ import org.axl.compiler.ast.TypeRef;
             } else if (SHADOWED_TYPES.contains(name) || typeNames.contains(name) || JAVA_PRIMITIVES.containsKey(name)) {
                 error(p.pos(), ErrorCode.RESERVED_NAME, "a type parameter named `" + name + "` would hide the type `" + name +
                         "`; choose another name, such as `T`");
+            } else if (decl instanceof Decl.Function decl$5 && enclosingTypeParams.contains(name)) {
+                error(p.pos(), ErrorCode.DUPLICATE_NAME, "the type parameter `" + name + "` hides the `" + name +
+                        "` of the type around the method, which the method can use as it is; for a type of its own choose another name, such as `R`");
             } else if (!seen.add(name)) {
                 error(p.pos(), ErrorCode.DUPLICATE_NAME, "the type parameter `" + name + "` is declared twice");
             }
@@ -509,6 +518,7 @@ import org.axl.compiler.ast.TypeRef;
     private void interfaceMethods(Decl.Interface iface) {
         final var values = iface.members().stream().map(Nulls.nonNull(m -> m.name())).toList();
         final var seen = new HashSet<String>();
+        enclosingTypeParams = iface.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : iface.methods()) {
             annotations(m.annotations());
             typeParams(m);

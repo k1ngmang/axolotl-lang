@@ -1,0 +1,13 @@
+package app
+
+class Worker<T : Object>(val type: Class<T>) {
+    fn take(job: Object) -> T = type.cast(job)
+
+    fn label(job: Object) -> String = type.cast(job).toString()
+}
+
+fn main() {
+    val worker = Worker<String>(String.class)
+    println(worker.take("job").length())
+    println(worker.label("x"))
+}

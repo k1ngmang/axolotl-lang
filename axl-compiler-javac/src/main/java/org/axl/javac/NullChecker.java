@@ -2009,9 +2009,11 @@ final class NullChecker implements TaskListener {
             }
             int position = owner.getTypeParameters().indexOf((TypeParameterElement) variable.asElement());
             DeclaredType seen = asSuper(typeOf(select.getExpression()), owner);
-            // A JDK collection returns what went in; other Java classes may return null, as an unset field.
+            // A JDK collection returns what went in; other Java classes may return null, as an unset field. A type
+            // variable there, `Class<T>.cast`, gives what the variable gives: see Origin.OPEN.
             return PlatformValues.isJdk(owner) && position >= 0 && seen != null && position < seen.getTypeArguments().size()
-                    && seen.getTypeArguments().get(position).getKind() == TypeKind.DECLARED;
+                    && (seen.getTypeArguments().get(position).getKind() == TypeKind.DECLARED
+                    || seen.getTypeArguments().get(position).getKind() == TypeKind.TYPEVAR);
         }
 
         /** NullAway infers the type arguments of a null-marked method from the types javac knows. */

@@ -1,0 +1,19 @@
+package app
+
+import java.util.List
+
+sealed interface Option<T>
+data class Some<T>(val value: T) : Option<T>
+data class None<T>() : Option<T>
+
+fn parse(s: String) -> Result<Int, String> = if (s.isEmpty()) Err("empty") else Ok(s.length())
+
+fn main() {
+    val rs: List<Result<Int, String>> = List.of(parse("ab"), parse(""), parse("xyz"))
+    val values = rs |> filter { it is Ok } |> map { it.value() }
+    val errors = rs |> filter { it is Err } |> map { it.error() }
+    println(values)
+    println(errors)
+    val os: List<Option<String>> = List.of(Some<String>("a"), None<String>(), Some<String>("b"))
+    println(os |> filter { it is Some } |> map { it.value().toUpperCase() })
+}

@@ -140,6 +140,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     var current: Decl.Function? = null
     /** Type parameters of the enclosing declarations without a bound, or with a nullable one: their values may be null. */
     var openTypeParams: Set<String> = HashSet<String>()
+    /** The type parameters of the type whose methods are being checked, which a method's must not hide. */
+    var enclosingTypeParams: List<String> = List.of()
     var lastInLambda: Stmt? = null
     var lambdaDepth: Int = 0
     var safeTailDepth: Int = 0
@@ -435,11 +437,13 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         }
         // A class implementing a Java interface such as Supplier<Int> must write `Integer` where Java has the box.
         integerAllowed = c.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
+        enclosingTypeParams = c.typeParams() |> map { p -> p.name() }
         for (m in c.methods()) {
             checkReserved(m.namePos(), m.name())
             typeParams(m)
             function(m)
         }
+        enclosingTypeParams = List.of()
         integerAllowed = false
         pop()
         openTypeParams = outerOpen
@@ -477,6 +481,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         openTypeParams = openTypeParams(data.typeParams())
         currentMethods = data.methods()
         integerAllowed = data.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
+        enclosingTypeParams = data.typeParams() |> map { p -> p.name() }
         for (m in data.methods()) {
             checkReserved(m.namePos(), m.name())
             if (m.params().isEmpty() && (data.fields() |> anyMatch { f -> f.name().equals(m.name()) })) {
@@ -486,6 +491,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
             typeParams(m)
             function(m)
         }
+        enclosingTypeParams = List.of()
         integerAllowed = false
         currentMethods = outerMethods
         openTypeParams = outerOpen
@@ -521,6 +527,9 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
             } else if (SHADOWED_TYPES.contains(name) || typeNames.contains(name) || JAVA_PRIMITIVES.containsKey(name)) {
                 error(p.pos(), ErrorCode.RESERVED_NAME, "a type parameter named `" + name + "` would hide the type `" + name +
                     "`; choose another name, such as `T`")
+            } else if (decl is Decl.Function && enclosingTypeParams.contains(name)) {
+                error(p.pos(), ErrorCode.DUPLICATE_NAME, "the type parameter `" + name + "` hides the `" + name +
+                    "` of the type around the method, which the method can use as it is; for a type of its own choose another name, such as `R`")
             } else if (!seen.add(name)) {
                 error(p.pos(), ErrorCode.DUPLICATE_NAME, "the type parameter `" + name + "` is declared twice")
             }
@@ -571,6 +580,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     private fn interfaceMethods(iface: Decl.Interface) {
         val values = iface.members() |> map { m -> m.name() }
         val seen = HashSet<String>()
+        enclosingTypeParams = iface.typeParams() |> map { p -> p.name() }
         for (m in iface.methods()) {
             annotations(m.annotations())
             typeParams(m)
