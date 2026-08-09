@@ -1,0 +1,21 @@
+package app
+
+import java.io.BufferedReader
+import java.io.StringReader
+import java.io.StringWriter
+import java.io.Writer
+
+fn reader() -> BufferedReader = BufferedReader(StringReader("line"))
+
+// Only `close()` throws here: the constructors do not, so the plain message about opening does not apply.
+fn main() {
+    use (val br = BufferedReader(StringReader("line"))) {
+        println(attempt br.readLine() else e -> throw IllegalStateException(e))
+    }
+    use (val w: Writer = StringWriter()) {
+        println(w)
+    }
+    use (val r = reader()) {
+        println(attempt r.readLine() else e -> throw IllegalStateException(e))
+    }
+}

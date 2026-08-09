@@ -76,6 +76,9 @@ final class Messages {
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
     private static final Pattern LAMBDA_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\((lambda expression|method reference) needs an explicit target-type\\)$");
     private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
+    // Only the `close()` of the resource of a `use` throws; javac names the resource variable after the plain message.
+    private static final Pattern UNREPORTED_CLOSE = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared "
+            + "to be thrown; exception thrown from implicit call to close\\(\\) on resource variable '(\\w+)'$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
     private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
@@ -1114,6 +1117,11 @@ final class Messages {
         if (message.equals("local variables referenced from a lambda expression must be final or effectively final")) {
             return "a lambda uses a `var` that changes; copy it to a `val` first";
         }
+        Matcher unreportedClose = UNREPORTED_CLOSE.matcher(message);
+        if (unreportedClose.find()) {
+            return "`close()` of `" + resourceType(unreportedClose.group(2), text) + "` can throw `"
+                    + axlType(unreportedClose.group(1)) + "`; add `else e -> ...` to the `use`";
+        }
         Matcher unreported = UNREPORTED.matcher(message);
         if (unreported.find() && text.strip().startsWith("throw ")) {
             return "`" + axlType(unreported.group(1)) + "` is a checked exception and cannot be thrown here; throw a "
@@ -1156,6 +1164,22 @@ final class Messages {
         }
         String structural = structuralMessage(message, text, javaLines);
         return structural != null ? structural : message;
+    }
+
+    /**
+     * The type of the resource `br` of a `use`, as the header `try (var br = new BufferedReader(...))` shows
+     * it: the declared type, the created class, or the name itself when the value comes from a call.
+     */
+    private static String resourceType(String name, String text) {
+        Matcher resource = Pattern.compile("[(;]\\s*(?:final )?([\\w.]+(?:<.*?>)?) " + Pattern.quote(name) + " = (new )?([\\w.]+)")
+                .matcher(text);
+        if (!resource.find()) {
+            return name;
+        }
+        if (!resource.group(1).equals("var")) {
+            return simpleNames(axlType(resource.group(1)));
+        }
+        return resource.group(2) != null ? simpleNames(resource.group(3)) : name;
     }
 
     /** `f` of `fn f() -> Int = { ... }`, a function whose whole body is a lambda without parameters, or null. */
