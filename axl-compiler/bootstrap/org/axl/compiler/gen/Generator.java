@@ -64,6 +64,7 @@ import org.axl.compiler.check.Whens;
     public List<Expr> whenValues;
     public @Nullable String loopLabel;
     public boolean inSwitch;
+    public boolean inWrapper;
     public int tempCount;
     public int nullCount;
     public int exceptionCount;
@@ -101,6 +102,7 @@ import org.axl.compiler.check.Whens;
         this.whenValues = List.of();
         this.loopLabel = null;
         this.inSwitch = false;
+        this.inWrapper = false;
         this.tempCount = 0;
         this.nullCount = 0;
         this.exceptionCount = 0;
@@ -767,6 +769,8 @@ import org.axl.compiler.check.Whens;
         em.indent();
         final var right = narrowedValue(rightNarrowing(b), () -> lifted(line, b.right()).code());
         em.line(line, "if (" + ((and ? right : negated(right))) + ") {");
+        final var outerWrapper = inWrapper;
+        inWrapper = true;
         if (inside != null) {
             final var holds = (and ? whenTrue(b) : whenFalse(b));
             narrowed(holds, () -> emitBlock(inside));
@@ -783,6 +787,7 @@ import org.axl.compiler.check.Whens;
         if (after != null) {
             emitStatements(after.statements());
         }
+        inWrapper = outerWrapper;
         em.dedent();
         em.line(blockEnd(ifStmt), "} while (false);");
     }
@@ -1060,7 +1065,7 @@ import org.axl.compiler.check.Whens;
         em.line(loop.body().end().line(), "}");
     }
     private @Nullable String newLoopLabel(Stmt.Block body) {
-        if (!breaksInWhen(body.statements())) {
+        if (!leavesThroughJava(body.statements())) {
             return null;
         }
         loopCount += 1;
@@ -1072,18 +1077,22 @@ import org.axl.compiler.check.Whens;
     private void inLoop(@Nullable String label, Runnable body) {
         final var outerLabel = loopLabel;
         final var outerSwitch = inSwitch;
+        final var outerWrapper = inWrapper;
         loopLabel = label;
         inSwitch = false;
+        inWrapper = false;
         body.run();
         loopLabel = outerLabel;
         inSwitch = outerSwitch;
+        inWrapper = outerWrapper;
     }
     private String jumpCode(Stmt.Jump stmt) {
         final var label = loopLabel;
-        if (stmt.isBreak() && inSwitch && label != null) {
-            return "break " + label + ";";
+        final var word = (stmt.isBreak() ? "break" : "continue");
+        if (label != null && (inWrapper || (inSwitch && stmt.isBreak()))) {
+            return word + " " + label + ";";
         }
-        return (stmt.isBreak() ? "break;" : "continue;");
+        return word + ";";
     }
     private void emitBlock(Stmt.Block block) {
         final var outer = smart;
@@ -3001,42 +3010,52 @@ import org.axl.compiler.check.Whens;
         final var elseBranch = ifStmt.elseBranch();
         return elseBranch != null && exits(ifStmt.then()) && exits(elseBranch);
     }
-    private static boolean breaksInWhen(List<Stmt> body) {
-        return body.stream().anyMatch(s -> breaksSwitch(s, false));
+    private static boolean leavesThroughJava(List<Stmt> body) {
+        return body.stream().anyMatch(s -> leavesThroughJava(s, false, false));
     }
-    private static boolean breaksSwitch(Stmt stmt, boolean inWhen) {
+    private static boolean leavesThroughJava(Stmt stmt, boolean inWhen, boolean inWrapper) {
         switch (stmt) {
             case Stmt.Jump stmt$1 -> {
-                return inWhen && stmt$1.isBreak();
+                return inWrapper || (inWhen && stmt$1.isBreak());
             }
             case Stmt.Block stmt$2 -> {
-                return stmt$2.statements().stream().anyMatch(s -> breaksSwitch(s, inWhen));
+                return stmt$2.statements().stream().anyMatch(s -> leavesThroughJava(s, inWhen, inWrapper));
             }
             case Stmt.If stmt$3 -> {
                 final var elseBranch = stmt$3.elseBranch();
-                return breaksSwitch(stmt$3.then(), inWhen) || (elseBranch != null && breaksSwitch(elseBranch, inWhen));
+                final var wrapped = inWrapper || becomesWrapper(stmt$3);
+                return leavesThroughJava(stmt$3.then(), inWhen, wrapped) || (elseBranch != null && leavesThroughJava(elseBranch, inWhen, wrapped));
             }
             case Stmt.Use stmt$4 -> {
-                return breaksSwitch(stmt$4.body(), inWhen);
+                return leavesThroughJava(stmt$4.body(), inWhen, inWrapper);
             }
             case Stmt.ExprStmt stmt$5 -> {
-                return armsBreak(stmt$5.expr());
+                return armsLeave(stmt$5.expr(), inWrapper);
             }
             case Stmt.Return stmt$6 -> {
                 final var value = stmt$6.value();
-                return value != null && armsBreak(value);
+                return value != null && armsLeave(value, inWrapper);
             }
             default -> {
                 return false;
             }
         }
     }
-    private static boolean armsBreak(Expr e) {
+    private static boolean armsLeave(Expr e, boolean inWrapper) {
         final var w = withoutParens(e);
         if (!(w instanceof Expr.When w$1)) {
             return false;
         }
-        return w$1.arms().stream().anyMatch(a -> a.body().stream().anyMatch(s -> breaksSwitch(s, true)));
+        return w$1.arms().stream().anyMatch(a -> a.body().stream().anyMatch(s -> leavesThroughJava(s, true, inWrapper)));
+    }
+    private static boolean becomesWrapper(Stmt.If ifStmt) {
+        final var split = shortCircuitWithLift(ifStmt.condition());
+        if (split == null) {
+            return false;
+        }
+        final var simpleAnd = ifStmt.elseBranch() == null && split.op().equals("&&");
+        final var leaves = ifStmt.elseBranch() == null && split.op().equals("||") && exits(ifStmt.then());
+        return !simpleAnd && !leaves;
     }
     private static boolean loopsForever(Stmt.While loop) {
         final var condition = loop.condition();

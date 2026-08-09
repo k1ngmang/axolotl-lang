@@ -1,0 +1,37 @@
+package app
+
+import java.util.List
+
+fn ok(x: Int) -> Result<Boolean, String> = Ok(x > 1)
+
+fn count() -> Result<Int, String> {
+    var n = 0
+    for (x in List.of(1, 2, 3)) {
+        if (x > 2 || try ok(x)) {
+            n += 1
+        } else {
+            break
+        }
+    }
+    return Ok(n)
+}
+
+fn skipped() -> Result<Int, String> {
+    var n = 0
+    var i = 0
+    while (i < 4) {
+        i += 1
+        if (i != 2 && try ok(i)) {
+            n += i
+        } else {
+            continue
+        }
+        n += 10
+    }
+    return Ok(n)
+}
+
+fn main() {
+    println(count())
+    println(skipped())
+}

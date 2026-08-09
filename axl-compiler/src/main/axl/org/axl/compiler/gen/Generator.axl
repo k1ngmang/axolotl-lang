@@ -116,6 +116,8 @@ class Generator(
     // the code being emitted is inside such a `when`, where Java's plain `break` would leave the switch only.
     var loopLabel: String? = null
     var inSwitch: Boolean = false
+    // Inside the `do { ... } while (false)` of a split `if` condition, which a plain jump would leave; see shortCircuitIf.
+    var inWrapper: Boolean = false
 
     // Per function: counters of generated names and the copies of captured `var`s.
     var tempCount: Int = 0
@@ -816,6 +818,8 @@ class Generator(
         em.indent()
         val right = narrowedValue(rightNarrowing(b), { -> lifted(line, b.right()).code() })
         em.line(line, "if (" + (if (and) right else negated(right)) + ") {")
+        val outerWrapper = inWrapper
+        inWrapper = true
         if (inside != null) {
             val holds = if (and) whenTrue(b) else whenFalse(b)
             narrowed(holds, { -> emitBlock(inside) })
@@ -832,6 +836,7 @@ class Generator(
         if (after != null) {
             emitStatements(after.statements())
         }
+        inWrapper = outerWrapper
         em.dedent()
         em.line(blockEnd(ifStmt), "} while (false);")
     }
@@ -1168,7 +1173,7 @@ class Generator(
 
     /** `loop$1`, for a loop that a `break` inside one of its `when`s leaves: Java's `break` names the loop to leave a switch. */
     private fn newLoopLabel(body: Stmt.Block) -> String? {
-        if (!breaksInWhen(body.statements())) {
+        if (!leavesThroughJava(body.statements())) {
             return null
         }
         loopCount += 1
@@ -1177,24 +1182,31 @@ class Generator(
 
     private fn loopHead(label: String?) -> String = if (label == null) "" else label + ": "
 
-    /** Emits the body of a loop, whose jumps leave this loop and no longer a `when` around it. */
+    /** Emits the body of a loop, whose jumps leave this loop and no longer a `when` or a split `if` around it. */
     private fn inLoop(label: String?, body: Runnable) {
         val outerLabel = loopLabel
         val outerSwitch = inSwitch
+        val outerWrapper = inWrapper
         loopLabel = label
         inSwitch = false
+        inWrapper = false
         body.run()
         loopLabel = outerLabel
         inSwitch = outerSwitch
+        inWrapper = outerWrapper
     }
 
-    /** A `break` inside a `when` names the loop, as a plain one would leave the switch only; `continue` leaves it anyway. */
+    /**
+     * A `break` inside a `when` names the loop, as a plain one would leave the switch only; `continue`
+     * leaves it anyway. Inside the `do { ... } while (false)` of a split `if` condition both need the name.
+     */
     private fn jumpCode(stmt: Stmt.Jump) -> String {
         val label = loopLabel
-        if (stmt.isBreak() && inSwitch && label != null) {
-            return "break " + label + ";"
+        val word = if (stmt.isBreak()) "break" else "continue"
+        if (label != null && (inWrapper || (inSwitch && stmt.isBreak()))) {
+            return word + " " + label + ";"
         }
-        return if (stmt.isBreak()) "break;" else "continue;"
+        return word + ";"
     }
 
     private fn emitBlock(block: Stmt.Block) {
@@ -3267,32 +3279,52 @@ private fn exitsIf(ifStmt: Stmt.If) -> Boolean {
 }
 
 /** Whether a `break` of the loop stands inside a `when` of its body, which becomes a switch that Java's `break` leaves instead. */
-private fn breaksInWhen(body: List<Stmt>) -> Boolean = body |> anyMatch { s -> breaksSwitch(s, false) }
+/** Whether a jump of the loop body would leave a Java construct of its own instead of the loop: see jumpCode. */
+private fn leavesThroughJava(body: List<Stmt>) -> Boolean = body |> anyMatch { s -> leavesThroughJava(s, false, false) }
 
-/** inWhen: inside the arms of a `when` of the loop. A nested loop has jumps of its own, and a lambda none. */
-private fn breaksSwitch(stmt: Stmt, inWhen: Boolean) -> Boolean = when (stmt) {
-    is Stmt.Jump -> inWhen && stmt.isBreak()
-    is Stmt.Block -> stmt.statements() |> anyMatch { s -> breaksSwitch(s, inWhen) }
+/**
+ * inWhen: inside the arms of a `when` of the loop; inWrapper: inside an `if` the loop holds whose
+ * condition is split (see shortCircuitIf). A nested loop has jumps of its own, and a lambda none.
+ */
+private fn leavesThroughJava(stmt: Stmt, inWhen: Boolean, inWrapper: Boolean) -> Boolean = when (stmt) {
+    is Stmt.Jump -> inWrapper || (inWhen && stmt.isBreak())
+    is Stmt.Block -> stmt.statements() |> anyMatch { s -> leavesThroughJava(s, inWhen, inWrapper) }
     is Stmt.If -> {
         val elseBranch = stmt.elseBranch()
-        breaksSwitch(stmt.then(), inWhen) || (elseBranch != null && breaksSwitch(elseBranch, inWhen))
+        val wrapped = inWrapper || becomesWrapper(stmt)
+        leavesThroughJava(stmt.then(), inWhen, wrapped) || (elseBranch != null && leavesThroughJava(elseBranch, inWhen, wrapped))
     }
-    is Stmt.Use -> breaksSwitch(stmt.body(), inWhen)
-    is Stmt.ExprStmt -> armsBreak(stmt.expr())
+    is Stmt.Use -> leavesThroughJava(stmt.body(), inWhen, inWrapper)
+    is Stmt.ExprStmt -> armsLeave(stmt.expr(), inWrapper)
     is Stmt.Return -> {
         val value = stmt.value()
-        value != null && armsBreak(value)
+        value != null && armsLeave(value, inWrapper)
     }
     else -> false
 }
 
-/** The arms of a `when` that is a statement or returned hold a `break`; a `when` that gives a value cannot. */
-private fn armsBreak(e: Expr) -> Boolean {
+/** The arms of a `when` that is a statement or returned hold such a jump; a `when` that gives a value cannot. */
+private fn armsLeave(e: Expr, inWrapper: Boolean) -> Boolean {
     val w = withoutParens(e)
     if (w !is Expr.When) {
         return false
     }
-    return w.arms() |> anyMatch { a -> a.body() |> anyMatch { s -> breaksSwitch(s, true) } }
+    return w.arms() |> anyMatch { a -> a.body() |> anyMatch { s -> leavesThroughJava(s, true, inWrapper) } }
+}
+
+/**
+ * An `if` with a lifted `try` on the right of `&&` or `||` becomes a `do { ... } while (false)` unless it
+ * is a plain `&&` without `else` or an `||` whose body leaves; see ifStatement. A captured `var` in the
+ * condition keeps it a plain `if`, in which case the loop gets a label it does not need.
+ */
+private fn becomesWrapper(ifStmt: Stmt.If) -> Boolean {
+    val split = shortCircuitWithLift(ifStmt.condition())
+    if (split == null) {
+        return false
+    }
+    val simpleAnd = ifStmt.elseBranch() == null && split.op().equals("&&")
+    val leaves = ifStmt.elseBranch() == null && split.op().equals("||") && exits(ifStmt.then())
+    return !simpleAnd && !leaves
 }
 
 private fn loopsForever(loop: Stmt.While) -> Boolean {
