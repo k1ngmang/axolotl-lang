@@ -503,14 +503,14 @@ import org.axl.compiler.check.Whens;
         em.line(0, "}");
     }
     private void emitFunction(Decl.Function f, boolean isStatic) {
-        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> r.method().name().equals(f.name()) &&
-                r.method().params().size() == f.params().size())
+        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> r.name().equals(f.name()) &&
+                r.boxedParams().size() == f.params().size())
                 .iterator()));
         final var boxed = boxedParameters(f, required);
         final var params = (isStatic && isMain(f) ? "String[] args" : parameters(f.params(), f.pos().line(), boxed));
         final var declaredReturn = f.returnType();
         final var resultType = (declaredReturn == null ? "void" :
-                (required != null && isTypeVariable(required, required.method().returnType()) ? boxedType(declaredReturn) :
+                (required != null && required.boxedResult() ? boxedType(declaredReturn) :
                 javaType(declaredReturn)));
         final var modifier = (isStatic ? " static " : " ");
         final var written = f.annotations().stream().anyMatch(a -> a.name().equals("Override"));
@@ -551,15 +551,12 @@ import org.axl.compiler.check.Whens;
         }
         var i = 0;
         while (i < f.params().size()) {
-            if (isTypeVariable(required, required.method().params().get(i).type())) {
+            if (required.boxedParams().get(i)) {
                 result.add(f.params().get(i).name());
             }
             i += 1;
         }
         return result;
-    }
-    private boolean isTypeVariable(RequiredMethod required, @Nullable TypeRef type) {
-        return type != null && type.args().isEmpty() && required.typeParams().contains(type.name());
     }
     private void emitStatements(List<Stmt> list) {
         for (final var stmt : list) {

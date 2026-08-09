@@ -546,13 +546,13 @@ class Generator(
     }
 
     private fn emitFunction(f: Decl.Function, isStatic: Boolean) {
-        val required = if (isStatic) null else requiredMethods |> filter { r -> r.method().name().equals(f.name()) &&
-            r.method().params().size() == f.params().size() } |> first
+        val required = if (isStatic) null else requiredMethods |> filter { r -> r.name().equals(f.name()) &&
+            r.boxedParams().size() == f.params().size() } |> first
         val boxed = boxedParameters(f, required)
         val params = if (isStatic && isMain(f)) "String[] args" else parameters(f.params(), f.pos().line(), boxed)
         val declaredReturn = f.returnType()
         val resultType = if (declaredReturn == null) "void"
-            else if (required != null && isTypeVariable(required, required.method().returnType())) boxedType(declaredReturn)
+            else if (required != null && required.boxedResult()) boxedType(declaredReturn)
             else javaType(declaredReturn)
         val modifier = if (isStatic) " static " else " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
@@ -594,16 +594,13 @@ class Generator(
         }
         var i = 0
         while (i < f.params().size()) {
-            if (isTypeVariable(required, required.method().params().get(i).type())) {
+            if (required.boxedParams().get(i)) {
                 result.add(f.params().get(i).name())
             }
             i += 1
         }
         return result
     }
-
-    private fn isTypeVariable(required: RequiredMethod, type: TypeRef?) -> Boolean =
-        type != null && type.args().isEmpty() && required.typeParams().contains(type.name())
 
     private fn emitStatements(list: List<Stmt>) {
         for (stmt in list) {

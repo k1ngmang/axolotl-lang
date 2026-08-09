@@ -7,8 +7,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.axl.compiler.JavaInterfaces;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
+import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.TypeRef;
@@ -155,17 +157,39 @@ import org.axl.compiler.ast.TypeRef;
         final var substituted = type.args().stream().map(Nulls.nonNull(a -> substitute(a, params, args))).toList();
         return new TypeRef(type.pos(), type.name(), substituted, type.nullable());
     }
-    public record RequiredMethod(Decl.Function method, List<String> typeParams) {}
+    public record RequiredMethod(String name, List<Boolean> boxedParams, boolean boxedResult) {}
     public static List<RequiredMethod> requiredMethods(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         final var result = new ArrayList<RequiredMethod>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
             final var names = iface.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
             for (final var method : iface.methods()) {
-                result.add(new RequiredMethod(method, names));
+                final var params = method.params().stream().map(Nulls.nonNull(p -> isTypeVariable(names, p.type()))).toList();
+                result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())));
+            }
+        }
+        for (final var type : supertypes) {
+            if (!type.args().isEmpty() && interfaceNamed(file, siblings, type.name()) == null) {
+                for (final var shape : JavaInterfaces.shapes(qualified(file, type.name()))) {
+                    result.add(new RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable()));
+                }
             }
         }
         return result;
+    }
+    private static boolean isTypeVariable(List<String> names, @Nullable TypeRef type) {
+        return type != null && type.args().isEmpty() && names.contains(type.name());
+    }
+    private static String qualified(SourceFile file, String name) {
+        if (name.contains(".")) {
+            return name;
+        }
+        for (final var i : file.imports()) {
+            if (i.kind() == Import.Kind.TYPE && i.simpleName().equals(name)) {
+                return i.name();
+            }
+        }
+        return "java.lang." + name;
     }
     public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         final var keys = new ArrayList<String>();

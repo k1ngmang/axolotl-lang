@@ -1,0 +1,80 @@
+package app
+
+import java.util.Comparator
+import java.util.Iterator
+import java.util.List
+import java.util.NoSuchElementException
+import java.util.function.BiFunction
+import java.util.function.Function
+import java.util.function.IntBinaryOperator
+import java.util.function.Predicate
+import java.util.function.Supplier
+
+class Doubler : Function<Int, Int> {
+    fn apply(x: Int) -> Int = x * 2
+}
+
+class Always : Supplier<Int> {
+    fn get() -> Int = 42
+}
+
+class Even : Predicate<Int> {
+    fn test(x: Int) -> Boolean = x % 2 == 0
+}
+
+class Desc : Comparator<Int> {
+    fn compare(a: Int, b: Int) -> Int = b.compareTo(a)
+}
+
+class Plus : BiFunction<Int, Int, Int> {
+    fn apply(a: Int, b: Int) -> Int = a + b
+}
+
+// Not generic: Java has the primitive here.
+class Times : IntBinaryOperator {
+    fn applyAsInt(a: Int, b: Int) -> Int = a * b
+}
+
+class Range(val from: Int, val to: Int) : Iterable<Int> {
+    fn iterator() -> Iterator<Int> = RangeIterator(from, to)
+}
+
+class RangeIterator(val start: Int, val end: Int) : Iterator<Int> {
+    var current = start
+
+    fn hasNext() -> Boolean = current < end
+
+    fn next() -> Int {
+        if (current >= end) {
+            throw NoSuchElementException()
+        }
+        val value = current
+        current += 1
+        return value
+    }
+}
+
+data class Label(val text: String) : Supplier<String> {
+    fn get() -> String = text
+}
+
+data class Offset(val by: Int) : Function<Int, Int> {
+    fn apply(x: Int) -> Int = x + by
+}
+
+fn main() {
+    println(Doubler().apply(4))
+    println(Always().get())
+    println(Even().test(4))
+    println(List.of(1, 3, 2) |> sorted(Desc()))
+    println(Plus().apply(2, 3))
+    println(Times().applyAsInt(2, 3))
+    var sum = 0
+    for (i in Range(1, 5)) {
+        sum += i
+    }
+    println(sum)
+    println(Label("x").get())
+    println(Offset(3).apply(4))
+    println(List.of(1, 2, 3) |> map { n -> Doubler().apply(n) })
+}
