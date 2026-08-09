@@ -1,0 +1,16 @@
+package app
+
+// `Level` is declared in Model.axl of this package and not imported: used as a value, it gets the import to
+// add, once per file, as a type does.
+fn weight(level: app.Model.Level) -> Int = when (level) {
+    Level.LOW -> 1
+    Level.HIGH -> 9
+    else -> 2
+}
+
+fn label(level: app.Model.Level) -> String = "" + Level.LOW + level
+
+fn main() {
+    println(weight(app.Model.Level.LOW))
+    println(label(app.Model.Level.HIGH))
+}

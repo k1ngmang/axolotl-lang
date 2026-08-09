@@ -151,6 +151,11 @@ final class Messages {
             + "|`[\\w.]+\\.(\\w+)` is not a type: |`(?:\\w+\\.)*(\\w+)` is the type of the file )");
     private static final Pattern UNKNOWN_USE = Pattern.compile("^unknown (?:function|name|type) `(\\w+)");
     private static final String UNKNOWN_TYPE = "unknown type `";
+    private static final String UNKNOWN_NAME = "unknown name `";
+    // The build adds where a type of another file is declared, to an unknown type and to an unknown name alike.
+    static final String DECLARED_IN = "`; it is declared in ";
+    // `Level.LOW` with `Level` unknown: javac reads `Level` as a package and points after the dot.
+    private static final Pattern UNKNOWN_PACKAGE = Pattern.compile("^unknown package `(\\w+)`");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
     private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
             + "`sorted { a, b -> a.compareTo(b) }`";
@@ -217,6 +222,10 @@ final class Messages {
         if (translated.startsWith(ATTEMPT_STATEMENT)) {
             return ATTEMPT;
         }
+        Matcher unknownPackage = UNKNOWN_PACKAGE.matcher(translated);
+        if (unknownPackage.find()) {
+            return Pattern.compile("\\b(" + Pattern.quote(unknownPackage.group(1)) + ")\\.");
+        }
         if (!translated.startsWith("type mismatch")) {
             return null;
         }
@@ -243,13 +252,14 @@ final class Messages {
     }
 
     /**
-     * An unknown type is reported where it is first used in a file, with the number of its other uses;
-     * each of them would repeat the same message and the same import to add. sorted is in file order.
+     * An unknown type, or a name that another file of the build declares, is reported where it is first used
+     * in a file, with the number of its other uses; each of them would repeat the same message and the same
+     * import to add. sorted is in file order.
      */
     static List<AxlDiagnostic> unknownTypesOnce(List<AxlDiagnostic> sorted) {
         Map<String, Long> uses = new HashMap<>();
         for (AxlDiagnostic d : sorted) {
-            if (d.message().startsWith(UNKNOWN_TYPE)) {
+            if (oncePerFile(d.message())) {
                 uses.merge(d.file() + "\n" + d.message(), 1L, Long::sum);
             }
         }
@@ -257,15 +267,19 @@ final class Messages {
         for (AxlDiagnostic d : sorted) {
             String key = d.file() + "\n" + d.message();
             Long count = uses.remove(key);
-            if (!d.message().startsWith(UNKNOWN_TYPE) || count != null && count == 1) {
+            if (!oncePerFile(d.message()) || count != null && count == 1) {
                 result.add(d);
             } else if (count != null) {
                 String more = " (and " + (count - 1) + " more use" + (count == 2 ? "" : "s") + " in this file)";
                 result.add(new AxlDiagnostic(d.file(), d.line(), d.column(), d.severity(), d.code(),
-                        d.message().replaceFirst("^(" + UNKNOWN_TYPE + "[^`]*`)", "$1" + Matcher.quoteReplacement(more))));
+                        d.message().replaceFirst("^(unknown (?:type|name) `[^`]*`)", "$1" + Matcher.quoteReplacement(more))));
             }
         }
         return result;
+    }
+
+    private static boolean oncePerFile(String message) {
+        return message.startsWith(UNKNOWN_TYPE) || message.startsWith(UNKNOWN_NAME) && message.contains(DECLARED_IN);
     }
 
     /** Whether the error only follows from another error of the same file, which already explains the mistake. */

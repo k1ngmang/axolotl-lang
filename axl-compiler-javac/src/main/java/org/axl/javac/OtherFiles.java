@@ -10,6 +10,8 @@ final class OtherFiles {
     private static final Pattern NO_MEMBER = Pattern.compile("^`(\\w+)` has no function or value `(\\w+)`$");
     private static final Pattern UNKNOWN_TYPE = Pattern.compile("^unknown type `(\\w+)`; check the spelling or add an import$");
     private static final Pattern UNKNOWN_IMPORT =Pattern.compile("^unknown type `((?:[a-z]\\w*\\.)*)(\\w+)`; check the spelling$");
+    // A type used as a value, `Level.LOW`: javac takes `Level` for a package in a `when` branch, for a name elsewhere.
+    private static final Pattern UNKNOWN_NAME = Pattern.compile("^unknown (?:name|package) `(\\w+)`; ");
 
     private static final Pattern UNKNOWN_FUNCTION = Pattern.compile(
             "^(unknown function `(\\w+)\\(.*?\\)`); check the spelling or add `import fn`$");
@@ -60,8 +62,14 @@ final class OtherFiles {
         Matcher unknownType = UNKNOWN_TYPE.matcher(message);
         String typeFile = unknownType.find() ? declaringFile(unknownType.group(1)) : null;
         if (typeFile != null) {
-            return "unknown type `" + unknownType.group(1) + "`; it is declared in " + typeFile + ".axl: `import "
+            return "unknown type `" + unknownType.group(1) + Messages.DECLARED_IN + typeFile + ".axl: `import "
                     + typeFile.replace('/', '.') + "." + unknownType.group(1) + "`";
+        }
+        Matcher unknownName = UNKNOWN_NAME.matcher(message);
+        String nameFile = unknownName.find() ? declaringFile(unknownName.group(1)) : null;
+        if (nameFile != null) {
+            return "unknown name `" + unknownName.group(1) + Messages.DECLARED_IN + nameFile + ".axl: `import "
+                    + nameFile.replace('/', '.') + "." + unknownName.group(1) + "`";
         }
         Matcher unknownImport = UNKNOWN_IMPORT.matcher(message);
         if (unknownImport.find()) {

@@ -1,0 +1,3 @@
+package app
+
+enum Level(val code: Int) { LOW(1), HIGH(9) }
