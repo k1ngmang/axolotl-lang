@@ -1,0 +1,3 @@
+package app
+
+fn f(a: Int, b: Int) -> Int = a ^ b

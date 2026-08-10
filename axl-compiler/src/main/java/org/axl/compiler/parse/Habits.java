@@ -26,8 +26,9 @@ final class Habits {
             AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL, AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL,
             AxolotlLexer.TRUE, AxolotlLexer.FALSE, AxolotlLexer.NULL, AxolotlLexer.BANG, AxolotlLexer.MINUS);
 
-    private static final String BIT_OPERATORS = "Axolotl has no bit operators such as `&`, `|` and `<<`; for flags, "
-            + "use a `Set` or `java.util.BitSet`";
+    private static final String BIT_OPERATORS = "Axolotl has no bit operators such as `&`, `|`, `^`, `~`, `<<` and `>>`; "
+            + "for flags, use a `Set` or `java.util.BitSet`, and for other bit arithmetic write a small Java class in "
+            + "the project and call it";
 
     private static final String RANGES = "Axolotl has no ranges (`until`, `..`); count with a `while` loop, or use "
             + "`java.util.stream.IntStream.range(from, to)`";
@@ -70,6 +71,10 @@ final class Habits {
             case AxolotlLexer.STAR -> followedBy(tokens, i, AxolotlLexer.STAR) && type(tokens, i - 1) != AxolotlLexer.DOT
                     ? "Axolotl has no `**`; use `Math.pow(a, b)`" : null;
             case AxolotlLexer.LT -> followedBy(tokens, i, AxolotlLexer.LT) ? BIT_OPERATORS : null;
+            // A generic type ends in `>>` with no space before it.
+            case AxolotlLexer.GT -> followedBy(tokens, i, AxolotlLexer.GT) && i > 0 && type(tokens, i - 1) == AxolotlLexer.WS
+                    && VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
+                    && VALUE_STARTS.contains(type(tokens, SourceParser.nextCode(tokens, i + 1))) ? BIT_OPERATORS : null;
             case AxolotlLexer.BANG -> followedBy(tokens, i, AxolotlLexer.DOT)
                     ? "write `!!.` to state that the value is not null: `s!!.length()`"
                     : followedBy(tokens, i, AxolotlLexer.IDENTIFIER) && text(tokens, i + 1).equals("in") ? notIn(tokens, i) : null;
@@ -185,7 +190,7 @@ final class Habits {
             case "#" -> !alone(tokens, i) && startsLine(tokens, i) ? "comments start with `//`" : null;
             case "|" -> unionType(tokens, i) ? "a parameter has one type; Axolotl has no union types, so take a common "
                     + "interface or `Object`" : BIT_OPERATORS;
-            case "&" -> BIT_OPERATORS;
+            case "&", "^", "~" -> BIT_OPERATORS;
             default -> null;
         };
     }
@@ -259,7 +264,9 @@ final class Habits {
             case "to" -> pair(tokens, i, nextIndex);
             case "vararg" -> next == AxolotlLexer.IDENTIFIER ? "Axolotl has no `vararg`; take a `List` parameter" : null;
             case "and", "or" -> VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
-                    && VALUE_STARTS.contains(next) ? AND_OR_NOT : null;
+                    && VALUE_STARTS.contains(next) ? andOr(tokens, i, next) : null;
+            case "xor", "shl", "shr", "ushr" -> VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
+                    && VALUE_STARTS.contains(next) ? BIT_OPERATORS : null;
             case "not" -> !VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
                     && (next == AxolotlLexer.IDENTIFIER || next == AxolotlLexer.TRUE || next == AxolotlLexer.FALSE)
                     ? AND_OR_NOT : null;
@@ -278,6 +285,13 @@ final class Habits {
     }
 
     private static final String AND_OR_NOT = "write `&&`, `||` and `!` instead of `and`, `or` and `not`";
+    /** Kotlin's `a and b`: `&&` for booleans, but a bit operation when a side is a number. */
+
+    private static String andOr(List<Token> tokens, int i, int next) {
+        int previous = type(tokens, SourceParser.previousCode(tokens, i));
+        boolean number = previous == AxolotlLexer.INT_LITERAL || next == AxolotlLexer.INT_LITERAL;
+        return number ? BIT_OPERATORS : AND_OR_NOT;
+    }
 
     /** Kotlin's `o as String` and `o as? String`, and `import java.util.List as JList`. */
     private static String cast(List<Token> tokens, int i, int nextIndex) {
