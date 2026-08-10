@@ -8,6 +8,7 @@ AXL001 app/ColonBlock.axl:3:20: error: a block goes in braces: `{ ... }`, not af
 AXL001 app/CommaBetweenValues.axl:4:14: error: declare each value on a line of its own, or separate them with `;`
 AXL001 app/ComparisonAtEnd.axl:3:30: error: `>` needs a value after it
 AXL001 app/ConditionInWhenBranch.axl:4:7: error: a `when` branch compares with a constant or tests a type with `is`; for other conditions, use `if` and `else if`
+AXL001 app/DataClassProperty.axl:8:5: error: a data class body holds methods only; write `fn message() -> String = reason`
 AXL001 app/EmptyCondition.axl:4:9: error: `if` needs a condition: `if (c) { ... }`
 AXL001 app/FunctionType.axl:3:13: error: Axolotl has no function types; use an interface such as `java.util.function.Function<Int, Int>`
 AXL001 app/FunctionWithoutName.axl:3:4: error: missing the name of the function: `fn name(...)`

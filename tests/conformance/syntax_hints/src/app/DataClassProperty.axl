@@ -1,0 +1,9 @@
+package app
+
+sealed interface Problem {
+    val message: String
+}
+
+data class Rejected(val reason: String) : Problem {
+    val message: String = reason
+}

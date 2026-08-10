@@ -2,6 +2,8 @@ package org.axl.compiler.parse;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.Token;
 
@@ -29,6 +31,9 @@ final class Mistakes {
             "arrayListOf", "ArrayList", "mutableMapOf", "HashMap", "hashMapOf", "HashMap", "mutableSetOf", "HashSet",
             "hashSetOf", "HashSet");
 
+    // `message: String = reason`, as lineText spaces it: the name, then the type and the value when written.
+    private static final Pattern PROPERTY = Pattern.compile("^(\\w+)(?:: (.+?))?(?: = (.+))?$");
+
     private Mistakes() {}
 
     /** The cause of an error the parser found at the token at, or null. */
@@ -37,6 +42,9 @@ final class Mistakes {
             boolean field = enclosingParen(tokens, at) != null;
             return new Placed(at, field ? "a data class cannot change; declare its fields with `val`"
                     : "top-level values cannot change; use `val`, or keep the state in a class");
+        }
+        if ((at.getType() == AxolotlLexer.VAL || at.getType() == AxolotlLexer.VAR) && inDataClass(tokens, at)) {
+            return new Placed(at, dataClassProperty(tokens, at));
         }
         Token withoutBraces = withoutBraces(tokens, at);
         if (withoutBraces != null) {
@@ -317,6 +325,29 @@ final class Mistakes {
     private static boolean inInterface(CommonTokenStream tokens, Token at) {
         Token brace = enclosingBrace(tokens, at);
         return brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.INTERFACE);
+    }
+
+    /** Whether the innermost `{` open at the token is the body of a data class, which holds methods only. */
+    private static boolean inDataClass(CommonTokenStream tokens, Token at) {
+        Token brace = enclosingBrace(tokens, at);
+        return brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.CLASS)
+                && tokens.getTokens().stream().anyMatch(t -> t.getLine() == brace.getLine() && t.getText().equals("data"));
+    }
+
+    /** `val message: String = reason` in the body of a data class, as the method it can be. */
+    private static String dataClassProperty(CommonTokenStream tokens, Token at) {
+        String message = "a data class body holds methods only; ";
+        Token name = SourceParser.nextToken(tokens, at);
+        if (name.getType() != AxolotlLexer.IDENTIFIER) {
+            return message + "write `fn name() -> Type`";
+        }
+        Matcher written = PROPERTY.matcher(lineText(tokens, name));
+        if (!written.matches()) {
+            return message + "write `fn " + name.getText() + "() -> Type`";
+        }
+        String type = written.group(2) == null ? "" : " -> " + written.group(2);
+        String value = written.group(3) == null ? "" : " = " + written.group(3);
+        return message + "write `fn " + name.getText() + "()" + type + value + "`";
     }
 
     /** Whether the token is in the parameter list of a function declaration. */
