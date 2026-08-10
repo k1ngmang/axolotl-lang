@@ -46,11 +46,13 @@ final class Mistakes {
         if (previous == null) {
             return null;
         }
-        // The parser gives up after the `>` of `is List<String>`, at the `>` of `is List<*>`, or at the `*`.
+        // The parser gives up after the `>` of `is List<String>`, at the `>` of `is List<*>`, or at the `*`;
+        // in a `when` branch it gives up at the `<`.
         Token close = previous.getType() == AxolotlLexer.GT ? previous : at.getType() == AxolotlLexer.GT ? at
                 : at.getType() == AxolotlLexer.STAR && type(SourceParser.nextToken(tokens, at)) == AxolotlLexer.GT
                 ? SourceParser.nextToken(tokens, at) : null;
-        Token typeArguments = close == null ? null : typeArgumentsOfIs(tokens, close);
+        Token typeArguments = at.getType() == AxolotlLexer.LT && testsType(tokens, previous) ? at
+                : close == null ? null : typeArgumentsOfIs(tokens, close);
         if (typeArguments != null) {
             String name = before(tokens, typeArguments).getText();
             boolean star = SourceParser.nextToken(tokens, typeArguments).getType() == AxolotlLexer.STAR;
@@ -472,14 +474,18 @@ final class Mistakes {
             if (t.getType() == AxolotlLexer.GT) {
                 depth++;
             } else if (t.getType() == AxolotlLexer.LT && --depth == 0) {
-                Token name = before(tokens, t);
-                while (type(before(tokens, name)) == AxolotlLexer.DOT) {
-                    name = before(tokens, before(tokens, name));
-                }
-                return type(before(tokens, name)) == AxolotlLexer.IS ? t : null;
+                return testsType(tokens, before(tokens, t)) ? t : null;
             }
         }
         return null;
+    }
+
+    /** Whether the name that ends at the token follows `is`. */
+    private static boolean testsType(CommonTokenStream tokens, Token name) {
+        while (type(before(tokens, name)) == AxolotlLexer.DOT) {
+            name = before(tokens, before(tokens, name));
+        }
+        return type(before(tokens, name)) == AxolotlLexer.IS;
     }
 
     /** An `if (c)`, `while (c)` or `for (x in xs)` before the token, whose statement does not start with `{`. */
