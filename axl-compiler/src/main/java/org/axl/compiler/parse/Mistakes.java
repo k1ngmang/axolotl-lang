@@ -38,9 +38,9 @@ final class Mistakes {
             return new Placed(at, field ? "a data class cannot change; declare its fields with `val`"
                     : "top-level values cannot change; use `val`, or keep the state in a class");
         }
-        Token ifWithoutBraces = ifWithoutBraces(tokens, at);
-        if (ifWithoutBraces != null) {
-            return new Placed(ifWithoutBraces, "an `if` statement needs braces: `if (c) { ... }`");
+        Token withoutBraces = withoutBraces(tokens, at);
+        if (withoutBraces != null) {
+            return new Placed(withoutBraces, SourceParser.needsBraces(withoutBraces));
         }
         Token previous = SourceParser.previousToken(tokens, at);
         if (previous == null) {
@@ -482,8 +482,8 @@ final class Mistakes {
         return null;
     }
 
-    /** An `if (c)` before the token, whose statement does not start with `{`. */
-    private static Token ifWithoutBraces(CommonTokenStream tokens, Token at) {
+    /** An `if (c)`, `while (c)` or `for (x in xs)` before the token, whose statement does not start with `{`. */
+    private static Token withoutBraces(CommonTokenStream tokens, Token at) {
         for (Token t = SourceParser.previousToken(tokens, at); t != null; t = SourceParser.previousToken(tokens, t)) {
             switch (t.getType()) {
                 case AxolotlLexer.LBRACE, AxolotlLexer.RBRACE, AxolotlLexer.SEMI, AxolotlLexer.ELSE -> {
@@ -491,9 +491,9 @@ final class Mistakes {
                 }
                 case AxolotlLexer.RPAREN -> {
                     Token next = SourceParser.nextToken(tokens, t);
-                    if (SourceParser.closesIf(tokens, t) && next.getType() != AxolotlLexer.LBRACE) {
-                        Token ifToken = before(tokens, matchingOpen(tokens, t));
-                        return givesValue(tokens, ifToken) ? null : ifToken;
+                    if (SourceParser.controlWord(tokens, t) != null && next.getType() != AxolotlLexer.LBRACE) {
+                        Token word = before(tokens, matchingOpen(tokens, t));
+                        return word.getType() == AxolotlLexer.IF && givesValue(tokens, word) ? null : word;
                     }
                 }
                 default -> { }

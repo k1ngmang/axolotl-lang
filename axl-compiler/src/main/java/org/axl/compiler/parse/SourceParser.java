@@ -573,8 +573,8 @@ public final class SourceParser {
             return "missing `(` after `" + previous.getText() + "`: `" + previous.getText() + " (c) { ... }`";
         }
         if (previous != null && previous.getType() == AxolotlLexer.RPAREN && at.getType() != AxolotlLexer.LBRACE
-                && closesIf(tokens, previous)) {
-            return "an `if` statement needs braces: `if (c) { ... }`";
+                && controlWord(tokens, previous) != null) {
+            return needsBraces(controlWord(tokens, previous));
         }
         if (previous != null && previous.getType() == AxolotlLexer.WHEN && at.getType() == AxolotlLexer.LBRACE) {
             return "`when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`";
@@ -609,10 +609,20 @@ public final class SourceParser {
                 : "missing `)` at the end of the line";
     }
 
-    /** Whether the `)` closes the condition of an `if`. */
-    static boolean closesIf(CommonTokenStream tokens, Token close) {
+    /** The `if`, `while` or `for` whose header the `)` closes, or null. */
+    static Token controlWord(CommonTokenStream tokens, Token close) {
         Token before = beforeParens(tokens, close);
-        return before != null && before.getType() == AxolotlLexer.IF;
+        boolean control = before != null && (before.getType() == AxolotlLexer.IF || before.getType() == AxolotlLexer.WHILE
+                || before.getType() == AxolotlLexer.FOR);
+        return control ? before : null;
+    }
+
+    static String needsBraces(Token word) {
+        return switch (word.getType()) {
+            case AxolotlLexer.WHILE -> "a `while` loop needs braces: `while (c) { ... }`";
+            case AxolotlLexer.FOR -> "a `for` loop needs braces: `for (x in xs) { ... }`";
+            default -> "an `if` statement needs braces: `if (c) { ... }`";
+        };
     }
 
     /** The token before the `(` that the `)` closes, or null. */

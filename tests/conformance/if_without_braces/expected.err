@@ -1,4 +1,6 @@
+AXL001 app/ForStatement.axl:6:5: error: a `for` loop needs braces: `for (x in xs) { ... }`
 AXL001 app/IfElseCalls.axl:5:5: error: an `if` statement needs braces: `if (c) { ... } else { ... }`
 AXL001 app/IfNextLine.axl:5:5: error: an `if` statement needs braces: `if (c) { ... }`
 AXL001 app/IfNoParens.axl:5:8: error: missing `(` after `if`: `if (c) { ... }`
 AXL001 app/IfReturn.axl:4:5: error: an `if` statement needs braces: `if (c) { ... }`
+AXL001 app/WhileStatement.axl:5:5: error: a `while` loop needs braces: `while (c) { ... }`
