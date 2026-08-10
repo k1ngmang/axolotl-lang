@@ -1,0 +1,10 @@
+package app
+
+import java.io.BufferedReader
+import java.io.StringReader
+
+fn firstLine(text: String) -> Result<String, String> {
+    use (val r = BufferedReader(StringReader(text))) {
+        return Ok(r.readLine() ?: "")
+    } else e -> return Err("io: " + e.getMessage())
+}

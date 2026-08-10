@@ -123,8 +123,18 @@ final class Mistakes {
     /** `val r = attempt f() else e -> break`: only a statement of its own can leave the loop or the function. */
     private static String attemptExit(CommonTokenStream tokens, Token at, Token previous) {
         boolean handler = previous.getType() == AxolotlLexer.ARROW || previous.getType() == AxolotlLexer.ELSE;
-        return handler && lineHas(tokens, at.getLine(), AxolotlLexer.ATTEMPT)
-                ? "`" + at.getText() + "` can only be the handler of an `attempt` on a line of its own" : null;
+        if (handler && lineHas(tokens, at.getLine(), AxolotlLexer.ATTEMPT)) {
+            return "`" + at.getText() + "` can only be the handler of an `attempt` on a line of its own";
+        }
+        return previous.getType() == AxolotlLexer.ARROW && endsUse(tokens, previous)
+                ? "the `else` of `use` is a call or a `throw`, not `" + at.getText() + "`; throw there, and handle the "
+                + "failure where the function is called: `attempt f() else e -> ...`" : null;
+    }
+
+    /** Whether the `->` is the one of `} else e ->`, the handler of a `use`. */
+    private static boolean endsUse(CommonTokenStream tokens, Token arrow) {
+        Token word = before(tokens, before(tokens, arrow));
+        return word != null && word.getType() == AxolotlLexer.ELSE && type(before(tokens, word)) == AxolotlLexer.RBRACE;
     }
 
     private static final String INTERFACE_METHOD_BODY = "a method of an interface has no body; it ends after `)` or its "
