@@ -1,0 +1,7 @@
+package app
+
+import app.Model.*
+
+fn main() {
+    println(Money(5))
+}

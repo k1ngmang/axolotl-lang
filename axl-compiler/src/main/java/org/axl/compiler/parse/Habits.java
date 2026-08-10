@@ -286,8 +286,8 @@ final class Habits {
     }
 
     private static final String AND_OR_NOT = "write `&&`, `||` and `!` instead of `and`, `or` and `not`";
-    /** Kotlin's `a and b`: `&&` for booleans, but a bit operation when a side is a number. */
 
+    /** Kotlin's `a and b`: `&&` for booleans, but a bit operation when a side is a number. */
     private static String andOr(List<Token> tokens, int i, int next) {
         int previous = type(tokens, SourceParser.previousCode(tokens, i));
         boolean number = previous == AxolotlLexer.INT_LITERAL || next == AxolotlLexer.INT_LITERAL;
@@ -605,7 +605,8 @@ final class Habits {
         int line = tokens.get(i).getLine();
         for (int j = i + 1; j < tokens.size() && tokens.get(j).getLine() == line; j++) {
             if (type(tokens, j) == AxolotlLexer.STAR && type(tokens, j - 1) == AxolotlLexer.DOT) {
-                return "Axolotl imports one type at a time: `import java.util.ArrayList`";
+                return "Axolotl imports one type at a time; write an import for each type you use: `import "
+                        + source(tokens, SourceParser.nextCode(tokens, i), j - 1) + "Name`";
             }
         }
         return null;

@@ -40,4 +40,5 @@ AXL001 app/TypeArgumentCall.axl:6:13: error: Axolotl has no type arguments on ca
 AXL001 app/VoidMain.axl:3:1: error: functions are declared with `fn`: `fn main(...)`
 AXL001 app/Volatile.axl:4:5: error: Axolotl has no `volatile`; use `AtomicBoolean`, `AtomicInteger` or `AtomicReference` from `java.util.concurrent.atomic`
 AXL001 app/WhenNoSubject.axl:5:10: error: `when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`
-AXL001 app/Wildcard.axl:3:1: error: Axolotl imports one type at a time: `import java.util.ArrayList`
+AXL001 app/Wildcard.axl:3:1: error: Axolotl imports one type at a time; write an import for each type you use: `import java.util.Name`
+AXL001 app/WildcardOwn.axl:3:1: error: Axolotl imports one type at a time; write an import for each type you use: `import app.Model.Name`
