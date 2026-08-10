@@ -1,0 +1,12 @@
+package app
+
+import java.util.Map
+
+fn total(keys: List<String>, m: Map<String, Int>) -> Int {
+    var sum = 0
+    for (k in keys) {
+        val v = m.get(k) ?: continue
+        sum += v
+    }
+    return sum
+}

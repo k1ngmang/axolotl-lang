@@ -81,7 +81,8 @@ final class Habits {
             case AxolotlLexer.IS -> next == AxolotlLexer.NULL
                     || text(tokens, SourceParser.nextCode(tokens, i)).equals("None") && !declaresType(tokens, "None")
                     ? "compare with `==` to test for null: `s == null`" : null;
-            case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN ? elvisJump(tokens, i) : null;
+            case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN || next == AxolotlLexer.BREAK
+                    || next == AxolotlLexer.CONTINUE ? elvisJump(tokens, i) : null;
             case AxolotlLexer.STRING_LITERAL -> tokens.get(i).getText().equals("\"\"")
                     && followedBy(tokens, i, AxolotlLexer.STRING_LITERAL) ? TEXT_BLOCKS : null;
             default -> null;
@@ -103,7 +104,7 @@ final class Habits {
         return false;
     }
 
-    /** `s ?: return 0`, which Kotlin allows. */
+    /** `s ?: return 0`, `s ?: continue` and `s ?: break`, which Kotlin allows. */
     private static String elvisJump(List<Token> tokens, int i) {
         int previous = SourceParser.previousCode(tokens, i);
         int start = operandStart(tokens, previous);

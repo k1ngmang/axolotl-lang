@@ -1,0 +1,12 @@
+package app
+
+import java.util.List
+
+fn first(xs: List<String?>) -> Int {
+    var n = 0
+    for (x in xs) {
+        val s = x ?: break
+        n += s.length()
+    }
+    return n
+}
