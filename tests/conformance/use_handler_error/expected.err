@@ -1,1 +1,1 @@
-AXL001 app/Main.axl:8:17: error: the `else` of `use` needs a handler that does something: a call such as `println(e)`, or `throw IllegalStateException(e)`
+AXL001 app/Main.axl:8:17: error: the `else` of `use` needs a handler that does something: a call such as `println(e)`, or `throw IllegalStateException(e)`; to turn the failure into a value, throw there and handle it where the function is called: `attempt f() else e -> ...`

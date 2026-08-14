@@ -1,5 +1,5 @@
 AXL007 app/Main.axl:7:22: error: `mapResult` can only be used in a function that returns `Result`
-AXL013 app/Main.axl:8:22: error: unknown pipe stage `reverse`; use filter, map, mapResult, peek, sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first
+AXL013 app/Main.axl:8:22: error: unknown pipe stage `reverse`; use filter, map, mapResult, peek, sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first; for a sum, a maximum, text or a reduction use the stream: `xs.stream().mapToInt({ n -> n }).sum()`, `.max(..)`, `.collect(Collectors.joining(","))`, `.reduce(..)`, `.flatMap(..)`
 AXL013 app/Main.axl:9:22: error: `count` ends a pipe and must be its last stage
 AXL013 app/Main.axl:10:22: error: `limit` takes one argument: `|> limit(n)`
 AXL007 app/Main.axl:11:22: error: `mapResult` can only be used in a function that returns `Result`

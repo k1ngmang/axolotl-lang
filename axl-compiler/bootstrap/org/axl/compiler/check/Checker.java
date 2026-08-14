@@ -756,7 +756,8 @@ import org.axl.compiler.ast.TypeRef;
                 allowedThrows.add(inner$1);
             } else if (!(inner instanceof Expr.Call inner$2) && !(inner instanceof Expr.GenericNew inner$3)) {
                 error(handler.pos(), ErrorCode.SYNTAX, "the `else` of `use` needs a handler that does something: " +
-                        "a call such as `println(e)`, or `throw IllegalStateException(e)`");
+                        "a call such as `println(e)`, or `throw IllegalStateException(e)`; to turn the failure into a value, throw there " +
+                        "and handle it where the function is called: `attempt f() else e -> ...`");
             }
             expr(handler);
             pop();
@@ -1343,7 +1344,9 @@ import org.axl.compiler.ast.TypeRef;
                 name.equals("sorted");
         if (!known) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "unknown pipe stage `" + name + "`; use filter, map, mapResult, peek, " +
-                    "sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first");
+                    "sorted, distinct, limit, skip, forEach, anyMatch, allMatch, noneMatch, count or first; for a sum, a maximum, " +
+                    "text or a reduction use the stream: `xs.stream().mapToInt({ n -> n }).sum()`, `.max(..)`, " +
+                    "`.collect(Collectors.joining(\",\"))`, `.reduce(..)`, `.flatMap(..)`");
         } else if (STAGES_WITH_LAMBDA.contains(name) && (!hasLambda || !stage.args().isEmpty())) {
             error(stage.pos(), ErrorCode.PIPE_STAGE, "`" + name + "` takes a lambda: `|> " + name + " { ... }`");
         } else if (STAGES_WITH_ARGUMENT.contains(name) && (hasLambda || stage.args().size() != 1)) {

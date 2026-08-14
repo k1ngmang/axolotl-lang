@@ -77,6 +77,7 @@ type has parameters are static and cannot use them; they take their own.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
   `break` leaves the loop around it and `continue` goes on with its next round, also from inside a
   `when` in the loop; they have no labels.
+  A `while` or `for` body always has braces, like an `if` statement.
 - Statements end at the end of a line or at `;`. A line starting with `(`, `+` or `-` starts a new
   statement; break long lines after an operator or before `.`, `?.`, `?:` and `|>`. Two statements
   on one line need a `;` between them, and an expression that does nothing, such as `x + 1`,
@@ -84,6 +85,9 @@ type has parameters are static and cannot use them; they take their own.
 - Local names cannot shadow other local names.
 
 ## Expressions
+
+Axolotl has no bit operators (`&`, `|`, `^`, `~`, `<<`, `>>`); use a `Set` or `java.util.BitSet`, or write the
+arithmetic in a small Java class of the project (`src/main/java`) and call it.
 
 Calls, member access, `+ - * / %`, comparisons, `== !=` (Java's `==`: values for numbers, booleans and enum constants, an error for strings and other objects), `&& || !`, string
 concatenation, lambdas, method references `String::length` and class literals `String.class` work
@@ -170,11 +174,16 @@ A class may extend a Java class by calling its constructor after the colon: `cla
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
 Its methods override the Java class's by name, and interfaces follow after a comma. A class written in
 Axolotl cannot be extended: keep one in a property and give both an interface.
+A plain constructor parameter cannot be forwarded to the superclass: `class E(val code: Int, msg: String) :
+RuntimeException(msg)` is rejected, write `val msg: String`.
 
 A file whose name is a type it declares, such as `Counter.axl` above, is that type. Its other
 declarations are static members: `Counter.start("c")`.
 
 ## Annotations
+
+A nested JUnit class (`@Nested`) cannot be written, because Axolotl has no nested classes; use separate test files,
+or a Java test class.
 
 ```axl
 import org.junit.jupiter.api.Test
@@ -265,6 +274,8 @@ value or the body of an `attempt`; compute it in a function instead. A lambda wr
 parentheses: `if (c) ({ -> 1 }) else other`.
 
 ## Null safety
+
+Passing a value of an unbounded type `T` to a Java parameter needs `T : Object` on the declaration, or a null check.
 
 ```axl
 fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
@@ -359,6 +370,10 @@ sorted or copied with `List.copyOf` until its nulls are dropped with `|> filter 
 can be stored as `List<String?>`, in either mode.
 
 ## Errors as values
+
+A helper that always throws, such as `Assertions.fail`, is not an exit: after it the compiler still wants a value or
+a `return`. Write `throw AssertionError("...")` instead. The `else` of `use` is a call or a `throw`; to turn the
+failure into a value, put the `use` in a private function whose `else` throws, and call it with `attempt f(x) else e -> ...`.
 
 `Result<T, E>` is either `Ok(value)` or `Err(error)`.
 
