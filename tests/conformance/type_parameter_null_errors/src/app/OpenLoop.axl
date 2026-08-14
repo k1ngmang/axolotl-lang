@@ -1,0 +1,21 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.function.Function
+
+fn mapAll<T, R>(xs: List<T>, f: Function<T, R>) -> List<R> {
+    val out = ArrayList<R>()
+    for (x in xs) {
+        out.add(f.apply(x))
+    }
+    return out
+}
+
+fn checked(names: List<String?>, f: Function<String, Int>) -> Int {
+    var total = 0
+    for (n in names) {
+        total += f.apply(n)
+    }
+    return total
+}

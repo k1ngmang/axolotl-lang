@@ -7,8 +7,10 @@ import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -157,6 +159,8 @@ final class Messages {
     static final String DECLARED_IN = "`; it is declared in ";
     // `Level.LOW` with `Level` unknown: javac reads `Level` as a package and points after the dot.
     private static final Pattern UNKNOWN_PACKAGE = Pattern.compile("^unknown package `(\\w+)`");
+    private static final Pattern OPEN_TYPE_PARAMETER = Pattern.compile("\\b(\\w+) extends @Nullable Object\\b");
+    private static final Pattern CLASS_HEADER = Pattern.compile("\\b(?:class|record|interface) \\w+<");
     private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
@@ -807,10 +811,12 @@ final class Messages {
             String subject = name ? "`" + value + "`" : elvis ? "the value of `?:`" : value.contains("Nulls.map(") ? "the value of `?.`"
                     : "the argument";
             String check = name ? "check `if (" + value + " != null)`" : "a null check";
+            String open = name ? openTypeOf(value, javaLines, javaLine) : null;
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, elvis
                     ? subject + " may be null, since its fallback may be null, but the parameter does not accept null: use a "
                     + "fallback that is not null or a null check"
-                    : subject + " may be null, but the parameter does not accept null: use `?:` or " + check);
+                    : subject + " may be null, but the parameter does not accept null: use `?:` or " + check
+                    + (open == null ? "" : ", or `" + open + " : Object` on the declaration to rule null out"));
         }
         String plain = NULLAWAY_LINK.matcher(message.substring("[NullAway] ".length())).replaceAll("");
         Matcher selector = NULLABLE_SELECTOR.matcher(plain);
@@ -889,6 +895,52 @@ final class Messages {
         String fix = "declare it `" + keyword + " " + name + ": " + type + "?`";
         return value.equals("`null`") ? declared + ", which does not allow null; " + fix
                 : value + " may be null, but " + declared + "; " + fix + " or use `?:`";
+    }
+
+    /**
+     * The type parameter without a bound, `T`, that the named value has or whose collection it goes through,
+     * which stands for nullable types as well; null if the value is of another type or the declaration is not found.
+     */
+    private static String openTypeOf(String value, String[] javaLines, int javaLine) {
+        int last = Math.min(javaLine, javaLines.length);
+        int header = last - 1;
+        while (header > 0 && !METHOD_DECLARATION.matcher(javaLines[header]).find()) {
+            header--;
+        }
+        Set<String> open = new HashSet<>();
+        for (int i = 0; i < last; i++) {
+            boolean enclosing = i == header || CLASS_HEADER.matcher(javaLines[i]).find();
+            Matcher parameter = OPEN_TYPE_PARAMETER.matcher(javaLines[i]);
+            while (enclosing && parameter.find()) {
+                open.add(parameter.group(1));
+            }
+        }
+        if (open.isEmpty()) {
+            return null;
+        }
+        Pattern declared = Pattern.compile("(?:[(,] ?|final )([A-Z]\\w*) " + Pattern.quote(value) + "\\b");
+        Pattern iterated = Pattern.compile("\\bfor \\((?:final )?var " + Pattern.quote(value) + " : (\\w+)\\)");
+        for (int i = last - 1; i >= Math.max(header, 0); i--) {
+            Matcher direct = declared.matcher(javaLines[i]);
+            if (direct.find()) {
+                return open.contains(direct.group(1)) ? direct.group(1) : null;
+            }
+            Matcher loop = iterated.matcher(javaLines[i]);
+            if (loop.find()) {
+                int parametersStart = javaLines[header].indexOf('(');
+                int parametersEnd = javaLines[header].lastIndexOf(')');
+                if (parametersStart < 0 || parametersEnd < parametersStart) {
+                    return null;
+                }
+                String parameters = javaLines[header].substring(parametersStart + 1, parametersEnd);
+                String collection = splitTopLevel(parameters).stream().filter(p -> p.endsWith(" " + loop.group(1))).findFirst().orElse("");
+                int from = collection.indexOf('<');
+                int to = collection.lastIndexOf('>');
+                return from < 0 || to < from ? null : splitTopLevel(collection.substring(from + 1, to)).stream()
+                        .filter(open::contains).findFirst().orElse(null);
+            }
+        }
+        return null;
     }
 
     /** A null check narrows locals, parameters and `val` properties, but not a call or a `var` property. */

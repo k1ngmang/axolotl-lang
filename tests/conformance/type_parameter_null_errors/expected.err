@@ -2,3 +2,5 @@ AXL102 app/Main.axl:7:49: error: the result of `value()` may be null: its type `
 AXL102 app/Main.axl:11:14: error: `x` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
 AXL102 app/Main.axl:16:33: error: `x` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
 AXL102 app/Main.axl:19:33: error: `item` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/OpenLoop.axl:10:25: error: `x` may be null, but the parameter does not accept null: use `?:` or check `if (x != null)`, or `T : Object` on the declaration to rule null out
+AXL102 app/OpenLoop.axl:18:26: error: `n` may be null, but the parameter does not accept null: use `?:` or check `if (n != null)`
