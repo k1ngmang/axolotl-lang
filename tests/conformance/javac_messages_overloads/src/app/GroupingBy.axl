@@ -1,0 +1,11 @@
+package app
+
+import java.util.List
+import java.util.TreeMap
+import java.util.stream.Collectors
+
+fn main() {
+    val words = List.of("aa", "b", "cc")
+    val byLength = words.stream().collect(Collectors.groupingBy({ w: String -> w.length() }, TreeMap<Int, List<String>>(), Collectors.toList()))
+    println(byLength)
+}

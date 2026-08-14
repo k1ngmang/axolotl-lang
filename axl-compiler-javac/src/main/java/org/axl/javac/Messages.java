@@ -62,6 +62,10 @@ final class Messages {
     private static final Pattern INFERRED = Pattern.compile("inferred: (.+?); upper bound\\(s\\): (.+)$");
     private static final Pattern TRY_AFTER_OPERATOR = Pattern.compile("(&&|\\|\\|)\\s*(?:!\\s*)?try\\b");
     private static final Pattern TRY_BEFORE_OPERATOR = Pattern.compile("\\btry\\b[^&|]*?(&&|\\|\\|)");
+    // javac prints a lambda as `(String w)->w.length()`, or `(String w)[...]gth()` when the text is long.
+    private static final Pattern LAMBDA_ARGUMENT_TYPE = Pattern.compile("^(?:\\(([^()]*)\\)|(\\w+))(?:->|\\[\\.\\.\\.\\]).*$");
+    private static final Pattern SUPPLIER_MISMATCH = Pattern.compile(
+            "argument mismatch; ([\\w.$]+(?:<.*?>)?) cannot be converted to java\\.util\\.function\\.Supplier<");
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
@@ -1115,7 +1119,12 @@ final class Messages {
             String takes = candidates.size() > 4
                     ? String.join(", ", candidates.subList(0, 4)) + " and " + (candidates.size() - 4) + " more"
                     : String.join(", ", candidates);
-            return "wrong arguments for `" + noSuitable.group(1) + "`: got (" + got + "); it takes " + takes;
+            Matcher supplier = SUPPLIER_MISMATCH.matcher(message);
+            String created = supplier.find() ? supplier.group(1) : null;
+            String simple = created == null ? "" : created.replaceAll("<.*", "").replaceAll("^.*\\.", "");
+            return "wrong arguments for `" + noSuitable.group(1) + "`: got (" + got + "); it takes " + takes
+                    + (created == null || isInterface(created.replaceAll("<.*", ""), simple, javaLines) ? ""
+                    : "; a `Supplier` is a lambda that creates the value: `{ -> " + axlType(created) + "() }`");
         }
         Matcher unknownStatic = UNKNOWN_STATIC.matcher(message);
         if (unknownStatic.find()) {
@@ -2209,7 +2218,19 @@ final class Messages {
         if (javac.equals("no arguments")) {
             return "";
         }
-        return String.join(", ", splitTopLevel(javac).stream().map(Messages::axlType).toList());
+        return String.join(", ", splitTopLevel(javac).stream().map(Messages::argumentType).toList());
+    }
+
+    /** An argument of javac's list: a type, or a lambda, which javac prints with its middle left out. */
+    private static String argumentType(String argument) {
+        Matcher lambda = LAMBDA_ARGUMENT_TYPE.matcher(argument.strip());
+        if (!lambda.matches()) {
+            return axlType(argument.replaceAll("capture#\\d+ of ", ""));
+        }
+        String parameters = lambda.group(1) != null ? lambda.group(1) : lambda.group(2);
+        List<String> names = splitTopLevel(parameters).stream().map(String::strip).filter(n -> !n.isEmpty())
+                .map(n -> n.substring(n.lastIndexOf(' ') + 1)).toList();
+        return "{ " + (names.isEmpty() ? "" : String.join(", ", names) + " ") + "-> ... }";
     }
 
     static String axlType(String javaType) {
