@@ -1,0 +1,10 @@
+package app
+
+import java.util.concurrent.Callable
+
+data class Job(val name: String, val work: Callable<Int>)
+
+fn main() {
+    val j = Job("quick", Callable<Int>({ -> 21 * 2 }))
+    println(j.name())
+}

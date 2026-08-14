@@ -1548,16 +1548,22 @@ final class Messages {
     private static String abstractType(String javaName, String text, String[] javaLines) {
         String name = simpleNames(axlType(javaName));
         String simple = name.substring(name.lastIndexOf('.') + 1);
+        // Other types may be created on the line before this one, as in `Job("q", Callable<Int>({ -> 1 }))`.
         Matcher created = NEW_TYPE.matcher(text);
-        String typeArguments = created.find() && created.group(2) != null ? axlType(created.group(2)) : "";
-        Matcher lambda = LAMBDA_ARGUMENT.matcher(text.substring(created.find(0) ? created.end() : text.length()));
+        boolean found = false;
+        while (!found && created.find()) {
+            found = created.group(1).substring(created.group(1).lastIndexOf('.') + 1).equals(simple);
+        }
+        String typeArguments = found && created.group(2) != null ? axlType(created.group(2)) : "";
+        Matcher lambda = LAMBDA_ARGUMENT.matcher(found ? text.substring(created.end()) : "");
         if (lambda.find() && isInterface(javaName, simple, javaLines)) {
             // `Runnable({ -> ... })`: the lambda is the implementation, which only a value of the type takes.
             Matcher value = VALUE_NAME.matcher(text);
+            boolean initializer = value.find() && value.end() == created.start() + "new ".length();
             String parameters = lambda.group(1) != null ? lambda.group(1).strip() : lambda.group(2);
             return "`" + name + "` is an interface and cannot be created; pass the lambda where a `" + name + typeArguments
                     + "` is expected" + (simple.equals("Runnable") ? ", such as `Thread({ -> ... })`" : "") + ", or keep it in a value: `val "
-                    + (value.find() ? value.group(1) : "v") + ": " + name + typeArguments + " = { " + (parameters.isEmpty() ? "" : parameters + " ")
+                    + (initializer ? value.group(1) : "v") + ": " + name + typeArguments + " = { " + (parameters.isEmpty() ? "" : parameters + " ")
                     + "-> ... }`";
         }
         String implementation = switch (simple) {
