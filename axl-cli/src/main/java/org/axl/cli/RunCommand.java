@@ -136,12 +136,15 @@ final class RunCommand implements Callable<Integer> {
         }
     }
 
-    /** `fn main(args: List<String>)` compiles to an ordinary function that Java cannot start. */
+    /** `fn main(args: List<String>)` and `fn main() -> Int` compile to ordinary functions that Java cannot start. */
     private static String noMainReason(ClassLoader loader, String mainClass) {
         try {
             Method[] methods = loader.loadClass(mainClass).getMethods();
-            if (Arrays.stream(methods).anyMatch(m -> m.getName().equals("main"))) {
+            if (Arrays.stream(methods).anyMatch(m -> m.getName().equals("main") && m.getParameterCount() > 0)) {
                 return ": `fn main` must have no parameters; the program's arguments are in `args`, a String[]";
+            }
+            if (Arrays.stream(methods).anyMatch(m -> m.getName().equals("main"))) {
+                return ": `fn main` must have no result type; remove `->` and the type, and end the program with `System.exit(code)`";
             }
         } catch (ClassNotFoundException e) {
             // Reported as a missing main below.

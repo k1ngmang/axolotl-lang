@@ -1,6 +1,7 @@
 package org.axl.cli;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -85,6 +86,15 @@ class CliTest {
                 "package app\n\nimport java.util.List\n\nfn main(args: List<String>) {\n    println(args)\n}\n");
         assertEquals(1, axl("run", "--no-null-checks", file.toString()));
         assertTrue(err.toString().contains("`fn main` must have no parameters"), err.toString());
+    }
+
+    @Test
+    void runExplainsThatMainTakesNoResultType(@TempDir Path tmp) throws Exception {
+        Path file = Files.writeString(tmp.resolve("Main.axl"),
+                "package app\n\nfn main() -> Int {\n    println(\"hi\")\n    return 5\n}\n");
+        assertEquals(1, axl("run", "--no-null-checks", file.toString()));
+        assertTrue(err.toString().contains("`fn main` must have no result type"), err.toString());
+        assertFalse(err.toString().contains("must have no parameters"), err.toString());
     }
 
     @Test

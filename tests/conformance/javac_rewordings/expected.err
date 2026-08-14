@@ -32,6 +32,7 @@ AXL100 app/PrimitiveArgument.axl:6:18: error: a type argument cannot be `int`; w
 AXL100 app/ResultValue.axl:7:15: error: `r` of type `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it first: `if (r is Ok) { ... r.value() }`, or write `try r`
 AXL100 app/ResultValue.axl:8:15: error: `r` of type `Result<Int, String>` may be an `Ok`, so it has no `error()` yet; test it first: `if (r is Err) { ... r.error() }`
 AXL100 app/ResultValue.axl:9:24: error: `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it with `is Ok` first, or write `try` before it
+AXL100 app/ReturnFromMain.axl:5:5: error: `main` has no result type, so it cannot return a value; to end the program with an exit code, call `System.exit(code)`
 AXL100 app/ReturnWithoutType.axl:4:5: error: `f` has no result type, so it cannot return a value; add one after `->`, as in `fn f(...) -> Int`
 AXL100 app/SelfReference.axl:4:9: error: `x` is used in its own value; a line that ends with an operator goes on to the next line
 AXL100 app/StaticContext.axl:8:20: error: `length()` belongs to each `String`, not to the class; use it on a value, such as `string.length()`

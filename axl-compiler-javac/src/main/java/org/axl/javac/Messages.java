@@ -1401,9 +1401,13 @@ final class Messages {
                 return LAMBDA_RETURN_VALUE + "`" + outer + "`, and this lambda gives no value; compute the result with a "
                         + "pipe, such as `|> anyMatch { ... }`, or use a `for` loop";
             }
-            return function == null ? "nothing is expected here, so `return` cannot give a value"
-                    : "`" + function + "` has no result type, so it cannot return a value; add one after `->`, as in `fn " + function
-                    + "(...) -> Int`";
+            if (function == null) {
+                return "nothing is expected here, so `return` cannot give a value";
+            }
+            // A `main` with a result type is not the start of the program, so the exit code is not its result.
+            return "`" + function + "` has no result type, so it cannot return a value; "
+                    + (function.equals("main") ? "to end the program with an exit code, call `System.exit(code)`"
+                    : "add one after `->`, as in `fn " + function + "(...) -> Int`");
         }
         Matcher nonStatic = NON_STATIC.matcher(message);
         if (nonStatic.find()) {
