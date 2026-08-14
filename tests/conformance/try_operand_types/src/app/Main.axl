@@ -1,0 +1,24 @@
+package app
+
+fn count(s: String) -> Result<Int, String> = Ok(s.length())
+
+fn right(s: String) -> Result<Int, String> {
+    if (s.isEmpty() || try count(s)) {
+        return Ok(0)
+    }
+    return Ok(1)
+}
+
+fn left(s: String) -> Result<Int, String> {
+    if (try count(s) && s.isEmpty()) {
+        return Ok(0)
+    }
+    return Ok(1)
+}
+
+fn alone(s: String) -> Result<Int, String> {
+    if (try count(s)) {
+        return Ok(0)
+    }
+    return Ok(1)
+}

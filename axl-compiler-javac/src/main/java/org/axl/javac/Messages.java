@@ -59,6 +59,9 @@ final class Messages {
             "(?:method|constructor) ([\\w.$<>]+?)\\.(?:<[^>]*>)?(\\w+)\\(([^)]*)\\) is not applicable");
     private static final Pattern BAD_METHOD_REFERENCE = Pattern.compile(
             "^invalid method reference; cannot find symbol; symbol: method (\\w+)\\(.*?\\); location: \\w+ (.+)$");
+    private static final Pattern INFERRED = Pattern.compile("inferred: (.+?); upper bound\\(s\\): (.+)$");
+    private static final Pattern TRY_AFTER_OPERATOR = Pattern.compile("(&&|\\|\\|)\\s*(?:!\\s*)?try\\b");
+    private static final Pattern TRY_BEFORE_OPERATOR = Pattern.compile("\\btry\\b[^&|]*?(&&|\\|\\|)");
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
             "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
@@ -1016,6 +1019,11 @@ final class Messages {
             return mismatch(expected, splitTopLevel(bounds.group(2)).getFirst());
         }
         if (message.startsWith("incompatible types: inferred type does not conform to upper bound(s)")) {
+            Matcher inferred = INFERRED.matcher(message);
+            if (inferred.find() && text.contains("Result.unwrap(")) {
+                return tryOperand(splitTopLevel(inferred.group(2)).stream().filter(t -> !t.equals("java.lang.Object"))
+                        .findFirst().orElse(inferred.group(2)), inferred.group(1), axlText);
+            }
             return text.contains("Nulls.or(") ? "the two sides of `?:` have different types" : "the types in this expression do not fit together";
         }
         Matcher noInstance = NO_INSTANCE.matcher(message);
@@ -1983,6 +1991,21 @@ final class Messages {
                     + "branch of the `if` or `?:`, or every element, the same type";
         }
         return "type mismatch: expected `" + axlType(expected) + "`, found `" + axlType(found) + "`";
+    }
+
+    /** A `try` whose value is not what its place needs: an operand of `&&` or `||`, or a condition. */
+    private static String tryOperand(String expected, String found, String axlText) {
+        String need = axlType(expected);
+        String has = axlType(found);
+        Matcher after = TRY_AFTER_OPERATOR.matcher(axlText);
+        if (need.equals("Boolean") && after.find()) {
+            return "`" + after.group(1) + "` cannot be applied to `Boolean` and `" + has + "`";
+        }
+        Matcher before = TRY_BEFORE_OPERATOR.matcher(axlText);
+        if (need.equals("Boolean") && before.find()) {
+            return "`" + before.group(1) + "` cannot be applied to `" + has + "` and `Boolean`";
+        }
+        return mismatch(expected, found);
     }
 
     private static boolean isIntersection(String type) {
