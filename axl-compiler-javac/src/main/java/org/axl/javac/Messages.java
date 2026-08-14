@@ -156,6 +156,8 @@ final class Messages {
     static final String DECLARED_IN = "`; it is declared in ";
     // `Level.LOW` with `Level` unknown: javac reads `Level` as a package and points after the dot.
     private static final Pattern UNKNOWN_PACKAGE = Pattern.compile("^unknown package `(\\w+)`");
+    private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
+    private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
     private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
             + "`sorted { a, b -> a.compareTo(b) }`";
@@ -1069,7 +1071,7 @@ final class Messages {
             if (symbol.equals("stream()") && text.contains(".stream().")) {
                 int ofType = location.indexOf(" of type ");
                 String type = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
-                return PIPE_SUBJECT + ", found `" + axlType(type) + "`";
+                return pipeSubject(type, axlText);
             }
             int ofType = location.indexOf(" of type ");
             String owner = ofType > 0 ? location.substring(ofType + " of type ".length()) : location.substring(location.indexOf(' ') + 1);
@@ -1108,7 +1110,7 @@ final class Messages {
         }
         Matcher notDereferenced = NOT_DEREFERENCED.matcher(message);
         if (notDereferenced.find() && text.contains(".stream().")) {
-            return PIPE_SUBJECT + ", found `" + axlType(notDereferenced.group(1)) + "`";
+            return pipeSubject(notDereferenced.group(1), axlText);
         }
         if (notDereferenced.find(0)) {
             return "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members"
@@ -2127,6 +2129,17 @@ final class Messages {
             case "char" -> "Character";
             default -> Character.toUpperCase(m.group(1).charAt(0)) + m.group(1).substring(1);
         }).replace(",", ", ").replace(",  ", ", ");
+    }
+
+    /** The message for a pipe over a value that is not a collection; an array of objects can be wrapped in a list. */
+    private static String pipeSubject(String javaType, String axlText) {
+        String found = PIPE_SUBJECT + ", found `" + axlType(javaType) + "`";
+        if (!javaType.endsWith("[]") || PRIMITIVE_ARRAY.matcher(javaType).matches()) {
+            return found;
+        }
+        Matcher subject = PIPE.matcher(axlText);
+        boolean named = subject.find() && SIMPLE_NAME.matcher(subject.group(1)).matches();
+        return found + "; an array is not a collection, so wrap it in `List.of(" + (named ? subject.group(1) : "...") + ")`";
     }
 
     /** The qualified name of the class generated for the .axl file. */

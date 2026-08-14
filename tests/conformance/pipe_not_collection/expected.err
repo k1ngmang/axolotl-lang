@@ -1,2 +1,4 @@
 AXL100 app/Main.axl:6:13: error: `|>` needs a collection or a stream, found `String`
 AXL100 app/Main.axl:7:13: error: `|>` needs a collection or a stream, found `Map<String, Int>`
+AXL100 app/Main.axl:9:13: error: `|>` needs a collection or a stream, found `String[]`; an array is not a collection, so wrap it in `List.of(parts)`
+AXL100 app/Main.axl:10:28: error: `|>` needs a collection or a stream, found `String[]`; an array is not a collection, so wrap it in `List.of(...)`

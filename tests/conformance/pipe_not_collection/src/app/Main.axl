@@ -5,4 +5,7 @@ import java.util.Map
 fn f(m: Map<String, Int>) {
     val a = "abc" |> map { it }
     val b = m |> filter { it != null }
+    val parts = "a,b".split(",")
+    val c = parts |> map { it }
+    val d = "a,b".split(",") |> map { it }
 }
