@@ -6,10 +6,9 @@ import java.util.HashSet
 import java.util.List
 import java.util.Map
 import java.util.Set
-import org.axl.compiler.JavaInterfaces
+import org.axl.compiler.JavaClasses
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
-import org.axl.compiler.ast.Import
 import org.axl.compiler.ast.Pos
 import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.TypeRef
@@ -156,8 +155,8 @@ fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<TypeRef>) 
 /** A method an interface requires, with where it has a type variable, which Java boxes an `Int` for. */
 data class RequiredMethod(val name: String, val boxedParams: List<Boolean>, val boxedResult: Boolean)
 
-/** The methods the interfaces among the supertypes require: those of the build and those of Java. */
-fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<RequiredMethod> {
+/** The methods the interfaces among the supertypes require: those of the build and those of Java classes that can be read. */
+fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses, supertypes: List<TypeRef>) -> List<RequiredMethod> {
     val result = ArrayList<RequiredMethod>()
     for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
         val iface = implemented.iface()
@@ -170,8 +169,11 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, supertypes: Lis
     for (type in supertypes) {
         // Only generic ones: a type argument is where Java boxes.
         if (!type.args().isEmpty() && interfaceNamed(file, siblings, type.name()) == null) {
-            for (shape in JavaInterfaces.shapes(qualified(file, type.name()))) {
-                result.add(RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable()))
+            val library = Libraries.classNamed(file, classes, type.name())
+            if (library != null) {
+                for (shape in classes.methods(library.name())) {
+                    result.add(RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable()))
+                }
             }
         }
     }
@@ -180,19 +182,6 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, supertypes: Lis
 
 private fn isTypeVariable(names: List<String>, type: TypeRef?) -> Boolean =
     type != null && type.args().isEmpty() && names.contains(type.name())
-
-/** The name a type is imported by, or in `java.lang`. */
-private fn qualified(file: SourceFile, name: String) -> String {
-    if (name.contains(".")) {
-        return name
-    }
-    for (i in file.imports()) {
-        if (i.kind() == Import.Kind.TYPE && i.simpleName().equals(name)) {
-            return i.name()
-        }
-    }
-    return "java.lang." + name
-}
 
 /** What the interfaces require, as `name/arity`: a value is a method without parameters. */
 fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<String> {

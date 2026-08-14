@@ -361,7 +361,7 @@ class Generator(
         val outerOverridden = overridden
         val outerRequired = requiredMethods
         overridden = Implementations.required(file, options.siblings(), classDecl.supertypes())
-        requiredMethods = Implementations.requiredMethods(file, options.siblings(), classDecl.supertypes())
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), classDecl.supertypes())
         for (method in classDecl.methods()) {
             resetCounters()
             emitFunction(method, false)
@@ -474,7 +474,7 @@ class Generator(
         val outerRequired = requiredMethods
         val outerMethods = currentMethods
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
-        requiredMethods = Implementations.requiredMethods(file, options.siblings(), dataClass.supertypes())
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes())
         currentMethods = dataClass.methods()
         for (method in dataClass.methods()) {
             resetCounters()

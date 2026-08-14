@@ -1,0 +1,50 @@
+package org.axl.compiler.check
+
+import java.util.ArrayList
+import java.util.List
+import org.axl.compiler.JavaClasses
+import org.axl.compiler.JavaClasses.ClassShape
+import org.axl.compiler.ast.Import
+import org.axl.compiler.ast.SourceFile
+
+/*
+ * A type that no file of the build declares, a sealed type of a jar or a generic interface of the JDK,
+ * is read from the classes of the classpath, the JDK and the Java sources.
+ */
+
+/** A class the translator can read, with the canonical name it was found by. */
+data class Library(val name: String, val shape: ClassShape)
+
+/** The class a name written in a file stands for, or null when no class of that name can be read. */
+fn classNamed(file: SourceFile, classes: JavaClasses, name: String) -> Library? {
+    for (candidate in candidates(file, name)) {
+        val shape = classes.shape(candidate)
+        if (shape != null) {
+            return Library(candidate, shape)
+        }
+    }
+    return null
+}
+
+/** What Java would look up: the import of the first name, a class of the package of the file, or of `java.lang`. */
+private fn candidates(file: SourceFile, name: String) -> List<String> {
+    val dot = name.indexOf(".")
+    val head = if (dot < 0) name else name.substring(0, dot)
+    val rest = if (dot < 0) "" else name.substring(dot)
+    val result = ArrayList<String>()
+    for (i in file.imports()) {
+        if (i.kind() == Import.Kind.TYPE && i.simpleName().equals(head)) {
+            result.add(i.name() + rest)
+            return result
+        }
+    }
+    if (dot >= 0) {
+        result.add(name)
+    }
+    val own = file.packageName()
+    if (own != null) {
+        result.add(own + "." + name)
+    }
+    result.add("java.lang." + name)
+    return result
+}

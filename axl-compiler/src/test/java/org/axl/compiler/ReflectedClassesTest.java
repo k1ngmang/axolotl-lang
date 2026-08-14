@@ -1,0 +1,48 @@
+package org.axl.compiler;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.List;
+import org.junit.jupiter.api.Test;
+
+class ReflectedClassesTest {
+
+    sealed interface Option<T> permits Some, None {}
+
+    record Some<T>(boolean present, T value) implements Option<T> {}
+
+    record None<T>(boolean present) implements Option<T> {}
+
+    private final JavaClasses classes = ReflectedClasses.JDK;
+
+    @Test
+    void readsTheTypeParametersAndSupertypesOfAJdkClass() {
+        JavaClasses.ClassShape list = classes.shape("java.util.ArrayList");
+        assertEquals(List.of("E"), list.typeParameters());
+        assertTrue(list.supertypes().contains(new JavaClasses.Supertype("java.util.List", List.of("E"))));
+        assertFalse(list.isInterface());
+        assertNull(classes.shape("java.util.NoSuchClass"));
+    }
+
+    @Test
+    void readsNestedClassesByTheirCanonicalNames() {
+        String some = "org.axl.compiler.ReflectedClassesTest.Some";
+        JavaClasses.ClassShape shape = classes.shape(some);
+        assertEquals(List.of("T"), shape.typeParameters());
+        assertEquals(List.of("present", "value"), shape.components());
+        assertTrue(shape.supertypes().contains(
+                new JavaClasses.Supertype("org.axl.compiler.ReflectedClassesTest.Option", List.of("T"))));
+        assertEquals(List.of(some, "org.axl.compiler.ReflectedClassesTest.None"),
+                classes.shape("org.axl.compiler.ReflectedClassesTest.Option").permitted());
+    }
+
+    @Test
+    void tellsWhereAnInterfaceHasATypeVariable() {
+        List<JavaClasses.MethodShape> methods = classes.methods("java.util.function.Function");
+        assertTrue(methods.contains(new JavaClasses.MethodShape("apply", List.of(true), true)));
+        assertEquals(List.of(), classes.methods("java.util.ArrayList"));
+    }
+}

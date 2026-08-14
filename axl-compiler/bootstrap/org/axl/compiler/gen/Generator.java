@@ -328,7 +328,7 @@ import org.axl.compiler.check.Whens;
         final var outerOverridden = overridden;
         final var outerRequired = requiredMethods;
         overridden = Implementations.required(file, options.siblings(), classDecl.supertypes());
-        requiredMethods = Implementations.requiredMethods(file, options.siblings(), classDecl.supertypes());
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), classDecl.supertypes());
         for (final var method : classDecl.methods()) {
             resetCounters();
             emitFunction(method, false);
@@ -434,7 +434,7 @@ import org.axl.compiler.check.Whens;
         final var outerRequired = requiredMethods;
         final var outerMethods = currentMethods;
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
-        requiredMethods = Implementations.requiredMethods(file, options.siblings(), dataClass.supertypes());
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes());
         currentMethods = dataClass.methods();
         for (final var method : dataClass.methods()) {
             resetCounters();

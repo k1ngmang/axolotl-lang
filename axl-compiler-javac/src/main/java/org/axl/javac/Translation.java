@@ -108,6 +108,15 @@ public final class Translation {
         if (inputs.isEmpty()) {
             return List.of();
         }
+        // The classes of the classpath and of the Java sources are read when a type test or a Java interface asks.
+        try (JavacClasses classes = new JavacClasses(classpath, javaRoots)) {
+            return translate(inputs, context, options.withClasses(classes), classpath, javaRoots, outputDir, strictNull);
+        }
+    }
+
+    private static List<Translator.Result> translate(List<Input> inputs, List<Input> context, Options options,
+                                                     List<Path> classpath, List<Path> javaRoots, Path outputDir,
+                                                     boolean strictNull) throws IOException {
         List<Translator.Result> results = new ArrayList<>();
         List<SourceFile> parsed = new ArrayList<>();
         for (Input input : inputs) {

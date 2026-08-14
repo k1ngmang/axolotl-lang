@@ -20,6 +20,7 @@ import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
 import org.axl.compiler.parse.SourceParser;
+import org.axl.javac.JavacClasses;
 import org.axl.javac.JavacTypes;
 import org.eclipse.lsp4j.Position;
 
@@ -82,7 +83,8 @@ final class Document {
     static Options options(Module module, Path drafts) {
         List<Path> sourcepath = new ArrayList<>(List.of(drafts));
         sourcepath.addAll(module.sourcepath());
-        return new Options(false).withJavaTypes(new JavacTypes(module.classpath(), sourcepath, module.strictNull()));
+        return new Options(false).withJavaTypes(new JavacTypes(module.classpath(), sourcepath, module.strictNull()))
+                .withClasses(JavacClasses.perQuestion(module.classpath(), module.sourcepath()));
     }
 
     /**

@@ -1,6 +1,6 @@
 package app
 
-// A Java interface that is not the JDK's: the translator does not know where it has a type variable.
+// A generic Java interface of the sources of the build, not of the JDK: Int is written where it has a type variable.
 class Counter : Feed<Int> {
     var last: Int = 0
 
