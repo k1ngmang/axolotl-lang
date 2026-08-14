@@ -2153,8 +2153,12 @@ final class Messages {
         if (actual == null) {
             return null;
         }
+        // The error type of an `attempt` is the type of its `else` value, unless the type of its `Result` is written.
+        boolean attempt = construct.equals("try") && javaLine >= 2 && javaLines[javaLine - 2].contains("Result.attempt(");
         return new Translated(ErrorCode.TRY_ERROR_TYPE, "`" + construct + "`: the error is `" + actual
-                + "`, but the function returns errors of type `" + expected + "`; convert it with `mapErr`");
+                + "`, but the function returns errors of type `" + expected + "`; "
+                + (attempt ? "write the type of the `attempt` with that error, `val r: Result<V, " + expected
+                + "> = attempt ... else e -> ...`, then `try r`; or convert it with `mapErr`" : "convert it with `mapErr`"));
     }
 
     /** `java.util.Map<String, Int>` as `Map<String, Int>`, the way the function's own type is written. */

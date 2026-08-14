@@ -1,0 +1,14 @@
+package app
+
+sealed interface Problem {
+    fn message() -> String
+}
+
+data class Rejected(val reason: String) : Problem {
+    fn message() -> String = reason
+}
+
+fn parse(s: String) -> Result<Int, Problem> {
+    val n = try attempt Integer.parseInt(s) else e -> Rejected("not a number: " + s)
+    return Ok(n)
+}

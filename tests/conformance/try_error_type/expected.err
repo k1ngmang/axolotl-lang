@@ -1,1 +1,2 @@
+AXL101 app/AttemptError.axl:12:5: error: `try`: the error is `Rejected`, but the function returns errors of type `Problem`; write the type of the `attempt` with that error, `val r: Result<V, Problem> = attempt ... else e -> ...`, then `try r`; or convert it with `mapErr`
 AXL101 app/Main.axl:6:5: error: `try`: the error is `String`, but the function returns errors of type `Object`; convert it with `mapErr`
