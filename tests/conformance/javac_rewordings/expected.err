@@ -3,6 +3,8 @@ AXL100 app/BigDecimalOperators.axl:9:15: error: `/` cannot be applied to `BigDec
 AXL100 app/BigDecimalOperators.axl:10:15: error: `>` cannot be applied to `BigDecimal` and `BigDecimal`; compare them with `a.compareTo(b) > 0`
 AXL100 app/BigDecimalOperators.axl:11:17: error: `<` cannot be applied to `String` and `String`; compare them with `a.compareTo(b) < 0`
 AXL100 app/BranchWithoutValue.axl:6:9: error: this gives no value: the call returns nothing, but `String` is expected
+AXL100 app/CharMembers.axl:6:15: error: a `Character` such as `'a'` has no members; its functions belong to the class, as in `Character.isDigit(c)`; for its text, write `String.valueOf(c)`
+AXL100 app/CharMembers.axl:7:15: error: a `Character` such as `'a'` has no members; its functions belong to the class, as in `Character.isDigit(c)`
 AXL100 app/ClassProperty.axl:9:15: error: `c` of type `Inc` has no method `by()`; `by` is a property of the class `Inc`: read it without parentheses, `c.by`
 AXL100 app/ClassProperty.axl:10:15: error: `c` of type `Inc` has no method `count()`; `count` is a property of the class `Inc`: read it without parentheses, `c.count`
 AXL008 app/DataClassAssign.axl:7:7: error: a data class cannot change; create a new `Point` with the new value of `x`

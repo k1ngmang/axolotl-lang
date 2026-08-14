@@ -69,6 +69,7 @@ final class Messages {
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     // The value may be a literal with a fraction: `3.7.toInt()`.
     private static final Pattern KOTLIN_CONVERSION = Pattern.compile("\\b(\\d+\\.\\d+|\\w+)\\.(toDouble|toInt|toLong)\\(\\)");
+    private static final Pattern TO_TEXT = Pattern.compile("\\b(\\w+(?:\\([^()]*\\))?)\\.toString\\(\\)");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern BIG_OPERANDS = Pattern.compile("^(\\w+)\\s*([-+*/%]|[<>]=?)\\s*(\\w+)");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -360,8 +361,9 @@ final class Messages {
 
     /** `n.toString()`, `n.toDouble()` and `c.equals("a")` on a primitive value, which Kotlin allows. */
     private static String primitiveHint(String javaType, String text) {
-        if (text.contains(".toString()")) {
-            return "; for its text, write `String.valueOf(x)`";
+        Matcher toText = TO_TEXT.matcher(text);
+        if (toText.find()) {
+            return "; for its text, write `String.valueOf(" + toText.group(1) + ")`";
         }
         Matcher conversion = KOTLIN_CONVERSION.matcher(text);
         if (conversion.find()) {
@@ -1113,8 +1115,11 @@ final class Messages {
             return pipeSubject(notDereferenced.group(1), axlText);
         }
         if (notDereferenced.find(0)) {
-            return "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members"
-                    + primitiveHint(notDereferenced.group(1), text);
+            // A `Character` is a class in the docs, but its value has no methods to call.
+            String description = notDereferenced.group(1).equals("char")
+                    ? "a `Character` such as `'a'` has no members; its functions belong to the class, as in `Character.isDigit(c)`"
+                    : "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members";
+            return description + primitiveHint(notDereferenced.group(1), text);
         }
         Matcher badOperands = BAD_OPERANDS.matcher(message);
         if (badOperands.find()) {

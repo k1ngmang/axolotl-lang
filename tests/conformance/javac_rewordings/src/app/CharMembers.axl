@@ -1,0 +1,8 @@
+package app
+
+fn main() {
+    val text = "hello"
+    val c = text.charAt(0)
+    println(c.toString() + "!")
+    println(c.isDigit())
+}
