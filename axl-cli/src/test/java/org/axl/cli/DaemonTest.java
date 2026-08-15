@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -234,8 +235,9 @@ class DaemonTest {
         }
         var settings = new DaemonSettings(true, home.resolve(".axl/daemon"), Duration.ofMinutes(1), "any");
         List<Path> daemons = DaemonFiles.directories(settings.baseDir());
-        assertEquals(1, daemons.size(), daemons.toString());
-        assertNotNull(DaemonFiles.read(daemons.getFirst()));
+        // Windows uses no daemon when the output goes to a pipe (see DaemonSettings).
+        assertEquals(File.separatorChar == '/' ? 1 : 0, daemons.size(), daemons.toString());
+        daemons.forEach(dir -> assertNotNull(DaemonFiles.read(dir)));
         axl(settings, "daemon", "--stop");
     }
 

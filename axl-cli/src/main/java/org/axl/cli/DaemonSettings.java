@@ -31,8 +31,17 @@ record DaemonSettings(boolean enabled, Path baseDir, Duration idle, String finge
         String switched = System.getenv("AXL_DAEMON");
         boolean enabled = switched == null
                 || !List.of("off", "false", "no", "0").contains(switched.strip().toLowerCase(Locale.ROOT));
-        return new DaemonSettings(enabled, LocalRepository.userHome().resolve(".axl").resolve("daemon"),
+        return new DaemonSettings(enabled && passesNoPipes(), LocalRepository.userHome().resolve(".axl").resolve("daemon"),
                 idle(System.getenv("AXL_DAEMON_IDLE")), Installation.FINGERPRINT);
+    }
+
+    /**
+     * On Windows a new process inherits every inheritable handle of the process that starts it: a daemon
+     * started by an axl whose output goes to a pipe would keep the pipe open, and whoever reads it, such
+     * as an editor, would wait for the daemon to end. axl compiles in process there unless it runs in a console.
+     */
+    private static boolean passesNoPipes() {
+        return File.separatorChar != '\\' || System.console() != null;
     }
 
     DaemonSettings disabled() {
