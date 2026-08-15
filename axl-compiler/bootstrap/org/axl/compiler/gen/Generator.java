@@ -2165,6 +2165,10 @@ import org.axl.compiler.check.Whens;
         if (c.name().equals("Ok") || c.name().equals("Err")) {
             return "new " + c.name() + "<>(" + args + ")";
         }
+        final var array = ARRAY_NAMES.get(c.name());
+        if (array != null && c.args().size() == 1 && !declaredFunctions.contains(c.name())) {
+            return "new " + array + "[" + args + "]";
+        }
         if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
             return "new " + c.name() + "(" + args + ")";
         }
@@ -2914,6 +2918,7 @@ import org.axl.compiler.check.Whens;
             "Double", "double");
     private static final Map<String, String> BOXED_NAMES = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
             "Double", "Double");
+    private static final Map<String, String> ARRAY_NAMES = Map.of("ByteArray", "byte", "CharArray", "char");
     private static final Set<String> MAPPING_STAGES = Set.of("map", "mapResult", "flatMap");
     private static final Set<String> NUMBERS = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character");
     private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte", "Character", "char",
@@ -2950,6 +2955,10 @@ import org.axl.compiler.check.Whens;
     private static String typeText(TypeRef type, boolean generic) {
         if (type.name().equals(TypeRef.ANY)) {
             return "?";
+        }
+        final var array = ARRAY_NAMES.get(type.name());
+        if (array != null) {
+            return (type.nullable() ? array + " @Nullable []" : array + "[]");
         }
         final var primitive = PRIMITIVE_NAMES.get(type.name());
         var name = type.name();

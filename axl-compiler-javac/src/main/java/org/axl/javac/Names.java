@@ -10,8 +10,7 @@ import java.util.stream.Stream;
 /** Hints for unknown names: the Axolotl or Java name for a habit from Kotlin, an import, or a close spelling. */
 final class Names {
 
-    private static final Set<String> ARRAY_TYPES = Set.of("Array", "IntArray", "LongArray", "DoubleArray",
-            "BooleanArray", "CharArray");
+    private static final Set<String> ARRAY_TYPES = Set.of("Array", "IntArray", "LongArray", "DoubleArray", "BooleanArray");
 
     private static final Map<String, String> JDK_TYPES = Map.ofEntries(
             Map.entry("ArrayList", "java.util"), Map.entry("LinkedList", "java.util"), Map.entry("HashMap", "java.util"),

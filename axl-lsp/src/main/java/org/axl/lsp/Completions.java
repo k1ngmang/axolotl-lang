@@ -23,7 +23,8 @@ import org.eclipse.lsp4j.CompletionItemKind;
 final class Completions {
 
     private static final List<String> PRELUDE = List.of("println", "print", "readLine", "Ok", "Err");
-    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "Result");
+    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "Result", "ByteArray",
+            "CharArray");
     static final List<String> PIPE_STAGES = List.of("filter", "map", "mapResult", "peek", "sorted", "distinct", "limit",
             "skip", "forEach", "anyMatch", "allMatch", "noneMatch", "count", "first");
     private static final Set<Integer> DOTS = Set.of(AxolotlLexer.DOT, AxolotlLexer.SAFE_DOT, AxolotlLexer.COLONCOLON);

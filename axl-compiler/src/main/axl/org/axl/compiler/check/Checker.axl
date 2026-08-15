@@ -76,7 +76,7 @@ private val GENERATED_CODE_PACKAGES: Set<String> = Set.of("axl.lang", "java.lang
 private val SHADOWED_TYPES: Set<String> = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
     "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",
     "RuntimeException", "Throwable", "Error", "Iterable", "Comparable", "Runnable", "CharSequence", "StringBuilder",
-    "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable")
+    "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable", "ByteArray", "CharArray")
 
 private val GENERATED_CODE_RECEIVERS: Set<String> = Set.of("System", "Nulls", "Result")
 

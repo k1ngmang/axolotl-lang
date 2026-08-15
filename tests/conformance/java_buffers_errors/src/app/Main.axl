@@ -1,0 +1,8 @@
+package app
+
+fn size(buffer: ByteArray) -> Int = buffer.length
+
+fn main() {
+    println(size("abc"))
+    println(size(CharArray(2)))
+}

@@ -1,0 +1,7 @@
+package app
+
+data class ByteArray(val size: Int)
+
+fn main() {
+    println(ByteArray(1))
+}

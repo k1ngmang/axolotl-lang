@@ -1634,7 +1634,7 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> SHADOWED_TYPES = Set.of("Ok", "Err", "Int", "Long", "Double", "Boolean", "Char", "String",
             "Object", "Integer", "Character", "Number", "Byte", "Short", "Float", "Void", "Math", "Exception",
             "RuntimeException", "Throwable", "Error", "Iterable", "Comparable", "Runnable", "CharSequence", "StringBuilder",
-            "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable");
+            "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable", "ByteArray", "CharArray");
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
     private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Double", "Boolean", "String", "Char");

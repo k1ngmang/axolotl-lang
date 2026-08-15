@@ -1,0 +1,1 @@
+AXL011 app/Main.axl:3:12: error: a type named `ByteArray` would hide the `ByteArray` that every Axolotl file uses; choose another name

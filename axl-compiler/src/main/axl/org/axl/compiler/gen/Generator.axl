@@ -46,6 +46,8 @@ private val PRIMITIVE_NAMES: Map<String, String> = Map.of("Int", "int", "Long", 
     "Double", "double")
 private val BOXED_NAMES: Map<String, String> = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
     "Double", "Double")
+// The buffers that Java's input and output read into and write from.
+private val ARRAY_NAMES: Map<String, String> = Map.of("ByteArray", "byte", "CharArray", "char")
 
 // Types whose values Java unboxes in a conditional, as Axolotl or Java names them.
 private val MAPPING_STAGES: Set<String> = Set.of("map", "mapResult", "flatMap")
@@ -2483,6 +2485,10 @@ class Generator(
         if (c.name().equals("Ok") || c.name().equals("Err")) {
             return "new " + c.name() + "<>(" + args + ")"
         }
+        val array = ARRAY_NAMES.get(c.name())
+        if (array != null && c.args().size() == 1 && !declaredFunctions.contains(c.name())) {
+            return "new " + array + "[" + args + "]"
+        }
         if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
             return "new " + c.name() + "(" + args + ")"
         }
@@ -3289,6 +3295,10 @@ private fn boxedType(type: TypeRef) -> String = typeText(type, true)
 private fn typeText(type: TypeRef, generic: Boolean) -> String {
     if (type.name().equals(TypeRef.ANY)) {
         return "?"
+    }
+    val array = ARRAY_NAMES.get(type.name())
+    if (array != null) {
+        return if (type.nullable()) array + " @Nullable []" else array + "[]"
     }
     val primitive = PRIMITIVE_NAMES.get(type.name())
     var name = type.name()

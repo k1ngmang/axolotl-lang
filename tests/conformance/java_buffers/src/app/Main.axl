@@ -1,0 +1,46 @@
+package app
+
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import java.io.OutputStream
+import java.io.StringReader
+import java.nio.charset.StandardCharsets
+
+// `ByteArray(n)` and `CharArray(n)` are the buffers Java's input and output read into.
+fn copy(input: InputStream, out: OutputStream, buffer: ByteArray) -> Int {
+    var total = 0
+    var n = attempt input.read(buffer) else e -> throw IllegalStateException(e)
+    while (n > 0) {
+        attempt out.write(buffer, 0, n) else e -> throw IllegalStateException(e)
+        total += n
+        n = attempt input.read(buffer) else e -> throw IllegalStateException(e)
+    }
+    return total
+}
+
+fn read(text: String) -> String {
+    val reader = StringReader(text)
+    val chars = CharArray(4)
+    val out = StringBuilder()
+    var n = attempt reader.read(chars) else e -> throw IllegalStateException(e)
+    while (n > 0) {
+        out.append(chars, 0, n)
+        n = attempt reader.read(chars) else e -> throw IllegalStateException(e)
+    }
+    return out.toString()
+}
+
+fn bytes(text: String) -> ByteArray = text.getBytes(StandardCharsets.UTF_8)
+
+fn main() {
+    val out = ByteArrayOutputStream()
+    println(copy(ByteArrayInputStream(bytes("hello world")), out, ByteArray(4)))
+    println(out.toString(StandardCharsets.UTF_8))
+    println(read("abcdefghij"))
+    val buffer = ByteArray(3)
+    println(buffer.length)
+    for (b in bytes("AB")) {
+        println(b)
+    }
+}

@@ -96,6 +96,8 @@ final class Messages {
     private static final Pattern NULLABLE_TYPE = Pattern.compile("@(?:org\\.jspecify\\.annotations\\.)?Nullable ([\\w.]+(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?)");
     // Axolotl names only these; `float`, `short` and `byte` keep Java's names, since `Float` would mean the boxed class.
     private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|char|Integer)\\b");
+    // The arrays Axolotl creates with `ByteArray(n)` and `CharArray(n)`.
+    private static final Pattern BUFFER = Pattern.compile("\\b(byte|char)\\[]");
     private static final Pattern GENERATED = Pattern.compile(
             "\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|^(?:unwrap|propagate)\\(\\)$|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
@@ -2239,6 +2241,7 @@ final class Messages {
         }
         String type = NULLABLE_TYPE.matcher(javaType.strip()).replaceAll("$1?");
         type = simpleNames(QUALIFIED_TYPE.matcher(type).replaceAll("$1"));
+        type = BUFFER.matcher(type).replaceAll(m -> m.group(1).equals("byte") ? "ByteArray" : "CharArray");
         return PRIMITIVE.matcher(type).replaceAll(m -> switch (m.group(1)) {
             case "int", "Integer" -> "Int";
             case "char" -> "Character";
