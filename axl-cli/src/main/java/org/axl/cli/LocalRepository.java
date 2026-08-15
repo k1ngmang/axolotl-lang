@@ -28,7 +28,7 @@ final class LocalRepository {
     }
 
     /** Java takes user.home from the account, not from HOME, which installers and tests set for a run. */
-    private static Path userHome() {
+    static Path userHome() {
         String home = System.getenv("HOME");
         return home != null && !home.isBlank() && Files.isDirectory(Path.of(home)) ? Path.of(home) : Path.of(System.getProperty("user.home"));
     }

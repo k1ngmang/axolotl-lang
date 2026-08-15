@@ -14,18 +14,32 @@ import java.nio.file.Path;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.HelpCommand;
+import picocli.CommandLine.Option;
 import picocli.CommandLine.ScopeType;
 
 // INHERIT gives every subcommand --help and --version too.
 @Command(name = "axl", mixinStandardHelpOptions = true, scope = ScopeType.INHERIT, versionProvider = Main.Version.class,
         description = "Axolotl compiler: translates .axl files to Java and compiles them.",
         subcommands = {BuildCommand.class, RunCommand.class, CheckCommand.class, RetraceCommand.class, SetupCommand.class,
-                HelpCommand.class})
+                DaemonCommand.class, HelpCommand.class})
 public final class Main {
+
+    @Option(names = "--no-daemon", scope = ScopeType.INHERIT,
+            description = "Compile in this process, without the compiler daemon (also AXL_DAEMON=off).")
+    boolean noDaemon;
+
+    @Option(names = "--verbose", scope = ScopeType.INHERIT, description = "Say where the compiler runs.")
+    boolean verbose;
+
+    private final DaemonSettings daemon;
+
+    private Main(DaemonSettings daemon) {
+        this.daemon = daemon;
+    }
 
     public static void main(String[] args) {
         utf8WithoutLocale();
-        int code = commandLine().execute(args);
+        int code = commandLine(DaemonSettings.fromEnvironment()).execute(args);
         // A program started by `axl run` may still have threads running; the JVM ends when they do.
         if (code != 0 || !RunCommand.programRan) {
             System.exit(code);
@@ -45,8 +59,13 @@ public final class Main {
         System.setErr(new PrintStream(new FileOutputStream(FileDescriptor.err), true, StandardCharsets.UTF_8));
     }
 
+    /** Compiles in this JVM: a JVM that runs the commands itself gains nothing from a daemon. */
     static CommandLine commandLine() {
-        CommandLine commandLine = new CommandLine(new Main());
+        return commandLine(DaemonSettings.fromEnvironment().disabled());
+    }
+
+    static CommandLine commandLine(DaemonSettings daemon) {
+        CommandLine commandLine = new CommandLine(new Main(daemon));
         // Everything after the .axl file belongs to the program, options included.
         commandLine.getSubcommands().get("run").setStopAtPositional(true);
         // picocli's own converter hides the InvalidPathException in a message.
@@ -72,7 +91,11 @@ public final class Main {
     }
 
     Compiler compiler() {
-        return LocalCompiler.INSTANCE;
+        return daemon.enabled() && !noDaemon ? new DaemonClient(daemon, verbose) : LocalCompiler.INSTANCE;
+    }
+
+    DaemonSettings daemonSettings() {
+        return daemon;
     }
 
     /** The version of the jar, which classes outside a jar do not have. */

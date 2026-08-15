@@ -52,6 +52,8 @@ val translateCompiler = tasks.register<JavaExec>("translateCompiler") {
             "-s", root.resolve("java").path,
             "-d", root.resolve("classes").path,
             "--no-smap",
+            // A daemon would outlive the build, with the classes of this build loaded.
+            "--no-daemon",
             // A project without resources has no resources directory, which axl would warn about.
             "-cp", compilerClasspath.filter { it.exists() }.asPath,
         )

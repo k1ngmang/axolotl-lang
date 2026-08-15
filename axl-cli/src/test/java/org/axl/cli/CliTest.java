@@ -38,11 +38,15 @@ class CliTest {
         System.setOut(new PrintStream(out, true, StandardCharsets.UTF_8));
         System.setErr(new PrintStream(err, true, StandardCharsets.UTF_8));
         try {
-            return Main.commandLine().execute(args);
+            return commandLine().execute(args);
         } finally {
             System.setOut(originalOut);
             System.setErr(originalErr);
         }
+    }
+
+    CommandLine commandLine() {
+        return Main.commandLine();
     }
 
     @Test

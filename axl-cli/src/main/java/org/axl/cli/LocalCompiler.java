@@ -13,7 +13,10 @@ import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.AxlBuild;
 import org.axl.smap.SmapInjector;
 
-/** Compiles in this JVM. The only class of the CLI that uses the compiler. */
+/**
+ * Compiles in this JVM. The only class of the CLI that uses the compiler, so that a command that hands
+ * its job to the daemon loads neither the compiler nor javac.
+ */
 final class LocalCompiler implements Compiler {
 
     static final LocalCompiler INSTANCE = new LocalCompiler();

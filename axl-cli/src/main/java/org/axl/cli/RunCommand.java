@@ -70,6 +70,7 @@ final class RunCommand implements Callable<Integer> {
         if (!result.success()) {
             return 1;
         }
+        // Here and not in the compiler daemon: the program has the terminal, System.exit and its threads to itself.
         return runMain(work.resolve("classes"), work.resolve("generated"), result.mainClass());
     }
 
