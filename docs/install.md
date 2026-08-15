@@ -144,6 +144,25 @@ Exit codes: 0 on success; 1 when the sources have errors, or when the program th
 started throws; 2 for a wrong command line or a file that cannot be read. A program that calls
 `System.exit` sets the code itself.
 
+### Compiler daemon
+
+Starting Java and loading javac, Error Prone and NullAway takes most of the time of a small build. The first
+`axl check`, `axl build` or `axl run` therefore starts a daemon, a background Java process of your user that keeps
+them loaded, and later commands hand their compilation to it: a small program then compiles and runs in about a
+second. `axl run` still runs the program in its own process.
+
+The daemon ends after 3 hours without work. `AXL_DAEMON_IDLE` sets another time, such as `30m` or `8h`. It also ends
+when axl is upgraded or reinstalled. `axl daemon --status` lists running daemons and `axl daemon --stop` stops them;
+the next command starts one again.
+
+`--no-daemon` (for example `axl run --no-daemon app/Main.axl`) or the environment variable `AXL_DAEMON=off` compile in
+the command's own process. `axl` does the same by itself when the daemon cannot start or fails, and `--verbose` says
+so. On Windows the daemon is used only when `axl` runs in a console, not when its output goes to a pipe.
+
+Each version and installation of axl has its own daemon, under `~/.axl/daemon/<version>-<id>/`. That directory holds
+the daemon's log, `daemon.log`, and the port and access token, readable by your user only. The daemon accepts
+connections only from this machine, and only with that token.
+
 ## IntelliJ IDEA
 
 IntelliJ IDEA 2024.2 or newer, Community or Ultimate. Install `axl-intellij-<version>.zip` from the
