@@ -1,0 +1,10 @@
+package app
+
+import app.Model.Some
+
+// The types of the subjects come from other files, and this file imports none of them.
+fn main() {
+    println(if (Rules.validate(Model.Order(0)) is Err) "bad" else "good")
+    println(Rules.validate(Model.Order(1)) !is Ok)
+    println(Rules.find(2) is Some)
+}

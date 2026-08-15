@@ -2039,7 +2039,7 @@ class Generator(
         val type = testedType(check.type(), typeOf(check.target()))
         val target = check.target()
         if (target !is Expr.Name || !neverChanges(target)) {
-            val plainTest = testedSubject(target, inLambda) + " instanceof " + type
+            val plainTest = testedSubject(target, inLambda) + " instanceof " + caseType(check.type(), typeOf(target))
             return if (check.negated()) "!(" + plainTest + ")" else plainTest
         }
         val taken = recordPattern(check.type(), typeOf(target), target.name(), bareName(target.name()))
@@ -2197,8 +2197,27 @@ class Generator(
     }
 
     private fn liftedTypeCheck(line: Int, check: Expr.Is) -> String {
-        val test = lifted(line, check.target()).code() + " instanceof " + testedType(check.type(), typeOf(check.target()))
+        val test = lifted(line, check.target()).code() + " instanceof " + caseType(check.type(), typeOf(check.target()))
         return if (check.negated()) "!(" + test + ")" else test
+    }
+
+    /**
+     * A test that narrows nothing asks only for the case: `Ok<?, ?>` names none of the types of the
+     * subject, which may come from another file and are not imported here.
+     */
+    private fn caseType(tested: TypeRef, subject: TypeRef?) -> String {
+        val name = tested.name()
+        val ownArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err")
+        if (ownArguments && subject != null && subject.args().size() == 2 && isResultType(subject)) {
+            return name + "<?, ?>"
+        }
+        if (subject != null && !subject.args().isEmpty() && tested.args().isEmpty()) {
+            val arguments = argumentsOf(tested, subject)
+            if (arguments != null) {
+                return name + "<" + String.join(", ", arguments |> map { a -> "?" }) + ">"
+            }
+        }
+        return boxedType(tested)
     }
 
     /**

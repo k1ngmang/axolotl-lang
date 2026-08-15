@@ -1801,7 +1801,7 @@ import org.axl.compiler.check.Whens;
         final var type = testedType(check.type(), typeOf(check.target()));
         final var target = check.target();
         if (!(target instanceof Expr.Name target$1) || !neverChanges(target$1)) {
-            final var plainTest = testedSubject(target, inLambda) + " instanceof " + type;
+            final var plainTest = testedSubject(target, inLambda) + " instanceof " + caseType(check.type(), typeOf(target));
             return (check.negated() ? "!(" + plainTest + ")" : plainTest);
         }
         final var taken = recordPattern(check.type(), typeOf(target$1), target$1.name(), bareName(target$1.name()));
@@ -1930,8 +1930,22 @@ import org.axl.compiler.check.Whens;
         return null;
     }
     private String liftedTypeCheck(int line, Expr.Is check) {
-        final var test = lifted(line, check.target()).code() + " instanceof " + testedType(check.type(), typeOf(check.target()));
+        final var test = lifted(line, check.target()).code() + " instanceof " + caseType(check.type(), typeOf(check.target()));
         return (check.negated() ? "!(" + test + ")" : test);
+    }
+    private String caseType(TypeRef tested, @Nullable TypeRef subject) {
+        final var name = tested.name();
+        final var ownArguments = name.equals("Ok") || name.equals("Err") || name.equals("axl.lang.Ok") || name.equals("axl.lang.Err");
+        if (ownArguments && subject != null && subject.args().size() == 2 && isResultType(subject)) {
+            return name + "<?, ?>";
+        }
+        if (subject != null && !subject.args().isEmpty() && tested.args().isEmpty()) {
+            final var arguments = argumentsOf(tested, subject);
+            if (arguments != null) {
+                return name + "<" + String.join(", ", arguments.stream().map(Nulls.nonNull(a -> "?")).toList()) + ">";
+            }
+        }
+        return boxedType(tested);
     }
     private String testedType(TypeRef tested, @Nullable TypeRef subject) {
         final var name = tested.name();

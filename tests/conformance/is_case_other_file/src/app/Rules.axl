@@ -1,0 +1,10 @@
+package app
+
+import app.Model.Missing
+import app.Model.Option
+import app.Model.Order
+import app.Model.Some
+
+fn validate(o: Order) -> Result<Order, String> = if (o.id() > 0) Ok(o) else Err("bad")
+
+fn find(id: Int) -> Option<Order> = if (id > 0) Some<>(Order(id)) else Missing<>("none")

@@ -1,0 +1,9 @@
+package app
+
+data class Order(val id: Int)
+
+interface Option<T>
+
+data class Some<T>(val value: T) : Option<T>
+
+data class Missing<T>(val reason: String) : Option<T>
