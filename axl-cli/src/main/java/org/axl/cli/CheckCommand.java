@@ -4,16 +4,18 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.axl.compiler.Options;
-import org.axl.javac.AxlBuild;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 
 @Command(name = "check", description = {
         "Translate and compile source directories without keeping any output; print the errors.",
         "Used by editors: every source directory may hold .axl and .java files."})
 final class CheckCommand implements Callable<Integer> {
+
+    @ParentCommand
+    Main main;
 
     @Parameters(arity = "1..*", description = "Source directories.")
     List<Path> sourceDirs = new ArrayList<>();
@@ -40,16 +42,9 @@ final class CheckCommand implements Callable<Integer> {
         Paths.warnAboutTooDeep(sourceDirs);
         Path work = WorkDirectories.create(WorkDirectories.CHECK);
         try {
-            AxlBuild.Result result = new AxlBuild(sourceDirs, work.resolve("generated"), work.resolve("classes"))
-                    .classpath(classpath)
-                    .nullChecks(!noNullChecks)
-                    .strictNull(strictNull)
-                    .options(new Options(inlineElvis))
-                    .display(p -> p.toAbsolutePath().toString())
-                    .skip(Paths::isInWorkDirectory)
-                    .run();
-            result.diagnostics().forEach(d -> System.out.println(Paths.format(d)));
-            return result.success() ? 0 : 1;
+            var job = new CompileJob(CompileJob.Kind.CHECK, sourceDirs, null, work.resolve("generated"),
+                    work.resolve("classes"), classpath, !noNullChecks, strictNull, inlineElvis, false, Paths.workingDirectory());
+            return main.compiler().compile(job).success() ? 0 : 1;
         } finally {
             WorkDirectories.delete(work);
         }

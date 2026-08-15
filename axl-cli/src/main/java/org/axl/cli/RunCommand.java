@@ -13,18 +13,17 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.axl.compiler.Translator;
-import org.axl.compiler.ast.SourceFile;
-import org.axl.compiler.parse.SourceParser;
-import org.axl.compiler.Options;
-import org.axl.javac.AxlBuild;
 import org.axl.smap.Retracer;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 
 @Command(name = "run", description = "Compile the source tree of an .axl file and run its main function.")
 final class RunCommand implements Callable<Integer> {
+
+    @ParentCommand
+    Main main;
 
     /** Set once the program's main has run, whose threads may outlive it. */
     static volatile boolean programRan;
@@ -58,36 +57,20 @@ final class RunCommand implements Callable<Integer> {
             System.err.println("axl: not an .axl file: " + file);
             return 2;
         }
-        String text;
         try {
-            text = Files.readString(file, StandardCharsets.UTF_8);
+            Files.readString(file, StandardCharsets.UTF_8);
         } catch (CharacterCodingException e) {
             throw new IOException(file + " is not UTF-8 text", e);
         }
-        String className = Translator.className(file.getFileName().toString());
-        String packageName = packageOf(className, text);
-        Path root = sourceRoot(file.toAbsolutePath().normalize(), packageName);
         Paths.warnAboutMissingEntries(classpath);
         Path work = WorkDirectories.create(WorkDirectories.RUN);
-        AxlBuild.Result result = new AxlBuild(root, work.resolve("generated"), work.resolve("classes"))
-                .classpath(classpath)
-                .display(Paths::display)
-                .skip(Paths::isInWorkDirectory)
-                .nullChecks(!noNullChecks)
-                .strictNull(strictNull)
-                .options(new Options(inlineElvis))
-                .run();
-        BuildCommand.report(result.diagnostics());
+        var job = new CompileJob(CompileJob.Kind.RUN, List.of(), file, work.resolve("generated"), work.resolve("classes"),
+                classpath, !noNullChecks, strictNull, inlineElvis, false, Paths.workingDirectory());
+        CompileJob.Result result = main.compiler().compile(job);
         if (!result.success()) {
             return 1;
         }
-        String mainClass = packageName.isEmpty() ? className : packageName + "." + className;
-        return runMain(work.resolve("classes"), work.resolve("generated"), mainClass);
-    }
-
-    private String packageOf(String className, String text) {
-        SourceFile parsed = SourceParser.parse(file.toString(), className, text).file();
-        return parsed != null && parsed.packageName() != null ? parsed.packageName() : "";
+        return runMain(work.resolve("classes"), work.resolve("generated"), result.mainClass());
     }
 
     /** The directory the package path starts from; the file's own directory if they do not match. */

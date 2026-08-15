@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
-import org.axl.compiler.AxlDiagnostic;
 
 final class Paths {
 
@@ -69,11 +68,6 @@ final class Paths {
         }
     }
 
-    /** A diagnostic as printed, with the code of an .axl diagnostic to look up in the documentation. */
-    static String format(AxlDiagnostic diagnostic) {
-        return diagnostic.file().endsWith(".axl") ? diagnostic.format() + " [" + diagnostic.code().id() + "]" : diagnostic.format();
-    }
-
     /** Missing entries are not an error, as for javac, but are most likely a typo. */
     static void warnAboutMissingEntries(List<Path> classpath) {
         for (Path entry : classpath) {
@@ -97,11 +91,14 @@ final class Paths {
         }
     }
 
+    static Path workingDirectory() {
+        return Path.of("").toAbsolutePath();
+    }
+
     /** Paths under the working directory are shown relative to it, like javac does. */
-    static String display(Path path) {
-        Path cwd = Path.of("").toAbsolutePath();
-        Path absolute = path.toAbsolutePath().normalize();
-        return absolute.startsWith(cwd) ? cwd.relativize(absolute).toString() : absolute.toString();
+    static String display(Path workingDirectory, Path path) {
+        Path absolute = workingDirectory.resolve(path).normalize();
+        return absolute.startsWith(workingDirectory) ? workingDirectory.relativize(absolute).toString() : absolute.toString();
     }
 
     /** Files of the temporary directories of `axl run` and `axl check`, which may lie under a source directory. */

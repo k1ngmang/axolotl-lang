@@ -4,16 +4,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
-import org.axl.compiler.AxlDiagnostic;
-import org.axl.compiler.Options;
-import org.axl.javac.AxlBuild;
-import org.axl.smap.SmapInjector;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.Parameters;
+import picocli.CommandLine.ParentCommand;
 
 @Command(name = "build", description = "Translate and compile a source directory with .axl and .java files.")
 final class BuildCommand implements Callable<Integer> {
+
+    @ParentCommand
+    Main main;
 
     @Parameters(index = "0", description = "Source directory.")
     Path sourceDir;
@@ -50,23 +50,8 @@ final class BuildCommand implements Callable<Integer> {
         Paths.warnAboutMissingEntries(classpath);
         Paths.warnAboutTooDeep(List.of(sourceDir));
         Path generated = generatedDir != null ? generatedDir : classesDir;
-        StaleOutputs.remove(sourceDir, generated, classesDir);
-        AxlBuild.Result result = new AxlBuild(sourceDir, generated, classesDir)
-                .classpath(classpath)
-                .nullChecks(!noNullChecks)
-                .strictNull(strictNull)
-                .options(new Options(inlineElvis))
-                .display(Paths::display)
-                .run();
-        report(result.diagnostics());
-        StaleOutputs.record(sourceDir, generated);
-        if (result.success() && !noSmap) {
-            SmapInjector.inject(classesDir, generated);
-        }
-        return result.success() ? 0 : 1;
-    }
-
-    static void report(List<AxlDiagnostic> diagnostics) {
-        diagnostics.forEach(d -> System.err.println(Paths.format(d)));
+        var job = new CompileJob(CompileJob.Kind.BUILD, List.of(sourceDir), null, generated, classesDir, classpath,
+                !noNullChecks, strictNull, inlineElvis, !noSmap, Paths.workingDirectory());
+        return main.compiler().compile(job).success() ? 0 : 1;
     }
 }

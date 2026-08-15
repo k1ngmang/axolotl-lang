@@ -71,6 +71,10 @@ public final class Main {
         return commandLine;
     }
 
+    Compiler compiler() {
+        return LocalCompiler.INSTANCE;
+    }
+
     /** The version of the jar, which classes outside a jar do not have. */
     static final class Version implements CommandLine.IVersionProvider {
         @Override
