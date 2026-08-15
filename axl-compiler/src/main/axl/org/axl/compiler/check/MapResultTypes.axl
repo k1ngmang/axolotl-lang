@@ -39,6 +39,20 @@ fn elementType(stage: Expr.Stage, file: SourceFile, methods: List<Decl.Function>
     return null
 }
 
+/** `map { parse(it) }` with `fn parse(s: String) -> Result<Int, String>` of the file: the `Result` it gives each element. */
+fn mappedResult(stage: Expr.Stage, file: SourceFile, methods: List<Decl.Function>) -> TypeRef? {
+    val call = calledFunction(stage)
+    if (call == null) {
+        return null
+    }
+    val candidates = functionsLike(file, methods, call)
+    if (candidates.size() != 1 || !candidates.getFirst().typeParams().isEmpty()) {
+        return null
+    }
+    val result = candidates.getFirst().returnType()
+    return if (result != null && results.contains(result.name()) && result.args().size() == 2) result else null
+}
+
 private fn calledFunction(stage: Expr.Stage) -> Expr.Call? {
     val first = stage.lambda()!!.body().getFirst()
     if (first !is Stmt.ExprStmt) {

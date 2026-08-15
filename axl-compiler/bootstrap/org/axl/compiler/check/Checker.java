@@ -1363,6 +1363,10 @@ import org.axl.compiler.ast.TypeRef;
         final var body = lambda.body();
         final var last = (body.size() == 1 ? body.getFirst() : null);
         if (!(last instanceof Stmt.ExprStmt last$1) || (!buildsResult(last$1.expr()) && !isResultCall(last$1.expr()))) {
+            final var mapped = (last instanceof Stmt.ExprStmt last$2 && declared == null ? MapResultTypes.mappedResult(stage, file, currentMethods) : null);
+            if (mapped != null) {
+                mapResultTypes.put(stage, mapped);
+            }
             return;
         }
         if (declared != null && declared.args().size() == 1) {

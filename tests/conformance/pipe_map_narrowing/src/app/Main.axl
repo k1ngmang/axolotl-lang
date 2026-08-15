@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "bad " + s
+
+// The `map` gives `Result<Int, String>`s, so `filter { it is Ok }` keeps `Ok<Int, String>`s.
+fn main() {
+    val parsed = List.of("1", "x", "3") |> map { parse(it) }
+    println(parsed |> filter { it is Ok } |> map { it.value() })
+    println(parsed |> filter { it is Err } |> map { it.error() })
+    println(List.of("4", "y") |> map { parse(it) } |> filter { it is Ok } |> map { it.value() + 1 })
+}

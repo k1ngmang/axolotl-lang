@@ -1233,7 +1233,26 @@ import org.axl.compiler.check.Whens;
         if (fromMap != null) {
             return fromMap;
         }
+        if (inner instanceof Expr.Pipe inner$5) {
+            return pipeType(inner$5);
+        }
         return infer(inner);
+    }
+    private @Nullable TypeRef pipeType(Expr.Pipe pipe) {
+        var element = elementTypeOf(typeOf(pipe.source()));
+        for (final var stage : pipe.stages()) {
+            if (Checker.TERMINAL_STAGES.contains(stage.name()) || keptType(stage, element, null) != null) {
+                return null;
+            }
+            if (MAPPING_STAGES.contains(stage.name())) {
+                element = analysis.mapResultTypes().get(stage);
+            }
+            final var kept = element;
+            if (kept != null && dropsNulls(stage)) {
+                element = new TypeRef(kept.pos(), kept.name(), kept.args(), false);
+            }
+        }
+        return (element == null ? null : new TypeRef(pipe.pos(), "java.util.List", List.of(element), false));
     }
     private @Nullable TypeRef infer(Expr e) {
         return new TypeInference(file, knownTypes(), options.siblings()).of(e);

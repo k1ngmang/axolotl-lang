@@ -1383,7 +1383,31 @@ class Generator(
         if (fromMap != null) {
             return fromMap
         }
+        if (inner is Expr.Pipe) {
+            return pipeType(inner)
+        }
         return infer(inner)
+    }
+
+    /**
+     * `xs |> map { parse(it) }` is a `List<Result<Int, String>>` when the stages tell the element type,
+     * so that a `filter { it is Ok }` of the list keeps the type arguments.
+     */
+    private fn pipeType(pipe: Expr.Pipe) -> TypeRef? {
+        var element = elementTypeOf(typeOf(pipe.source()))
+        for (stage in pipe.stages()) {
+            if (Checker.TERMINAL_STAGES.contains(stage.name()) || keptType(stage, element, null) != null) {
+                return null
+            }
+            if (MAPPING_STAGES.contains(stage.name())) {
+                element = analysis.mapResultTypes().get(stage)
+            }
+            val kept = element
+            if (kept != null && dropsNulls(stage)) {
+                element = TypeRef(kept.pos(), kept.name(), kept.args(), false)
+            }
+        }
+        return if (element == null) null else TypeRef(pipe.pos(), "java.util.List", List.of(element), false)
     }
 
     /** The file-wide inference, told the types of the locals and the ones the `is` tests around the expression gave. */

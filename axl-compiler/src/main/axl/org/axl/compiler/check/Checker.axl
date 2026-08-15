@@ -1435,6 +1435,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         val body = lambda.body()
         val last = if (body.size() == 1) body.getFirst() else null
         if (last !is Stmt.ExprStmt || (!buildsResult(last.expr()) && !isResultCall(last.expr()))) {
+            // The result type of a function of the file lets a later `filter { it is Ok }` keep the type arguments.
+            val mapped = if (last is Stmt.ExprStmt && declared == null) MapResultTypes.mappedResult(stage, file, currentMethods) else null
+            if (mapped != null) {
+                mapResultTypes.put(stage, mapped)
+            }
             return
         }
         if (declared != null && declared.args().size() == 1) {

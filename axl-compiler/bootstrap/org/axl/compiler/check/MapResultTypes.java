@@ -32,6 +32,18 @@ import org.axl.compiler.ast.TypeRef;
         }
         return null;
     }
+    public static @Nullable TypeRef mappedResult(Expr.Stage stage, SourceFile file, List<Decl.Function> methods) {
+        final var call = calledFunction(stage);
+        if (call == null) {
+            return null;
+        }
+        final var candidates = functionsLike(file, methods, call);
+        if (candidates.size() != 1 || !candidates.getFirst().typeParams().isEmpty()) {
+            return null;
+        }
+        final var result = candidates.getFirst().returnType();
+        return (result != null && results.contains(result.name()) && result.args().size() == 2 ? result : null);
+    }
     private static Expr.@Nullable Call calledFunction(Expr.Stage stage) {
         final var first = java.util.Objects.requireNonNull(stage.lambda()).body().getFirst();
         if (!(first instanceof Stmt.ExprStmt first$1)) {
