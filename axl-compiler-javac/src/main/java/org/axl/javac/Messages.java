@@ -2249,6 +2249,11 @@ final class Messages {
     /** The message for a pipe over a value that is not a collection; an array of objects can be wrapped in a list. */
     private static String pipeSubject(String javaType, String axlText) {
         String found = PIPE_SUBJECT + ", found `" + axlType(javaType) + "`";
+        // A stream whose type the translator cannot tell is taken as a collection.
+        if (javaType.startsWith("java.util.stream.Stream<")) {
+            return found + ", which `|>` takes only where its type is known; write it, `val items: " + axlType(javaType)
+                    + " = ...`, or collect it with `.toList()` first";
+        }
         if (!javaType.endsWith("[]") || PRIMITIVE_ARRAY.matcher(javaType).matches()) {
             return found;
         }

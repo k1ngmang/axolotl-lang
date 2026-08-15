@@ -1730,6 +1730,7 @@ import org.axl.compiler.check.Whens;
         final var typeCode = (declared == null ? "var" : javaType(declared));
         withCopies(line, stmt.resource(), () ->
                 em.line(line, "try (" + typeCode + " " + stmt.name() + " = " + lifted(line, stmt.resource()).code() + ") {"));
+        localTypes.put(stmt.name(), Nulls.or(declared, () -> typeOf(stmt.resource())));
         emitBlock(stmt.body());
         final var handler = stmt.handler();
         if (handler == null) {
@@ -2585,8 +2586,9 @@ import org.axl.compiler.check.Whens;
         if (mapResult == stages.size()) {
             return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false);
         }
-        final var items = (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) :
-                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null));
+        final var items = (mapResult == 0 && isStream(typeOf(pipe.source())) ? parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()" :
+                (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) :
+                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null)));
         final var list = mapResultLoop(line, stages.get(mapResult), items);
         final var rest = stages.subList(mapResult + 1, stages.size());
         if (rest.isEmpty()) {
@@ -2638,7 +2640,10 @@ import org.axl.compiler.check.Whens;
         return type;
     }
     private String pipeCode(String source, Expr sourceExpr, List<Expr.Stage> stages, Function<Expr, String> arg, @Nullable TypeRef target) {
-        final var sb = new StringBuilder(parenthesized(source, sourceExpr)).append(".stream()");
+        final var sb = new StringBuilder(parenthesized(source, sourceExpr));
+        if (!isStream(typeOf(sourceExpr))) {
+            sb.append(".stream()");
+        }
         var terminal = false;
         var previousLine = startLine(sourceExpr);
         var index = 0;
@@ -2711,6 +2716,9 @@ import org.axl.compiler.check.Whens;
                 sb.append('.').append(name).append('(').append(lambdaText).append(')');
             }
         }
+    }
+    private boolean isStream(@Nullable TypeRef type) {
+        return type != null && STREAMS.contains(type.name());
     }
     private @Nullable TypeRef elementTypeOf(@Nullable TypeRef type) {
         return (type == null || type.nullable() || type.args().size() != 1 || MAP_TYPES.contains(type.name()) ? null : type.args().getFirst());
@@ -3461,5 +3469,6 @@ import org.axl.compiler.check.Whens;
     }
     private static final Set<String> MAP_TYPES = Set.of("Map", "HashMap", "TreeMap", "LinkedHashMap", "ConcurrentHashMap",
             "java.util.Map", "java.util.HashMap", "java.util.TreeMap", "java.util.LinkedHashMap", "java.util.concurrent.ConcurrentHashMap");
+    private static final Set<String> STREAMS = Set.of("Stream", "java.util.stream.Stream");
     public record Pattern(String label, String marker) {}
 }

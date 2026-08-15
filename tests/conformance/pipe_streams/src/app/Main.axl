@@ -1,0 +1,39 @@
+package app
+
+import java.nio.file.Files
+import java.util.List
+import java.util.stream.Stream
+
+fn parse(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e -> "bad " + s
+
+// A stream goes into the pipe as it is.
+fn total(numbers: Stream<String>) -> Result<Int, String> {
+    val parsed = numbers |> mapResult { parse(it) }
+    var sum = 0
+    for (n in parsed) {
+        sum += n
+    }
+    return Ok(sum)
+}
+
+fn main() {
+    val s = Stream.of("b", "a", "c")
+    println(s |> sorted)
+    println(Stream.of(3, 1, 2) |> filter { it > 1 } |> sorted)
+    val words = List.of("x", "yy", "zzz")
+    println(words.stream() |> map { it.length() })
+    println("a\nbb\nccc".lines() |> filter { it.length() > 1 } |> count)
+    val typed: Stream<String> = words.stream()
+    println(typed |> first)
+    println(total(Stream.of("1", "2")))
+    println(total(Stream.of("1", "x")))
+    val dir = attempt Files.createTempDirectory("axl") else e -> throw IllegalStateException(e)
+    val file = dir.resolve("lines.txt")
+    attempt Files.writeString(file, "one\ntwo\nthree") else e -> throw IllegalStateException(e)
+    use (val lines = Files.lines(file)) {
+        println(lines |> filter { it.startsWith("t") })
+    } else e -> println(e.getMessage())
+    use (val files = Files.list(dir)) {
+        println(files |> map { it.getFileName().toString() })
+    } else e -> println(e.getMessage())
+}

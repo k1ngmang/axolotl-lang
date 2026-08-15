@@ -255,9 +255,15 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
             if (STRING_BOOLEANS.contains(name)) {
                 return simple("Boolean", pos)
             }
+            if (name.equals("lines") && arity == 0) {
+                return TypeRef(pos, STREAM, List.of(simple("String", pos)), false)
+            }
             return if (name.equals("charAt")) simple("Character", pos) else null
         }
         if (COLLECTIONS.contains(owner)) {
+            if (name.equals("stream") && arity == 0) {
+                return if (receiver.args().size() == 1) TypeRef(pos, STREAM, receiver.args(), false) else null
+            }
             if (name.equals("size") || name.equals("indexOf")) {
                 return simple("Int", pos)
             }
@@ -360,9 +366,17 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
             }
             return if (name.equals("requireNonNull") && arity >= 1) nonNull(of(c.args().getFirst())) else null
         }
-        if (owner.equals("List") || owner.equals("Set")) {
+        if (owner.equals("List") || owner.equals("Set") || owner.equals("Stream")) {
             // `List.of()` without elements is typed by what it goes to, which javac decides.
             return if (name.equals("of") && arity > 0) elementsOf(owner, c.args(), pos) else null
+        }
+        // The streams of `Files`, which `|>` takes as they are.
+        if (owner.equals("Files")) {
+            if (name.equals("lines")) {
+                return TypeRef(pos, STREAM, List.of(simple("String", pos)), false)
+            }
+            val paths = name.equals("list") || name.equals("walk") || name.equals("find")
+            return if (paths) TypeRef(pos, STREAM, List.of(simple("java.nio.file.Path", pos)), false) else null
         }
         // The static methods of the JDK's value types give that type: `Instant.now()`, `Duration.ofMillis(5L)`, `Path.of("x")`.
         if (VALUE_TYPES.contains(owner)) {
@@ -427,6 +441,8 @@ private val COLLECTIONS: Set<String> = Set.of("List", "ArrayList", "LinkedList",
 private val MAPS: Set<String> = Set.of("Map", "HashMap", "LinkedHashMap", "TreeMap", "ConcurrentHashMap")
 private val MATH_DOUBLES: Set<String> = Set.of("sqrt", "pow", "floor", "ceil", "random", "log", "log10", "exp", "sin", "cos", "tan",
     "atan2", "hypot", "cbrt", "rint", "toRadians", "toDegrees")
+// Written out, since the file may not import it, nor `Path`.
+private val STREAM = "java.util.stream.Stream"
 private val VALUE_TYPES: Set<String> = Set.of("Instant", "Duration", "LocalDate", "LocalDateTime", "LocalTime", "ZonedDateTime",
     "Path", "Paths", "UUID", "BigDecimal", "BigInteger", "URI")
 

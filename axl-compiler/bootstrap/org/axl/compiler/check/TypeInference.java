@@ -264,9 +264,15 @@ import org.axl.compiler.ast.TypeRef;
             if (STRING_BOOLEANS.contains(name)) {
                 return simple("Boolean", pos);
             }
+            if (name.equals("lines") && arity == 0) {
+                return new TypeRef(pos, STREAM, List.of(simple("String", pos)), false);
+            }
             return (name.equals("charAt") ? simple("Character", pos) : null);
         }
         if (COLLECTIONS.contains(owner)) {
+            if (name.equals("stream") && arity == 0) {
+                return (receiver.args().size() == 1 ? new TypeRef(pos, STREAM, receiver.args(), false) : null);
+            }
             if (name.equals("size") || name.equals("indexOf")) {
                 return simple("Int", pos);
             }
@@ -367,8 +373,15 @@ import org.axl.compiler.ast.TypeRef;
             }
             return (name.equals("requireNonNull") && arity >= 1 ? nonNull(of(c.args().getFirst())) : null);
         }
-        if (owner.equals("List") || owner.equals("Set")) {
+        if (owner.equals("List") || owner.equals("Set") || owner.equals("Stream")) {
             return (name.equals("of") && arity > 0 ? elementsOf(owner, c.args(), pos) : null);
+        }
+        if (owner.equals("Files")) {
+            if (name.equals("lines")) {
+                return new TypeRef(pos, STREAM, List.of(simple("String", pos)), false);
+            }
+            final var paths = name.equals("list") || name.equals("walk") || name.equals("find");
+            return (paths ? new TypeRef(pos, STREAM, List.of(simple("java.nio.file.Path", pos)), false) : null);
         }
         if (VALUE_TYPES.contains(owner)) {
             return simple((owner.equals("Paths") ? "Path" : owner), pos);
@@ -437,6 +450,7 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> MAPS = Set.of("Map", "HashMap", "LinkedHashMap", "TreeMap", "ConcurrentHashMap");
     private static final Set<String> MATH_DOUBLES = Set.of("sqrt", "pow", "floor", "ceil", "random", "log", "log10", "exp", "sin", "cos", "tan",
             "atan2", "hypot", "cbrt", "rint", "toRadians", "toDegrees");
+    private static final String STREAM = "java.util.stream.Stream";
     private static final Set<String> VALUE_TYPES = Set.of("Instant", "Duration", "LocalDate", "LocalDateTime", "LocalTime", "ZonedDateTime",
             "Path", "Paths", "UUID", "BigDecimal", "BigInteger", "URI");
     private static String simpleName(String name) {

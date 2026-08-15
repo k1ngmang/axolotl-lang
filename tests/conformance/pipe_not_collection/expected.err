@@ -1,4 +1,5 @@
-AXL100 app/Main.axl:6:13: error: `|>` needs a collection or a stream, found `String`
-AXL100 app/Main.axl:7:13: error: `|>` needs a collection or a stream, found `Map<String, Int>`
-AXL100 app/Main.axl:9:13: error: `|>` needs a collection or a stream, found `String[]`; an array is not a collection, so wrap it in `List.of(parts)`
-AXL100 app/Main.axl:10:28: error: `|>` needs a collection or a stream, found `String[]`; an array is not a collection, so wrap it in `List.of(...)`
+AXL100 app/Main.axl:8:13: error: `|>` needs a collection or a stream, found `String`
+AXL100 app/Main.axl:9:13: error: `|>` needs a collection or a stream, found `Map<String, Int>`
+AXL100 app/Main.axl:11:13: error: `|>` needs a collection or a stream, found `String[]`; an array is not a collection, so wrap it in `List.of(parts)`
+AXL100 app/Main.axl:12:28: error: `|>` needs a collection or a stream, found `String[]`; an array is not a collection, so wrap it in `List.of(...)`
+AXL100 app/Main.axl:13:44: error: `|>` needs a collection or a stream, found `Stream<String>`, which `|>` takes only where its type is known; write it, `val items: Stream<String> = ...`, or collect it with `.toList()` first

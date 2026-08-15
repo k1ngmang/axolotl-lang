@@ -1951,6 +1951,7 @@ class Generator(
         withCopies(line, stmt.resource(), { ->
             em.line(line, "try (" + typeCode + " " + stmt.name() + " = " + lifted(line, stmt.resource()).code() + ") {")
         })
+        localTypes.put(stmt.name(), declared ?: typeOf(stmt.resource()))
         emitBlock(stmt.body())
         val handler = stmt.handler()
         if (handler == null) {
@@ -2904,7 +2905,8 @@ class Generator(
         if (mapResult == stages.size()) {
             return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false)
         }
-        val items = if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
+        val items = if (mapResult == 0 && isStream(typeOf(pipe.source()))) parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()"
+            else if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
             else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null)
         val list = mapResultLoop(line, stages.get(mapResult), items)
         val rest = stages.subList(mapResult + 1, stages.size())
@@ -2967,7 +2969,10 @@ class Generator(
     /** Pipe stages as a Java stream; without a terminal stage the result is a List. */
     /** target: the written type the pipe's list goes to, whose element type a narrowing `filter` keeps. */
     private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>, target: TypeRef?) -> String {
-        val sb = StringBuilder(parenthesized(source, sourceExpr)).append(".stream()")
+        val sb = StringBuilder(parenthesized(source, sourceExpr))
+        if (!isStream(typeOf(sourceExpr))) {
+            sb.append(".stream()")
+        }
         var terminal = false
         var previousLine = startLine(sourceExpr)
         var index = 0
@@ -3036,6 +3041,9 @@ class Generator(
             else -> sb.append('.').append(name).append('(').append(lambdaText).append(')')
         }
     }
+
+    /** `Files.lines(p) |> filter { ... }` goes on with the stream itself. */
+    private fn isStream(type: TypeRef?) -> Boolean = type != null && STREAMS.contains(type.name())
 
     /** The element type of a `List<T>` or another collection with one type argument. */
     private fn elementTypeOf(type: TypeRef?) -> TypeRef? =
@@ -3766,6 +3774,8 @@ private fn unary(op: String, operand: String) -> String {
 
 private val MAP_TYPES: Set<String> = Set.of("Map", "HashMap", "TreeMap", "LinkedHashMap", "ConcurrentHashMap",
     "java.util.Map", "java.util.HashMap", "java.util.TreeMap", "java.util.LinkedHashMap", "java.util.concurrent.ConcurrentHashMap")
+
+private val STREAMS: Set<String> = Set.of("Stream", "java.util.stream.Stream")
 
 /** A record pattern and the marker for the names it binds. */
 data class Pattern(val label: String, val marker: String)
