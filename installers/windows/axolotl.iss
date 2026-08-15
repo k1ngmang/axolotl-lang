@@ -32,6 +32,10 @@ Source: "{#ImageDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdir
 [Run]
 Filename: "{app}\axl.exe"; Parameters: "setup"; Flags: runhidden runasoriginaluser; StatusMsg: "Installing the Axolotl libraries for Maven and Gradle..."
 
+[UninstallRun]
+; The compiler daemon keeps the jars open, and Windows does not delete open files.
+Filename: "{app}\axl.exe"; Parameters: "daemon --stop"; Flags: runhidden; RunOnceId: "StopDaemon"
+
 [Code]
 // axl.exe goes on the PATH: the machine's for an installation for all users, the user's otherwise.
 function PathRoot: Integer;
@@ -72,6 +76,17 @@ begin
   if P = 0 then exit;
   Delete(Path, P, Length(Dir) + 1);
   RegWriteExpandStringValue(PathRoot, PathKey, 'Path', Copy(Path, 2, Length(Path) - 2));
+end;
+
+// An upgrade replaces the jars, which the compiler daemon of the installed version keeps open.
+// Versions without a daemon do not know the command and change nothing.
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ResultCode: Integer;
+begin
+  if FileExists(ExpandConstant('{app}\axl.exe')) then
+    ExecAsOriginalUser(ExpandConstant('{app}\axl.exe'), 'daemon --stop', '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Result := '';
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
