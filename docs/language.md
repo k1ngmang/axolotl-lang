@@ -166,8 +166,8 @@ count = 0` need none, `val cache: Map<String, Int>? = null` does. It is set afte
 and read the fields by name. `private` hides a property or a method. A class cannot extend another one
 and is created like a data class: `Counter("c", 1)`; it may implement interfaces of its package and Java interfaces. For a generic Java interface of the JDK write `Int`,
 `Long`, `Double` or `Boolean` as the type argument and in the methods, as for your own interfaces: `class Doubler :
-Function<Int, Int> { fn apply(x: Int) -> Int = x * 2 }`. An interface from a library or from your own Java files needs
-`Integer`, `Long`, `Double` or `Boolean` in the method signatures, since the compiler does not look into it. A property
+Function<Int, Int> { fn apply(x: Int) -> Int = x * 2 }`. The same holds for a generic interface from a library on the
+classpath or from your own Java files, since the compiler reads their signatures. A property
 without a written type may be initialized by a method of its class that has a written result type (`val total = compute()`).
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
