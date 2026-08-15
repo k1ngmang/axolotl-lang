@@ -1,0 +1,22 @@
+package app
+
+import java.nio.file.Path
+import java.util.ArrayList
+import java.util.List
+import java.util.concurrent.CompletableFuture
+
+// A list goes where Java takes an array of objects, unless the method also takes a collection there
+// or the list is one of the values of a varargs parameter.
+fn main() {
+    val futures = ArrayList<CompletableFuture<Int>>()
+    futures.add(CompletableFuture.completedFuture(1))
+    futures.add(CompletableFuture.supplyAsync({ -> 2 }))
+    CompletableFuture.allOf(futures).join()
+    println(futures |> map { it.join() })
+    val parts = List.of("b", "c")
+    println(Path.of("a", parts).getNameCount())
+    println(Path.of("a", parts |> filter { it.startsWith("c") }).getFileName())
+    println(String.join("-", parts))
+    println(String.format("%s", parts))
+    println(ProcessBuilder(parts).command())
+}

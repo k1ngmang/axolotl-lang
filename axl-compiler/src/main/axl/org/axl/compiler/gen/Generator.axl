@@ -12,6 +12,7 @@ import java.util.Set
 import java.util.function.Function
 import java.util.function.Supplier
 import org.axl.compiler.GeneratedUnit
+import org.axl.compiler.JavaClasses.Signature
 import org.axl.compiler.JavaTypes
 import org.axl.compiler.LineMap
 import org.axl.compiler.Options
@@ -89,6 +90,8 @@ class Generator(
     // The written type a value goes to, which a pipe stored as a `List<Token>` keeps instead of narrowing to `List<Num>`.
     var storedType: TypeRef? = null
     var patternCount: Int = 0
+    // Lists passed where Java takes an array, with the class of the elements of the array.
+    val arrayArguments: IdentityHashMap<Expr, String> = IdentityHashMap<Expr, String>()
 
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
     var overridden: List<String> = List.of()
@@ -1631,7 +1634,13 @@ class Generator(
     private fn expr(e: Expr) -> String = exprIn(e, false)
 
     /** inLambda is true inside the lambdas generated for `?:`, `?.` and `attempt`. */
-    private fn exprIn(e: Expr, inLambda: Boolean) -> String = when (e) {
+    private fn exprIn(e: Expr, inLambda: Boolean) -> String {
+        val element = arrayArguments.get(e)
+        val code = exprCode(e, inLambda)
+        return if (element == null) code else code + ".toArray(new " + element + "[0])"
+    }
+
+    private fn exprCode(e: Expr, inLambda: Boolean) -> String = when (e) {
         is Expr.Literal -> literal(e.text())
         is Expr.Name -> nameCode(e, inLambda)
         is Expr.Member -> chainCode(deconstructed(Chains.flatten(e)), inLambda)
@@ -1686,7 +1695,86 @@ class Generator(
         if (target != null) {
             return chainCode(deconstructed(Chains.flatten(c)), inLambda)
         }
+        passArraysToConstructor(c)
         return callCode(c, argsCode(widenedArgs(c), inLambda, c.pos().line()))
+    }
+
+    private fn passArraysToConstructor(c: Expr.Call) {
+        if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name()) && declaredType(c.name()) == null) {
+            passArrays(c.name(), "<init>", c.args())
+        }
+    }
+
+    /** The first call of a chain, on a class or on a value whose type the code tells. */
+    private fn passArraysToChain(chain: Chains.Chain) {
+        val steps = chain.steps()
+        val args = if (steps.isEmpty()) null else steps.getFirst().args()
+        val base = chain.base()
+        if (args == null) {
+            return
+        }
+        val owner = if (base is Expr.Name && isStaticName(base)) base.name() else typeOf(base)?.name()
+        if (owner != null) {
+            passArrays(owner, steps.getFirst().name(), args)
+        }
+    }
+
+    /**
+     * `CompletableFuture.allOf(futures)`: a list passed where each method of that name takes an array of
+     * objects is passed as such an array, `futures.toArray(new CompletableFuture[0])`. A method that takes
+     * a collection there, or a varargs value that a list can be, gets the list.
+     */
+    private fn passArrays(owner: String, name: String, args: List<Expr>) {
+        val lists = args |> map { a -> withoutParens(a) } |> filter { a -> isListArgument(a) }
+        if (lists.isEmpty()) {
+            return
+        }
+        val library = Libraries.classNamed(file, options.classes(), owner)
+        if (library == null) {
+            return
+        }
+        val signatures = options.classes().signatures(library.name(), name)
+        var i = 0
+        while (i < args.size()) {
+            val arg = withoutParens(args.get(i))
+            val element = if (lists.contains(arg)) arrayElement(signatures, i, args.size()) else null
+            if (element != null) {
+                arrayArguments.put(arg, element)
+            }
+            i += 1
+        }
+    }
+
+    /** A collection the code knows as one, written as a value that `.toArray(...)` can follow. */
+    private fn isListArgument(arg: Expr) -> Boolean {
+        val plain = arg is Expr.Name || arg is Expr.Call || arg is Expr.Member || arg is Expr.GenericNew || arg is Expr.Pipe
+        val type = if (plain) typeOf(arg) else null
+        return type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1))
+    }
+
+    /** The class of the elements of the array that each method with as many parameters takes at that place, or null. */
+    private fn arrayElement(signatures: List<Signature>, index: Int, arity: Int) -> String? {
+        var element: String? = null
+        for (signature in signatures) {
+            val params = signature.parameters()
+            if (params.size() == arity || (signature.varargs() && arity >= params.size() - 1)) {
+                // A list past the fixed parameters is one of the varargs values.
+                val param = if (params.size() == arity) params.get(index) else ""
+                val inner = if (param.endsWith("[]")) param.substring(0, param.length() - 2) else ""
+                // A primitive or a type variable has no package; a list is an Object or a Collection already.
+                if (!inner.contains(".") || inner.endsWith("]") || LIST_SUPERTYPES.contains(inner) || (element != null && !inner.equals(element))) {
+                    return null
+                }
+                element = inner
+            }
+        }
+        val found = element
+        if (found == null) {
+            return null
+        }
+        val simple = found.substring(found.lastIndexOf('.') + 1)
+        val imported = file.imports() |> anyMatch { i -> i.kind() == Import.Kind.TYPE && i.name().equals(found) }
+        return if (imported || found.equals("java.lang." + simple)) simple else found
     }
 
     /** `f(5)` for `fn f(x: Long?)`: Java boxes the 5 as an Integer, which is no Long. */
@@ -2422,6 +2510,7 @@ class Generator(
 
     /** Each `?.` wraps the rest of the chain, so the first null skips everything after it. */
     private fn chainCode(chain: Chains.Chain, inLambda: Boolean) -> String {
+        passArraysToChain(chain)
         val steps = chain.steps()
         val created = constructorStep(chain)
         if (created < 0) {
@@ -2641,6 +2730,7 @@ class Generator(
 
     private fn liftedCall(line: Int, c: Expr.Call) -> Lifted {
         if (c.target() == null) {
+            passArraysToConstructor(c)
             return Lifted(callCode(c, codes(operands(line, c.args()))), false)
         }
         return chainLifted(line, deconstructed(Chains.flatten(c)))
@@ -2855,6 +2945,7 @@ class Generator(
 
     /** The receiver and the arguments before the first `?.` are evaluated eagerly; the rest only for non-null. */
     private fn chainLifted(line: Int, chain: Chains.Chain) -> Lifted {
+        passArraysToChain(chain)
         val first = indexOfFirstSafe(chain.steps())
         val prefix = liftedPrefix(line, chain, first)
         return Lifted(chainFrom(prefix, chain.steps(), first, false, startLine(chain.base())), false)
@@ -3800,6 +3891,12 @@ private val MAP_TYPES: Set<String> = Set.of("Map", "HashMap", "TreeMap", "Linked
     "java.util.Map", "java.util.HashMap", "java.util.TreeMap", "java.util.LinkedHashMap", "java.util.concurrent.ConcurrentHashMap")
 
 private val STREAMS: Set<String> = Set.of("Stream", "java.util.stream.Stream")
+
+private val COLLECTION_NAMES: Set<String> = Set.of("List", "ArrayList", "LinkedList", "Set", "HashSet", "LinkedHashSet",
+    "TreeSet", "Collection")
+
+private val LIST_SUPERTYPES: Set<String> = Set.of("java.lang.Object", "java.lang.Iterable", "java.util.Collection",
+    "java.util.SequencedCollection", "java.util.List", "java.io.Serializable", "java.lang.Cloneable")
 
 /** A record pattern and the marker for the names it binds. */
 data class Pattern(val label: String, val marker: String)

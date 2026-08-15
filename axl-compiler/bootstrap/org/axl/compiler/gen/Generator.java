@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.axl.compiler.GeneratedUnit;
+import org.axl.compiler.JavaClasses.Signature;
 import org.axl.compiler.JavaTypes;
 import org.axl.compiler.LineMap;
 import org.axl.compiler.Options;
@@ -55,6 +56,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr, @Nullable TypeRef> branchTypes;
     public @Nullable TypeRef storedType;
     public int patternCount;
+    public final IdentityHashMap<Expr, String> arrayArguments;
     public List<String> overridden;
     public List<RequiredMethod> requiredMethods;
     public @Nullable TypeRef subjectTypeOf;
@@ -94,6 +96,7 @@ import org.axl.compiler.check.Whens;
         this.branchTypes = new IdentityHashMap<Expr, @Nullable TypeRef>();
         this.storedType = null;
         this.patternCount = 0;
+        this.arrayArguments = new IdentityHashMap<Expr, String>();
         this.overridden = List.of();
         this.requiredMethods = List.of();
         this.subjectTypeOf = null;
@@ -1438,6 +1441,11 @@ import org.axl.compiler.check.Whens;
         return exprIn(e, false);
     }
     private String exprIn(Expr e, boolean inLambda) {
+        final var element = arrayArguments.get(e);
+        final var code = exprCode(e, inLambda);
+        return (element == null ? code : code + ".toArray(new " + element + "[0])");
+    }
+    private String exprCode(Expr e, boolean inLambda) {
         switch (e) {
             case Expr.Literal e$1 -> {
                 return literal(e$1.text());
@@ -1525,7 +1533,71 @@ import org.axl.compiler.check.Whens;
         if (target != null) {
             return chainCode(deconstructed(Chains.flatten(c)), inLambda);
         }
+        passArraysToConstructor(c);
         return callCode(c, argsCode(widenedArgs(c), inLambda, c.pos().line()));
+    }
+    private void passArraysToConstructor(Expr.Call c) {
+        if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name()) && declaredType(c.name()) == null) {
+            passArrays(c.name(), "<init>", c.args());
+        }
+    }
+    private void passArraysToChain(Chains.Chain chain) {
+        final var steps = chain.steps();
+        final var args = (steps.isEmpty() ? null : steps.getFirst().args());
+        final var base = chain.base();
+        if (args == null) {
+            return;
+        }
+        final var owner = (base instanceof Expr.Name base$1 && isStaticName(base$1) ? Nulls.box(base$1.name()) : Nulls.box(Nulls.map(typeOf(base), $n1 -> $n1.name())));
+        if (owner != null) {
+            passArrays(owner, steps.getFirst().name(), args);
+        }
+    }
+    private void passArrays(String owner, String name, List<Expr> args) {
+        final var lists = args.stream().map(Nulls.nonNull(a -> withoutParens(a))).filter(a -> isListArgument(a)).toList();
+        if (lists.isEmpty()) {
+            return;
+        }
+        final var library = Libraries.classNamed(file, options.classes(), owner);
+        if (library == null) {
+            return;
+        }
+        final var signatures = options.classes().signatures(library.name(), name);
+        var i = 0;
+        while (i < args.size()) {
+            final var arg = withoutParens(args.get(i));
+            final var element = (lists.contains(arg) ? arrayElement(signatures, i, args.size()) : null);
+            if (element != null) {
+                arrayArguments.put(arg, element);
+            }
+            i += 1;
+        }
+    }
+    private boolean isListArgument(Expr arg) {
+        final var plain = arg instanceof Expr.Name arg$1 || arg instanceof Expr.Call arg$2 || arg instanceof Expr.Member arg$3 || arg instanceof Expr.GenericNew arg$4 || arg instanceof Expr.Pipe arg$5;
+        final var type = (plain ? typeOf(arg) : null);
+        return type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1));
+    }
+    private @Nullable String arrayElement(List<Signature> signatures, int index, int arity) {
+        @Nullable String element = null;
+        for (final var signature : signatures) {
+            final var params = signature.parameters();
+            if (params.size() == arity || (signature.varargs() && arity >= params.size() - 1)) {
+                final var param = (params.size() == arity ? params.get(index) : "");
+                final var inner = (param.endsWith("[]") ? param.substring(0, param.length() - 2) : "");
+                if (!inner.contains(".") || inner.endsWith("]") || LIST_SUPERTYPES.contains(inner) || (element != null && !inner.equals(element))) {
+                    return null;
+                }
+                element = inner;
+            }
+        }
+        final var found = element;
+        if (found == null) {
+            return null;
+        }
+        final var simple = found.substring(found.lastIndexOf('.') + 1);
+        final var imported = file.imports().stream().anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals(found));
+        return (imported || found.equals("java.lang." + simple) ? simple : found);
     }
     private List<Expr> widenedArgs(Expr.Call c) {
         for (final var decl : file.decls()) {
@@ -2113,6 +2185,7 @@ import org.axl.compiler.check.Whens;
         return !methods.isEmpty() && !method && function;
     }
     private String chainCode(Chains.Chain chain, boolean inLambda) {
+        passArraysToChain(chain);
         final var steps = chain.steps();
         final var created = constructorStep(chain);
         if (created < 0) {
@@ -2331,6 +2404,7 @@ import org.axl.compiler.check.Whens;
     }
     private Lifted liftedCall(int line, Expr.Call c) {
         if (c.target() == null) {
+            passArraysToConstructor(c);
             return new Lifted(callCode(c, codes(operands(line, c.args()))), false);
         }
         return chainLifted(line, deconstructed(Chains.flatten(c)));
@@ -2538,6 +2612,7 @@ import org.axl.compiler.check.Whens;
                 false);
     }
     private Lifted chainLifted(int line, Chains.Chain chain) {
+        passArraysToChain(chain);
         final var first = indexOfFirstSafe(chain.steps());
         final var prefix = liftedPrefix(line, chain, first);
         return new Lifted(chainFrom(prefix, chain.steps(), first, false, startLine(chain.base())), false);
@@ -3489,5 +3564,9 @@ import org.axl.compiler.check.Whens;
     private static final Set<String> MAP_TYPES = Set.of("Map", "HashMap", "TreeMap", "LinkedHashMap", "ConcurrentHashMap",
             "java.util.Map", "java.util.HashMap", "java.util.TreeMap", "java.util.LinkedHashMap", "java.util.concurrent.ConcurrentHashMap");
     private static final Set<String> STREAMS = Set.of("Stream", "java.util.stream.Stream");
+    private static final Set<String> COLLECTION_NAMES = Set.of("List", "ArrayList", "LinkedList", "Set", "HashSet", "LinkedHashSet",
+            "TreeSet", "Collection");
+    private static final Set<String> LIST_SUPERTYPES = Set.of("java.lang.Object", "java.lang.Iterable", "java.util.Collection",
+            "java.util.SequencedCollection", "java.util.List", "java.io.Serializable", "java.lang.Cloneable");
     public record Pattern(String label, String marker) {}
 }

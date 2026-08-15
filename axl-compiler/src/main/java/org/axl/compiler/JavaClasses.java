@@ -5,8 +5,9 @@ import java.util.List;
 /**
  * Reads classes that no file of the build declares: those of the JDK, of jars and class directories on
  * the classpath, and of Java sources. The translator asks for the type parameters of a sealed type it
- * narrows, the components of a record it takes apart, and the methods of a generic interface a class
- * implements. Names are canonical, `java.util.Map.Entry`.
+ * narrows, the components of a record it takes apart, the methods of a generic interface a class
+ * implements, and the parameters of the methods a list is passed to. Names are canonical,
+ * `java.util.Map.Entry`.
  */
 public interface JavaClasses {
 
@@ -34,6 +35,14 @@ public interface JavaClasses {
      */
     record MethodShape(String name, List<Boolean> typeVariables, boolean typeVariable) {}
 
+    /**
+     * The parameters of a method or constructor, each as its erased canonical type, `java.lang.String[]`;
+     * an array of a type variable is written with the name of the variable, `T[]`.
+     *
+     * @param varargs whether the last parameter takes any number of arguments
+     */
+    record Signature(List<String> parameters, boolean varargs) {}
+
     /** The class, or null when it cannot be read. */
     ClassShape shape(String qualifiedName);
 
@@ -43,4 +52,12 @@ public interface JavaClasses {
      * box `Integer` in Java, not `int`.
      */
     List<MethodShape> methods(String qualifiedName);
+
+    /**
+     * The public methods of that name, static or not and also inherited, or the public constructors for
+     * `<init>`; empty when the class cannot be read. The translator passes a list where Java takes an array.
+     */
+    default List<Signature> signatures(String qualifiedName, String name) {
+        return List.of();
+    }
 }

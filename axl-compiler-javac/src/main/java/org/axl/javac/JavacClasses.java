@@ -19,6 +19,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -40,6 +41,7 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
     private final List<Path> sourcepath;
     private final Map<String, ClassShape> shapes = new HashMap<>();
     private final Map<String, List<MethodShape>> methods = new HashMap<>();
+    private final Map<String, List<Signature>> signatures = new HashMap<>();
     private final boolean keepOpen;
     private StandardJavaFileManager files;
     private Elements elements;
@@ -75,6 +77,15 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
             methods.put(qualifiedName, readMethods(qualifiedName));
         }
         return methods.get(qualifiedName);
+    }
+
+    @Override
+    public synchronized List<Signature> signatures(String qualifiedName, String name) {
+        String key = qualifiedName + "#" + name;
+        if (!signatures.containsKey(key)) {
+            signatures.put(key, readSignatures(qualifiedName, name));
+        }
+        return signatures.get(key);
     }
 
     @Override
@@ -146,6 +157,31 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
         }
     }
 
+    private List<Signature> readSignatures(String qualifiedName, String name) {
+        try {
+            TypeElement type = typeNamed(qualifiedName);
+            if (type == null) {
+                return List.of();
+            }
+            boolean constructors = name.equals("<init>");
+            List<? extends Element> members = constructors ? type.getEnclosedElements() : elements.getAllMembers(type);
+            List<Signature> found = new ArrayList<>();
+            for (Element member : members) {
+                if (member instanceof ExecutableElement executable && member.getModifiers().contains(Modifier.PUBLIC)
+                        && (constructors ? member.getKind() == ElementKind.CONSTRUCTOR
+                                : member.getKind() == ElementKind.METHOD && member.getSimpleName().contentEquals(name))) {
+                    List<String> parameters = executable.getParameters().stream().map(p -> erased(p.asType())).toList();
+                    found.add(new Signature(parameters, executable.isVarArgs()));
+                }
+            }
+            return found;
+        } catch (RuntimeException e) {
+            return List.of();
+        } finally {
+            release();
+        }
+    }
+
     private TypeElement typeNamed(String qualifiedName) {
         if (elements == null) {
             open();
@@ -183,6 +219,19 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
             arguments.add(argument instanceof TypeVariable variable ? variable.asElement().getSimpleName().toString() : "");
         }
         return new Supertype(((TypeElement) declared.asElement()).getQualifiedName().toString(), arguments);
+    }
+
+    private static String erased(TypeMirror type) {
+        if (type instanceof ArrayType array) {
+            return erased(array.getComponentType()) + "[]";
+        }
+        if (type instanceof TypeVariable variable) {
+            return variable.asElement().getSimpleName().toString();
+        }
+        if (type instanceof DeclaredType declared) {
+            return ((TypeElement) declared.asElement()).getQualifiedName().toString();
+        }
+        return type.toString();
     }
 
     /** A type variable of the interface, not one of the method: a method's `R` takes no `Int`. */

@@ -45,4 +45,16 @@ class ReflectedClassesTest {
         assertTrue(methods.contains(new JavaClasses.MethodShape("apply", List.of(true), true)));
         assertEquals(List.of(), classes.methods("java.util.ArrayList"));
     }
+
+    @Test
+    void readsTheErasedParametersOfMethodsAndConstructors() {
+        assertEquals(List.of(new JavaClasses.Signature(List.of("java.util.concurrent.CompletableFuture[]"), true)),
+                classes.signatures("java.util.concurrent.CompletableFuture", "allOf"));
+        assertTrue(classes.signatures("java.util.Arrays", "asList")
+                .contains(new JavaClasses.Signature(List.of("T[]"), true)));
+        List<JavaClasses.Signature> builders = classes.signatures("java.lang.ProcessBuilder", "<init>");
+        assertTrue(builders.contains(new JavaClasses.Signature(List.of("java.util.List"), false)));
+        assertTrue(builders.contains(new JavaClasses.Signature(List.of("java.lang.String[]"), true)));
+        assertEquals(List.of(), classes.signatures("java.util.NoSuchClass", "of"));
+    }
 }

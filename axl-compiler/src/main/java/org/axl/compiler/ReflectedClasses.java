@@ -1,5 +1,7 @@
 package org.axl.compiler;
 
+import java.lang.reflect.Executable;
+import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -81,6 +83,37 @@ public final class ReflectedClasses implements JavaClasses {
         return shapes;
     }
 
+    @Override
+    public List<Signature> signatures(String qualifiedName, String name) {
+        List<Signature> signatures = new ArrayList<>();
+        Class<?> type = load(qualifiedName);
+        if (type == null) {
+            return signatures;
+        }
+        try {
+            List<Executable> executables = new ArrayList<>();
+            if (name.equals("<init>")) {
+                executables.addAll(List.of(type.getConstructors()));
+            } else {
+                for (Method method : type.getMethods()) {
+                    if (method.getName().equals(name)) {
+                        executables.add(method);
+                    }
+                }
+            }
+            for (Executable executable : executables) {
+                List<String> parameters = new ArrayList<>();
+                for (Type parameter : executable.getGenericParameterTypes()) {
+                    parameters.add(erased(parameter));
+                }
+                signatures.add(new Signature(parameters, executable.isVarArgs()));
+            }
+        } catch (LinkageError | TypeNotPresentException | java.lang.reflect.MalformedParameterizedTypeException e) {
+            return new ArrayList<>();
+        }
+        return signatures;
+    }
+
     /** A canonical name stands for the binary name `lib.Options$Some` as well as `lib.Options.Some`. */
     private Class<?> load(String qualifiedName) {
         String name = qualifiedName;
@@ -109,6 +142,19 @@ public final class ReflectedClasses implements JavaClasses {
             raw = (Class<?>) type;
         }
         return new Supertype(raw.getCanonicalName(), arguments);
+    }
+
+    private static String erased(Type type) {
+        if (type instanceof GenericArrayType array) {
+            return erased(array.getGenericComponentType()) + "[]";
+        }
+        if (type instanceof TypeVariable<?> variable) {
+            return variable.getName();
+        }
+        if (type instanceof ParameterizedType parameterized) {
+            return ((Class<?>) parameterized.getRawType()).getCanonicalName();
+        }
+        return type instanceof Class<?> c ? c.getCanonicalName() : type.getTypeName();
     }
 
     /** A type variable of the class, not one of the method: a method's `R` takes no `Int`. */
