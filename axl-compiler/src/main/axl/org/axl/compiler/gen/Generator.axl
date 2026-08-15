@@ -37,6 +37,7 @@ import org.axl.compiler.check.Analysis
 import org.axl.compiler.check.Checker
 import org.axl.compiler.check.Exhaustiveness
 import org.axl.compiler.check.Implementations
+import org.axl.compiler.check.Libraries
 import org.axl.compiler.check.TypeInference
 import org.axl.compiler.check.Whens
 
@@ -903,6 +904,9 @@ class Generator(
             return null
         }
         val parent = declaredType(subject.name())
+        if (parent == null) {
+            return otherLibraryImplementation(tested, subject)
+        }
         if (parent !is Decl.Interface || !parent.isSealed()) {
             return null
         }
@@ -917,6 +921,26 @@ class Generator(
         val other = TypeRef(tested.pos(), otherName, List.of(), false)
         val otherDecl = declaredType(otherName)
         if (otherDecl != null && !typeParamsOf(otherDecl).isEmpty() && argumentsOf(other, subject) == null) {
+            return null
+        }
+        return testedType(other, subject)
+    }
+
+    /** The same for a sealed type of the classpath, whose permitted classes the compiled class names. */
+    private fn otherLibraryImplementation(tested: TypeRef, subject: TypeRef) -> String? {
+        val parent = Libraries.classNamed(file, options.classes(), subject.name())
+        val test = Libraries.classNamed(file, options.classes(), tested.name())
+        if (parent == null || test == null) {
+            return null
+        }
+        val permitted = parent.shape().permitted()
+        if (permitted.size() != 2 || !permitted.contains(test.name())) {
+            return null
+        }
+        val otherName = if (permitted.get(0).equals(test.name())) permitted.get(1) else permitted.get(0)
+        val other = TypeRef(tested.pos(), otherName, List.of(), false)
+        val otherClass = Libraries.classNamed(file, options.classes(), otherName)
+        if (otherClass == null || (!otherClass.shape().typeParameters().isEmpty() && argumentsOf(other, subject) == null)) {
             return null
         }
         return testedType(other, subject)
@@ -2059,7 +2083,7 @@ class Generator(
         return Pattern(tested.name() + "(" + String.join(", ", declared) + ")", "@" + String.join(",", pairs) + ":" + bare)
     }
 
-    /** The fields of a generic data class of the build whose type arguments the subject does not tell. */
+    /** The fields of a generic data class of the build or record of the classpath whose type arguments the subject does not tell. */
     private fn genericRecordFields(tested: TypeRef, subject: TypeRef?) -> List<String> {
         if (!tested.args().isEmpty() || (subject != null && argumentsOf(tested, subject) != null)) {
             return List.of()
@@ -2068,7 +2092,11 @@ class Generator(
         if (decl is Decl.DataClass && !decl.typeParams().isEmpty()) {
             return decl.fields() |> map { f -> f.name() }
         }
-        return List.of()
+        if (decl != null) {
+            return List.of()
+        }
+        val library = Libraries.classNamed(file, options.classes(), tested.name())
+        return if (library == null || library.shape().typeParameters().isEmpty()) List.of() else library.shape().components()
     }
 
     /**
@@ -2183,25 +2211,35 @@ class Generator(
 
     /**
      * `is Some` on an `Option<String>`, where `data class Some<T>(...) : Option<T>` is declared in this
-     * file: the type arguments of the test are the ones of the subject that its supertype passes on.
-     * Without them Java would read the fields of the match as Objects.
+     * file or comes from the classpath: the type arguments of the test are the ones of the subject that
+     * its supertype passes on. Without them Java would read the fields of the match as Objects.
      */
     private fn argumentsOf(tested: TypeRef, subject: TypeRef) -> List<String>? {
         val decl = declaredType(tested.name())
-        if (decl == null) {
+        if (decl != null) {
+            val parent = supertypesOf(decl) |> filter { t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size() } |> first
+            return if (parent == null) null else passedOn(typeParamsOf(decl) |> map { p -> p.name() }, parent.args() |> map { a -> a.name() }, subject)
+        }
+        val library = Libraries.classNamed(file, options.classes(), tested.name())
+        val parentLibrary = Libraries.classNamed(file, options.classes(), subject.name())
+        if (library == null || parentLibrary == null) {
             return null
         }
-        val typeParams = typeParamsOf(decl)
-        val parent = supertypesOf(decl) |> filter { t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size() } |> first
-        if (typeParams.isEmpty() || parent == null) {
+        val parent = library.shape().supertypes() |> filter { t -> t.name().equals(parentLibrary.name()) && t.arguments().size() == subject.args().size() } |> first
+        return if (parent == null) null else passedOn(library.shape().typeParameters(), parent.arguments(), subject)
+    }
+
+    /** The type arguments of the subject at the places where the supertype writes each type parameter, or null when one has no place. */
+    private fn passedOn(typeParams: List<String>, written: List<String>, subject: TypeRef) -> List<String>? {
+        if (typeParams.isEmpty()) {
             return null
         }
         val arguments = ArrayList<String>()
         for (param in typeParams) {
             var found: String? = null
             var i = 0
-            while (i < parent.args().size()) {
-                if (parent.args().get(i).name().equals(param.name())) {
+            while (i < written.size()) {
+                if (written.get(i).equals(param)) {
                     found = boxedType(subject.args().get(i))
                 }
                 i += 1

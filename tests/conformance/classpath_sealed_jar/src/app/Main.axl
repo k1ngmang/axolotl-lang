@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+import lib.Options.Mapper
+import lib.Options.Option
+import lib.Options.Some
+
+// The same library as a jar: a generic Axolotl interface is implemented with Int, a generic sealed type narrowed.
+class Length : Mapper<String, Int> {
+    fn map(x: String) -> Int = x.length()
+}
+
+fn lengths(options: List<Option<String>>) -> Int {
+    var total = 0
+    for (o in options) {
+        if (o is Some) {
+            total += Length().map(o.value())
+        }
+    }
+    return total
+}
+
+fn main() {
+    println(lengths(List.of(Some<String>(true, "ab"), Some<String>(true, "cde"))))
+}

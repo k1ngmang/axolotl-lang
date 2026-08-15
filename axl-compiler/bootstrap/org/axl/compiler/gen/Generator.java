@@ -38,6 +38,7 @@ import org.axl.compiler.check.Analysis;
 import org.axl.compiler.check.Checker;
 import org.axl.compiler.check.Exhaustiveness;
 import org.axl.compiler.check.Implementations;
+import org.axl.compiler.check.Libraries;
 import org.axl.compiler.check.TypeInference;
 import org.axl.compiler.check.Whens;
 
@@ -837,6 +838,9 @@ import org.axl.compiler.check.Whens;
             return null;
         }
         final var parent = declaredType(subject.name());
+        if (parent == null) {
+            return otherLibraryImplementation(tested, subject);
+        }
         if (!(parent instanceof Decl.Interface parent$1) || !parent$1.isSealed()) {
             return null;
         }
@@ -851,6 +855,24 @@ import org.axl.compiler.check.Whens;
         final var other = new TypeRef(tested.pos(), otherName, List.of(), false);
         final var otherDecl = declaredType(otherName);
         if (otherDecl != null && !typeParamsOf(otherDecl).isEmpty() && argumentsOf(other, subject) == null) {
+            return null;
+        }
+        return testedType(other, subject);
+    }
+    private @Nullable String otherLibraryImplementation(TypeRef tested, TypeRef subject) {
+        final var parent = Libraries.classNamed(file, options.classes(), subject.name());
+        final var test = Libraries.classNamed(file, options.classes(), tested.name());
+        if (parent == null || test == null) {
+            return null;
+        }
+        final var permitted = parent.shape().permitted();
+        if (permitted.size() != 2 || !permitted.contains(test.name())) {
+            return null;
+        }
+        final var otherName = (permitted.get(0).equals(test.name()) ? permitted.get(1) : permitted.get(0));
+        final var other = new TypeRef(tested.pos(), otherName, List.of(), false);
+        final var otherClass = Libraries.classNamed(file, options.classes(), otherName);
+        if (otherClass == null || (!otherClass.shape().typeParameters().isEmpty() && argumentsOf(other, subject) == null)) {
             return null;
         }
         return testedType(other, subject);
@@ -1821,7 +1843,11 @@ import org.axl.compiler.check.Whens;
         if (decl instanceof Decl.DataClass decl$1 && !decl$1.typeParams().isEmpty()) {
             return decl$1.fields().stream().map(Nulls.nonNull(f -> f.name())).toList();
         }
-        return List.of();
+        if (decl != null) {
+            return List.of();
+        }
+        final var library = Libraries.classNamed(file, options.classes(), tested.name());
+        return (library == null || library.shape().typeParameters().isEmpty() ? List.of() : library.shape().components());
     }
     private @Nullable Decl declaredType(String name) {
         for (final var decl : file.decls()) {
@@ -1917,20 +1943,28 @@ import org.axl.compiler.check.Whens;
     }
     private @Nullable List<String> argumentsOf(TypeRef tested, TypeRef subject) {
         final var decl = declaredType(tested.name());
-        if (decl == null) {
+        if (decl != null) {
+            final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
+            return (parent == null ? null : passedOn(typeParamsOf(decl).stream().map(Nulls.nonNull(p -> p.name())).toList(), parent.args().stream().map(Nulls.nonNull(a -> a.name())).toList(), subject));
+        }
+        final var library = Libraries.classNamed(file, options.classes(), tested.name());
+        final var parentLibrary = Libraries.classNamed(file, options.classes(), subject.name());
+        if (library == null || parentLibrary == null) {
             return null;
         }
-        final var typeParams = typeParamsOf(decl);
-        final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
-        if (typeParams.isEmpty() || parent == null) {
+        final var parent = Nulls.first(library.shape().supertypes().stream().filter(t -> t.name().equals(parentLibrary.name()) && t.arguments().size() == subject.args().size()).iterator());
+        return (parent == null ? null : passedOn(library.shape().typeParameters(), parent.arguments(), subject));
+    }
+    private @Nullable List<String> passedOn(List<String> typeParams, List<String> written, TypeRef subject) {
+        if (typeParams.isEmpty()) {
             return null;
         }
         final var arguments = new ArrayList<String>();
         for (final var param : typeParams) {
             @Nullable String found = null;
             var i = 0;
-            while (i < parent.args().size()) {
-                if (parent.args().get(i).name().equals(param.name())) {
+            while (i < written.size()) {
+                if (written.get(i).equals(param)) {
                     found = boxedType(subject.args().get(i));
                 }
                 i += 1;

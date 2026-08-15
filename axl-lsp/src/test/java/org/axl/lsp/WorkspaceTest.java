@@ -22,6 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import org.axl.compiler.ast.Pos;
+import org.axl.javac.AxlBuild;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionItemKind;
 import org.eclipse.lsp4j.Diagnostic;
@@ -383,6 +384,52 @@ class WorkspaceTest {
                     val parsed = Options.parse(s)
                     if (parsed is Some) {
                         return parsed.value() + 1
+                    }
+                    return 0
+                }
+                """);
+        workspace.saved(uri);
+        assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
+    void readsTheCompiledClassesOfTheClasspath() throws Exception {
+        Path library = Files.createDirectories(project.resolve("library/src/lib"));
+        Files.writeString(library.resolve("Options.axl"), """
+                package lib
+
+                sealed interface Option<T> {
+                    val present: Boolean
+                }
+
+                data class Some<T>(val present: Boolean, val value: T) : Option<T>
+                data class None<T>(val present: Boolean) : Option<T>
+
+                interface Mapper<T, R> {
+                    fn map(x: T) -> R
+                }
+                """);
+        Path classes = project.resolve("library/classes");
+        assertTrue(new AxlBuild(project.resolve("library/src"), project.resolve("library/generated"), classes).run().success());
+        Files.writeString(project.resolve("axl.json"), "{\"sourceRoots\": [\"src/main/axl\"], \"classpath\": [\"%s\"]}"
+                .formatted(classes.toString().replace("\\", "\\\\")));
+        workspace.open(List.of(project));
+        // The type parameters of `Some` and the methods of `Mapper` are in compiled classes: without them
+        // `value()` would be an Object and `map` would need an `Integer`.
+        String uri = open("Main.axl", """
+                package app
+
+                import lib.Options.Mapper
+                import lib.Options.Option
+                import lib.Options.Some
+
+                class Doubler : Mapper<Int, Int> {
+                    fn map(x: Int) -> Int = x * 2
+                }
+
+                fn show(o: Option<String>) -> Int {
+                    if (o is Some) {
+                        return o.value().length()
                     }
                     return 0
                 }

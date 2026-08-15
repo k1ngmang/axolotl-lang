@@ -1,0 +1,15 @@
+package lib
+
+// Compiled first by the cases that read it from their classpath.
+sealed interface Option<T> {
+    val present: Boolean
+}
+
+data class Some<T>(val present: Boolean, val value: T) : Option<T>
+data class None<T>(val present: Boolean) : Option<T>
+
+interface Mapper<T, R> {
+    fn map(x: T) -> R
+}
+
+fn some(s: String) -> Option<String> = Some<String>(true, s)

@@ -1,0 +1,49 @@
+package app
+
+import lib.Options
+import lib.Options.Mapper
+import lib.Options.None
+import lib.Options.Option
+import lib.Options.Some
+
+// The sealed type and the interface are compiled classes of the classpath.
+class Doubler : Mapper<Int, Int> {
+    fn map(x: Int) -> Int = x * 2
+}
+
+fn show(o: Option<String>) -> String {
+    if (o is Some) {
+        return o.value().toUpperCase()
+    }
+    return "-"
+}
+
+fn leave(o: Option<String>) -> String {
+    if (o is None) {
+        return "nothing"
+    }
+    return o.value().toUpperCase()
+}
+
+fn describe(o: Option<String>) -> String = when (o) {
+    is Some -> "some " + o.value().length()
+    is None -> "none"
+}
+
+fn unknownSubject() -> String {
+    val o = Options.some("abc")
+    if (o is Some) {
+        return o.value().toUpperCase()
+    }
+    return "-"
+}
+
+fn main() {
+    println(show(Some<String>(true, "abc")))
+    println(show(None<String>(false)))
+    println(leave(Some<String>(true, "abc")))
+    println(leave(None<String>(false)))
+    println(describe(Some<String>(true, "abc")))
+    println(unknownSubject())
+    println(Doubler().map(4))
+}
