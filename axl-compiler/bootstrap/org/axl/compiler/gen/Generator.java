@@ -1740,6 +1740,7 @@ import org.axl.compiler.check.Whens;
         final var error = (errorName != null ? errorName : "$ex" + nextException());
         em.line(stmt.body().end().line(), "} catch (Exception " + error + ") {");
         em.indent();
+        keepInterrupt(stmt.body().end().line(), error);
         final var inner = withoutParens(handler);
         if (inner instanceof Expr.Throw inner$1) {
             em.line(startLine(inner$1), "throw " + exprIn(inner$1.value(), true) + ";");
@@ -1759,6 +1760,7 @@ import org.axl.compiler.check.Whens;
         em.dedent();
         em.line(line, "} catch (Exception " + error + ") {");
         em.indent();
+        keepInterrupt(line, error);
         if (handler instanceof Expr.Throw handler$1) {
             em.line(startLine(handler$1), "throw " + exprIn(handler$1.value(), true) + ";");
         } else {
@@ -1778,10 +1780,14 @@ import org.axl.compiler.check.Whens;
             em.dedent();
             em.line(line, "} catch (Exception " + error + ") {");
             em.indent();
+            keepInterrupt(line, error);
             statement(stmt.exit());
             em.dedent();
             em.line(line, "}");
         });
+    }
+    private void keepInterrupt(int line, String error) {
+        em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();");
     }
     private int nextException() {
         exceptionCount += 1;

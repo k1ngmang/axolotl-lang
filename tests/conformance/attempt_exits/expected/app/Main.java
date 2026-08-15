@@ -22,6 +22,7 @@ import java.util.List;
             try {
                 send(i);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 continue;
             }
             System.out.println("sent " + i);
@@ -30,6 +31,7 @@ import java.util.List;
             try {
                 send(i);
             } catch (Exception $ex1) {
+                if ($ex1 instanceof InterruptedException) Thread.currentThread().interrupt();
                 break;
             }
             System.out.println("sent " + i);
@@ -41,6 +43,7 @@ import java.util.List;
             try {
                 send($c1);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 continue;
             }
             System.out.print(n + " ");
@@ -51,6 +54,7 @@ import java.util.List;
         try {
             send(i);
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return -1;
         }
         return 1;
@@ -59,6 +63,7 @@ import java.util.List;
         try {
             parse(s);
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return "bad: " + e.getMessage();
         }
         return "number";
@@ -67,6 +72,7 @@ import java.util.List;
         try {
             send(i);
         } catch (Exception $ex1) {
+            if ($ex1 instanceof InterruptedException) Thread.currentThread().interrupt();
             return;
         }
         System.out.println("quiet " + i);
@@ -78,6 +84,7 @@ import java.util.List;
                 try {
                     send(col);
                 } catch (Exception e) {
+                    if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                     break;
                 }
                 seen.add(row + ":" + col);
@@ -85,6 +92,7 @@ import java.util.List;
             try {
                 send(row + 1);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 continue;
             }
             seen.add("row " + row);
@@ -98,6 +106,7 @@ import java.util.List;
                     try {
                         send(i);
                     } catch (Exception e) {
+                        if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                         break loop$1;
                     }
                     System.out.println("one");
@@ -106,6 +115,7 @@ import java.util.List;
                     try {
                         send(i);
                     } catch (Exception e) {
+                        if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                         continue;
                     }
                     System.out.println("other " + i);
@@ -118,6 +128,7 @@ import java.util.List;
                     try {
                         send(i);
                     } catch (Exception e) {
+                        if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                         break loop$2;
                     }
                 }
@@ -141,6 +152,7 @@ import java.util.List;
                 try {
                     send(i);
                 } catch (Exception e) {
+                    if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                     break loop$1;
                 }
                 total += i;
@@ -156,6 +168,7 @@ import java.util.List;
             try {
                 send($c1);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 return e.getMessage() + " after " + last;
             }
         }
@@ -166,6 +179,7 @@ import java.util.List;
             try {
                 send(x);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 return;
             }
             System.out.println("lambda " + x);

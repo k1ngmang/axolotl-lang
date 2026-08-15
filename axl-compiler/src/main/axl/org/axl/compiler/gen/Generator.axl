@@ -1961,6 +1961,7 @@ class Generator(
         val error = if (errorName != null) errorName else "$ex" + nextException()
         em.line(stmt.body().end().line(), "} catch (Exception " + error + ") {")
         em.indent()
+        keepInterrupt(stmt.body().end().line(), error)
         val inner = withoutParens(handler)
         if (inner is Expr.Throw) {
             em.line(startLine(inner), "throw " + exprIn(inner.value(), true) + ";")
@@ -1985,6 +1986,7 @@ class Generator(
         em.dedent()
         em.line(line, "} catch (Exception " + error + ") {")
         em.indent()
+        keepInterrupt(line, error)
         if (handler is Expr.Throw) {
             em.line(startLine(handler), "throw " + exprIn(handler.value(), true) + ";")
         } else {
@@ -2006,10 +2008,19 @@ class Generator(
             em.dedent()
             em.line(line, "} catch (Exception " + error + ") {")
             em.indent()
+            keepInterrupt(line, error)
             statement(stmt.exit())
             em.dedent()
             em.line(line, "}")
         })
+    }
+
+    /**
+     * `catch (Exception e)` also catches an InterruptedException, which clears the interrupt flag: it is
+     * set again, so that a loop over `isInterrupted()` ends after `shutdownNow` whatever the handler does.
+     */
+    private fn keepInterrupt(line: Int, error: String) {
+        em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();")
     }
 
     private fn nextException() -> Int {

@@ -31,6 +31,7 @@ import java.util.Scanner;
                 line = Result.orThrow(() -> reader.readLine(), e -> new IllegalStateException(e));
             }
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             System.out.println("failed: " + e.getMessage());
         }
         return out;
@@ -43,6 +44,7 @@ import java.util.Scanner;
                 words += 1;
             }
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             System.out.println("cannot read " + path.getFileName() + ": " + e.getClass().getSimpleName());
         }
         return words;
@@ -58,6 +60,7 @@ import java.util.Scanner;
         try {
             Files.writeString(file, "one two three");
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
         System.out.println(countWords(file));

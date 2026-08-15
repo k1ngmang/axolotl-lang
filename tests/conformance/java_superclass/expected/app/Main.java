@@ -57,6 +57,7 @@ import java.util.Map;
         try {
             loud.join();
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
         System.out.println(loud.shouted + " " + loud.getName());

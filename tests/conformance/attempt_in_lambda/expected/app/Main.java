@@ -11,6 +11,7 @@ import java.util.List;
             try {
                 Thread.sleep(1L);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 System.out.println("interrupted " + it);
             }
         });
@@ -18,6 +19,7 @@ import java.util.List;
             try {
                 Thread.sleep(1L);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 System.out.println("interrupted");
             }
         });
@@ -25,12 +27,14 @@ import java.util.List;
         try {
             worker.join();
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
         final Runnable task = () -> {
             try {
                 Thread.sleep(1L);
             } catch (Exception e) {
+                if (e instanceof InterruptedException) Thread.currentThread().interrupt();
                 throw new IllegalStateException(e);
             }
         };

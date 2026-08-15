@@ -24,11 +24,13 @@ import java.util.List;
         try {
             c.commit();
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             System.out.println("commit failed: " + e.getMessage());
         }
         try {
             c.close();
         } catch (Exception $ex1) {
+            if ($ex1 instanceof InterruptedException) Thread.currentThread().interrupt();
             System.out.println("close failed");
         }
     }
@@ -36,6 +38,7 @@ import java.util.List;
         try {
             c.commit();
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException("cannot commit", e);
         }
     }
@@ -43,6 +46,7 @@ import java.util.List;
         try {
             Thread.sleep(1L);
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
         System.out.println("rested");
@@ -58,6 +62,7 @@ import java.util.List;
         try {
             mustCommit(broken);
         } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             System.out.println("main: " + e.getMessage());
         }
     }

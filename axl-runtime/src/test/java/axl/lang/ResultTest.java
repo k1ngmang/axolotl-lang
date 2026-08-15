@@ -29,6 +29,18 @@ class ResultTest {
     }
 
     @Test
+    void attemptKeepsTheInterrupt() {
+        Thread.currentThread().interrupt();
+        Result<Integer, String> slept = Result.attempt(() -> { Thread.sleep(10_000L); return 1; }, Exception::getMessage);
+        assertTrue(slept.isErr());
+        assertTrue(Thread.interrupted());
+        Thread.currentThread().interrupt();
+        assertThrows(IllegalStateException.class,
+                () -> Result.orThrow(() -> { Thread.sleep(10_000L); return 1; }, IllegalStateException::new));
+        assertTrue(Thread.interrupted());
+    }
+
+    @Test
     void unwrapOnErrThrows() {
         assertThrows(IllegalStateException.class, () -> Result.unwrap(new Err<Integer, String>("e")));
     }

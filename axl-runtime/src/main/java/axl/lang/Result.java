@@ -6,11 +6,15 @@ import org.jspecify.annotations.Nullable;
 @NullMarked
 public sealed interface Result<T extends @Nullable Object, E extends @Nullable Object> permits Ok, Err {
     static <T extends @Nullable Object, E extends @Nullable Object> Result<T, E> attempt(ThrowingSupplier<T> x, Function<Exception, E> y) {
-        try { return new Ok<>(x.get()); } catch (Exception ex) { return new Err<>(y.apply(ex)); }
+        try { return new Ok<>(x.get()); } catch (Exception ex) { keepInterrupt(ex); return new Err<>(y.apply(ex)); }
     }
     // `attempt X else e -> throw Y`: the value of X, or Y thrown instead of an Err.
     static <T extends @Nullable Object> T orThrow(ThrowingSupplier<T> x, Function<Exception, ? extends RuntimeException> y) {
-        try { return x.get(); } catch (Exception ex) { throw y.apply(ex); }
+        try { return x.get(); } catch (Exception ex) { keepInterrupt(ex); throw y.apply(ex); }
+    }
+    // Catching InterruptedException clears the flag; setting it again lets a loop over isInterrupted() end.
+    private static void keepInterrupt(Exception ex) {
+        if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
     }
     default boolean isOk() { return this instanceof Ok; }
     default boolean isErr() { return this instanceof Err; }
