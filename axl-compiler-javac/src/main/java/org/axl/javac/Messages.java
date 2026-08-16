@@ -48,8 +48,9 @@ final class Messages {
     private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile(
             "^incompatible types: (?:bad type in conditional expression; )?(.+) cannot be converted to (.+?)(?: \\(.+ is a subtype of .+\\))?$");
+    // The bounds end the message, or the reason of a candidate in parentheses within it.
     private static final Pattern BOUNDS = Pattern.compile(
-            "inference variable \\w+ has incompatible bounds; (?:equality constraints|upper bounds): (.+?); lower bounds: (.+)$");
+            "inference variable \\w+ has incompatible bounds; (?:equality constraints|upper bounds): (.+?); lower bounds: ([^;)]+)");
     private static final Pattern UNKNOWN = Pattern.compile("^cannot find symbol; symbol: (variable|method|class) (.+?); location: (.+)$");
     private static final Pattern UNKNOWN_STATIC = Pattern.compile("^cannot find symbol; symbol: static (\\w+); location: \\w+ (.+)$");
     private static final Pattern NOT_APPLICABLE = Pattern.compile(
@@ -68,7 +69,7 @@ final class Messages {
     private static final Pattern SUPPLIER_MISMATCH = Pattern.compile(
             "argument mismatch; ([\\w.$]+(?:<.*?>)?) cannot be converted to java\\.util\\.function\\.Supplier<");
     private static final Pattern EQUALITY_AND_UPPER = Pattern.compile(
-            "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: (.+)$");
+            "inference variable \\w+ has incompatible bounds; equality constraints: (.+?); upper bounds: ([^;)]+)");
     // `it` of a mapResult loop and the translator's temporaries, which the author never wrote.
     private static final Pattern UNUSED_LOCAL = Pattern.compile(
             "^\\[UnusedVariable] The (?:local variable|parameter) '(\\w+)' is never read");

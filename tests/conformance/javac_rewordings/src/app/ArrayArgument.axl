@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val words = List.of("b", "a")
+    val bytes = "x".getBytes()
+    val arr = words.toArray(bytes)
+    println(arr.length)
+}
