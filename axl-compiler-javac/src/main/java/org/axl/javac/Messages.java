@@ -146,6 +146,9 @@ final class Messages {
     private static final Pattern IMPORTED_TWICE = Pattern.compile(
             "^a type with the same simple name is already defined by the single-type-import of ([\\w.]+)$");
     private static final Pattern CALL_WITH_NULL = Pattern.compile("(?:new )?([\\w.]+)\\(([^()]*\\bnull\\b[^()]*)\\)");
+    private static final Pattern OK_NULL = Pattern.compile("\\bOk(?:<[^()]*>)?\\(null\\)");
+    // What other languages call the chaining of results, which Axolotl writes with `try`.
+    private static final Set<String> RESULT_CHAINS = Set.of("flatMap", "andThen", "bind");
     private static final Pattern UNBOXED = Pattern.compile("^unboxing of a @Nullable expression '(.+)'");
     private static final Pattern GENERIC_TYPE = Pattern.compile("\\b((?:[a-z]\\w*\\.)*[A-Z]\\w*)<");
     private static final Pattern NEVER_READ = Pattern.compile("^`(\\w+)` is never read$");
@@ -851,6 +854,14 @@ final class Messages {
         Matcher nullableArgument = NULLABLE_ARGUMENT.matcher(message);
         if (nullableArgument.find()) {
             String value = nullableArgument.group(1);
+            if (value.equals("null") && OK_NULL.matcher(text).find()) {
+                String resultType = resultTypeOf(text, javaLines, javaLine);
+                List<String> arguments = resultType == null ? List.of() : splitTopLevel(typeArgumentList(resultType));
+                String written = arguments.size() != 2 ? "" : ": `Result<" + simpleNames(axlType(arguments.get(0))) + "?, "
+                        + simpleNames(axlType(arguments.get(1))) + ">`";
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, "`Ok(null)` holds null, so the value type of the `Result` "
+                        + "needs `?`" + written);
+            }
             if (value.equals("null")) {
                 String parameter = parameterGivenNull(text, javaLines);
                 return new Translated(ErrorCode.NULLABLE_DEREFERENCE, parameter == null
@@ -1209,6 +1220,9 @@ final class Messages {
             }
             if (unknown.group(1).equals("method") && resultMember && symbol.equals(name + "()")) {
                 return resultSide(location, name);
+            }
+            if (unknown.group(1).equals("method") && location.contains("axl.lang.Result") && RESULT_CHAINS.contains(name)) {
+                return memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`" + resultChain(name, axlText);
             }
             String property = unknown.group(1).equals("method") && symbol.equals(name + "()") && !inThisFile
                     ? propertyType(javaLines, simpleNames(axlType(owner)).replaceAll("<.*", ""), name) : null;
@@ -1929,6 +1943,18 @@ final class Messages {
             }
         }
         return null;
+    }
+
+    /**
+     * `parse(s).flatMap({ n -> positive(n) })`: the steps of a `Result` are chained with `try` in a function that
+     * returns one. The example takes the value and the next step from the .axl line when it has them.
+     */
+    private static String resultChain(String method, String axlText) {
+        String hint = "; in a function that returns a `Result`, take the value with `try` and go on with it";
+        Matcher call = Pattern.compile("\\." + Pattern.quote(method) + "\\(\\{\\s*(\\w+)\\s*->\\s*(.+?)\\s*}\\)").matcher(axlText);
+        String receiver = call.find() ? expressionBefore(axlText, call.start()) : "";
+        return receiver.isEmpty() ? hint + ": `val v = try r`"
+                : hint + ": `val " + call.group(1) + " = try " + receiver + "`, then `" + call.group(2) + "`";
     }
 
     /** `c.by()` on `class Inc(val by: Int)`: a property of a class is read without parentheses. */

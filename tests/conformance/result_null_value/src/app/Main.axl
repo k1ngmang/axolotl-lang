@@ -21,3 +21,12 @@ fn fine() -> Result<Int, String> {
     val s = try nullableValue()
     return Ok(s?.length() ?: 0)
 }
+
+fn save(n: Int) -> Result<Void, String> {
+    if (n > 100) {
+        return Err("too big")
+    }
+    return Ok(null)
+}
+
+fn saved() -> Result<Void?, String> = Ok(null)

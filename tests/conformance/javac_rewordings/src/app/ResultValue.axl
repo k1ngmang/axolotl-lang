@@ -7,4 +7,7 @@ fn main() {
     println(r.value())
     println(r.error())
     println(parse("2").value())
+    println(parse("5").flatMap({ n -> positive(n) }))
 }
+
+fn positive(n: Int) -> Result<Int, String> = if (n > 0) Ok(n) else Err("not positive")
