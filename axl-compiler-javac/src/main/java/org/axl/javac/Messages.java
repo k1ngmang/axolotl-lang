@@ -167,6 +167,7 @@ final class Messages {
             + "|`[\\w.]+\\.(\\w+)` is not a type: |`(?:\\w+\\.)*(\\w+)` is the type of the file )");
     private static final Pattern UNKNOWN_USE = Pattern.compile("^unknown (?:function|name|type) `(\\w+)");
     private static final String UNKNOWN_TYPE = "unknown type `";
+    private static final Pattern OBJECT_MEMBER = Pattern.compile("^`\\w+` of type `Object` has no (?:method|field) ");
     private static final String UNKNOWN_NAME = "unknown name `";
     // The build adds where a type of another file is declared, to an unknown type and to an unknown name alike.
     static final String DECLARED_IN = "`; it is declared in ";
@@ -332,6 +333,10 @@ final class Messages {
         }
         if (effect.message().startsWith(NO_RESULT_TYPE + "`-> Unit`")) {
             return cause.message().startsWith("unknown type `Unit`");
+        }
+        // Java takes a value of an unknown type, and a lambda parameter that comes from one, for an `Object`.
+        if (cause.message().startsWith(UNKNOWN_TYPE) && OBJECT_MEMBER.matcher(effect.message()).find()) {
+            return true;
         }
         Matcher nonNullLocal = NON_NULL_LOCAL.matcher(cause.message());
         if (nonNullLocal.find() && cause.line() < effect.line()) {

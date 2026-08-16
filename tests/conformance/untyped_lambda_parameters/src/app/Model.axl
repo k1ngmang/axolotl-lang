@@ -1,0 +1,7 @@
+package app
+
+import java.util.List
+
+data class Line(val qty: Int, val unitCents: Long)
+
+data class Order(val id: Int, val lines: List<Line>)

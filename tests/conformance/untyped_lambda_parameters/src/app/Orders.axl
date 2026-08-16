@@ -1,0 +1,9 @@
+package app
+
+fn units(o: Order) -> Int {
+    var n = 0
+    for (q in o.lines() |> map { it.qty() }) {
+        n += q
+    }
+    return n
+}
