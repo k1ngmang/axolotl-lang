@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn checked(n: Int) -> Result<Int, String> = if (n > 0) Ok(n) else Err("not positive")
+
+fn route(p: Path) -> String = p.toString()
+
+fn main() {
+    println(str(1))
+    println(arr(List.of("a")))
+    println(checked(2))
+}

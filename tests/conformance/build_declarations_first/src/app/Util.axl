@@ -1,0 +1,9 @@
+package app
+
+import java.util.List
+
+data class Path(val parts: List<String>)
+
+fn str(n: Int) -> String = "n" + n
+
+fn arr(items: List<String>) -> Int = items.size()

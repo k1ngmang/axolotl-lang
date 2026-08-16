@@ -8,13 +8,13 @@ import java.util.regex.Pattern;
 final class OtherFiles {
 
     private static final Pattern NO_MEMBER = Pattern.compile("^`(\\w+)` has no function or value `(\\w+)`$");
-    private static final Pattern UNKNOWN_TYPE = Pattern.compile("^unknown type `(\\w+)`; check the spelling or add an import$");
+    // A declaration of the build comes before a habit or a close spelling, which the file alone suggests.
+    private static final Pattern UNKNOWN_TYPE = Pattern.compile("^unknown type `(\\w+)`; ");
     private static final Pattern UNKNOWN_IMPORT =Pattern.compile("^unknown type `((?:[a-z]\\w*\\.)*)(\\w+)`; check the spelling$");
     // A type used as a value, `Level.LOW`: javac takes `Level` for a package in a `when` branch, for a name elsewhere.
     private static final Pattern UNKNOWN_NAME = Pattern.compile("^unknown (?:name|package) `(\\w+)`; ");
 
-    private static final Pattern UNKNOWN_FUNCTION = Pattern.compile(
-            "^(unknown function `(\\w+)\\(.*?\\)`); check the spelling or add `import fn`$");
+    private static final Pattern UNKNOWN_FUNCTION = Pattern.compile("^(unknown function `(\\w+)\\(.*?\\)`); ");
 
     private static final Pattern NO_FIELD = Pattern.compile("^(?:`\\w+` of type )?`(?:[\\w.]+\\.)?(\\w+)(?:<.*>)?` has no field `(\\w+)`$");
     private static final Pattern NO_METHOD = Pattern.compile("^(`(\\w+)` of type `(?:[\\w.]+\\.)?(\\w+)(?:<.*>)?` has no method `(\\w+)\\(\\)`)(?:;.*)?$");
