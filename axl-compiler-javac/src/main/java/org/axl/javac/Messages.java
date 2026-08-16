@@ -1219,7 +1219,8 @@ final class Messages {
                 return notNarrowed(tested);
             }
             if (unknown.group(1).equals("method") && resultMember && symbol.equals(name + "()")) {
-                return resultSide(location, name);
+                String filtered = filteredSide(location, name, axlText);
+                return filtered != null ? filtered : resultSide(location, name);
             }
             if (unknown.group(1).equals("method") && location.contains("axl.lang.Result") && RESULT_CHAINS.contains(name)) {
                 return memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`" + resultChain(name, axlText);
@@ -1955,6 +1956,23 @@ final class Messages {
         String receiver = call.find() ? expressionBefore(axlText, call.start()) : "";
         return receiver.isEmpty() ? hint + ": `val v = try r`"
                 : hint + ": `val " + call.group(1) + " = try " + receiver + "`, then `" + call.group(2) + "`";
+    }
+
+    /**
+     * `c |> filter { it is Ok } |> map { it.value() }`: the filter narrows the elements when the type of `c` is
+     * known, which a local without a written type may not tell. Null when the .axl line has no such filter.
+     */
+    private static String filteredSide(String location, String side, String axlText) {
+        String test = side.equals("value") ? "Ok" : "Err";
+        Matcher filter = Pattern.compile("\\b(\\w+)\\s*\\|>\\s*filter\\s*\\{\\s*it\\s+is\\s+" + test + "\\s*}").matcher(axlText);
+        if (!"it".equals(variableName(location)) || !filter.find()) {
+            return null;
+        }
+        String type = axlType(location.substring(location.indexOf(" of type ") + " of type ".length()));
+        String local = filter.group(1);
+        return memberOwner(location) + " may be an `" + (test.equals("Ok") ? "Err" : "Ok") + "`, so it has no `" + side
+                + "()` yet; `filter { it is " + test + " }` narrows the elements only when the type of `" + local
+                + "` is known: write it, `val " + local + ": List<" + simpleNames(type) + "> = ...`";
     }
 
     /** `c.by()` on `class Inc(val by: Int)`: a property of a class is read without parentheses. */
