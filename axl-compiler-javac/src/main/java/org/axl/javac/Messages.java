@@ -1209,6 +1209,11 @@ final class Messages {
             if (property != null) {
                 return memberOwner(location) + " has no method `" + symbol + "`" + propertyHint(location, name, simpleNames(axlType(owner)));
             }
+            String parameterHint = unknown.group(1).equals("method") && !inThisFile
+                    ? untypedParameterHint(location, text, name, symbol.equals(name + "()"), javaLines) : null;
+            if (parameterHint != null) {
+                return memberOwner(location) + " has no method `" + withoutLambdas(symbol) + "`" + parameterHint;
+            }
             return switch (unknown.group(1)) {
                 case "variable" -> inThisFile ? unknownName(symbol, text, javaLines)
                         : memberOwner(location) + " has no field `" + symbol + "`" + methodHint(location, symbol);
@@ -1866,6 +1871,58 @@ final class Messages {
         }
         return problem + "test it first: `if (" + receiver + " is " + (value ? "Ok" : "Err") + ") { ... " + receiver + "." + side
                 + "() }`" + (value ? ", or write `try " + receiver + "`" : "");
+    }
+
+    /**
+     * `Comparator.comparing({ p -> p.city() })`: Java cannot tell the type of a lambda parameter from every
+     * call, and takes `Object`. The hint names the type of the file that has the method, or null when the
+     * value is not such a parameter. withoutArguments: the method is called without arguments.
+     */
+    private static String untypedParameterHint(String location, String text, String method, boolean withoutArguments,
+                                               String[] javaLines) {
+        String parameter = variableName(location);
+        if (parameter == null || !location.endsWith(" of type java.lang.Object")) {
+            return null;
+        }
+        String quoted = Pattern.quote(parameter);
+        boolean untyped = Pattern.compile("(?<![\\w$])" + quoted + " ->|\\((?:\\w+, )*" + quoted + "(?:, \\w+)*\\) ->").matcher(text).find();
+        if (!untyped) {
+            return null;
+        }
+        String type = typeWithMethod(javaLines, method);
+        String written = type == null ? "Type" : type;
+        String name = parameter.equals("it") ? String.valueOf(Character.toLowerCase(written.charAt(0))) : parameter;
+        String reference = type != null && withoutArguments ? ", or use a method reference: `" + type + "::" + method + "`" : "";
+        return parameter.equals("it")
+                ? "; the type of `it` is not known here, so name the parameter with its type: `{ " + name + ": " + written + " -> ... }`"
+                + reference
+                : "; the type of the lambda parameter `" + parameter + "` is not known here, so write it: `{ " + parameter + ": "
+                + written + " -> ... }`" + reference;
+    }
+
+    /** The data class or class of the file that has a method or field of this name, or null. */
+    private static String typeWithMethod(String[] javaLines, String method) {
+        Pattern component = Pattern.compile("(?:^|,)[^,]* " + Pattern.quote(method) + "$");
+        Pattern declared = Pattern.compile("^\\s+public [\\w.<>?, \\[\\]]+ " + Pattern.quote(method) + "\\(");
+        String type = null;
+        for (String line : javaLines) {
+            Matcher record = RECORD.matcher(line);
+            if (record.find()) {
+                String components = record.group(2).substring(1, record.group(2).indexOf(')'));
+                if (splitTopLevel(components).stream().anyMatch(c -> component.matcher(c).find())) {
+                    return record.group(1);
+                }
+            }
+            Matcher nested = NESTED_TYPE.matcher(line);
+            if (line.startsWith("    ") && !line.startsWith("     ") && nested.find()) {
+                type = line.endsWith("{}") ? null : nested.group(1);
+            } else if (line.equals("    }")) {
+                type = null;
+            } else if (type != null && declared.matcher(line).find()) {
+                return type;
+            }
+        }
+        return null;
     }
 
     /** `c.by()` on `class Inc(val by: Int)`: a property of a class is read without parentheses. */

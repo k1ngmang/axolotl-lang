@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:17:47: error: `p` of type `Object` has no method `city()`; the type of the lambda parameter `p` is not known here, so write it: `{ p: Person -> ... }`, or use a method reference: `Person::city`
+AXL100 app/Main.axl:17:80: error: `p` of type `Object` has no method `age()`; the type of the lambda parameter `p` is not known here, so write it: `{ p: Person -> ... }`, or use a method reference: `Person::age`
+AXL100 app/Main.axl:18:43: error: `it` of type `Object` has no method `name()`; the type of `it` is not known here, so name the parameter with its type: `{ p: Person -> ... }`, or use a method reference: `Person::name`
+AXL100 app/Main.axl:20:49: error: `c` of type `Object` has no method `total(Int)`; the type of the lambda parameter `c` is not known here, so write it: `{ c: Counter -> ... }`

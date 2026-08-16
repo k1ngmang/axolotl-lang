@@ -1,0 +1,22 @@
+package app
+
+import java.util.ArrayList
+import java.util.Comparator
+
+data class Person(val name: String, val city: String, val age: Int)
+
+class Counter {
+    var hits = 0
+
+    fn total(extra: Int) -> Int = hits + extra
+}
+
+fn main() {
+    val people = ArrayList<Person>()
+    people.add(Person("Ann", "Oslo", 31))
+    people.sort(Comparator.comparing({ p -> p.city() }).thenComparing({ p -> p.age() }))
+    people.sort(Comparator.comparing({ it.name() }).reversed())
+    val counters = ArrayList<Counter>()
+    counters.sort(Comparator.comparing({ c -> c.total(1) }).reversed())
+    println(people)
+}
