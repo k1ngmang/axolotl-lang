@@ -156,6 +156,8 @@ public class AxlPlugin implements Plugin<Project> {
             errorprone.check("AlreadyChecked", CheckSeverity.OFF);
             errorprone.check("BadImport", CheckSeverity.OFF);
             errorprone.check("InlineMeSuggester", CheckSeverity.OFF);
+            // Asks for `charAt` in place of `for (c in s.toCharArray())`, the only loop over the characters of a string.
+            errorprone.check("LoopOverCharArray", CheckSeverity.OFF);
             errorprone.option("NullAway:JSpecifyMode", "true");
             errorprone.option("NullAway:OnlyNullMarked", "true");
         });

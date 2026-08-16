@@ -44,10 +44,12 @@ public final class JavaCompilation {
      * `equals` is an error: the program compiles but compares the wrong thing. A call that always fails is a warning here and made
      * an error again when it is not inside `attempt`, which handles the failure (see Messages).
      * AlreadyChecked crashes on the `var` of a record pattern, `x instanceof Ok(var v)`, inside an `if`.
+     * LoopOverCharArray asks for `charAt` in place of `for (c in s.toCharArray())`, Axolotl's only loop over
+     * the characters of a string.
      */
     public static final String ERROR_PRONE_PLUGIN = "-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR "
             + "-Xep:ReferenceEquality:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF "
-            + "-Xep:InlineMeSuggester:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
+            + "-Xep:InlineMeSuggester:OFF -Xep:LoopOverCharArray:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true";
 
     public record Outcome(boolean success, List<Diagnostic<? extends JavaFileObject>> diagnostics) {}
 

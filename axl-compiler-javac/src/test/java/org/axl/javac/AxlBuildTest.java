@@ -332,6 +332,24 @@ class AxlBuildTest {
     }
 
     @Test
+    void doesNotWarnAboutALoopOverTheCharactersOfAString(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                fn digits(s: String) -> Int {
+                    var total = 0
+                    for (c in s.toCharArray()) {
+                        if (Character.isDigit(c)) {
+                            total += c - '0'
+                        }
+                    }
+                    return total
+                }
+                """);
+        assertEquals(List.of(), warnings);
+    }
+
+    @Test
     void warnsAboutKotlinStringTemplates(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
