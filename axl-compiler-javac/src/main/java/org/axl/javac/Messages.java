@@ -9,6 +9,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -76,8 +77,11 @@ final class Messages {
     private static final Pattern IGNORED_RESULT = Pattern.compile("^\\[ReturnValueIgnored] Return value of '(\\w+)' must be used");
     private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
-    // The value may be a literal with a fraction: `3.7.toInt()`.
-    private static final Pattern KOTLIN_CONVERSION = Pattern.compile("\\b(\\d+\\.\\d+|\\w+)\\.(toDouble|toInt|toLong)\\(\\)");
+    // Kotlin's `n.toLong()` and the methods of Java's boxed numbers, `n.longValue()`.
+    private static final Pattern CONVERSION = Pattern.compile("\\.(?:to(Double|Int|Long)|(double|int|long)Value)\\(\\)");
+    private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d[\\d_]*(?![\\w.])");
+    private static final Pattern NUMBERS_FACTORY = Pattern.compile(
+            "\\b((?:List|Set|Stream)\\.of|Arrays\\.asList)\\((\\s*\\d[\\d_]*\\s*(?:,\\s*\\d[\\d_]*\\s*)*)\\)");
     private static final Pattern TO_TEXT = Pattern.compile("\\b(\\w+(?:\\([^()]*\\))?)\\.toString\\(\\)");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern BIG_OPERANDS = Pattern.compile("^(\\w+)\\s*([-+*/%]|[<>]=?)\\s*(\\w+)");
@@ -372,28 +376,58 @@ final class Messages {
         }
     }
 
-    /** `n.toString()`, `n.toDouble()` and `c.equals("a")` on a primitive value, which Kotlin allows. */
-    private static String primitiveHint(String javaType, String text) {
+    /**
+     * `n.toString()`, `n.toDouble()`, `Math.round(d).intValue()` and `c.equals("a")` on a primitive value,
+     * which Kotlin and Java's boxed numbers allow. The value is taken from the .axl line axlText when it
+     * has the call, else from the Java line text.
+     */
+    private static String primitiveHint(String javaType, String text, String axlText) {
         Matcher toText = TO_TEXT.matcher(text);
         if (toText.find()) {
             return "; for its text, write `String.valueOf(" + toText.group(1) + ")`";
         }
-        Matcher conversion = KOTLIN_CONVERSION.matcher(text);
-        if (conversion.find()) {
-            String value = conversion.group(1);
-            return switch (conversion.group(2) + " of " + javaType) {
+        String line = CONVERSION.matcher(axlText).find() ? axlText : text;
+        Matcher conversion = CONVERSION.matcher(line);
+        String value = conversion.find() ? expressionBefore(line, conversion.start()) : "";
+        if (!value.isEmpty()) {
+            String target = conversion.group(1) != null ? conversion.group(1) : conversion.group(2);
+            return switch (target.toLowerCase(Locale.ROOT) + " of " + javaType) {
                 // `Double.valueOf` of a `Long` draws Error Prone's LongDoubleConversion, which asks for a cast.
-                case "toDouble of int", "toDouble of long" -> "; for a `Double`, write `1.0 * " + value + "`";
-                case "toInt of double" -> "; for an `Int`, write `Double.valueOf(" + value + ").intValue()`, which drops the fraction, "
+                case "double of int", "double of long" -> "; for a `Double`, write `1.0 * " + value + "`";
+                case "int of double" -> "; for an `Int`, write `Double.valueOf(" + value + ").intValue()`, which drops the fraction, "
                         + "or `Math.toIntExact(Math.round(" + value + "))`, which rounds";
-                case "toInt of long" -> "; for an `Int`, write `Math.toIntExact(" + value + ")`";
-                case "toLong of double" -> "; for a `Long`, write `Double.valueOf(" + value + ").longValue()`, which drops the fraction, "
+                case "int of long" -> "; for an `Int`, write `Math.toIntExact(" + value + ")`";
+                case "long of double" -> "; for a `Long`, write `Double.valueOf(" + value + ").longValue()`, which drops the fraction, "
                         + "or `Math.round(" + value + ")`, which rounds";
-                case "toLong of int" -> "; an `Int` fits a `Long` as it is: `val l: Long = " + value + "`";
+                case "long of int" -> "; an `Int` fits a `Long` as it is: `val l: Long = " + value + "`";
                 default -> "";
             };
         }
         return javaType.equals("char") && text.contains(".equals(") ? "; compare it with `==`, as in `c == 'a'`" : "";
+    }
+
+    /**
+     * The value that ends before the index of the line: a name, a number such as `3.7`, or a chain of
+     * names and calls such as `rnd.nextInt(10)`; empty when there is none.
+     */
+    private static String expressionBefore(String line, int end) {
+        int start = end;
+        int depth = 0;
+        while (start > 0) {
+            char c = line.charAt(start - 1);
+            if (c == ')') {
+                depth++;
+            } else if (c == '(') {
+                if (depth == 0) {
+                    break;
+                }
+                depth--;
+            } else if (depth == 0 && !Character.isJavaIdentifierPart(c) && c != '.') {
+                break;
+            }
+            start--;
+        }
+        return line.substring(start, end);
     }
 
     /**
@@ -1017,13 +1051,13 @@ final class Messages {
         if (equalityAndUpper.find()) {
             String expected = splitTopLevel(equalityAndUpper.group(2)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(equalityAndUpper.group(2));
-            return mismatch(expected, equalityAndUpper.group(1));
+            return mismatch(expected, equalityAndUpper.group(1), text, javaColumn);
         }
         Matcher bounds = BOUNDS.matcher(message);
         if (bounds.find()) {
             String expected = splitTopLevel(bounds.group(1)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(bounds.group(1));
-            return mismatch(expected, splitTopLevel(bounds.group(2)).getFirst());
+            return mismatch(expected, splitTopLevel(bounds.group(2)).getFirst(), text, javaColumn);
         }
         if (message.startsWith("incompatible types: inferred type does not conform to upper bound(s)")) {
             Matcher inferred = INFERRED.matcher(message);
@@ -1057,7 +1091,7 @@ final class Messages {
             return "this gives no value: the call returns nothing, but `" + axlType(incompatible.group(2)) + "` is expected";
         }
         if (incompatible.find(0)) {
-            return mismatch(incompatible.group(2), incompatible.group(1));
+            return mismatch(incompatible.group(2), incompatible.group(1), text, javaColumn);
         }
         if (message.equals("incompatible types: missing return value")) {
             return "this function returns a value; give `return` one";
@@ -1191,7 +1225,7 @@ final class Messages {
             String description = notDereferenced.group(1).equals("char")
                     ? "a `Character` such as `'a'` has no members; its functions belong to the class, as in `Character.isDigit(c)`"
                     : "`" + axlType(notDereferenced.group(1)) + "` is a primitive value and has no members";
-            return description + primitiveHint(notDereferenced.group(1), text);
+            return description + primitiveHint(notDereferenced.group(1), text, axlText);
         }
         Matcher badOperands = BAD_OPERANDS.matcher(message);
         if (badOperands.find()) {
@@ -1773,23 +1807,7 @@ final class Messages {
         String simple = type.replaceFirst("<.*", "").replaceFirst("^.*\\.", "");
         Matcher test = Pattern.compile("\\s+is\\s+" + Pattern.quote(simple) + "\\b").matcher(axlText);
         while (test.find()) {
-            int start = test.start();
-            int depth = 0;
-            while (start > 0) {
-                char c = axlText.charAt(start - 1);
-                if (c == ')') {
-                    depth++;
-                } else if (c == '(') {
-                    if (depth == 0) {
-                        break;
-                    }
-                    depth--;
-                } else if (depth == 0 && !Character.isJavaIdentifierPart(c) && c != '.') {
-                    break;
-                }
-                start--;
-            }
-            String tested = axlText.substring(start, test.start());
+            String tested = expressionBefore(axlText, test.start());
             if (tested.contains("(")) {
                 return tested;
             }
@@ -2003,6 +2021,28 @@ final class Messages {
                     + "branch of the `if` or `?:`, or every element, the same type";
         }
         return "type mismatch: expected `" + axlType(expected) + "`, found `" + axlType(found) + "`";
+    }
+
+    /** The mismatch at the place javac points at in the Java line text, with how to write an `Int` as a `Long`. */
+    private static String mismatch(String expected, String found, String text, long javaColumn) {
+        String message = mismatch(expected, found);
+        if (!message.equals("type mismatch: expected `Long`, found `Int`") || javaColumn <= 0 || javaColumn > text.length()) {
+            return message;
+        }
+        String rest = text.substring((int) javaColumn - 1);
+        Matcher number = WHOLE_NUMBER.matcher(rest);
+        if (number.lookingAt()) {
+            return message + "; write `" + number.group() + "L` for a `Long`";
+        }
+        // `List.of(1, 2)` for a `List<Long>`, which javac may report at the call that takes the list.
+        Matcher factory = NUMBERS_FACTORY.matcher(rest);
+        if (factory.find()) {
+            String numbers = Arrays.stream(factory.group(2).split(",")).map(n -> n.strip() + "L").collect(Collectors.joining(", "));
+            return message + "; write the numbers with `L`: `" + factory.group(1) + "(" + numbers + ")`";
+        }
+        Matcher name = Pattern.compile("^[a-z]\\w*(?![\\w.(])").matcher(rest);
+        return name.lookingAt() ? message + "; an `Int` fits a `Long` as it is, so give it a name of that type first: `val l: Long = "
+                + name.group() + "`" : message;
     }
 
     /** A `try` whose value is not what its place needs: an operand of `&&` or `||`, or a condition. */

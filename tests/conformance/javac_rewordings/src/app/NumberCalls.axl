@@ -1,0 +1,19 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.Random
+
+fn total(xs: List<Long>) -> Long = xs.size()
+
+fn main() {
+    val rnd = Random(1L)
+    val a: Long = rnd.nextInt(10).toLong()
+    val b = Math.round(2.5).intValue()
+    val longs = ArrayList<Long>()
+    longs.add(5)
+    val n = 3
+    longs.add(n)
+    println(total(List.of(1, 2, 3)))
+    println(a + b)
+}

@@ -23,6 +23,11 @@ AXL100 app/MainArray.axl:3:15: error: unknown type `Array`; `fn main()` takes no
 AXL100 app/MissingMethod.axl:5:7: error: `Task` must give `fn run()`, which `Runnable` requires
 AXL100 app/MixedList.axl:7:21: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
 AXL100 app/MixedTypes.axl:5:18: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
+AXL100 app/NumberCalls.axl:11:35: error: `Int` is a primitive value and has no members; an `Int` fits a `Long` as it is: `val l: Long = rnd.nextInt(10)`
+AXL100 app/NumberCalls.axl:12:29: error: `Long` is a primitive value and has no members; for an `Int`, write `Math.toIntExact(Math.round(2.5))`
+AXL100 app/NumberCalls.axl:14:15: error: type mismatch: expected `Long`, found `Int`; write `5L` for a `Long`
+AXL100 app/NumberCalls.axl:16:15: error: type mismatch: expected `Long`, found `Int`; an `Int` fits a `Long` as it is, so give it a name of that type first: `val l: Long = n`
+AXL100 app/NumberCalls.axl:17:13: error: type mismatch: expected `Long`, found `Int`; write the numbers with `L`: `List.of(1L, 2L, 3L)`
 AXL100 app/NumberConversion.axl:5:28: error: `Int` is a primitive value and has no members; for a `Double`, write `1.0 * weight`
 AXL100 app/NumberConversion.axl:7:15: error: `Double` is a primitive value and has no members; for an `Int`, write `Double.valueOf(x).intValue()`, which drops the fraction, or `Math.toIntExact(Math.round(x))`, which rounds
 AXL100 app/NumberConversion.axl:9:17: error: `Double` is a primitive value and has no members; for an `Int`, write `Double.valueOf(3.7).intValue()`, which drops the fraction, or `Math.toIntExact(Math.round(3.7))`, which rounds
