@@ -82,7 +82,7 @@ final class Messages {
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d[\\d_]*(?![\\w.])");
     private static final Pattern NUMBERS_FACTORY = Pattern.compile(
             "\\b((?:List|Set|Stream)\\.of|Arrays\\.asList)\\((\\s*\\d[\\d_]*\\s*(?:,\\s*\\d[\\d_]*\\s*)*)\\)");
-    private static final Pattern TO_TEXT = Pattern.compile("\\b(\\w+(?:\\([^()]*\\))?)\\.toString\\(\\)");
+    private static final Pattern TO_TEXT = Pattern.compile("\\.toString\\(\\)");
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern BIG_OPERANDS = Pattern.compile("^(\\w+)\\s*([-+*/%]|[<>]=?)\\s*(\\w+)");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
@@ -382,9 +382,11 @@ final class Messages {
      * has the call, else from the Java line text.
      */
     private static String primitiveHint(String javaType, String text, String axlText) {
-        Matcher toText = TO_TEXT.matcher(text);
-        if (toText.find()) {
-            return "; for its text, write `String.valueOf(" + toText.group(1) + ")`";
+        String textLine = TO_TEXT.matcher(axlText).find() ? axlText : text;
+        Matcher toText = TO_TEXT.matcher(textLine);
+        String shown = toText.find() ? expressionBefore(textLine, toText.start()) : "";
+        if (!shown.isEmpty()) {
+            return "; for its text, write `String.valueOf(" + shown + ")`";
         }
         String line = CONVERSION.matcher(axlText).find() ? axlText : text;
         Matcher conversion = CONVERSION.matcher(line);

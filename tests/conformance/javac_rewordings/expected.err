@@ -34,6 +34,8 @@ AXL100 app/NumberConversion.axl:9:17: error: `Double` is a primitive value and h
 AXL100 app/NumberConversion.axl:11:19: error: `Long` is a primitive value and has no members; for a `Double`, write `1.0 * total`
 AXL100 app/OneLineReturn.axl:3:10: error: `g` has no result type, so it cannot return a value; add one after `->`, as in `fn g(...) -> Int`
 AXL100 app/PrimitiveArgument.axl:6:18: error: a type argument cannot be `int`; write `Int`, as in `List<Int>`
+AXL100 app/PropertyText.axl:11:20: error: `Int` is a primitive value and has no members; for its text, write `String.valueOf(c.hits)`
+AXL100 app/PropertyText.axl:13:32: error: `Int` is a primitive value and has no members; for its text, write `String.valueOf(e.code())`
 AXL100 app/ResultValue.axl:7:15: error: `r` of type `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it first: `if (r is Ok) { ... r.value() }`, or write `try r`
 AXL100 app/ResultValue.axl:8:15: error: `r` of type `Result<Int, String>` may be an `Ok`, so it has no `error()` yet; test it first: `if (r is Err) { ... r.error() }`
 AXL100 app/ResultValue.axl:9:24: error: `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it with `is Ok` first, or write `try` before it

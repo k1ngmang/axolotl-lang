@@ -1,0 +1,14 @@
+package app
+
+class Cache {
+    var hits: Int = 0
+}
+
+data class Failure(val code: Int)
+
+fn main() {
+    val c = Cache()
+    println(c.hits.toString())
+    val e = Failure(2)
+    println("code " + e.code().toString())
+}
