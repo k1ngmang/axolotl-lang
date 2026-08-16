@@ -23,9 +23,10 @@ AXL100 app/MainArray.axl:3:15: error: unknown type `Array`; `fn main()` takes no
 AXL100 app/MissingMethod.axl:5:7: error: `Task` must give `fn run()`, which `Runnable` requires
 AXL100 app/MixedList.axl:7:21: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
 AXL100 app/MixedTypes.axl:5:18: error: type mismatch: expected `Int`, found values of different types; give every branch of the `if` or `?:`, or every element, the same type
-AXL100 app/NumberConversion.axl:5:28: error: `Int` is a primitive value and has no members; for a `Double`, write `1.0 * weight` or `Double.valueOf(weight)`
+AXL100 app/NumberConversion.axl:5:28: error: `Int` is a primitive value and has no members; for a `Double`, write `1.0 * weight`
 AXL100 app/NumberConversion.axl:7:15: error: `Double` is a primitive value and has no members; for an `Int`, write `Double.valueOf(x).intValue()`, which drops the fraction, or `Math.toIntExact(Math.round(x))`, which rounds
 AXL100 app/NumberConversion.axl:9:17: error: `Double` is a primitive value and has no members; for an `Int`, write `Double.valueOf(3.7).intValue()`, which drops the fraction, or `Math.toIntExact(Math.round(3.7))`, which rounds
+AXL100 app/NumberConversion.axl:11:19: error: `Long` is a primitive value and has no members; for a `Double`, write `1.0 * total`
 AXL100 app/OneLineReturn.axl:3:10: error: `g` has no result type, so it cannot return a value; add one after `->`, as in `fn g(...) -> Int`
 AXL100 app/PrimitiveArgument.axl:6:18: error: a type argument cannot be `int`; write `Int`, as in `List<Int>`
 AXL100 app/ResultValue.axl:7:15: error: `r` of type `Result<Int, String>` may be an `Err`, so it has no `value()` yet; test it first: `if (r is Ok) { ... r.value() }`, or write `try r`

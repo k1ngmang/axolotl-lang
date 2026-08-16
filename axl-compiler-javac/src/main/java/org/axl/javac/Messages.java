@@ -382,7 +382,8 @@ final class Messages {
         if (conversion.find()) {
             String value = conversion.group(1);
             return switch (conversion.group(2) + " of " + javaType) {
-                case "toDouble of int", "toDouble of long" -> "; for a `Double`, write `1.0 * " + value + "` or `Double.valueOf(" + value + ")`";
+                // `Double.valueOf` of a `Long` draws Error Prone's LongDoubleConversion, which asks for a cast.
+                case "toDouble of int", "toDouble of long" -> "; for a `Double`, write `1.0 * " + value + "`";
                 case "toInt of double" -> "; for an `Int`, write `Double.valueOf(" + value + ").intValue()`, which drops the fraction, "
                         + "or `Math.toIntExact(Math.round(" + value + "))`, which rounds";
                 case "toInt of long" -> "; for an `Int`, write `Math.toIntExact(" + value + ")`";

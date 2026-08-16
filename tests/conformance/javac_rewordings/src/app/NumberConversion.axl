@@ -7,4 +7,6 @@ fn main() {
     val i = x.toInt()
     println(d + i)
     println(3.7.toInt())
+    val total = 5L
+    println(total.toDouble())
 }
