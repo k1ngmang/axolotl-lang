@@ -36,6 +36,8 @@ AXL001 app/SynchronizedBlock.axl:8:9: error: Axolotl has no `synchronized`; use 
 AXL001 app/Ternary.axl:5:19: error: Axolotl has no `? :`; write `if (c) a else b`
 AXL001 app/Throws.axl:3:8: error: Axolotl functions have no `throws`; remove it, and turn exceptions into a `Result` with `attempt`
 AXL001 app/TryCatch.axl:6:7: error: Axolotl has no `try`-`catch`; turn the exception into a `Result` with `attempt f() else e -> ...`
+AXL001 app/TryCatchFinally.axl:6:7: error: Axolotl has no `try`-`catch`; turn the exception into a `Result` with `attempt f() else e -> ...`
+AXL001 app/TryFinally.axl:10:7: error: Axolotl has no `try`-`finally`; for cleanup, write a class whose `close()` does it, `class Cleanup(...) : AutoCloseable { fn close() { lock.unlock() } }`, and run the block in `use (val c = Cleanup(...)) { ... }`, which calls `close()` also when the block throws
 AXL001 app/TypeArgumentCall.axl:6:13: error: Axolotl has no type arguments on calls; remove `<String>` and give the type to the value instead: `val f: Function<String, String> = Function.identity()`
 AXL001 app/VoidMain.axl:3:1: error: functions are declared with `fn`: `fn main(...)`
 AXL001 app/Volatile.axl:4:5: error: Axolotl has no `volatile`; use `AtomicBoolean`, `AtomicInteger` or `AtomicReference` from `java.util.concurrent.atomic`

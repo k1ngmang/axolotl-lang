@@ -256,8 +256,8 @@ final class Habits {
             case "case" -> startsLine(tokens, i)
                     ? "Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`" : null;
             case "do" -> next == AxolotlLexer.LBRACE ? "Axolotl has no `do`-`while`; write a `while` loop" : null;
-            case "catch", "finally" -> type(tokens, SourceParser.previousCode(tokens, i)) == AxolotlLexer.RBRACE
-                    ? NO_TRY_CATCH : null;
+            case "catch" -> type(tokens, SourceParser.previousCode(tokens, i)) == AxolotlLexer.RBRACE ? NO_TRY_CATCH : null;
+            case "finally" -> type(tokens, SourceParser.previousCode(tokens, i)) == AxolotlLexer.RBRACE ? tryFinally(tokens, i) : null;
             case "instanceof" -> "Axolotl tests types with `is`: `if (x is String) { ... }`";
             case "typeof" -> next == AxolotlLexer.IDENTIFIER ? "Axolotl tests types with `is`: `if ("
                     + text(tokens, nextIndex) + " is String) { ... }`" : null;
@@ -286,6 +286,39 @@ final class Habits {
     }
 
     private static final String AND_OR_NOT = "write `&&`, `||` and `!` instead of `and`, `or` and `not`";
+
+    /**
+     * Java's `try { ... } finally { lock.unlock() }`: `use` closes a resource also when its block throws. After a
+     * `catch` the message about the `catch` says it all, so null.
+     */
+    private static String tryFinally(List<Token> tokens, int i) {
+        for (int j = SourceParser.previousCode(tokens, i); j >= 0 && type(tokens, j) != AxolotlLexer.TRY; j = SourceParser.previousCode(tokens, j)) {
+            if (text(tokens, j).equals("catch")) {
+                return null;
+            }
+        }
+        int open = SourceParser.nextCode(tokens, i);
+        int close = type(tokens, open) == AxolotlLexer.LBRACE ? matchingBrace(tokens, open) : -1;
+        int first = SourceParser.nextCode(tokens, open);
+        int last = SourceParser.previousCode(tokens, close);
+        boolean oneLine = close > 0 && first < close && tokens.get(first).getLine() == tokens.get(last).getLine();
+        String cleanup = oneLine ? source(tokens, first, last) : "...";
+        return "Axolotl has no `try`-`finally`; for cleanup, write a class whose `close()` does it, `class Cleanup(...) : "
+                + "AutoCloseable { fn close() { " + cleanup + " } }`, and run the block in `use (val c = Cleanup(...)) { ... }`, "
+                + "which calls `close()` also when the block throws";
+    }
+
+    /** The `}` that closes the `{` at open, or -1. */
+    private static int matchingBrace(List<Token> tokens, int open) {
+        int depth = 0;
+        for (int j = open; j < tokens.size(); j++) {
+            depth += type(tokens, j) == AxolotlLexer.LBRACE ? 1 : type(tokens, j) == AxolotlLexer.RBRACE ? -1 : 0;
+            if (depth == 0) {
+                return j;
+            }
+        }
+        return -1;
+    }
 
     /** Kotlin's `a and b`: `&&` for booleans, but a bit operation when a side is a number. */
     private static String andOr(List<Token> tokens, int i, int next) {

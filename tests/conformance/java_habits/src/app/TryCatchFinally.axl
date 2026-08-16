@@ -1,0 +1,11 @@
+package app
+
+fn main() {
+    try {
+        println(Integer.parseInt("x"))
+    } catch (e: Exception) {
+        println("bad")
+    } finally {
+        println("done")
+    }
+}

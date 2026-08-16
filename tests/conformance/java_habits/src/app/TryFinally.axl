@@ -1,0 +1,13 @@
+package app
+
+import java.util.concurrent.locks.ReentrantLock
+
+fn main() {
+    val lock = ReentrantLock()
+    lock.lock()
+    try {
+        println("work")
+    } finally {
+        lock.unlock()
+    }
+}
