@@ -430,9 +430,21 @@ fn doubled(s: String) -> Result<Int, String> {
   `Result` such as `attempt ...`. A `map` stage whose lambda builds them takes the element type from
   `val rs: List<Result<Int, String>> = xs |> map { ... }`.
 
+## Arrays and Java buffers
+
+Axolotl has lists, not arrays. Where a Java method takes an array of objects, pass a list: `CompletableFuture.allOf(futures)`
+and `Path.of("a", parts)` get `futures.toArray(new CompletableFuture[0])`. This applies when every overload of the method with
+that many arguments takes an array of a class there, and the code tells that the value is a collection (a written or inferred
+type). A method that also takes a collection there (`ProcessBuilder(list)`, `String.join(",", list)`), or a varargs parameter
+of `Object` that the list is one value of (`String.format("%s", list)`), gets the list. For input and output buffers,
+`ByteArray(n)` and `CharArray(n)` create Java's `byte[]` and `char[]`, which are also the type names: `fn copy(input:
+InputStream, buffer: ByteArray)`. Pass them to Java (`read`, `write`, `String(buf, 0, n, UTF_8)`, `ByteBuffer.wrap(buf)`), read
+`.length`, or go over them with `for (b in buf)`. Their elements are read and written by Java code.
+
 ## Pipes
 
-`|>` feeds a collection through Java stream operations:
+`|>` feeds a collection through Java stream operations; it also takes a `Stream` whose type the code tells (`Stream.of`,
+`xs.stream()`, `Files.lines(p)`, `val s: Stream<String> = ...`) as it is:
 
 ```axl
 val evens = numbers |> filter { it % 2 == 0 } |> map { it * 10 }

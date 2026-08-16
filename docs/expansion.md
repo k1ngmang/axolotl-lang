@@ -43,6 +43,10 @@ always gives byte-for-byte the same output.
 | `xs \|> filter { it != null }` | `Nulls.nonNulls(xs.stream().filter(it -> it != null)).toList()`; `Nulls.nonNulls` tells NullAway that the elements are not null, so the result fits a `List<String>` |
 | `xs \|> first` | `Nulls.first(xs.stream().iterator())`, which gives `null` for an empty pipe and for a null first element |
 | `xs \|> mapResult { f(it) }` | `final java.util.List<T> $p1 = new java.util.ArrayList<>(); for (final var it : xs) { final var $t1 = f(it); if ($t1.isErr()) return Result.propagate($t1); $p1.add(Result.<T>unwrap($t1)); }` |
+| `ByteArray(n)`, `CharArray(n)` | `new byte[n]`, `new char[n]` |
+| A list passed to a Java array parameter | `xs.toArray(new T[0])` |
+| A `Stream` as the source of `\|>` | the stream as it is, without `.stream()` |
+| The `catch` of `attempt` and `use ... else` | starts with `if (e instanceof InterruptedException) Thread.currentThread().interrupt();` |
 | `attempt X else e -> break` (also `continue`, `return`, `return v`) on a line of its own | `try { X; } catch (Exception e) { break; }`; labeled with the loop name where a `when` or a split `if` needs it |
 | A `var` captured by `?:`, `?.` or `attempt` | copied first: `final var $c1 = count;` |
 | `when (x) { 3 -> { break } ... }` in a loop | `loop$1: for (...) { switch (...) { case 3 -> { break loop$1; } ... } }`; a loop that no `break` leaves from inside a `when` has no label |

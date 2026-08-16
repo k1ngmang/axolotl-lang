@@ -49,8 +49,8 @@ them from Axolotl:
   RuntimeException(...)`, but Axolotl classes stay final, and an interface with methods takes the role
   of an abstract class;
 - annotation types;
-- code that needs arrays, casts, `switch`, `synchronized` or labels. Axolotl reads a Java array as
-  `List.of(array)`, converts numbers with methods such as `Math.toIntExact(Math.round(x))`, chooses
+- code that needs arrays, casts, `switch`, `synchronized` or labels. Java methods that take an array of objects accept a list,
+  `ByteArray(n)` and `CharArray(n)` cover IO buffers, Axolotl reads a Java array as `List.of(array)`, converts numbers with methods such as `Math.toIntExact(Math.round(x))`, chooses
   with `when`, and locks with the classes of `java.util.concurrent`.
 
 Framework entry points work in Axolotl: a `class` with annotated methods is a JUnit test class, a
