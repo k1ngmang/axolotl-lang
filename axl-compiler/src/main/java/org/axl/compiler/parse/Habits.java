@@ -272,6 +272,7 @@ final class Habits {
                     && (next == AxolotlLexer.IDENTIFIER || next == AxolotlLexer.TRUE || next == AxolotlLexer.FALSE)
                     ? AND_OR_NOT : null;
             case "in" -> inOperator(tokens, i, nextIndex);
+            case "_" -> unnamedParameter(tokens, i);
             case "until", "downTo", "step" -> VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
                     && VALUE_STARTS.contains(next) ? RANGES : null;
             case "elif" -> next == AxolotlLexer.LPAREN && (startsLine(tokens, i)
@@ -306,6 +307,32 @@ final class Habits {
         return "Axolotl has no `try`-`finally`; for cleanup, write a class whose `close()` does it, `class Cleanup(...) : "
                 + "AutoCloseable { fn close() { " + cleanup + " } }`, and run the block in `use (val c = Cleanup(...)) { ... }`, "
                 + "which calls `close()` also when the block throws";
+    }
+
+    /** Kotlin's `{ _ -> ... }` for a parameter that is not used; Java reserves `_`, so each parameter needs a name. */
+    private static String unnamedParameter(List<Token> tokens, int i) {
+        int first = i;
+        while (Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.COMMA).contains(type(tokens, SourceParser.previousCode(tokens, first)))) {
+            first = SourceParser.previousCode(tokens, first);
+        }
+        int arrow = i;
+        while (Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.COMMA).contains(type(tokens, SourceParser.nextCode(tokens, arrow)))) {
+            arrow = SourceParser.nextCode(tokens, arrow);
+        }
+        arrow = SourceParser.nextCode(tokens, arrow);
+        if (type(tokens, SourceParser.previousCode(tokens, first)) != AxolotlLexer.LBRACE || type(tokens, arrow) != AxolotlLexer.ARROW) {
+            return null;
+        }
+        List<String> names = new ArrayList<>();
+        for (int j = first; j < arrow; j = SourceParser.nextCode(tokens, j)) {
+            if (type(tokens, j) == AxolotlLexer.IDENTIFIER) {
+                names.add(text(tokens, j));
+            }
+        }
+        List<String> free = new ArrayList<>(List.of("k", "v", "x", "y", "z"));
+        free.removeAll(names);
+        List<String> named = names.stream().map(n -> n.equals("_") && !free.isEmpty() ? free.removeFirst() : n).toList();
+        return "Axolotl has no `_` for a parameter that is not used; name it: `{ " + String.join(", ", named) + " -> ... }`";
     }
 
     /** The `}` that closes the `{` at open, or -1. */

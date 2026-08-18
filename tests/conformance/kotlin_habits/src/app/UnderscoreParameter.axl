@@ -1,0 +1,11 @@
+package app
+
+import java.util.ArrayList
+import java.util.HashMap
+import java.util.List
+
+fn main() {
+    val groups = HashMap<String, List<Int>>()
+    groups.computeIfAbsent("a", { _ -> ArrayList<Int>() }).add(1)
+    groups.forEach({ _, v -> println(v) })
+}

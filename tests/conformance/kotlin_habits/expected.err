@@ -37,5 +37,7 @@ AXL001 app/TopLevelVar.axl:3:1: error: top-level values cannot change; use `val`
 AXL001 app/TrailingLambda.axl:7:16: error: a lambda argument goes inside the parentheses: `xs.forEach({ ... })`; for a collection, use a pipe: `xs |> forEach { ... }`
 AXL001 app/TrailingLambdaCall.axl:4:12: error: a lambda argument goes inside the parentheses: `run({ ... })`
 AXL001 app/Typealias.axl:3:1: error: Axolotl has no `typealias`; write the type itself
+AXL001 app/UnderscoreParameter.axl:9:35: error: Axolotl has no `_` for a parameter that is not used; name it: `{ k -> ... }`
+AXL001 app/UnderscoreParameter.axl:10:22: error: Axolotl has no `_` for a parameter that is not used; name it: `{ k, v -> ... }`
 AXL001 app/Until.axl:4:17: error: Axolotl has no ranges (`until`, `..`); count with a `while` loop, or use `java.util.stream.IntStream.range(from, to)`
 AXL001 app/Vararg.axl:3:8: error: Axolotl has no `vararg`; take a `List` parameter
