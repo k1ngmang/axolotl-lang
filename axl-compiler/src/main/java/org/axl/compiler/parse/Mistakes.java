@@ -108,6 +108,7 @@ final class Mistakes {
                     ? "a function needs a body after its header: `= value` or `{ ... }`" : null;
             case AxolotlLexer.COLON -> previous.getType() == AxolotlLexer.RPAREN && startsFunction(tokens, at)
                     ? "the result type comes after `->`: `fn f(...) -> Int`"
+                    : mapLiteral(tokens, at, previous) != null ? mapLiteral(tokens, at, previous)
                     : endsLine(tokens, at) ? "a block goes in braces: `{ ... }`, not after `:`" : null;
             case AxolotlLexer.ASSIGN -> assignment(tokens, at, previous);
             case AxolotlLexer.RETURN -> previous.getType() == AxolotlLexer.ASSIGN
@@ -298,7 +299,12 @@ final class Mistakes {
             return new Placed(at, "`" + keyword + "` needs a condition: `" + keyword + " (c) { ... }`", true);
         }
         if (at.getType() == AxolotlLexer.RPAREN && previous.getType() == AxolotlLexer.COMMA) {
-            return new Placed(previous, "`,` needs a value after it; remove it or add the value", true);
+            // Kotlin allows a `,` after the last parameter or argument, which is usually followed by a line break.
+            int keyword = type(before(tokens, before(tokens, paren)));
+            String last = keyword == AxolotlLexer.FN || keyword == AxolotlLexer.CLASS ? "parameter"
+                    : previous.getLine() < at.getLine() ? "argument" : null;
+            return new Placed(previous, last != null ? "Axolotl has no trailing comma; remove the `,` after the last " + last
+                    : "`,` needs a value after it; remove it or add the value", true);
         }
         Token next = SourceParser.nextToken(tokens, at);
         if (BINARY_OPERATORS.contains(at.getType()) && (next.getType() == Token.EOF
@@ -434,6 +440,14 @@ final class Mistakes {
     /** `if (x = 1)`, `fn f(x: Int = 1)`, `f(x = 1)` and `while ((line = readLine()) != null)`. */
     private static String assignment(CommonTokenStream tokens, Token at, Token previous) {
         Token paren = enclosingParen(tokens, at);
+        Token firstAssign = before(tokens, previous);
+        if (paren == null && previous.getType() == AxolotlLexer.IDENTIFIER && type(firstAssign) == AxolotlLexer.ASSIGN) {
+            // `a = b = 3` assigns `b` first, then `a` the same value.
+            Token value = SourceParser.nextToken(tokens, at);
+            String target = tokens.getText(SourceParser.lineStart(tokens, firstAssign), before(tokens, firstAssign));
+            return "an assignment is a statement, not a value: write `" + previous.getText() + " = "
+                    + tokens.getText(value, lastOnLine(tokens, value)) + "`, then `" + target + " = " + previous.getText() + "`";
+        }
         if (paren == null) {
             Token brace = enclosingBrace(tokens, at);
             if (brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM)) {
@@ -458,6 +472,39 @@ final class Mistakes {
                 || type(beforeParen) == AxolotlLexer.GT;
         return call ? "Axolotl has no named arguments; pass the values in the order of the parameters"
                 : assignedValue(tokens, previous, paren);
+    }
+
+    /** `{"a": 1, "b": 2}` of Python and JavaScript, at the `:` after the first key; null for other code. */
+    private static String mapLiteral(CommonTokenStream tokens, Token colon, Token key) {
+        Token brace = enclosingBrace(tokens, colon);
+        if (!literal(key) || brace == null || SourceParser.nextToken(tokens, brace) != key || !Set.of(AxolotlLexer.ASSIGN,
+                AxolotlLexer.LPAREN, AxolotlLexer.COMMA, AxolotlLexer.RETURN).contains(type(before(tokens, brace)))) {
+            return null;
+        }
+        StringBuilder entries = new StringBuilder();
+        int depth = 0;
+        int i = key.getTokenIndex();
+        for (; i < tokens.size() && tokens.get(i).getLine() == brace.getLine(); i++) {
+            int type = tokens.get(i).getType();
+            depth += type == AxolotlLexer.LBRACE ? 1 : type == AxolotlLexer.RBRACE ? -1 : 0;
+            if (depth < 0) {
+                break;
+            }
+            entries.append(type == AxolotlLexer.COLON && depth == 0 ? "," : tokens.get(i).getText());
+        }
+        String written = i < tokens.size() && tokens.get(i).getType() == AxolotlLexer.RBRACE
+                ? "Map.of(" + entries.toString().strip() + ")" : "Map.of(" + key.getText() + ", ...)";
+        return "Axolotl has no map literals; write `" + written + "`, or fill a `HashMap` with `put`";
+    }
+
+    /** The last code token on the line of the token. */
+    private static Token lastOnLine(CommonTokenStream tokens, Token t) {
+        Token last = t;
+        for (Token next = SourceParser.nextToken(tokens, t); next.getType() != Token.EOF && next.getLine() == t.getLine();
+                next = SourceParser.nextToken(tokens, next)) {
+            last = next;
+        }
+        return last;
     }
 
     /** `(line = readLine())` used as a value, as in Java's reading loop: the name stands in its place. */

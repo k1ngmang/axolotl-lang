@@ -36,6 +36,8 @@ AXL001 app/SafeLet.axl:5:12: error: Axolotl has no `let`; check for null instead
 AXL001 app/SealedClass.axl:3:8: error: a sealed type is a `sealed interface Shape`; its data classes implement it: `: Shape`
 AXL001 app/TextBlock.axl:3:20: error: Axolotl has no raw strings or text blocks (`"""`); write one string with `\n`, or join the lines with `+`
 AXL001 app/TopLevelVar.axl:3:1: error: top-level values cannot change; use `val`, or keep the state in a class
+AXL001 app/TrailingComma.axl:5:11: error: Axolotl has no trailing comma; remove the `,` after the last parameter
+AXL001 app/TrailingCommaArgument.axl:8:10: error: Axolotl has no trailing comma; remove the `,` after the last argument
 AXL001 app/TrailingLambda.axl:7:16: error: a lambda argument goes inside the parentheses: `xs.forEach({ ... })`; for a collection, use a pipe: `xs |> forEach { ... }`
 AXL001 app/TrailingLambdaCall.axl:4:12: error: a lambda argument goes inside the parentheses: `run({ ... })`
 AXL001 app/Typealias.axl:3:1: error: Axolotl has no `typealias`; write the type itself

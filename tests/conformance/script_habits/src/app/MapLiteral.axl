@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val ages = {"ann": 31, "bob": 2 * 20}
+    println(ages)
+}

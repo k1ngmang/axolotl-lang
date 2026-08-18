@@ -20,6 +20,7 @@ AXL001 app/InterfaceField.axl:4:5: error: an interface lists values: `val x: Int
 AXL001 app/IsNone.axl:3:33: error: compare with `==` to test for null: `s == null`
 AXL001 app/IsNull.axl:3:33: error: compare with `==` to test for null: `s == null`
 AXL001 app/LambdaKeyword.axl:5:29: error: lambdas are written in braces: `{ x -> x + 1 }`
+AXL001 app/MapLiteral.axl:4:22: error: Axolotl has no map literals; write `Map.of("ann", 31, "bob", 2 * 20)`, or fill a `HashMap` with `put`
 AXL001 app/NotInOperator.axl:5:40: error: Axolotl has no `in` operator; write `!xs.contains(3)`
 AXL001 app/NullishCall.axl:5:47: error: write `?:` for a default: `m.get("a") ?: 0`
 AXL001 app/NullishDefault.axl:3:32: error: write `?:` for a default: `s ?: "x"`
