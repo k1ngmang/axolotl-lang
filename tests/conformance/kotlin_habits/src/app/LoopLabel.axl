@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+fn main() {
+    outer@ for (i in List.of(1, 2)) {
+        for (j in List.of(1, 2)) {
+            if (j == i) {
+                continue@outer
+            }
+        }
+    }
+}

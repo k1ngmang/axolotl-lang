@@ -56,7 +56,7 @@ final class Habits {
             case AxolotlLexer.UNKNOWN_CHAR -> unknownChar(tokens, i);
             case AxolotlLexer.AT -> i > 0 && type(tokens, i - 1) == AxolotlLexer.RETURN
                     ? "Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@" + text(tokens, i + 1) + "`"
-                    : null;
+                    : loopLabel(tokens, i);
             default -> symbol(tokens, i);
         };
     }
@@ -216,6 +216,23 @@ final class Habits {
         return loop && type(tokens, previous) == AxolotlLexer.IDENTIFIER && startsLine(tokens, previous)
                 ? "Axolotl has no labels such as `" + text(tokens, previous) + ":`; end the loop with its condition, or move it "
                 + "into a function and `return`" : null;
+    }
+
+    private static final String OUTER_LOOP = "to leave an outer loop, move the loops into a function and `return` from it";
+
+    /** Kotlin's `outer@ for (...)` and `break@outer`, at the `@`. */
+    private static String loopLabel(List<Token> tokens, int i) {
+        int before = type(tokens, i - 1);
+        int next = type(tokens, SourceParser.nextCode(tokens, i));
+        if (before == AxolotlLexer.IDENTIFIER && (next == AxolotlLexer.FOR || next == AxolotlLexer.WHILE)) {
+            return "Axolotl has no labels such as `" + text(tokens, i - 1) + "@`; `break` and `continue` work on the loop around "
+                    + "them, and " + OUTER_LOOP;
+        }
+        if (before == AxolotlLexer.BREAK || before == AxolotlLexer.CONTINUE) {
+            return "Axolotl has no labels; `" + text(tokens, i - 1) + "` works on the loop around it, so remove `@"
+                    + text(tokens, i + 1) + "`; " + OUTER_LOOP;
+        }
+        return null;
     }
 
     /** `a: String | Int` in a parameter list. */

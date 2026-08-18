@@ -21,6 +21,8 @@ AXL001 app/InfixTo.axl:4:23: error: Axolotl has no `to`; a map takes keys and va
 AXL001 app/InitBlock.axl:4:5: error: a class has no `init` block; give each property its value where it is declared
 AXL001 app/InterfaceParentheses.axl:4:23: error: an interface takes no `()`: `: I`
 AXL001 app/Lateinit.axl:4:5: error: Axolotl has no `lateinit`; give the `var` a value, or make it nullable: `var x: T? = null`
+AXL001 app/LoopLabel.axl:6:10: error: Axolotl has no labels such as `outer@`; `break` and `continue` work on the loop around them, and to leave an outer loop, move the loops into a function and `return` from it
+AXL001 app/LoopLabel.axl:9:25: error: Axolotl has no labels; `continue` works on the loop around it, so remove `@outer`; to leave an outer loop, move the loops into a function and `return` from it
 AXL001 app/NamedArguments.axl:6:24: error: Axolotl has no named arguments; pass the values in the order of the parameters
 AXL001 app/NotInKotlin.axl:5:44: error: Axolotl has no `!in`; write `!xs.contains(x)`
 AXL001 app/NumberAs.axl:5:15: error: Axolotl has no casts; a `Double` becomes an `Int` with `Double.valueOf(x).intValue()`, which drops the fraction as a cast does, or `Math.toIntExact(Math.round(x))`, which rounds; a `Long` with `Math.toIntExact(x)`
