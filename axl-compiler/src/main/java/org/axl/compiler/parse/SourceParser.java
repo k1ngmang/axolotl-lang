@@ -3,6 +3,7 @@ package org.axl.compiler.parse;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
@@ -446,8 +447,11 @@ public final class SourceParser {
 
     private static String numberProblem(Token t, boolean afterUnaryMinus, Token next) {
         String text = t.getText();
-        if (next != null && next.getStartIndex() == t.getStopIndex() + 1
-                && (next.getType() == AxolotlLexer.IDENTIFIER || next.getType() == AxolotlLexer.INT_LITERAL)) {
+        boolean adjacent = next != null && next.getStartIndex() == t.getStopIndex() + 1;
+        if (adjacent && text.equals("0") && next.getText().matches("[bB][01][01_]*[lL]?")) {
+            return binaryNumber(text + next.getText());
+        }
+        if (adjacent && (next.getType() == AxolotlLexer.IDENTIFIER || next.getType() == AxolotlLexer.INT_LITERAL)) {
             return "`" + text + next.getText() + "` is not a valid number";
         }
         boolean hex = text.startsWith("0x") || text.startsWith("0X");
@@ -473,6 +477,15 @@ public final class SourceParser {
             return "`" + text + "` is too large for " + (isLong ? "a `Long`" : "an `Int`; add `L` for a `Long`");
         }
         return null;
+    }
+
+    /** Java's and Kotlin's `0b101`: the same number in decimal and in hexadecimal, which Axolotl has. */
+    private static String binaryNumber(String text) {
+        boolean isLong = text.endsWith("l") || text.endsWith("L");
+        BigInteger value = new BigInteger(text.substring(2).replace("_", "").replaceAll("[lL]$", ""), 2);
+        String suffix = isLong ? "L" : "";
+        return "Axolotl has no binary numbers such as `" + text + "`; write `" + value + suffix + "`, or `0x"
+                + value.toString(16).toUpperCase(Locale.ROOT) + suffix + "` in hexadecimal";
     }
 
     /** Escapes Java knows, and one character in a character literal. */

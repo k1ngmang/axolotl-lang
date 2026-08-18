@@ -4,6 +4,7 @@ AXL001 app/ArrayIndexAssign.axl:5:10: error: Axolotl has no `[]` indexing, and `
 AXL001 app/AssignAsValue.axl:5:16: error: an assignment is a statement, not a value: write `x = 2` on its own line, then use `x` in its place
 AXL001 app/AssignInCondition.axl:5:18: error: an assignment is a statement, not a value: write `line = readLine()` on its own line, then `while (line != null)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
+AXL001 app/BinaryNumber.axl:4:17: error: Axolotl has no binary numbers such as `0b1010_0101`; write `165`, or `0xA5` in hexadecimal
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
 AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
 AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection: `for (x in xs) { ... }`; count with a `while` loop

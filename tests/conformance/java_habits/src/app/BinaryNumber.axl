@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val flags = 0b1010_0101
+    println(flags)
+}
