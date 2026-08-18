@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val words = "a,b".split(",")
+    words[0] = "z"
+    println(words.length)
+}

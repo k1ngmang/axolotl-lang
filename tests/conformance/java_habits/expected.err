@@ -1,5 +1,6 @@
 AXL001 app/AbstractClass.axl:3:1: error: Axolotl has no `abstract` classes, since a class cannot be extended; write an interface with the values and methods each class gives, `interface Animal { fn sound() -> String }`, and a method with a body as a function that takes the interface
 AXL001 app/ArrayIndex.axl:5:18: error: Axolotl has no `[]` indexing, and `parts` is a Java array; read it as a list: `List.of(parts).get(1)`
+AXL001 app/ArrayIndexAssign.axl:5:10: error: Axolotl has no `[]` indexing, and `words` is a Java array; to change an element, write `Arrays.asList(words).set(0, "z")`, with `import java.util.Arrays`, which writes through to the array
 AXL001 app/AssignAsValue.axl:5:16: error: an assignment is a statement, not a value: write `x = 2` on its own line, then use `x` in its place
 AXL001 app/AssignInCondition.axl:5:18: error: an assignment is a statement, not a value: write `line = readLine()` on its own line, then `while (line != null)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
@@ -12,6 +13,8 @@ AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?
 AXL001 app/Implements.axl:5:26: error: a class names its interfaces after `:`: `class C(...) : I, J`
 AXL001 app/ImportAlias.axl:3:23: error: an import has no alias in Axolotl; write `import java.util.List` and use `List`; a second type of that name is written with its full name
 AXL001 app/Index.axl:7:15: error: Axolotl has no `[]` indexing; call `get`: `xs.get(0)`
+AXL001 app/IndexAssign.axl:6:11: error: Axolotl has no `[]` indexing; call `set`: `counts.set(i + 1, counts.get(i) + 1)` for a list, `Arrays.asList(counts).set(i + 1, counts.get(i) + 1)` for a Java array
+AXL001 app/IndexAssign.axl:12:7: error: Axolotl has no `[]` indexing; call `set`: `xs.set(0, 2)`
 AXL001 app/IndexUnknown.axl:6:17: error: Axolotl has no `[]` indexing; call `get`: `items.get(0)` for a list, `List.of(items).get(0)` for a Java array
 AXL001 app/InstanceOf.axl:5:11: error: Axolotl tests types with `is`: `if (x is String) { ... }`
 AXL001 app/JavaLambda.axl:6:28: error: lambdas are written in braces: `{ x -> ... }`

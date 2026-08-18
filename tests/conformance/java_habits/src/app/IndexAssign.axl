@@ -1,0 +1,14 @@
+package app
+
+import java.util.ArrayList
+
+fn bump(counts: ArrayList<Int>, i: Int) {
+    counts[i + 1] = counts.get(i) + 1
+}
+
+fn main() {
+    val xs = ArrayList<Int>()
+    xs.add(1)
+    xs[0] = 2
+    println(xs)
+}

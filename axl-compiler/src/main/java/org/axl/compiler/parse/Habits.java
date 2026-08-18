@@ -678,6 +678,16 @@ final class Habits {
                 && (type(tokens, indexToken) == AxolotlLexer.INT_LITERAL || type(tokens, indexToken) == AxolotlLexer.IDENTIFIER)
                 ? text(tokens, indexToken) : "0";
         Boolean array = afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER ? holdsArray(tokens, i, before) : null;
+        String set = afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER ? elementAssignment(tokens, i) : null;
+        if (set != null) {
+            String list = before + ".set(" + set + ")";
+            String asList = "Arrays.asList(" + before + ").set(" + set + ")";
+            return before.equals("args") || Boolean.TRUE.equals(array)
+                    ? "Axolotl has no `[]` indexing, and `" + before + "` is a Java array; to change an element, write `" + asList
+                    + "`, with `import java.util.Arrays`, which writes through to the array"
+                    : "Axolotl has no `[]` indexing; call `set`: `" + list + "`"
+                    + (array == null ? " for a list, `" + asList + "` for a Java array" : "");
+        }
         if (afterValue && (before.equals("args") || Boolean.TRUE.equals(array))) {
             return "Axolotl has no `[]` indexing, and `" + before + "` is a Java array; read it as a list: `List.of(" + before
                     + ").get(" + index + ")`";
@@ -699,6 +709,22 @@ final class Habits {
         String source = comprehensionSource(tokens, i);
         return source != null ? "Axolotl has no list comprehensions; use a pipe: `" + source + " |> map { ... }`"
                 : "Axolotl has no list literals; write `List.of(1, 2, 3)`";
+    }
+
+    /** `i, v` of `xs[i] = v`, where the `[` is at open, or null when the element is not assigned. */
+    private static String elementAssignment(List<Token> tokens, int open) {
+        int close = open;
+        while (type(tokens, close) != Token.EOF && !text(tokens, close).equals("]")) {
+            close++;
+        }
+        int assign = SourceParser.nextCode(tokens, close);
+        int value = SourceParser.nextCode(tokens, assign);
+        if (type(tokens, assign) != AxolotlLexer.ASSIGN || type(tokens, value) == Token.EOF
+                || tokens.get(value).getLine() != tokens.get(assign).getLine()) {
+            return null;
+        }
+        return source(tokens, SourceParser.nextCode(tokens, open), SourceParser.previousCode(tokens, close)) + ", "
+                + source(tokens, value, lineEnd(tokens, value));
     }
 
     /**
