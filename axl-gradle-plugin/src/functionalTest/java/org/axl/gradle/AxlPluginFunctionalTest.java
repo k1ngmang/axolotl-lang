@@ -304,7 +304,7 @@ class AxlPluginFunctionalTest {
         Path main = project.resolve("app/src/main/axl/app/Main.axl");
         Files.writeString(main, Files.readString(main).replace("fn main() {", "fn main() {\n    return try title(\"x\")"));
         BuildResult result = gradle(":app:compileJava").buildAndFail();
-        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":6:12: error: `try` can only be used in a function that returns `Result`"), result.getOutput());
+        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":6:12: error: `try` can only be used in a function that returns `Result` [AXL007]"), result.getOutput());
     }
 
     @Test
@@ -321,7 +321,7 @@ class AxlPluginFunctionalTest {
         Files.writeString(main, Files.readString(main).replace("println(title(\" Hello Axolotl \"))",
                 "val missing: String? = null\n    println(missing.length())"));
         BuildResult result = gradle(":app:compileJava").buildAndFail();
-        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":7: error: value `missing` may be null"),
+        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":7:21: error: value `missing` may be null: use `?.`, `?:` or check `if (missing != null)` [AXL102]"),
                 result.getOutput());
     }
 
@@ -349,7 +349,7 @@ class AxlPluginFunctionalTest {
         Files.writeString(main, Files.readString(main).replace("println(title(\" Hello Axolotl \"))",
                 "val home = System.getenv(\"HOME\")\n    println(home.length())"));
         BuildResult result = gradle(":app:compileJava").buildAndFail();
-        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":7: error: `home` may be null"), result.getOutput());
+        assertTrue(result.getOutput().contains(main.toAbsolutePath() + ":7:18: error: `home` may be null"), result.getOutput());
     }
 
     @Test

@@ -194,10 +194,12 @@ public abstract class GenerateAxlTask extends DefaultTask {
         }
         getLogger().info("Translated {} .axl file(s)", inputs.size());
         for (AxlDiagnostic d : diagnostics) {
+            // With the code at the end, as the `axl` command prints it.
+            String line = d.format() + " [" + d.code().id() + "]";
             if (d.isError()) {
-                getLogger().error(d.format());
+                getLogger().error(line);
             } else {
-                getLogger().warn(d.format());
+                getLogger().warn(line);
             }
         }
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {

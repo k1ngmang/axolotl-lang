@@ -29,7 +29,7 @@ class DiagnosticsPluginTest {
         assertEquals(tmp.resolve("my src/app/Main.axl").toUri(), ((javax.tools.FileObject) error.getSource()).toUri());
         assertEquals(5, error.getLineNumber());
         assertEquals(22, error.getColumnNumber());
-        assertEquals("`greeting` of type `String` has no method `lenght()`; did you mean `length`?", error.getMessage(Locale.ROOT));
+        assertEquals("`greeting` of type `String` has no method `lenght()`; did you mean `length`? [AXL100]", error.getMessage(Locale.ROOT));
     }
 
     @Test
@@ -42,7 +42,7 @@ class DiagnosticsPluginTest {
                     println(xs |> filter { it + 1 })
                 }
                 """);
-        assertEquals("the lambda returns `Int`, but `Boolean` is expected", error.getMessage(Locale.ROOT));
+        assertEquals("the lambda returns `Int`, but `Boolean` is expected [AXL100]", error.getMessage(Locale.ROOT));
     }
 
     @Test
@@ -80,6 +80,25 @@ class DiagnosticsPluginTest {
                 """);
         assertEquals(2, outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR).count(),
                 outcome.diagnostics().toString());
+    }
+
+    @Test
+    void reportsOneUnreportedExceptionOfACall(@TempDir Path tmp) throws Exception {
+        JavaCompilation.Outcome outcome = compile(tmp, """
+                package app
+
+                import java.util.concurrent.CompletableFuture
+                import java.util.concurrent.TimeUnit
+
+                fn main() {
+                    val f = CompletableFuture.supplyAsync({ -> 1 })
+                    println(f.get(1L, TimeUnit.SECONDS))
+                }
+                """);
+        List<String> errors = outcome.diagnostics().stream().filter(d -> d.getKind() == Diagnostic.Kind.ERROR)
+                .map(d -> d.getLineNumber() + ":" + d.getColumnNumber() + " " + d.getMessage(Locale.ROOT)).toList();
+        assertEquals(List.of("8:15 this call can throw `InterruptedException`, which Axolotl functions cannot pass on; "
+                + "wrap it in `attempt ... else ...` to turn it into a `Result` [AXL100]"), errors);
     }
 
     @Test

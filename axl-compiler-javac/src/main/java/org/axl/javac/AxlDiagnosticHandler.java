@@ -1,6 +1,10 @@
 package org.axl.javac;
 
+import com.sun.tools.javac.api.DiagnosticFormatter;
+import com.sun.tools.javac.util.BasicDiagnosticFormatter;
+import com.sun.tools.javac.util.BasicDiagnosticFormatter.BasicConfiguration.BasicFormatKind;
 import com.sun.tools.javac.util.Context;
+import com.sun.tools.javac.util.ForwardingDiagnosticFormatter;
 import com.sun.tools.javac.util.DiagnosticSource;
 import com.sun.tools.javac.util.JCDiagnostic;
 import com.sun.tools.javac.util.JCDiagnostic.DiagnosticType;
@@ -43,9 +47,10 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
             this.lines = this.text.lines().toList();
         }
 
+        /** javac counts a tab up to the next multiple of 8 in a column; Axolotl's columns count it as one character. */
         @Override
         public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-            return text;
+            return text.replace('\t', ' ');
         }
 
         /** javac prints this name; the URI path would be `/C:/...` on Windows. */
@@ -72,6 +77,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     private final List<DiagnosticsPlugin.Root> roots;
     private final Map<Path, Mapping> mappings = new HashMap<>();
     private final Set<String> reported = new HashSet<>();
+    private final Set<String> javaPositions = new HashSet<>();
     // The Error Prone checks whose first warning has named them.
     private final Set<String> namedChecks = new HashSet<>();
 
@@ -80,6 +86,21 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         this.factory = JCDiagnostic.Factory.instance(context);
         this.roots = roots;
         install(log);
+        withColumns(log);
+    }
+
+    /**
+     * Gradle prints each diagnostic with javac's formatter, whose `file:line:` has no column; the `axl` command
+     * prints `file:line:column:`.
+     */
+    private static void withColumns(Log log) {
+        DiagnosticFormatter<JCDiagnostic> formatter = log.getDiagnosticFormatter();
+        if (formatter instanceof ForwardingDiagnosticFormatter<JCDiagnostic, ?> forwarding) {
+            formatter = forwarding.getDelegatedFormatter();
+        }
+        if (formatter instanceof BasicDiagnosticFormatter basic) {
+            basic.getConfiguration().setFormat(BasicFormatKind.DEFAULT_POS_FORMAT, "%f:%l:%c:%_%p%L%m");
+        }
     }
 
     @Override
@@ -92,7 +113,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         JCDiagnostic moved = move(diagnostic);
         if (moved == null) {
             prev.report(diagnostic);
-        } else if (ignored(diagnostic)) {
+        } else if (!firstAtJavaPosition(diagnostic) || ignored(diagnostic)) {
             return;
         } else if (reported.add(moved.getSource().toUri() + ":" + moved.getLineNumber() + ":"
                 + ErrorProneMessages.withoutSuppression(moved.getMessage(Locale.ROOT)))) {
@@ -155,7 +176,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         long javaColumn = Columns.javaColumn(mapping.javaLines(), javaLine, diagnostic);
         AxlFile axl = mapping.axl();
         String axlText = axlLine <= axl.lines.size() ? axl.lines.get(axlLine - 1) : "";
-        String translated = Messages.translate(message, mapping.javaLines(), javaLine, javaColumn, axlText).message();
+        Messages.Translated result = Messages.translate(message, mapping.javaLines(), javaLine, javaColumn, axlText);
+        String translated = result.message();
         String check = type == DiagnosticType.WARNING ? ErrorProneMessages.check(message) : null;
         if (check != null && namedChecks.add(check)) {
             translated += ErrorProneMessages.suppression(check);
@@ -164,11 +186,22 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         int column = Columns.find(mapping.javaLines(), mapping.lineMap(), javaLine, javaColumn, axlText,
                 Messages.placement(translated, javaText));
         DiagnosticType severity = Messages.alwaysFailsUnhandled(message, javaText) ? DiagnosticType.ERROR : type;
+        // The code ends the message, as the `axl` command prints it, so that docs/errors.md can be looked up.
         JCDiagnostic moved = factory.create(severity, new DiagnosticSource(axl, log),
-                new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager", translated);
+                new SimpleDiagnosticPosition(axl.offset(axlLine, column)), "proc.messager",
+                translated + " [" + result.code().id() + "]");
         // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.
         moved.setFlag(JCDiagnostic.DiagnosticFlag.API);
         return moved;
+    }
+
+    /**
+     * javac reports one error per position, such as one of the checked exceptions a call throws, unless the error
+     * comes from a plugin. A moved error skips that check, so it is made here on the generated file.
+     */
+    private boolean firstAtJavaPosition(JCDiagnostic diagnostic) {
+        return diagnostic.getType() != DiagnosticType.ERROR || diagnostic.isFlagSet(JCDiagnostic.DiagnosticFlag.API)
+                || javaPositions.add(diagnostic.getSource().toUri() + ":" + diagnostic.getPosition());
     }
 
     /** See `Messages.ignored`; the diagnostic is in a generated file. */
