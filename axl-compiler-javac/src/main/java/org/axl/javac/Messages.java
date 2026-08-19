@@ -34,7 +34,8 @@ final class Messages {
     private static final Pattern NO_IS_ERR = Pattern.compile("^cannot find symbol; symbol: method isErr\\(\\); location: variable \\$t\\d+ of type (.+)$");
     private static final Pattern MAP_RESULT_ELEMENT = Pattern.compile(
             "^incompatible types: (?:axl\\.lang\\.)?Result<(.+?),.+> cannot be converted to (?:axl\\.lang\\.)?Result<(.+),\\?>$");
-    private static final Pattern METHOD = Pattern.compile("static (.+?) [\\w]+\\(.*\\) \\{$");
+    private static final Pattern METHOD = Pattern.compile(
+            "^(?:@\\w+ )*(?:(?:public|private|protected|static|final|default) )+(?!(?:record|class|interface|enum) )([^=]+?) [\\w$]+\\(.*\\) \\{$");
     // javac reports a second assignment of a final field both ways, once from the plugin's own pass.
     private static final Pattern FINAL_FIELD = Pattern.compile(
             "^(?:cannot assign a value to final variable (\\w+)|variable (\\w+) might already have been assigned)$");

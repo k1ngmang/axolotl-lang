@@ -1,0 +1,23 @@
+package app
+
+import java.util.List
+
+sealed interface Problem
+
+data class Invalid(val reason: String) : Problem
+
+fn number(text: String) -> Result<Int, String> = attempt Integer.parseInt(text) else e -> "not a number: " + text
+
+// The type of a method is not read from the function above the class.
+fn label(n: Int) -> List<String> = List.of("n" + n)
+
+class Book {
+    var total = 0
+
+    fn add(words: List<String>) -> Result<Int, Problem> {
+        for (w in words) {
+            total += try number(w)
+        }
+        return Ok(total)
+    }
+}
