@@ -103,6 +103,9 @@ Lambdas are written in braces: `{ x -> x + 1 }`, `{ a, b -> a.compareTo(b) }`. W
 `it` is the parameter if the body uses it: `{ it > 0 }`; `{ -> run() }` takes no parameters. Inside
 a lambda that has `it`, a nested lambda without an arrow reads that `it`; otherwise `it` belongs to
 the innermost lambda that uses it. A lambda with several statements returns its value with `return`.
+A lambda parameter takes its type from the call. Where Java cannot tell it, as in
+`Comparator.comparing({ p -> p.city() }).thenComparing(...)`, write the type: `{ p: Person -> p.city() }`, or use a
+method reference, `Person::city`.
 A lambda cannot use a `var` that changes, also not inside a `?:`, `?.` or `attempt` in it; copy the
 `var` to a `val` first.
 

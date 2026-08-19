@@ -1,7 +1,7 @@
 # Error codes
 
-Every diagnostic is printed as `file.axl:line:column: error: message`. The `axl` command adds the code at
-the end, as in `[AXL100]`, so that it can be looked up here.
+Every diagnostic is printed as `file.axl:line:column: error: message [AXL100]`; the `axl` command, Gradle and Maven
+end it with the code, so that it can be looked up here. (Maven's compile output keeps its own `[line,column]` form.)
 
 | Code   | Meaning |
 |--------|---------|
