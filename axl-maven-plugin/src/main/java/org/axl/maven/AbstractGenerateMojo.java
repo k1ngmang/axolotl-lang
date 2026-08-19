@@ -211,9 +211,9 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     private void report(List<AxlDiagnostic> diagnostics) throws MojoFailureException {
         for (AxlDiagnostic d : diagnostics) {
             if (d.isError()) {
-                getLog().error(d.format());
+                getLog().error(d.formatWithCode());
             } else {
-                getLog().warn(d.format());
+                getLog().warn(d.formatWithCode());
             }
         }
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {

@@ -20,4 +20,9 @@ public record AxlDiagnostic(String file, int line, int column, Severity severity
     public String format() {
         return file + ":" + line + ":" + column + ": " + severity.name().toLowerCase() + ": " + message;
     }
+
+    /** {@link #format()} with the code at the end, as in `[AXL100]`, for an .axl file; the codes are Axolotl's. */
+    public String formatWithCode() {
+        return file.endsWith(".axl") ? format() + " [" + code.id() + "]" : format();
+    }
 }

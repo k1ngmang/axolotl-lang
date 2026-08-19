@@ -178,7 +178,7 @@ class GenerateMojoTest {
         assertThrows(MojoFailureException.class, () -> mojo(base).execute());
         assertEquals("Translated 2 of 3 .axl file(s)", messages.getLast());
         assertEquals(List.of(sources.resolve("Terse.axl") + ":3:7: error: `Terse` does not give `fn greet() -> String`, "
-                + "which the interface `Greeter` requires; add the method"), errors);
+                + "which the interface `Greeter` requires; add the method [AXL017]"), errors);
 
         // Without the interface, Terse is a class without supertypes to check; javac will miss it.
         Files.delete(greeter);
@@ -285,7 +285,7 @@ class GenerateMojoTest {
             }
         });
         assertThrows(MojoFailureException.class, mojo::execute);
-        assertEquals(x + ":1:1: error: the class `p.Util` is declared by several files: " + x + ", " + y, errors.getFirst());
+        assertEquals(x + ":1:1: error: the class `p.Util` is declared by several files: " + x + ", " + y + " [AXL015]", errors.getFirst());
 
         Files.delete(y);
         mojo(base).execute();

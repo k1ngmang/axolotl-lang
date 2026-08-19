@@ -69,10 +69,10 @@ public class CheckMojo extends AbstractMojo {
                     continue;
                 }
                 if (translated.isError()) {
-                    getLog().error(translated.format());
+                    getLog().error(translated.formatWithCode());
                     failed = true;
                 } else {
-                    getLog().warn(translated.format());
+                    getLog().warn(translated.formatWithCode());
                 }
             }
             if (failed || !outcome.success()) {
