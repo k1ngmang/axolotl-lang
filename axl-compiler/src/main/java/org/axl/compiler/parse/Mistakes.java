@@ -125,7 +125,11 @@ final class Mistakes {
     private static String attemptExit(CommonTokenStream tokens, Token at, Token previous) {
         boolean handler = previous.getType() == AxolotlLexer.ARROW || previous.getType() == AxolotlLexer.ELSE;
         if (handler && lineHas(tokens, at.getLine(), AxolotlLexer.ATTEMPT)) {
-            return "`" + at.getText() + "` can only be the handler of an `attempt` on a line of its own";
+            String message = "`" + at.getText() + "` can only be the handler of an `attempt` on a line of its own";
+            boolean declared = lineHas(tokens, at.getLine(), AxolotlLexer.VAL) || lineHas(tokens, at.getLine(), AxolotlLexer.VAR);
+            return declared ? message + "; to keep the value, keep the `Result`: `val r = attempt ... else e -> e.getMessage()`, "
+                    + "then `if (r is Err) { " + tokens.getText(at, lastOnLine(tokens, at)) + " }`, after which `r.value()` reads the value"
+                    : message;
         }
         return previous.getType() == AxolotlLexer.ARROW && endsUse(tokens, previous)
                 ? "the `else` of `use` is a call or a `throw`, not `" + at.getText() + "`; throw there, and handle the "

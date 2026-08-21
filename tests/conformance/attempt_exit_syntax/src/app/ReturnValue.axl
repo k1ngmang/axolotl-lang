@@ -1,0 +1,11 @@
+package app
+
+import java.util.List
+
+fn first(words: List<String>) -> Int {
+    for (w in words) {
+        val n = attempt Integer.parseInt(w) else e -> return -1
+        return n
+    }
+    return 0
+}
