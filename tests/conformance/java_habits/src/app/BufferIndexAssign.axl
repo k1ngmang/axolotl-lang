@@ -1,0 +1,7 @@
+package app
+
+fn main() {
+    val row = CharArray(5)
+    row[2] = '#'
+    println(String(row))
+}

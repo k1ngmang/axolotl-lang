@@ -1,0 +1,5 @@
+package app
+
+fn first(buffer: ByteArray) -> Int {
+    return buffer[0] + 1
+}

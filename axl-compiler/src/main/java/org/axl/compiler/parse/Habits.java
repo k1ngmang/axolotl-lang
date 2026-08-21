@@ -721,8 +721,18 @@ final class Habits {
         String index = text(tokens, SourceParser.nextCode(tokens, indexToken)).equals("]")
                 && (type(tokens, indexToken) == AxolotlLexer.INT_LITERAL || type(tokens, indexToken) == AxolotlLexer.IDENTIFIER)
                 ? text(tokens, indexToken) : "0";
-        Boolean array = afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER ? holdsArray(tokens, i, before) : null;
+        String kind = afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER ? arrayKind(tokens, i, before) : null;
+        Boolean array = kind == null ? null : !kind.isEmpty();
+        String buffer = kind != null && kind.endsWith("Array") ? kind.replace("Array", "Buffer") : null;
         String set = afterValue && type(tokens, previous) == AxolotlLexer.IDENTIFIER ? elementAssignment(tokens, i) : null;
+        if (set != null && buffer != null) {
+            return "Axolotl has no `[]` indexing, and `" + before + "` is a `" + kind + "`; to change an element, write `" + buffer
+                    + ".wrap(" + before + ").put(" + set + ")`, with `import java.nio." + buffer + "`, which writes through to the array";
+        }
+        if (afterValue && buffer != null) {
+            return "Axolotl has no `[]` indexing, and `" + before + "` is a `" + kind + "`; read an element with `" + buffer + ".wrap("
+                    + before + ").get(" + index + ")`, with `import java.nio." + buffer + "`";
+        }
         if (set != null) {
             String list = before + ".set(" + set + ")";
             String asList = "Arrays.asList(" + before + ").set(" + set + ")";
@@ -742,6 +752,15 @@ final class Habits {
         }
         int callee = afterValue && type(tokens, previous) == AxolotlLexer.RPAREN
                 ? SourceParser.previousCode(tokens, matching(tokens, previous, -1)) : -1;
+        if (callee >= 0 && type(tokens, callee) == AxolotlLexer.IDENTIFIER && text(tokens, callee).equals("toCharArray")) {
+            int string = SourceParser.previousCode(tokens, SourceParser.previousCode(tokens, callee));
+            return "Axolotl has no `[]` indexing; read a character of the string with `charAt`: `"
+                    + source(tokens, operandStart(tokens, previous), string) + ".charAt(" + index + ")`";
+        }
+        if (callee >= 0 && type(tokens, callee) == AxolotlLexer.IDENTIFIER && text(tokens, callee).equals("getBytes")) {
+            return "Axolotl has no `[]` indexing, and `getBytes` gives a `ByteArray`; read an element with `ByteBuffer.wrap("
+                    + source(tokens, operandStart(tokens, previous), previous) + ").get(" + index + ")`, with `import java.nio.ByteBuffer`";
+        }
         if (callee >= 0 && type(tokens, callee) == AxolotlLexer.IDENTIFIER && ARRAY_METHODS.contains(text(tokens, callee))) {
             return "Axolotl has no `[]` indexing, and `" + text(tokens, callee) + "` gives a Java array; read it as a list: `List.of("
                     + source(tokens, operandStart(tokens, previous), previous) + ").get(" + index + ")`";
@@ -772,29 +791,40 @@ final class Habits {
     }
 
     /**
-     * Whether the local named name, declared before the token at i, holds a Java array: its value
-     * comes from `split`, `toCharArray` or another array-giving method. False for another value,
+     * What the local named name, declared before the token at i, holds: `CharArray` or `ByteArray` for a
+     * buffer (`CharArray(n)`, `toCharArray()`, `getBytes()`, or a parameter of that type), `array` for
+     * another Java array (`split` or another array-giving method), an empty string for another value,
      * null when no declaration is found, as for a parameter.
      */
-    private static Boolean holdsArray(List<Token> tokens, int i, String name) {
+    private static String arrayKind(List<Token> tokens, int i, String name) {
         for (int j = i - 1; j >= 0; j--) {
-            boolean declared = type(tokens, j) == AxolotlLexer.IDENTIFIER && text(tokens, j).equals(name)
-                    && type(tokens, SourceParser.nextCode(tokens, j)) == AxolotlLexer.ASSIGN
+            boolean named = type(tokens, j) == AxolotlLexer.IDENTIFIER && text(tokens, j).equals(name);
+            int next = SourceParser.nextCode(tokens, j);
+            if (named && type(tokens, next) == AxolotlLexer.COLON && BUFFERS.contains(text(tokens, SourceParser.nextCode(tokens, next)))) {
+                return text(tokens, SourceParser.nextCode(tokens, next));
+            }
+            boolean declared = named && type(tokens, next) == AxolotlLexer.ASSIGN
                     && (type(tokens, SourceParser.previousCode(tokens, j)) == AxolotlLexer.VAL
                     || type(tokens, SourceParser.previousCode(tokens, j)) == AxolotlLexer.VAR);
             if (!declared) {
                 continue;
             }
             int line = tokens.get(j).getLine();
-            for (int k = SourceParser.nextCode(tokens, j); type(tokens, k) != Token.EOF && tokens.get(k).getLine() == line;
-                    k = SourceParser.nextCode(tokens, k)) {
-                if (type(tokens, k) == AxolotlLexer.IDENTIFIER && ARRAY_METHODS.contains(text(tokens, k))
-                        && type(tokens, SourceParser.previousCode(tokens, k)) == AxolotlLexer.DOT
-                        && type(tokens, SourceParser.nextCode(tokens, k)) == AxolotlLexer.LPAREN) {
-                    return true;
+            for (int k = next; type(tokens, k) != Token.EOF && tokens.get(k).getLine() == line; k = SourceParser.nextCode(tokens, k)) {
+                boolean call = type(tokens, k) == AxolotlLexer.IDENTIFIER && type(tokens, SourceParser.nextCode(tokens, k)) == AxolotlLexer.LPAREN;
+                boolean method = call && type(tokens, SourceParser.previousCode(tokens, k)) == AxolotlLexer.DOT;
+                if (call && !method && BUFFERS.contains(text(tokens, k))) {
+                    return text(tokens, k);
+                }
+                if (method && ARRAY_METHODS.contains(text(tokens, k))) {
+                    return switch (text(tokens, k)) {
+                        case "toCharArray" -> "CharArray";
+                        case "getBytes" -> "ByteArray";
+                        default -> "array";
+                    };
                 }
             }
-            return false;
+            return "";
         }
         return null;
     }
@@ -812,6 +842,8 @@ final class Habits {
         }
         return false;
     }
+
+    private static final Set<String> BUFFERS = Set.of("CharArray", "ByteArray");
 
     private static final Set<String> ARRAY_METHODS = Set.of("split", "toCharArray", "toArray", "getBytes",
             "getDeclaredConstructors", "getConstructors", "getDeclaredMethods", "getMethods", "getDeclaredFields", "getFields",

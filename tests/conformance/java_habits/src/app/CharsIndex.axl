@@ -1,0 +1,6 @@
+package app
+
+fn main() {
+    val word = "axolotl"
+    println(word.toCharArray()[1])
+}
