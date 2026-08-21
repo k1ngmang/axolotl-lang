@@ -1,0 +1,10 @@
+package app
+
+import java.util.Random
+import java.util.stream.IntStream
+
+fn main() {
+    val rolls = Random(7L).ints(5L, 1, 7) |> filter { it > 2 } |> count
+    println(rolls)
+    println(IntStream.range(0, 4) |> map { it * it })
+}

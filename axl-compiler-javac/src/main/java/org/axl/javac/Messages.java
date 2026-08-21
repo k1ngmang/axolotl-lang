@@ -182,6 +182,8 @@ final class Messages {
     private static final Pattern CLASS_HEADER = Pattern.compile("\\b(?:class|record|interface) \\w+<");
     private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
+    private static final Pattern NUMBER_STREAM = Pattern.compile("^java\\.util\\.stream\\.(?:Int|Long|Double)Stream$");
+    private static final Pattern PIPE_SOURCE = Pattern.compile("^(?:(?:val|var)\\s+\\w+(?:\\s*:[^=]+)?\\s*=\\s*|return\\s+)?(.+)$");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
     private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
             + "`sorted { a, b -> a.compareTo(b) }`";
@@ -2408,12 +2410,27 @@ final class Messages {
             return found + ", which `|>` takes only where its type is known; write it, `val items: " + axlType(javaType)
                     + " = ...`, or collect it with `.toList()` first";
         }
+        if (NUMBER_STREAM.matcher(javaType).matches()) {
+            String source = pipeSource(axlText);
+            return found + "; a stream of numbers needs `.boxed()` first" + (source == null ? "" : ": `" + source + ".boxed() |> ...`");
+        }
         if (!javaType.endsWith("[]") || PRIMITIVE_ARRAY.matcher(javaType).matches()) {
             return found;
         }
         Matcher subject = PIPE.matcher(axlText);
         boolean named = subject.find() && SIMPLE_NAME.matcher(subject.group(1)).matches();
         return found + "; an array is not a collection, so wrap it in `List.of(" + (named ? subject.group(1) : "...") + ")`";
+    }
+
+    /** `IntStream.range(0, 4)` of `val xs = IntStream.range(0, 4) |> ...`, or null where the start is not clear. */
+    private static String pipeSource(String axlText) {
+        int pipe = axlText.indexOf("|>");
+        Matcher source = PIPE_SOURCE.matcher(pipe < 0 ? "" : axlText.substring(0, pipe).strip());
+        if (!source.matches()) {
+            return null;
+        }
+        String text = source.group(1);
+        return text.chars().filter(c -> c == '(').count() == text.chars().filter(c -> c == ')').count() ? text : null;
     }
 
     /** The qualified name of the class generated for the .axl file. */

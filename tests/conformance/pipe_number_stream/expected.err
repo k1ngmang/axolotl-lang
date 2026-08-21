@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:7:40: error: `|>` needs a collection or a stream, found `IntStream`; a stream of numbers needs `.boxed()` first: `Random(7L).ints(5L, 1, 7).boxed() |> ...`
+AXL100 app/Main.axl:9:32: error: `|>` needs a collection or a stream, found `IntStream`; a stream of numbers needs `.boxed()` first
