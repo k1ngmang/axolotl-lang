@@ -45,6 +45,7 @@ final class ErrorProneMessages {
     private static final Pattern SYNCHRONIZED = Pattern.compile("^\\[JdkObsolete] (\\w+) performs synchronization .*prefer (\\w+)");
     private static final Pattern MISSING_CASES = Pattern.compile("^\\[MissingCasesInEnumSwitch] .*handle the remaining cases: (.+)$");
     private static final Pattern CREATED = Pattern.compile("\\b(\\w+) = new ");
+    private static final Pattern DECLARED = Pattern.compile("\\bvar (\\w+) = ");
     private static final Pattern SELF_ASSIGNED = Pattern.compile("^\\s*(\\w+) = \\1;");
     private static final Pattern NOT_NULL_ARGUMENT = Pattern.compile("requireNonNull\\((\"[^\"]*\"|[\\w.]+)\\)");
     private static final Pattern CREATED_EXCEPTION = Pattern.compile("\\bnew (?:[a-z]\\w*\\.)*(\\w+)\\(");
@@ -179,8 +180,18 @@ final class ErrorProneMessages {
                 yield CLASS_TYPE + (type.find() ? "use `" + type.group(1) + "` instead" : "use an interface, such as `List`");
             }
             case "ReturnAtTheEndOfVoidFunction" -> "the `return` at the end of this function is unnecessary";
+            case "StreamResourceLeak" -> streamLeak(text);
             default -> identityOrToString(message, text);
         };
+    }
+
+    /** A stream of `Files.lines` or `Files.list` holds the file open; `use` closes it, as try-with-resources does. */
+    private static String streamLeak(String text) {
+        Matcher declared = DECLARED.matcher(text);
+        Messages.Attempt attempt = Messages.Attempt.in(text);
+        String call = attempt != null && !attempt.value().contains("new ") && !attempt.value().contains("->") ? attempt.value() : "...";
+        return "this stream keeps its file or directory open until it is closed; open it with `use (val "
+                + (declared.find() ? declared.group(1) : "lines") + " = " + call + ") { ... } else e -> throw IllegalStateException(e)`";
     }
 
     private static String identityOrToString(String message, String text) {

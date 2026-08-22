@@ -228,6 +228,23 @@ class AxlBuildTest {
     }
 
     @Test
+    void wordsAStreamLeftOpenWithUse(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.nio.file.Files
+                import java.nio.file.Path
+
+                fn main() {
+                    val files = attempt Files.list(Path.of(".")) else e -> throw IllegalStateException(e)
+                    println(files.count())
+                }
+                """);
+        assertEquals(List.of("7:31 this stream keeps its file or directory open until it is closed; open it with `use (val files = "
+                + "Files.list(Path.of(\".\"))) { ... } else e -> throw IllegalStateException(e)`"), warnings);
+    }
+
+    @Test
     void wordsCalculationAndCollectionWarningsWithoutJavaAdvice(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
