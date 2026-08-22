@@ -82,6 +82,10 @@ class CliTest {
         out.reset();
         assertEquals(0, axl("help", "run"), err.toString());
         assertTrue(out.toString().startsWith("Usage: axl run"), out.toString());
+        out.reset();
+        assertEquals(0, axl("daemon", "--help"), err.toString());
+        assertFalse(out.toString().contains("[--no-daemon]") || out.toString().contains("--verbose"), out.toString());
+        assertTrue(out.toString().contains("--stop"), out.toString());
     }
 
     @Test

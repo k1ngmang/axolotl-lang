@@ -11,9 +11,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.List;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.HelpCommand;
+import picocli.CommandLine.Model.CommandSpec;
+import picocli.CommandLine.Model.OptionSpec;
 import picocli.CommandLine.Option;
 import picocli.CommandLine.ScopeType;
 
@@ -68,6 +71,13 @@ public final class Main {
         CommandLine commandLine = new CommandLine(new Main(daemon));
         // Everything after the .axl file belongs to the program, options included.
         commandLine.getSubcommands().get("run").setStopAtPositional(true);
+        // `axl daemon` compiles nothing, so the inherited options about compiling only confuse its help; they are still accepted.
+        CommandSpec daemonCommand = commandLine.getSubcommands().get("daemon").getCommandSpec();
+        for (String name : List.of("--no-daemon", "--verbose")) {
+            OptionSpec option = daemonCommand.findOption(name);
+            daemonCommand.remove(option);
+            daemonCommand.addOption(OptionSpec.builder(option).hidden(true).build());
+        }
         // picocli's own converter hides the InvalidPathException in a message.
         commandLine.registerConverter(Path.class, text -> Path.of(text));
         CommandLine.IParameterExceptionHandler usage = commandLine.getParameterExceptionHandler();
