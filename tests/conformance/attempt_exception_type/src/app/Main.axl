@@ -1,0 +1,9 @@
+package app
+
+import java.io.UncheckedIOException
+import java.nio.file.Files
+import java.nio.file.Path
+
+fn read(path: Path) -> String {
+    return attempt Files.readString(path) else failure -> throw UncheckedIOException(failure)
+}

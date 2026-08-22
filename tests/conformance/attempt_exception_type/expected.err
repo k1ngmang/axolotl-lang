@@ -1,0 +1,1 @@
+AXL100 app/Main.axl:8:86: error: type mismatch: expected `IOException`, found `Exception`; `failure` of `attempt` is any `Exception`; wrap it in `IllegalStateException(failure)`

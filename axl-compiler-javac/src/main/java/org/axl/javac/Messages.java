@@ -182,6 +182,7 @@ final class Messages {
     private static final Pattern CLASS_HEADER = Pattern.compile("\\b(?:class|record|interface) \\w+<");
     private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
+    private static final Pattern ATTEMPT_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*->");
     private static final Pattern NUMBER_STREAM = Pattern.compile("^java\\.util\\.stream\\.(?:Int|Long|Double)Stream$");
     private static final Pattern PIPE_SOURCE = Pattern.compile("^(?:(?:val|var)\\s+\\w+(?:\\s*:[^=]+)?\\s*=\\s*|return\\s+)?(.+)$");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
@@ -1111,6 +1112,12 @@ final class Messages {
         }
         if (incompatible.find(0) && incompatible.group(1).equals("void")) {
             return "this gives no value: the call returns nothing, but `" + axlType(incompatible.group(2)) + "` is expected";
+        }
+        if (incompatible.find(0) && incompatible.group(1).equals("java.lang.Exception") && attempt != null && javaColumn > attempt.comma()) {
+            Matcher handler = ATTEMPT_HANDLER.matcher(axlText);
+            String e = handler.find() ? handler.group(1) : "e";
+            return mismatch(incompatible.group(2), incompatible.group(1), text, javaColumn) + "; `" + e
+                    + "` of `attempt` is any `Exception`; wrap it in `IllegalStateException(" + e + ")`";
         }
         if (incompatible.find(0)) {
             return mismatch(incompatible.group(2), incompatible.group(1), text, javaColumn);
