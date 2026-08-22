@@ -10,7 +10,7 @@
   <packaging>maven-archetype</packaging>
 
   <name>Axolotl quickstart archetype</name>
-  <description>A Maven project with .axl and .java sources, Error Prone and NullAway.</description>
+  <description>A Maven project with .axl sources and tests, Error Prone and NullAway.</description>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

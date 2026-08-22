@@ -1,0 +1,12 @@
+package ${package}
+
+import fn org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
+
+class AppTest {
+    @Test
+    fn greetsTheWorldByDefault() {
+        assertEquals("Hello, world!", App.greeting(null))
+        assertEquals("Hello, axolotl!", App.greeting("axolotl"))
+    }
+}

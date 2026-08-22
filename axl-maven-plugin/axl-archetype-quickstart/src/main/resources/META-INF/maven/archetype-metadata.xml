@@ -16,9 +16,9 @@
       </includes>
     </fileSet>
     <fileSet filtered="true" packaged="true">
-      <directory>src/test/java</directory>
+      <directory>src/test/axl</directory>
       <includes>
-        <include>**/*.java</include>
+        <include>**/*.axl</include>
       </includes>
     </fileSet>
     <fileSet>
