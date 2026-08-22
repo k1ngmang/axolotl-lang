@@ -96,7 +96,7 @@ final class ModuleCompiler {
             nullChecks = false;
             outcome = JavaCompilation.compile(sources, classpath, classes, module.javaSourcepathOptions(), false, module.strictNull());
         }
-        var translator = new DiagnosticTranslator(generated, ModuleCompiler::uri);
+        var translator = new DiagnosticTranslator(generated, ModuleCompiler::uri).classpath(module.classpath());
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
             if (translated != null && result.containsKey(translated.file()) && !standIns.containsKey(translated.file())) {

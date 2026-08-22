@@ -1,6 +1,8 @@
 package org.axl.javac;
 
+import java.nio.file.Path;
 import java.util.Collection;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -21,9 +23,15 @@ final class OtherFiles {
     private static final Pattern PRIVATE_FIELD = Pattern.compile("^`(\\w+)` is private to `(?:[\\w.]+\\.)?(\\w+)` and can only be used in that file$");
 
     private final Collection<GeneratedSource> sources;
+    private ClasspathTypes classpath = new ClasspathTypes(List.of());
 
     OtherFiles(Collection<GeneratedSource> sources) {
         this.sources = sources;
+    }
+
+    /** The jars and class directories whose classes an unknown name may need an import of. */
+    void classpath(List<Path> entries) {
+        classpath = new ClasspathTypes(entries);
     }
 
     String reword(String message) {
@@ -71,6 +79,11 @@ final class OtherFiles {
             return "unknown name `" + unknownName.group(1) + Messages.DECLARED_IN + nameFile + ".axl: `import "
                     + nameFile.replace('/', '.') + "." + unknownName.group(1) + "`";
         }
+        String unknown = unknownName.find(0) ? unknownName.group(1) : unknownType.find(0) ? unknownType.group(1) : null;
+        List<String> classes = unknown != null && Character.isUpperCase(unknown.charAt(0)) ? classpath.named(unknown) : List.of();
+        if (!classes.isEmpty()) {
+            return message.substring(0, message.indexOf("; ")) + "; " + onClasspath(classes);
+        }
         Matcher unknownImport = UNKNOWN_IMPORT.matcher(message);
         if (unknownImport.find()) {
             String declaring = declaring(unknownImport.group(1), unknownImport.group(2));
@@ -81,6 +94,16 @@ final class OtherFiles {
             }
         }
         return Messages.outOfBoundsOf(message, this::typeParameters);
+    }
+
+    /** `grid.Grid` is on the classpath: `import grid.Grid`, or a choice of the first few classes of that name. */
+    private static String onClasspath(List<String> classes) {
+        if (classes.size() == 1) {
+            return "`" + classes.getFirst() + "` is on the classpath: `import " + classes.getFirst() + "`";
+        }
+        List<String> shown = classes.stream().limit(3).map(c -> "`import " + c + "`").toList();
+        return "the classpath has " + classes.size() + " classes of that name; import one of them: " + String.join(", ", shown)
+                + (classes.size() > shown.size() ? ", ..." : "");
     }
 
     /** The type parameters of a generic type of the build, as its Java declares them, or null. */

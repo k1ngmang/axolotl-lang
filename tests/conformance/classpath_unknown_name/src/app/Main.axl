@@ -1,0 +1,7 @@
+package app
+
+fn apply(m: Mapper<String, Int>) -> Int = m.map("a")
+
+fn main() {
+    println(Options.some("a"))
+}

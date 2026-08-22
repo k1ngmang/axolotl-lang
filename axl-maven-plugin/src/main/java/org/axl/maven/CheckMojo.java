@@ -61,7 +61,7 @@ public class CheckMojo extends AbstractMojo {
             // Inside target, so that `mvn clean` removes it; it is not the real output directory.
             Path classes = Files.createDirectories(Path.of(project.getBuild().getDirectory(), "axl-check-classes"));
             JavaCompilation.Outcome outcome = JavaCompilation.compile(javaSources(), classpath, classes, List.of(), nullAway, strictNull);
-            var translator = new DiagnosticTranslator(generated, Path::toString);
+            var translator = new DiagnosticTranslator(generated, Path::toString).classpath(classpath);
             boolean failed = false;
             for (var d : outcome.diagnostics()) {
                 AxlDiagnostic translated = translator.translate(d);

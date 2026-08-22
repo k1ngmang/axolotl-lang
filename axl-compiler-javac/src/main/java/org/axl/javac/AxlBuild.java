@@ -111,7 +111,7 @@ public final class AxlBuild {
             return new Result(true, diagnostics, generated);
         }
         JavaCompilation.Outcome outcome = JavaCompilation.compile(sources, classpath, classesDir, javacOptions, nullChecks, strictNull);
-        var translator = new DiagnosticTranslator(generated, display);
+        var translator = new DiagnosticTranslator(generated, display).classpath(classpath);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);
             if (translated != null && !repeated(diagnostics, translated)) {

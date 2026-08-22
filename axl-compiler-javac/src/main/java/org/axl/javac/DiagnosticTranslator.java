@@ -30,6 +30,12 @@ public final class DiagnosticTranslator {
         this.otherFiles = new OtherFiles(sources);
     }
 
+    /** The classpath of the compilation, whose classes an unknown name may need an import of. */
+    public DiagnosticTranslator classpath(List<Path> entries) {
+        otherFiles.classpath(entries);
+        return this;
+    }
+
     /** Returns null for notes and for warnings about the shape of generated code. */
     public AxlDiagnostic translate(Diagnostic<? extends JavaFileObject> diagnostic) {
         AxlDiagnostic.Severity severity = switch (diagnostic.getKind()) {
