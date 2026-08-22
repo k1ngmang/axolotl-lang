@@ -8,6 +8,8 @@ mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-arch
     -DarchetypeVersion=0.2.0 -DgroupId=org.example -DartifactId=demo -Dpackage=org.example.demo
 ```
 
+The generated project has `src/main/axl/.../App.axl` and a JUnit test written in Axolotl, `src/test/axl/.../AppTest.axl`.
+
 ## Goals
 
 | Goal                | Default phase           | What it does |

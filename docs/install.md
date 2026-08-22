@@ -144,6 +144,9 @@ Exit codes: 0 on success; 1 when the sources have errors, or when the program th
 started throws; 2 for a wrong command line or a file that cannot be read. A program that calls
 `System.exit` sets the code itself.
 
+`axl run` compiles the source tree that the file's package starts at; `.axl` files below it whose package is not their
+directory belong to another source tree and are left out (`--verbose` names them).
+
 ### Compiler daemon
 
 Starting Java and loading javac, Error Prone and NullAway takes most of the time of a small build. The first

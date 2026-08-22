@@ -172,6 +172,9 @@ and is created like a data class: `Counter("c", 1)`; it may implement interfaces
 Function<Int, Int> { fn apply(x: Int) -> Int = x * 2 }`. The same holds for a generic interface from a library on the
 classpath or from your own Java files, since the compiler reads their signatures. A property
 without a written type may be initialized by a method of its class that has a written result type (`val total = compute()`).
+Every parameter of a class is a property and is written with `val` or `var`: `class Dice(seed: Long) { val random =
+Random(seed) }` is rejected, write `class Dice(val seed: Long)`. Axolotl has no parameters that only the constructor sees,
+which keeps one way to declare state.
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
@@ -442,12 +445,15 @@ type). A method that also takes a collection there (`ProcessBuilder(list)`, `Str
 of `Object` that the list is one value of (`String.format("%s", list)`), gets the list. For input and output buffers,
 `ByteArray(n)` and `CharArray(n)` create Java's `byte[]` and `char[]`, which are also the type names: `fn copy(input:
 InputStream, buffer: ByteArray)`. Pass them to Java (`read`, `write`, `String(buf, 0, n, UTF_8)`, `ByteBuffer.wrap(buf)`), read
-`.length`, or go over them with `for (b in buf)`. Their elements are read and written by Java code.
+`.length`, or go over them with `for (b in buf)`. Their elements are read and written by Java code:
+`CharBuffer.wrap(row).put(2, '#')` writes an element through to the array, `CharBuffer.wrap(row).get(2)` reads one
+(`ByteBuffer` for a `ByteArray`).
 
 ## Pipes
 
 `|>` feeds a collection through Java stream operations; it also takes a `Stream` whose type the code tells (`Stream.of`,
-`xs.stream()`, `Files.lines(p)`, `val s: Stream<String> = ...`) as it is:
+`xs.stream()`, `Files.lines(p)`, `val s: Stream<String> = ...`) as it is. A stream of numbers, such as `IntStream.range(0, 4)`
+or `Random().ints(...)`, goes through `|>` after `.boxed()`:
 
 ```axl
 val evens = numbers |> filter { it % 2 == 0 } |> map { it * 10 }

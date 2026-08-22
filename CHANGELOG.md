@@ -198,6 +198,19 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - A class of its own file that lacks a method of a Java interface, `class Worker : Runnable` without `run`, gets `` `Worker` must give `fn run()` `` instead of javac's words.
   - Test sources read the declarations of the main `.axl` sources in Gradle and Maven, and a Gradle source set those of the projects it depends on, as the modules of the language server do.
 - `axl check`, `axl build` and `axl run` compile in a background daemon that keeps javac, Error Prone, NullAway and the compiler loaded: after the first command, a small program compiles and runs in about a second instead of three to seven. The first command starts the daemon. It ends after 3 hours without work (`AXL_DAEMON_IDLE`, such as `30m`), when its installation changes, or on `axl daemon --stop`; `axl daemon --status` shows it. `--no-daemon` or `AXL_DAEMON=off` compile in the command's own process, as `axl` also does whenever the daemon cannot start; `--verbose` says which. The program of `axl run` still runs in the `axl` process. On Windows the daemon is used only from a console.
+- Thirteenth audit, three more programs (a Markdown to HTML converter, a grid game with A*, a Maven money library with JUnit tests in Axolotl):
+  - The `try` error-type message reads the result type of the method it is in; a `try` in a method of a class used to get javac's own words.
+  - `row[2] = '#'` on a `CharArray` or `ByteArray` suggests `CharBuffer.wrap(row).put(2, '#')` or `ByteBuffer.wrap(buf).get(i)`, and `s.toCharArray()[i]` suggests `s.charAt(i)`.
+  - A pipe over an `IntStream`, `LongStream` or `DoubleStream` says to call `.boxed()` first.
+  - `val n = attempt f() else e -> continue` shows how to keep the `Result` and leave with `if (r is Err) { continue }`.
+  - `attempt ... else e -> throw UncheckedIOException(e)` explains that `e` is any `Exception` and suggests `IllegalStateException(e)`.
+  - Error Prone's StreamResourceLeak (`attempt Files.list(dir) ...`) suggests opening the stream with `use`.
+  - An unknown name or type that a class on the classpath has suggests its import: `import grid.Grid`.
+  - A name that Java reserves (`new`, `default`, `int` ...) gets a suggestion such as `newValue` or `fallback`.
+  - `String.format("%s-%s", words)` with a list explains that the list is one value.
+  - `axl run` leaves out `.axl` files under its root whose package is not their directory, such as a vendored library in a subdirectory, whose classes used to shadow those of `-cp`; `--verbose` names them.
+  - `axl check .` prints paths without `./`; `axl daemon --help` no longer lists `--no-daemon` and `--verbose`.
+  - The test of the Maven archetype is `src/test/axl/.../AppTest.axl` instead of a Java file.
 - Twelfth audit, three more programs (an HTTP service with an in-process client, a command-line log tool, a concurrent batch processor with JUnit tests):
   - `attempt ... else` and `use ... else` no longer clear a thread's interrupt flag: an interrupted worker looping on `isInterrupted()` now stops after `shutdownNow()`.
   - `if (f(x) is Err)` no longer fails with "unknown type" when the type arguments of the result come from another file that this file does not import.
