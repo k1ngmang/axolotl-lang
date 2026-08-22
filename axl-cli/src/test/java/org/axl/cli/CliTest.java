@@ -346,6 +346,14 @@ class CliTest {
     }
 
     @Test
+    void checkShowsPathsWithoutDotDirectories(@TempDir Path tmp) throws Exception {
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(nope)\n}\n");
+        assertEquals(1, axl("check", tmp.resolve("src/.").toString(), "--no-null-checks"));
+        assertTrue(out.toString(StandardCharsets.UTF_8).startsWith(app.resolve("Main.axl").toAbsolutePath() + ":4:13: "), out.toString());
+    }
+
+    @Test
     void checkReadsEachFileOnceWhenSourceDirectoriesOverlap(@TempDir Path tmp) throws Exception {
         Path app = Files.createDirectories(tmp.resolve("src/app"));
         Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");

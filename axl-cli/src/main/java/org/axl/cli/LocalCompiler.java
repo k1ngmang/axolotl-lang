@@ -36,7 +36,7 @@ final class LocalCompiler implements Compiler {
     private static CompileJob.Result check(CompileJob job) throws IOException {
         Path cwd = job.workingDirectory();
         AxlBuild.Result result = configure(new AxlBuild(job.sourceDirs(), job.generatedDir(), job.classesDir()), job)
-                .display(p -> cwd.resolve(p).toString())
+                .display(p -> cwd.resolve(p).normalize().toString())
                 .skip(Paths::isInWorkDirectory)
                 .run();
         result.diagnostics().forEach(d -> System.out.println(format(d)));
