@@ -183,6 +183,9 @@ final class Messages {
     private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
     private static final Pattern ATTEMPT_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*->");
+    private static final Pattern SINGLE_FORMAT_VALUE = Pattern.compile(
+            "(?:\\.(?:format|printf)\\(\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,|\\.formatted\\()\\s*([A-Za-z_]\\w*)\\s*\\)");
+    private static final Pattern COLLECTION_TYPE = Pattern.compile("(?:^|\\.)(?:\\w*List|\\w*Set|Collection)(?:\\.of)?$");
     private static final Pattern NUMBER_STREAM = Pattern.compile("^java\\.util\\.stream\\.(?:Int|Long|Double)Stream$");
     private static final Pattern PIPE_SOURCE = Pattern.compile("^(?:(?:val|var)\\s+\\w+(?:\\s*:[^=]+)?\\s*=\\s*|return\\s+)?(.+)$");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
@@ -784,7 +787,8 @@ final class Messages {
         }
         if (message.startsWith("[")) {
             String plain = SUGGESTION.matcher(ERROR_PRONE_LINK.matcher(message).replaceAll("")).replaceAll("");
-            return new Translated(ErrorCode.JAVAC, ErrorProneMessages.translate(plain, text));
+            String translated = ErrorProneMessages.translate(plain, text);
+            return new Translated(ErrorCode.JAVAC, translated + listAsFormatValue(translated, text, javaLines, javaLine));
         }
         Matcher imported = IMPORTED_CLASS.matcher(text.strip());
         if (imported.find() && message.startsWith("cannot find symbol; symbol: class ")) {
@@ -2438,6 +2442,28 @@ final class Messages {
         }
         String text = source.group(1);
         return text.chars().filter(c -> c == '(').count() == text.chars().filter(c -> c == ')').count() ? text : null;
+    }
+
+    /**
+     * A list is one value of `Object...`: `String.format("%s-%s", words)` has nothing for the second `%s`.
+     * The hint when the only value after the format is a local or parameter declared as a list or set.
+     */
+    private static String listAsFormatValue(String translated, String text, String[] javaLines, int javaLine) {
+        Matcher single = SINGLE_FORMAT_VALUE.matcher(text);
+        if (!translated.endsWith(" in the format has no value to show") || !single.find()) {
+            return "";
+        }
+        Pattern declaration = Pattern.compile("(?:^|[(,]\\s*)(?:final )?([\\w.]+)(?:<[^=]*>)? " + Pattern.quote(single.group(1))
+                + "(?: = (?:new )?([\\w.]+))?[,;)=(< ]");
+        for (int i = Math.min(javaLine, javaLines.length) - 1; i >= 0; i--) {
+            Matcher declared = declaration.matcher(javaLines[i].strip());
+            if (declared.find()) {
+                String type = declared.group(1).equals("var") && declared.group(2) != null ? declared.group(2) : declared.group(1);
+                return COLLECTION_TYPE.matcher(type).find() ? "; the list `" + single.group(1)
+                        + "` is one value here: pass the values one by one" : "";
+            }
+        }
+        return "";
     }
 
     /** The qualified name of the class generated for the .axl file. */

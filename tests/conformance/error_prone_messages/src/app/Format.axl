@@ -1,0 +1,12 @@
+package app
+
+import java.util.List
+
+fn joined(words: List<String>) -> String = String.format("%s-%s", words)
+
+fn shown(word: String) -> String = "%s and %s".formatted(word)
+
+fn path() -> String {
+    val parts = List.of("a", "b")
+    return String.format("%s/%s", parts)
+}
