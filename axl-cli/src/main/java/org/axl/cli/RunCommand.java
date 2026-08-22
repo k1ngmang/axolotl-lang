@@ -63,6 +63,9 @@ final class RunCommand implements Callable<Integer> {
             throw new IOException(file + " is not UTF-8 text", e);
         }
         Paths.warnAboutMissingEntries(classpath);
+        if (main.verbose) {
+            noteOtherSourceTrees();
+        }
         Path work = WorkDirectories.create(WorkDirectories.RUN);
         var job = new CompileJob(CompileJob.Kind.RUN, List.of(), file, work.resolve("generated"), work.resolve("classes"),
                 classpath, !noNullChecks, strictNull, inlineElvis, false, Paths.workingDirectory());
@@ -72,6 +75,19 @@ final class RunCommand implements Callable<Integer> {
         }
         // Here and not in the compiler daemon: the program has the terminal, System.exit and its threads to itself.
         return runMain(work.resolve("classes"), work.resolve("generated"), result.mainClass());
+    }
+
+    /** The files under the source root that the compiler leaves out, as {@link Paths#otherSourceTrees} finds them. */
+    private void noteOtherSourceTrees() throws IOException {
+        Path cwd = Paths.workingDirectory();
+        Path absolute = cwd.resolve(file).normalize();
+        String declared = Paths.declaredPackage(absolute);
+        Path root = sourceRoot(absolute, declared == null ? "" : declared);
+        String shownRoot = Paths.display(cwd, root).isEmpty() ? "." : Paths.display(cwd, root);
+        for (Path other : Paths.otherSourceTrees(root, absolute)) {
+            System.err.println("axl: not compiled: " + Paths.display(cwd, other) + " is in package `" + Paths.declaredPackage(other)
+                    + "`, which is not its directory under " + shownRoot + ", so it belongs to another source tree");
+        }
     }
 
     /** The directory the package path starts from; the file's own directory if they do not match. */

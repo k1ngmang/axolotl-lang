@@ -524,6 +524,22 @@ class CliTest {
     }
 
     @Test
+    void runLeavesOutTheSourcesOfAnotherTreeUnderItsRoot(@TempDir Path tmp) throws Exception {
+        Path jar = libraryJar(tmp);
+        Path app = Files.createDirectories(tmp.resolve("src/app"));
+        Path main = Files.writeString(app.resolve("Main.axl"),
+                "package app\n\nimport lib.Greeter\n\nfn main() {\n    println(Greeter.greet(\"Ann\"))\n}\n");
+        Path vendored = Files.createDirectories(tmp.resolve("src/vendor/lib"));
+        Files.writeString(vendored.resolve("Greeter.axl"), "package lib\n\nfn greet(name: String) -> String = \"vendored \" + name\n");
+        assertEquals(0, axl("run", "--verbose", "--no-null-checks", "-cp", jar.toString(), main.toString()), err.toString());
+        assertEquals("Hello, Ann\n", out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n"));
+        String note = err.toString(StandardCharsets.UTF_8).lines().findFirst().orElse("");
+        assertEquals("axl: not compiled: " + vendored.resolve("Greeter.axl") + " is in package `lib`, which is not its directory under "
+                + tmp.resolve("src") + ", so it belongs to another source tree", note);
+        assertFalse(err.toString(StandardCharsets.UTF_8).contains("AXL014"), err.toString());
+    }
+
+    @Test
     void checkFindsClassesOfTheClasspath(@TempDir Path tmp) throws Exception {
         Path jar = libraryJar(tmp);
         Path app = Files.createDirectories(tmp.resolve("src/app"));

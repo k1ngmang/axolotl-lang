@@ -1,11 +1,14 @@
 package org.axl.cli;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 final class Paths {
@@ -59,7 +62,28 @@ final class Paths {
         }
     }
 
-    private static String declaredPackage(Path file) throws IOException {
+    /**
+     * The .axl files under the root of `axl run`, other than the file it runs, whose package is not their
+     * directory: the sources of another tree, such as a vendored library, whose classes would shadow
+     * those of the classpath. Absolute and normalized.
+     */
+    static Set<Path> otherSourceTrees(Path root, Path runFile) throws IOException {
+        Path start = root.toAbsolutePath().normalize();
+        Path run = runFile.toAbsolutePath().normalize();
+        Set<Path> others = new TreeSet<>();
+        try (Stream<Path> walk = Files.walk(start)) {
+            for (Path file : walk.filter(p -> p.toString().endsWith(".axl") && Files.isRegularFile(p) && !p.equals(run)).toList()) {
+                Path dir = start.relativize(file).getParent();
+                String declared = declaredPackage(file);
+                if (declared != null && !declared.equals(dir == null ? "" : dir.toString().replace(File.separatorChar, '.'))) {
+                    others.add(file);
+                }
+            }
+        }
+        return others;
+    }
+
+    static String declaredPackage(Path file) throws IOException {
         try (Stream<String> lines = Files.lines(file)) {
             return lines.map(String::strip).filter(l -> l.startsWith("package ")).findFirst()
                     .map(l -> l.substring("package ".length()).strip()).orElse(null);

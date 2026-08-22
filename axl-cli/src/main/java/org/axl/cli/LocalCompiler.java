@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Set;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
@@ -63,10 +64,12 @@ final class LocalCompiler implements Compiler {
         String className = Translator.className(file.getFileName().toString());
         SourceFile parsed = SourceParser.parse(file.toString(), className, text).file();
         String packageName = parsed != null && parsed.packageName() != null ? parsed.packageName() : "";
-        Path root = RunCommand.sourceRoot(job.workingDirectory().resolve(file).normalize(), packageName);
+        Path absolute = job.workingDirectory().resolve(file).normalize();
+        Path root = RunCommand.sourceRoot(absolute, packageName);
+        Set<Path> otherTrees = Paths.otherSourceTrees(root, absolute);
         AxlBuild.Result result = configure(new AxlBuild(root, job.generatedDir(), job.classesDir()), job)
                 .display(p -> Paths.display(job.workingDirectory(), p))
-                .skip(Paths::isInWorkDirectory)
+                .skip(p -> Paths.isInWorkDirectory(p) || otherTrees.contains(p.toAbsolutePath().normalize()))
                 .run();
         report(result.diagnostics());
         return new CompileJob.Result(result.success(), packageName.isEmpty() ? className : packageName + "." + className);
