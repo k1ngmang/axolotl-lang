@@ -1,0 +1,7 @@
+package app
+
+import java.util.ArrayList
+
+fn replace(items: ArrayList<String>, old: String, new: String) {
+    items.set(items.indexOf(old), new)
+}

@@ -1,2 +1,2 @@
-AXL011 app/Main.axl:4:8: error: `case` cannot be used as a name: Java, which the code becomes, reserves it
-AXL011 app/Main.axl:6:8: error: `default` cannot be used as a name: Java, which the code becomes, reserves it
+AXL011 app/Main.axl:4:8: error: `case` cannot be used as a name: Java, which the code becomes, reserves it; choose another name, such as `choice`
+AXL011 app/Main.axl:6:8: error: `default` cannot be used as a name: Java, which the code becomes, reserves it; choose another name, such as `fallback`

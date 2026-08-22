@@ -1,4 +1,5 @@
-AXL011 app/Main.axl:3:18: error: `int` cannot be used as a name: Java, which the code becomes, reserves it
-AXL011 app/Main.axl:6:5: error: `static` cannot be used as a name: Java, which the code becomes, reserves it
-AXL011 app/Main.axl:9:6: error: `default` cannot be used as a name: Java, which the code becomes, reserves it
+AXL011 app/Main.axl:3:18: error: `int` cannot be used as a name: Java, which the code becomes, reserves it; choose another name, such as `number`
+AXL011 app/Main.axl:6:5: error: `static` cannot be used as a name: Java, which the code becomes, reserves it; choose another name, such as `isStatic`
+AXL011 app/Main.axl:9:6: error: `default` cannot be used as a name: Java, which the code becomes, reserves it; choose another name, such as `fallback`
 AXL010 app/Main.axl:9:6: error: the constant `RED` of `Color` is declared twice
+AXL011 app/Replace.axl:5:51: error: `new` cannot be used as a name: Java, which the code becomes, reserves it; choose another name, such as `newValue`

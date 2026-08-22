@@ -70,6 +70,7 @@ public final class Translator {
                             + directory.replace('.', '/') + "`; Java and the IDE look for the class in its package directory"));
         }
         Analysis analysis = Checker.check(file, options.siblings(), diagnostics);
+        ReservedNames.suggest(diagnostics);
         // A syntax error that leaves a valid tree, such as a line starting with `+`, explains what the checker finds there.
         List<AxlDiagnostic> syntax = parsed.diagnostics().stream().filter(AxlDiagnostic::isError).toList();
         diagnostics.removeIf(d -> !syntax.contains(d)
