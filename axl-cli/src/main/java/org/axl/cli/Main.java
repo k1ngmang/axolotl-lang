@@ -23,7 +23,7 @@ import picocli.CommandLine.ScopeType;
 // INHERIT gives every subcommand --help and --version too.
 @Command(name = "axl", mixinStandardHelpOptions = true, scope = ScopeType.INHERIT, versionProvider = Main.Version.class,
         description = "Axolotl compiler: translates .axl files to Java and compiles them.",
-        subcommands = {BuildCommand.class, RunCommand.class, CheckCommand.class, RetraceCommand.class, SetupCommand.class,
+        subcommands = {BuildCommand.class, RunCommand.class, CheckCommand.class, FmtCommand.class, RetraceCommand.class, SetupCommand.class,
                 DaemonCommand.class, HelpCommand.class})
 public final class Main {
 

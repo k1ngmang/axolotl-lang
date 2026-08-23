@@ -4,9 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -74,7 +76,7 @@ class CliTest {
 
     @Test
     void everyCommandHasHelp() {
-        for (String command : List.of("build", "run", "check", "retrace", "setup")) {
+        for (String command : List.of("build", "run", "check", "fmt", "retrace", "setup")) {
             out.reset();
             assertEquals(0, axl(command, "--help"), err.toString());
             assertTrue(out.toString().startsWith("Usage: axl " + command), out.toString());
@@ -86,6 +88,58 @@ class CliTest {
         assertEquals(0, axl("daemon", "--help"), err.toString());
         assertFalse(out.toString().contains("[--no-daemon]") || out.toString().contains("--verbose"), out.toString());
         assertTrue(out.toString().contains("--stop"), out.toString());
+    }
+
+    @Test
+    void fmtRewritesFilesAndCheckListsThoseItWouldChange(@TempDir Path tmp) throws Exception {
+        Path messy = Files.createDirectories(tmp.resolve("src/app")).resolve("Messy.axl");
+        Path tidy = tmp.resolve("src/app/Tidy.axl");
+        Files.writeString(messy, "package app\nfn f(a:Int)->Int{\n  return a+1\n}\n");
+        Files.writeString(tidy, "package app\n\nfn g() = 1\n");
+
+        assertEquals(1, axl("fmt", "--check", tmp.resolve("src").toString()), err.toString());
+        assertEquals(messy + "\n", out.toString().replace("\r\n", "\n"));
+        assertTrue(Files.readString(messy).contains("a+1"));
+
+        out.reset();
+        assertEquals(0, axl("fmt", tmp.resolve("src").toString(), tidy.toString()), err.toString());
+        assertEquals("", out.toString());
+        assertEquals("package app\n\nfn f(a: Int) -> Int {\n    return a + 1\n}\n", Files.readString(messy));
+        assertEquals(0, axl("fmt", "--check", tmp.resolve("src").toString()), out.toString());
+    }
+
+    @Test
+    void fmtLeavesFilesWithSyntaxErrorsAndReportsThem(@TempDir Path tmp) throws Exception {
+        Path broken = Files.writeString(tmp.resolve("Broken.axl"), "package app\nfn f( {\n");
+        assertEquals(1, axl("fmt", broken.toString()));
+        assertEquals("package app\nfn f( {\n", Files.readString(broken));
+        assertTrue(err.toString().contains("Broken.axl:2:"), err.toString());
+        assertEquals(2, axl("fmt", tmp.resolve("Missing.axl").toString()));
+    }
+
+    @Test
+    void fmtFormatsStandardInputToStandardOutput() {
+        assertEquals(0, axlWithInput("package app\nval x=1\n", "fmt", "-"), err.toString());
+        assertEquals("package app\n\nval x = 1\n", out.toString(StandardCharsets.UTF_8));
+
+        out.reset();
+        assertEquals(1, axlWithInput("package app\nval x=1\n", "fmt", "--check", "-"), err.toString());
+        assertEquals("<stdin>\n", out.toString(StandardCharsets.UTF_8).replace("\r\n", "\n"));
+
+        out.reset();
+        assertEquals(1, axlWithInput("package app\nval x = (\n", "fmt", "-"));
+        assertEquals("package app\nval x = (\n", out.toString(StandardCharsets.UTF_8));
+        assertTrue(err.toString().contains("<stdin>:"), err.toString());
+    }
+
+    private int axlWithInput(String input, String... args) {
+        InputStream originalIn = System.in;
+        System.setIn(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8)));
+        try {
+            return axl(args);
+        } finally {
+            System.setIn(originalIn);
+        }
     }
 
     @Test
