@@ -13,6 +13,7 @@ import java.util.Set
 import java.util.regex.Pattern
 import org.axl.compiler.AxlDiagnostic
 import org.axl.compiler.ErrorCode
+import org.axl.compiler.JavaClasses
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.Import
@@ -113,7 +114,7 @@ class Scope(val parent: Scope?, val fileScope: Boolean) {
  * Name and placement rules that need no types: scopes, shadowing, where `try` may appear,
  * mandatory type annotations. Also records what the generator needs to know about names.
  */
-class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
+class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes: JavaClasses) {
 
     val diagnostics: ArrayList<AxlDiagnostic> = ArrayList<AxlDiagnostic>()
 
@@ -1325,12 +1326,12 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
         }
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both")
-        } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
-            val missing = Exhaustiveness.missingConstants(w, file, siblings)
+        } else if (constants && needsElse && !sawElse && !coversEnum(w) && !Exhaustiveness.coversLibraryEnum(w, file, classes)) {
+            val missing = Exhaustiveness.missingConstants(w, file, siblings) ?: Exhaustiveness.missingLibraryConstants(w, file, classes)
             error(w.pos(), ErrorCode.SYNTAX, if (missing == null) elseMessage(w)
                 else "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch")
         } else if (types && !sawElse) {
-            val problem = Exhaustiveness.typesProblem(w, file, siblings)
+            val problem = Exhaustiveness.typesProblem(w, file, siblings) ?: Exhaustiveness.libraryTypesProblem(w, file, siblings, classes)
             if (problem != null) {
                 error(w.pos(), ErrorCode.SYNTAX, problem)
             }
@@ -1702,8 +1703,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
     }
 }
 
-fn check(file: SourceFile, siblings: List<SourceFile>, diagnostics: List<AxlDiagnostic>) -> Analysis {
-    val checker = Checker(file, siblings)
+fn check(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses, diagnostics: List<AxlDiagnostic>) -> Analysis {
+    val checker = Checker(file, siblings, classes)
     checker.run()
     diagnostics.addAll(checker.diagnostics)
     return Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,

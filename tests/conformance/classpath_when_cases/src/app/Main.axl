@@ -1,0 +1,32 @@
+package app
+
+import java.time.DayOfWeek
+import lib.Shapes.Circle
+import lib.Shapes.Dot
+import lib.Shapes.Level
+import lib.Shapes.Shape
+import lib.Shapes.Square
+
+// A `when` that names every case of a sealed type or an enum of the classpath needs no `else`.
+fn area(s: Shape) -> Int = when (s) {
+    is Circle -> 3 * s.r() * s.r()
+    is Square -> s.side() * s.side()
+    is Dot -> 0
+}
+
+fn weight(l: Level) -> Int = when (l) {
+    Level.LOW -> 1
+    Level.MID -> 2
+    Level.HIGH -> 3
+}
+
+fn weekend(d: DayOfWeek) -> Boolean = when (d) {
+    DayOfWeek.SATURDAY, DayOfWeek.SUNDAY -> true
+    DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY -> false
+}
+
+fn main() {
+    println(area(Circle(2)) + area(Square(3)) + area(Dot(1)))
+    println(weight(Level.MID))
+    println(weekend(DayOfWeek.SUNDAY))
+}

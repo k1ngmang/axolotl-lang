@@ -123,7 +123,9 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
                     permitted.add(((TypeElement) declared.asElement()).getQualifiedName().toString());
                 }
             }
-            return new ClassShape(type.getKind().isInterface(), typeParameters, supertypes, components, permitted);
+            List<String> constants = type.getEnclosedElements().stream().filter(e -> e.getKind() == ElementKind.ENUM_CONSTANT)
+                    .map(e -> e.getSimpleName().toString()).toList();
+            return new ClassShape(type.getKind().isInterface(), typeParameters, supertypes, components, permitted, constants);
         } catch (RuntimeException e) {
             // A class file javac cannot complete.
             return null;

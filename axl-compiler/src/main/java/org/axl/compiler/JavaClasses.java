@@ -6,7 +6,8 @@ import java.util.List;
  * Reads classes that no file of the build declares: those of the JDK, of jars and class directories on
  * the classpath, and of Java sources. The translator asks for the type parameters of a sealed type it
  * narrows, the components of a record it takes apart, the methods of a generic interface a class
- * implements, and the parameters of the methods a list is passed to. Names are canonical,
+ * implements, the parameters of the methods a list is passed to, and the cases of a sealed type or an
+ * enum that a `when` without `else` must name. Names are canonical,
  * `java.util.Map.Entry`.
  */
 public interface JavaClasses {
@@ -23,9 +24,10 @@ public interface JavaClasses {
      * @param supertypes     the class it extends and the interfaces it implements
      * @param components     the components of a record, empty for any other class
      * @param permitted      the classes a sealed class or interface permits, empty for any other class
+     * @param constants      the constants of an enum, empty for any other class
      */
     record ClassShape(boolean isInterface, List<String> typeParameters, List<Supertype> supertypes,
-                      List<String> components, List<String> permitted) {}
+                      List<String> components, List<String> permitted, List<String> constants) {}
 
     /**
      * An instance method of an interface.

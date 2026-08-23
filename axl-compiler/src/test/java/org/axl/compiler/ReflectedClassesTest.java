@@ -40,6 +40,13 @@ class ReflectedClassesTest {
     }
 
     @Test
+    void readsTheConstantsOfAnEnum() {
+        assertEquals(List.of("NANOSECONDS", "MICROSECONDS", "MILLISECONDS", "SECONDS", "MINUTES", "HOURS", "DAYS"),
+                classes.shape("java.util.concurrent.TimeUnit").constants());
+        assertEquals(List.of(), classes.shape("java.util.ArrayList").constants());
+    }
+
+    @Test
     void tellsWhereAnInterfaceHasATypeVariable() {
         List<JavaClasses.MethodShape> methods = classes.methods("java.util.function.Function");
         assertTrue(methods.contains(new JavaClasses.MethodShape("apply", List.of(true), true)));

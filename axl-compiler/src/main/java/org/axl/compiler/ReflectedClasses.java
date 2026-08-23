@@ -53,7 +53,15 @@ public final class ReflectedClasses implements JavaClasses {
                     permitted.add(subclass.getCanonicalName());
                 }
             }
-            return new ClassShape(type.isInterface(), typeParameters, supertypes, components, permitted);
+            List<String> constants = new ArrayList<>();
+            if (type.isEnum()) {
+                for (java.lang.reflect.Field field : type.getDeclaredFields()) {
+                    if (field.isEnumConstant()) {
+                        constants.add(field.getName());
+                    }
+                }
+            }
+            return new ClassShape(type.isInterface(), typeParameters, supertypes, components, permitted, constants);
         } catch (LinkageError | TypeNotPresentException | java.lang.reflect.MalformedParameterizedTypeException e) {
             return null;
         }

@@ -1,0 +1,22 @@
+package app
+
+import java.time.DayOfWeek
+import lib.Shapes.Circle
+import lib.Shapes.Level
+import lib.Shapes.Shape
+import lib.Shapes.Square
+
+// The checker names what a `when` leaves out of a sealed type or an enum of the classpath.
+fn area(s: Shape) -> Int = when (s) {
+    is Circle -> 3 * s.r() * s.r()
+    is Square -> s.side() * s.side()
+}
+
+fn weight(l: Level) -> Int = when (l) {
+    Level.LOW -> 1
+    Level.HIGH -> 3
+}
+
+fn weekend(d: DayOfWeek) -> Boolean = when (d) {
+    DayOfWeek.SATURDAY, DayOfWeek.SUNDAY -> true
+}

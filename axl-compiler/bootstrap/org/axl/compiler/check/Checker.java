@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.axl.compiler.AxlDiagnostic;
 import org.axl.compiler.ErrorCode;
+import org.axl.compiler.JavaClasses;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Import;
@@ -25,6 +26,7 @@ import org.axl.compiler.ast.TypeRef;
 @NullMarked public final class Checker {
     public final SourceFile file;
     public final List<SourceFile> siblings;
+    public final JavaClasses classes;
     public final ArrayList<AxlDiagnostic> diagnostics;
     public final LinkedHashMap<Pos, String> unassigned;
     public final Set<Expr.Lambda> implicitIt;
@@ -53,9 +55,10 @@ import org.axl.compiler.ast.TypeRef;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
     public @Nullable TypeRef declaredType;
-    public Checker(SourceFile file, List<SourceFile> siblings) {
+    public Checker(SourceFile file, List<SourceFile> siblings, JavaClasses classes) {
         this.file = file;
         this.siblings = siblings;
+        this.classes = classes;
         this.diagnostics = new ArrayList<AxlDiagnostic>();
         this.unassigned = new LinkedHashMap<Pos, String>();
         this.implicitIt = Collections.newSetFromMap(new IdentityHashMap<Expr.Lambda, Boolean>());
@@ -1262,12 +1265,12 @@ import org.axl.compiler.ast.TypeRef;
         }
         if (types && constants) {
             error(w.pos(), ErrorCode.SYNTAX, "a `when` tests either types with `is` or constants, not both");
-        } else if (constants && needsElse && !sawElse && !coversEnum(w)) {
-            final var missing = Exhaustiveness.missingConstants(w, file, siblings);
+        } else if (constants && needsElse && !sawElse && !coversEnum(w) && !Exhaustiveness.coversLibraryEnum(w, file, classes)) {
+            final var missing = Nulls.or(Exhaustiveness.missingConstants(w, file, siblings), () -> Exhaustiveness.missingLibraryConstants(w, file, classes));
             error(w.pos(), ErrorCode.SYNTAX, (missing == null ? elseMessage(w) :
                     "this `when` does not name " + missing + "; add a branch for each, or an `else ->` branch"));
         } else if (types && !sawElse) {
-            final var problem = Exhaustiveness.typesProblem(w, file, siblings);
+            final var problem = Nulls.or(Exhaustiveness.typesProblem(w, file, siblings), () -> Exhaustiveness.libraryTypesProblem(w, file, siblings, classes));
             if (problem != null) {
                 error(w.pos(), ErrorCode.SYNTAX, problem);
             }
@@ -1662,8 +1665,8 @@ import org.axl.compiler.ast.TypeRef;
             return null;
         }
     }
-    public static Analysis check(SourceFile file, List<SourceFile> siblings, List<AxlDiagnostic> diagnostics) {
-        final var checker = new Checker(file, siblings);
+    public static Analysis check(SourceFile file, List<SourceFile> siblings, JavaClasses classes, List<AxlDiagnostic> diagnostics) {
+        final var checker = new Checker(file, siblings, classes);
         checker.run();
         diagnostics.addAll(checker.diagnostics);
         return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,

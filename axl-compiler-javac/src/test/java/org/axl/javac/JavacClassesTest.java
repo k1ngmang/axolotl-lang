@@ -23,6 +23,9 @@ class JavacClassesTest {
             assertFalse(list.isInterface());
             assertTrue(classes.shape("java.util.Map.Entry").isInterface());
             assertNull(classes.shape("java.util.NoSuchClass"));
+            assertEquals(List.of("NANOSECONDS", "MICROSECONDS", "MILLISECONDS", "SECONDS", "MINUTES", "HOURS", "DAYS"),
+                    classes.shape("java.util.concurrent.TimeUnit").constants());
+            assertEquals(List.of(), list.constants());
             assertTrue(classes.methods("java.util.function.Function")
                     .contains(new JavaClasses.MethodShape("apply", List.of(true), true)));
             assertEquals(List.of(), classes.methods("java.util.ArrayList"));

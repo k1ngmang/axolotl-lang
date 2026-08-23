@@ -1,0 +1,10 @@
+package lib
+
+// Compiled first by the cases that read it from their classpath.
+sealed interface Shape
+
+data class Circle(val r: Int) : Shape
+data class Square(val side: Int) : Shape
+data class Dot(val x: Int) : Shape
+
+enum Level { LOW, MID, HIGH }

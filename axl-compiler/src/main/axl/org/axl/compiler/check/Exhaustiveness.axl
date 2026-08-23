@@ -4,12 +4,14 @@ import java.util.ArrayList
 import java.util.HashSet
 import java.util.List
 import java.util.Set
+import org.axl.compiler.JavaClasses
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.TypeRef
 
-// What a `when` without `else` leaves out, named for the error, when the file or its package declares the cases.
+// What a `when` without `else` leaves out, named for the error, when the file or its package declares the cases,
+// or a class of the classpath does.
 
 /** The constants of an enum of the package that the `when` names some of but not all, or null. */
 fn missingConstants(w: Expr.When, file: SourceFile, siblings: List<SourceFile>) -> String? {
@@ -39,6 +41,80 @@ fn typesProblem(w: Expr.When, file: SourceFile, siblings: List<SourceFile>) -> S
         }
     }
     return null
+}
+
+/**
+ * What to add to a `when` whose `is` branches test classes of the classpath that a sealed type of the
+ * classpath permits, or null. A class the build declares is left to typesProblem, even when an older
+ * build of it is on the classpath.
+ */
+fn libraryTypesProblem(w: Expr.When, file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses) -> String? {
+    val declared = declsOf(file, siblings) |> map { d -> nameOf(d) }
+    val tested = ArrayList<String>()
+    val parents = ArrayList<String>()
+    for (name in writtenTypes(w)) {
+        val library = Libraries.classNamed(file, classes, name)
+        if (library == null || declared.contains(simpleName(name))) {
+            return null
+        }
+        tested.add(library.name())
+        parents.addAll(library.shape().supertypes() |> map { t -> t.name() })
+    }
+    for (parent in parents) {
+        val shape = classes.shape(parent)
+        val permitted: List<String> = if (shape == null) List.of() else shape.permitted()
+        if (!permitted.isEmpty() && permitted.containsAll(tested)) {
+            val missing = permitted |> filter { c -> !tested.contains(c) }
+            return if (missing.isEmpty()) null
+                else "this `when` does not test " + quoted(missing |> map { c -> "is " + simpleName(c) }) + "; add a branch for each, or an `else ->` branch"
+        }
+    }
+    return null
+}
+
+/** An enum of the classpath, `DayOfWeek`, and the constants a `when` names with its name, `DayOfWeek.MONDAY`. */
+private data class LibraryEnum(val name: String, val constants: List<String>, val named: Set<String>)
+
+/** The enum of the classpath whose constants are all the `when` names, or null. */
+private fn libraryEnum(w: Expr.When, file: SourceFile, classes: JavaClasses) -> LibraryEnum? {
+    var prefix: String? = null
+    val named = HashSet<String>()
+    for (text in constantNames(w)) {
+        val dot = text.lastIndexOf('.')
+        if (text.equals("null")) {
+            continue
+        }
+        if (dot < 0 || (prefix != null && !prefix.equals(text.substring(0, dot)))) {
+            return null
+        }
+        prefix = text.substring(0, dot)
+        named.add(text.substring(dot + 1))
+    }
+    val name = prefix
+    if (name == null) {
+        return null
+    }
+    val library = Libraries.classNamed(file, classes, name)
+    if (library == null || library.shape().constants().isEmpty() || !library.shape().constants().containsAll(named)) {
+        return null
+    }
+    return LibraryEnum(name, library.shape().constants(), named)
+}
+
+/** Whether the `when` names every constant of an enum of the classpath, which leaves nothing for `else`. */
+fn coversLibraryEnum(w: Expr.When, file: SourceFile, classes: JavaClasses) -> Boolean {
+    val e = libraryEnum(w, file, classes)
+    return e != null && e.named().containsAll(e.constants())
+}
+
+/** The constants of an enum of the classpath that the `when` names some of but not all, or null. */
+fn missingLibraryConstants(w: Expr.When, file: SourceFile, classes: JavaClasses) -> String? {
+    val e = libraryEnum(w, file, classes)
+    if (e == null) {
+        return null
+    }
+    val missing = e.constants() |> filter { c -> !e.named().contains(c) }
+    return if (missing.isEmpty()) null else quoted(missing |> map { c -> e.name() + "." + c })
 }
 
 private fn problemWith(i: Decl.Interface, implementations: List<String>, tested: Set<String>) -> String? {
@@ -96,6 +172,20 @@ private fn constantNames(w: Expr.When) -> Set<String> {
             val constant = condition.constant()
             if (constant != null) {
                 names.add(constant.text())
+            }
+        }
+    }
+    return names
+}
+
+/** The types the `is` branches test, as written. */
+private fn writtenTypes(w: Expr.When) -> List<String> {
+    val names = ArrayList<String>()
+    for (arm in w.arms()) {
+        for (condition in arm.conditions()) {
+            val type = condition.type()
+            if (type != null && !names.contains(type.name())) {
+                names.add(type.name())
             }
         }
     }

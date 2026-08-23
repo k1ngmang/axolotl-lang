@@ -69,7 +69,7 @@ public final class Translator {
                     ErrorCode.PACKAGE_MISMATCH, "the package `" + file.packageName() + "` does not match the directory `"
                             + directory.replace('.', '/') + "`; Java and the IDE look for the class in its package directory"));
         }
-        Analysis analysis = Checker.check(file, options.siblings(), diagnostics);
+        Analysis analysis = Checker.check(file, options.siblings(), options.classes(), diagnostics);
         ReservedNames.suggest(diagnostics);
         // A syntax error that leaves a valid tree, such as a line starting with `+`, explains what the checker finds there.
         List<AxlDiagnostic> syntax = parsed.diagnostics().stream().filter(AxlDiagnostic::isError).toList();
