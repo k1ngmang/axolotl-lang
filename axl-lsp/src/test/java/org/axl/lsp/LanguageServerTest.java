@@ -23,9 +23,11 @@ import org.eclipse.lsp4j.DefinitionParams;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
+import org.eclipse.lsp4j.DocumentFormattingParams;
 import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.ExecuteCommandParams;
+import org.eclipse.lsp4j.FormattingOptions;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializeResult;
@@ -34,12 +36,14 @@ import org.eclipse.lsp4j.MessageActionItem;
 import org.eclipse.lsp4j.MessageParams;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
+import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.RenameParams;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
 import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.TextDocumentContentChangeEvent;
 import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
+import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceFolder;
 import org.eclipse.lsp4j.jsonrpc.ResponseErrorException;
@@ -142,6 +146,7 @@ class LanguageServerTest {
         assertTrue(result.getCapabilities().getHoverProvider().getLeft());
         assertTrue(result.getCapabilities().getDefinitionProvider().getLeft());
         assertTrue(result.getCapabilities().getDocumentSymbolProvider().getLeft());
+        assertTrue(result.getCapabilities().getDocumentFormattingProvider().getLeft());
     }
 
     @AfterEach
@@ -281,11 +286,32 @@ class LanguageServerTest {
     }
 
     @Test
+    void formatsTheWholeDocument() throws Exception {
+        String messy = MAIN.replace("fn greet(name: String)", "fn greet(name:String)").replace("n * 2", "n*2") + "\n\n";
+        open(messy);
+        diagnosticsWhere(List::isEmpty);
+        List<? extends TextEdit> edits = format();
+        assertEquals(1, edits.size());
+        assertEquals(new Range(new Position(0, 0), new Position(12, 0)), edits.getFirst().getRange());
+        assertEquals(MAIN.replace("package app\n", "package app\n\n"), edits.getFirst().getNewText());
+
+        change(MAIN.replace("package app\n", "package app\n\n"));
+        assertEquals(List.of(), format());
+        change("package app\n\nfn f( {\n");
+        assertEquals(List.of(), format());
+    }
+
+    @Test
     void answersRequestsItDoesNotOfferWithMethodNotFound() throws Exception {
         var rename = server.getTextDocumentService().rename(new RenameParams(new TextDocumentIdentifier(uri()), new Position(0, 0), "x"));
         ExecutionException e = assertThrows(ExecutionException.class, () -> rename.get(30, TimeUnit.SECONDS));
         ResponseErrorException error = assertInstanceOf(ResponseErrorException.class, e.getCause());
         assertEquals(ResponseErrorCode.MethodNotFound.getValue(), error.getResponseError().getCode());
+    }
+
+    private List<? extends TextEdit> format() throws Exception {
+        return server.getTextDocumentService().formatting(new DocumentFormattingParams(new TextDocumentIdentifier(uri()),
+                new FormattingOptions(4, true))).get(30, TimeUnit.SECONDS);
     }
 
     private List<CompletionItem> complete(int line, int character) throws Exception {

@@ -2,6 +2,7 @@ package org.axl.lsp;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import org.axl.compiler.format.Formatter;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionList;
 import org.eclipse.lsp4j.CompletionParams;
@@ -10,15 +11,19 @@ import org.eclipse.lsp4j.DidChangeTextDocumentParams;
 import org.eclipse.lsp4j.DidCloseTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
 import org.eclipse.lsp4j.DidSaveTextDocumentParams;
+import org.eclipse.lsp4j.DocumentFormattingParams;
 import org.eclipse.lsp4j.DocumentSymbol;
 import org.eclipse.lsp4j.DocumentSymbolParams;
 import org.eclipse.lsp4j.Hover;
 import org.eclipse.lsp4j.HoverParams;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.SymbolInformation;
 import org.eclipse.lsp4j.SemanticTokens;
 import org.eclipse.lsp4j.SemanticTokensParams;
+import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.services.TextDocumentService;
 
@@ -99,5 +104,45 @@ final class AxlTextDocumentService implements TextDocumentService {
             Document document = workspace.document(params.getTextDocument().getUri());
             return document == null ? new SemanticTokens(List.of()) : SemanticTokensProvider.tokens(document);
         });
+    }
+
+    /**
+     * One edit that replaces the whole text, or none when the file is formatted already or has syntax
+     * errors, which the diagnostics show. The editor's tab size is not asked: there is one style.
+     */
+    @Override
+    public CompletableFuture<List<? extends TextEdit>> formatting(DocumentFormattingParams params) {
+        return workspace.submit(() -> {
+            Document document = workspace.document(params.getTextDocument().getUri());
+            if (document == null) {
+                return List.of();
+            }
+            Formatter.Result result = Formatter.format(document.sourcePath, document.text);
+            if (result.internalError() != null) {
+                throw new IllegalStateException("formatting would change the meaning of the file, so it was left "
+                        + "unchanged: " + result.internalError());
+            }
+            if (result.failed() || result.text().equals(document.text)) {
+                return List.of();
+            }
+            return List.of(new TextEdit(new Range(new Position(0, 0), end(document.text)), result.text()));
+        });
+    }
+
+    /** The position after the last character: `\r\n`, `\r` and `\n` end lines, and characters count in UTF-16. */
+    static Position end(String text) {
+        int line = 0;
+        int lineStart = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c == '\n' || c == '\r') {
+                if (c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                    i++;
+                }
+                line++;
+                lineStart = i + 1;
+            }
+        }
+        return new Position(line, text.length() - lineStart);
     }
 }
