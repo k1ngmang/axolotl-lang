@@ -1,0 +1,61 @@
+package app
+
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.time.LocalDate
+import java.util.List
+
+// `try` passes on an error whose type is a subtype of the function's error type.
+sealed interface Problem
+
+data class BadDate(val text: String) : Problem
+data class TooEarly(val date: LocalDate) : Problem
+
+fn parseDate(text: String) -> Result<LocalDate, BadDate> =
+    attempt LocalDate.parse(text) else e -> BadDate(text)
+
+fn checked(text: String) -> Result<LocalDate, Problem> {
+    val date = try parseDate(text)
+    return if (date.getYear() < 2000) Err(TooEarly(date)) else Ok(date)
+}
+
+fn number(text: String) -> Result<Int, String> = attempt Integer.parseInt(text) else e -> "not a number: " + text
+
+fn mapped(text: String) -> Result<Int, Problem> {
+    val n = try number(text).mapErr({ m -> BadDate(m) })
+    return Ok(n)
+}
+
+fn attempted(text: String) -> Result<Int, Problem> {
+    val n = try attempt Integer.parseInt(text) else e -> BadDate(text)
+    return Ok(n)
+}
+
+fn dates(texts: List<String>) -> Result<List<LocalDate>, Problem> {
+    val parsed = texts |> mapResult { parseDate(it) }
+    return Ok(parsed)
+}
+
+fn widened(text: String) -> Result<Int, Object> {
+    val n = try number(text)
+    return Ok(n)
+}
+
+fn open(name: String) -> Result<String, FileNotFoundException> =
+    if (name.isEmpty()) Err(FileNotFoundException("no name")) else Ok(name)
+
+fn read(name: String) -> Result<Int, IOException> {
+    val found = try open(name)
+    return Ok(found.length())
+}
+
+fn main() {
+    println(checked("1999-01-02"))
+    println(checked("x"))
+    println(checked("2026-10-21"))
+    println(mapped("7").toString() + " " + mapped("x"))
+    println(attempted("8").toString() + " " + attempted("y"))
+    println(dates(List.of("2026-01-01", "z")))
+    println(widened("9").toString() + " " + widened("w"))
+    println(read("abc").toString() + " " + read("").isErr())
+}

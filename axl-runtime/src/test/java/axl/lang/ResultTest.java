@@ -58,6 +58,12 @@ class ResultTest {
     }
 
     @Test
+    void propagateWidensErrorType() {
+        Result<String, CharSequence> r = Result.propagate(new Err<Integer, String>("e"));
+        assertEquals(new Err<>("e"), r);
+    }
+
+    @Test
     void exhaustiveSwitchNeedsNoDefault() {
         assertEquals("ok 1", describe(new Ok<>(1)));
         assertEquals("fail x", describe(new Err<>("x")));

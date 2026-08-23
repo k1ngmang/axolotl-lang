@@ -1,0 +1,8 @@
+Err[error=TooEarly[date=1999-01-02]]
+Err[error=BadDate[text=x]]
+Ok[value=2026-10-21]
+Ok[value=7] Err[error=BadDate[text=not a number: x]]
+Ok[value=8] Err[error=BadDate[text=y]]
+Err[error=BadDate[text=z]]
+Ok[value=9] Err[error=not a number: w]
+Ok[value=3] true

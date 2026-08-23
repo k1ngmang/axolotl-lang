@@ -43,9 +43,10 @@ public sealed interface Result<T extends @Nullable Object, E extends @Nullable O
         if (r instanceof Err<?, E>(var e)) return e;
         throw new IllegalStateException("unwrapError on Ok");
     }
-    // for `try`: the same Err with a new T (U is inferred from the function return type)
-    static <T extends @Nullable Object, U extends @Nullable Object, E extends @Nullable Object> Result<U, E> propagate(Result<T, E> r) {
-        if (r instanceof Err<T, E>(var e)) return new Err<>(e);
+    // for `try`: the same Err with a new T (U and E are inferred from the function return type, whose
+    // error type may be a supertype of the error, such as a sealed interface the error implements)
+    static <T extends @Nullable Object, U extends @Nullable Object, E extends @Nullable Object> Result<U, E> propagate(Result<T, ? extends E> r) {
+        if (r instanceof Err<T, ? extends E>(var e)) return new Err<>(e);
         throw new IllegalStateException("propagate on Ok");
     }
 }

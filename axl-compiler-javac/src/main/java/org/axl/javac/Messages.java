@@ -2320,11 +2320,16 @@ final class Messages {
         return noIsErr.find() ? noIsErr.group(1) : null;
     }
 
-    /** `E` of `Result.propagate` is invariant, so a different error type fails inference there. */
+    /**
+     * `Result.propagate` takes an error of the function's error type or a subtype of it, so another error
+     * type fails inference there: as a lower bound of `E`, or as a second equality constraint.
+     */
     private static Translated tryErrorType(String message, String construct, String[] javaLines, int javaLine) {
         Matcher constraints = CONSTRAINTS.matcher(message);
+        Matcher bounds = BOUNDS.matcher(message);
         String returnType = enclosingReturnType(javaLines, javaLine);
-        if (!constraints.find() || returnType == null) {
+        String found = constraints.find() ? constraints.group(1) : bounds.find() ? bounds.group(2) : null;
+        if (found == null || returnType == null) {
             return null;
         }
         List<String> typeArgs = splitTopLevel(typeArgumentList(returnType));
@@ -2332,17 +2337,13 @@ final class Messages {
             return null;
         }
         String expected = simpleNames(axlType(typeArgs.get(1)));
-        String actual = splitTopLevel(constraints.group(1)).stream()
+        String actual = splitTopLevel(found).stream()
                 .map(t -> simpleNames(axlType(t))).filter(t -> !t.equals(expected)).findFirst().orElse(null);
         if (actual == null) {
             return null;
         }
-        // The error type of an `attempt` is the type of its `else` value, unless the type of its `Result` is written.
-        boolean attempt = construct.equals("try") && javaLine >= 2 && javaLines[javaLine - 2].contains("Result.attempt(");
         return new Translated(ErrorCode.TRY_ERROR_TYPE, "`" + construct + "`: the error is `" + actual
-                + "`, but the function returns errors of type `" + expected + "`; "
-                + (attempt ? "write the type of the `attempt` with that error, `val r: Result<V, " + expected
-                + "> = attempt ... else e -> ...`, then `try r`; or convert it with `mapErr`" : "convert it with `mapErr`"));
+                + "`, but the function returns errors of type `" + expected + "`; convert it with `mapErr`");
     }
 
     /** `java.util.Map<String, Int>` as `Map<String, Int>`, the way the function's own type is written. */

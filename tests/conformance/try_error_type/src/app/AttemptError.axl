@@ -9,6 +9,6 @@ data class Rejected(val reason: String) : Problem {
 }
 
 fn parse(s: String) -> Result<Int, Problem> {
-    val n = try attempt Integer.parseInt(s) else e -> Rejected("not a number: " + s)
+    val n = try attempt Integer.parseInt(s) else e -> "not a number: " + s
     return Ok(n)
 }
