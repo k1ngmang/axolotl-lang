@@ -115,7 +115,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private static String signature(Decl.Function method) {
-        final var params = method.params().stream().map(Nulls.nonNull(p -> p.name() + ": " + text(Nulls.sure(p.type())))).toList();
+        final var params = Nulls.stream(method.params()).map(Nulls.nonNull(p -> p.name() + ": " + text(Nulls.sure(p.type())))).toList();
         final var returnType = method.returnType();
         return "fn " + method.name() + "(" + String.join(", ", params) + ")" + ((returnType == null ? "" : " -> " + text(returnType)));
     }
@@ -153,7 +153,7 @@ import org.axl.compiler.ast.TypeRef;
             }
             i += 1;
         }
-        final var substituted = type.args().stream().map(Nulls.nonNull(a -> substitute(a, params, args))).toList();
+        final var substituted = Nulls.stream(type.args()).map(Nulls.nonNull(a -> substitute(a, params, args))).toList();
         return new TypeRef(type.pos(), type.name(), substituted, type.nullable());
     }
     public record RequiredMethod(String name, List<Boolean> boxedParams, boolean boxedResult) {}
@@ -161,9 +161,9 @@ import org.axl.compiler.ast.TypeRef;
         final var result = new ArrayList<RequiredMethod>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
-            final var names = iface.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
+            final var names = Nulls.stream(iface.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
             for (final var method : iface.methods()) {
-                final var params = method.params().stream().map(Nulls.nonNull(p -> isTypeVariable(names, p.type()))).toList();
+                final var params = Nulls.stream(method.params()).map(Nulls.nonNull(p -> isTypeVariable(names, p.type()))).toList();
                 result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())));
             }
         }
@@ -201,7 +201,7 @@ import org.axl.compiler.ast.TypeRef;
             final var decl = interfaceNamed(file, siblings, type.name());
             if (decl != null && seen.add(decl.name())) {
                 result.add(new Implemented(decl, type.args()));
-                final var parents = decl.supertypes().stream().map(Nulls.nonNull(p -> substitute(p, decl.typeParams(), type.args()))).toList();
+                final var parents = Nulls.stream(decl.supertypes()).map(Nulls.nonNull(p -> substitute(p, decl.typeParams(), type.args()))).toList();
                 result.addAll(interfaces(file, siblings, parents, seen));
             }
         }
@@ -275,7 +275,7 @@ import org.axl.compiler.ast.TypeRef;
         return given;
     }
     private static String text(TypeRef type) {
-        final var args = type.args().stream().map(Nulls.nonNull(a -> text(a))).toList();
+        final var args = Nulls.stream(type.args()).map(Nulls.nonNull(a -> text(a))).toList();
         final var written = (args.isEmpty() ? type.name() : type.name() + "<" + String.join(", ", args) + ">");
         return (type.nullable() ? written + "?" : written);
     }

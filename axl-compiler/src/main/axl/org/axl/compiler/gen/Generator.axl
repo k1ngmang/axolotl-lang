@@ -3026,7 +3026,9 @@ class Generator(
         if (mapResult == stages.size()) {
             return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false)
         }
-        val items = if (mapResult == 0 && isStream(typeOf(pipe.source()))) parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()"
+        val sourceType = typeOf(pipe.source())
+        val items = if (mapResult == 0 && sourceType == null) "Nulls.stream(" + ops.getFirst().code() + ").toList()"
+            else if (mapResult == 0 && isStream(sourceType)) parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()"
             else if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
             else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null)
         val list = mapResultLoop(line, stages.get(mapResult), items)
@@ -3090,15 +3092,18 @@ class Generator(
     /** Pipe stages as a Java stream; without a terminal stage the result is a List. */
     /** target: the written type the pipe's list goes to, whose element type a narrowing `filter` keeps. */
     private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>, target: TypeRef?) -> String {
-        val sb = StringBuilder(parenthesized(source, sourceExpr))
-        if (!isStream(typeOf(sourceExpr))) {
+        val sourceType = typeOf(sourceExpr)
+        // A source of unknown type may be a collection or a stream; Java picks the overload of Nulls.stream.
+        val sb = if (sourceType == null) StringBuilder("Nulls.stream(").append(source).append(")")
+            else StringBuilder(parenthesized(source, sourceExpr))
+        if (sourceType != null && !isStream(sourceType)) {
             sb.append(".stream()")
         }
         var terminal = false
         var previousLine = startLine(sourceExpr)
         var index = 0
         // The type of the elements, as far as the source and the `map` stages tell.
-        var element = elementTypeOf(typeOf(sourceExpr))
+        var element = elementTypeOf(sourceType)
         for (stage in stages) {
             val stageBody = stage.lambda()
             val outerStage = valueStage

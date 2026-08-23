@@ -18,7 +18,7 @@ import java.util.Map;
     }
     public static final Map<String, String> cfg = Map.of("a", "1");
     public static final @Nullable Integer len = Nulls.map(cfg.get("zz"), $n1 -> $n1.length());
-    public static final @Nullable String firstOrNull = Nulls.first(cfg.keySet().stream().iterator());
+    public static final @Nullable String firstOrNull = Nulls.first(Nulls.stream(cfg.keySet()).iterator());
     public static final @Nullable String fromOther = util.Other.maybe();
     public static final @Nullable String either = Nulls.or(util.Other.maybe(), () -> util.Other.maybe());
     public static final List<String> names = Nulls.or(cached(), () -> new ArrayList<String>());

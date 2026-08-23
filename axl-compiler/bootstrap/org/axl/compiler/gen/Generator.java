@@ -287,7 +287,7 @@ import org.axl.compiler.check.Whens;
         var i = 0;
         while (i < e.constants().size()) {
             final var arguments = e.arguments().get(i);
-            final var args = arguments.stream().map(Nulls.nonNull(a -> expr(a))).toList();
+            final var args = Nulls.stream(arguments).map(Nulls.nonNull(a -> expr(a))).toList();
             texts.add(e.constants().get(i) + ((arguments.isEmpty() ? "" : "(" + String.join(", ", args) + ")")));
             i += 1;
         }
@@ -315,7 +315,7 @@ import org.axl.compiler.check.Whens;
         final var outerMethods = currentMethods;
         currentClass = classDecl;
         currentMethods = classDecl.methods();
-        final var lifting = classDecl.properties().stream().anyMatch(p -> Lifts.needed(propertyInit(p)));
+        final var lifting = Nulls.stream(classDecl.properties()).anyMatch(p -> Lifts.needed(propertyInit(p)));
         final var superArgs = classDecl.superArgs();
         final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty());
         for (final var p : classDecl.parameters()) {
@@ -358,12 +358,12 @@ import org.axl.compiler.check.Whens;
     }
     private void emitConstructor(Decl.ClassDecl classDecl) {
         final var line = classDecl.pos().line();
-        final var params = classDecl.parameters().stream().map(Nulls.nonNull(p -> javaType(propertyTypeOf(p)) + " " + p.name())).toList();
+        final var params = Nulls.stream(classDecl.parameters()).map(Nulls.nonNull(p -> javaType(propertyTypeOf(p)) + " " + p.name())).toList();
         em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {");
         em.indent();
         final var superArgs = classDecl.superArgs();
         if (superArgs != null && !superArgs.isEmpty()) {
-            final var args = superArgs.stream().map(Nulls.nonNull(a -> expr(a))).toList();
+            final var args = Nulls.stream(superArgs).map(Nulls.nonNull(a -> expr(a))).toList();
             em.line(line, "super(" + String.join(", ", args) + ");");
         }
         for (final var p : classDecl.parameters()) {
@@ -387,7 +387,7 @@ import org.axl.compiler.check.Whens;
         final var written = new HashSet<String>();
         for (final var member : Implementations.requiredValues(file, options.siblings(), classDecl.supertypes())) {
             final var property = propertyNamed(classDecl, member.name());
-            final var ownMethod = classDecl.methods().stream().anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
+            final var ownMethod = Nulls.stream(classDecl.methods()).anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
             if (property != null && !ownMethod && written.add(member.name())) {
                 em.line(property.pos().line(), "@Override public " + javaType(propertyTypeOf(property)) + " " +
                         member.name() +
@@ -481,11 +481,11 @@ import org.axl.compiler.check.Whens;
         if (iface.isSealed()) {
             return " sealed";
         }
-        final var underSealed = file.decls().stream().anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.isSealed() && extendsInterface(iface, d$1.name()));
+        final var underSealed = Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.isSealed() && extendsInterface(iface, d$1.name()));
         return (underSealed ? " non-sealed" : "");
     }
     private boolean extendsInterface(Decl.Interface iface, String parentName) {
-        return iface.supertypes().stream().anyMatch(t -> t.name().equals(parentName));
+        return Nulls.stream(iface.supertypes()).anyMatch(t -> t.name().equals(parentName));
     }
     private void emitValue(Decl.Value value) {
         final var declared = value.type();
@@ -507,7 +507,7 @@ import org.axl.compiler.check.Whens;
         em.line(0, "}");
     }
     private void emitFunction(Decl.Function f, boolean isStatic) {
-        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> r.name().equals(f.name()) &&
+        final var required = (isStatic ? null : Nulls.first(Nulls.stream(requiredMethods).filter(r -> r.name().equals(f.name()) &&
                 r.boxedParams().size() == f.params().size())
                 .iterator()));
         final var boxed = boxedParameters(f, required);
@@ -517,7 +517,7 @@ import org.axl.compiler.check.Whens;
                 (required != null && required.boxedResult() ? boxedType(declaredReturn) :
                 javaType(declaredReturn)));
         final var modifier = (isStatic ? " static " : " ");
-        final var written = f.annotations().stream().anyMatch(a -> a.name().equals("Override"));
+        final var written = Nulls.stream(f.annotations()).anyMatch(a -> a.name().equals("Override"));
         final var override = (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size()) ? "@Override " : "");
         em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
                 " " +
@@ -848,7 +848,7 @@ import org.axl.compiler.check.Whens;
             return null;
         }
         final var testedName = tested.name().substring(tested.name().lastIndexOf('.') + 1);
-        final var implementations = Exhaustiveness.declsOf(file, options.siblings()).stream()
+        final var implementations = Nulls.stream(Exhaustiveness.declsOf(file, options.siblings()))
                 .filter(d -> isTypeDecl(d) && (supertypesOf(d).stream().anyMatch(t -> t.name().equals(subject.name()))))
                 .map(Nulls.nonNull(d -> d.name())).toList();
         if (implementations.size() != 2 || !implementations.contains(testedName)) {
@@ -1009,9 +1009,9 @@ import org.axl.compiler.check.Whens;
         }
         var i = 0;
         while (i < w.arms().size()) {
-            final var constants = w.arms().get(i).conditions().stream().map(Nulls.nonNull(c -> constantOf(c).text())).filter(t -> !"null".equals(t)).toList();
+            final var constants = Nulls.stream(w.arms().get(i).conditions()).map(Nulls.nonNull(c -> constantOf(c).text())).filter(t -> !"null".equals(t)).toList();
             if (!constants.isEmpty()) {
-                final var tests = constants.stream().map(Nulls.nonNull(t -> subject + " == " + literal(t))).toList();
+                final var tests = Nulls.stream(constants).map(Nulls.nonNull(t -> subject + " == " + literal(t))).toList();
                 sb.append(String.join(" || ", tests)).append(" ? ").append(i).append(" : ");
             }
             i += 1;
@@ -1021,7 +1021,7 @@ import org.axl.compiler.check.Whens;
     private int nullArmIndex(Expr.When w) {
         var i = 0;
         while (i < w.arms().size()) {
-            if (w.arms().get(i).conditions().stream().anyMatch(c -> "null".equals(Nulls.typed(Nulls.map(c.constant(), $n1 -> $n1.text())).value()))) {
+            if (Nulls.stream(w.arms().get(i).conditions()).anyMatch(c -> "null".equals(Nulls.typed(Nulls.map(c.constant(), $n1 -> $n1.text())).value()))) {
                 return i;
             }
             i += 1;
@@ -1035,7 +1035,7 @@ import org.axl.compiler.check.Whens;
         if (subjectType == null) {
             return "case null, default";
         }
-        final var covered = w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> testsType(c, subjectType)));
+        final var covered = Nulls.stream(w.arms()).anyMatch(a -> Nulls.stream(a.conditions()).anyMatch(c -> testsType(c, subjectType)));
         return (covered ? "case null" : "case null, default");
     }
     private boolean boxesSubject(Expr.When w, @Nullable TypeRef subjectType) {
@@ -1054,9 +1054,9 @@ import org.axl.compiler.check.Whens;
             emitBranch(arm, "case " + index, Map.of(), form);
             return;
         }
-        final var testsTypes = conditions.stream().anyMatch(c -> c.type() != null);
+        final var testsTypes = Nulls.stream(conditions).anyMatch(c -> c.type() != null);
         if (!testsTypes) {
-            final var constants = conditions.stream().map(Nulls.nonNull(c -> literal(constantOf(c).text()))).toList();
+            final var constants = Nulls.stream(conditions).map(Nulls.nonNull(c -> literal(constantOf(c).text()))).toList();
             emitBranch(arm, "case " + String.join(", ", constants), Map.of(), form);
             return;
         }
@@ -1596,7 +1596,7 @@ import org.axl.compiler.check.Whens;
             return null;
         }
         final var simple = found.substring(found.lastIndexOf('.') + 1);
-        final var imported = file.imports().stream().anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals(found));
+        final var imported = Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals(found));
         return (imported || found.equals("java.lang." + simple) ? simple : found);
     }
     private List<Expr> widenedArgs(Expr.Call c) {
@@ -1726,7 +1726,7 @@ import org.axl.compiler.check.Whens;
         return ((givesValue(c) ? "Nulls.present(" : "Nulls.inferred(")) + code + ").value()";
     }
     private boolean branchBecomesCall(Expr.Conditional c) {
-        return List.of(c.then(), c.otherwise()).stream().anyMatch(b -> becomesCallSomewhere(withoutParens(b)));
+        return Nulls.stream(List.of(c.then(), c.otherwise())).anyMatch(b -> becomesCallSomewhere(withoutParens(b)));
     }
     private boolean becomesCallSomewhere(Expr e) {
         return becomesCall(e) || (e instanceof Expr.Conditional e$1 && branchBecomesCall(e$1));
@@ -1930,7 +1930,7 @@ import org.axl.compiler.check.Whens;
             pairs.add(fields.get(i) + "=" + variables.get(i));
             i += 1;
         }
-        final var declared = variables.stream().map(Nulls.nonNull(v -> "var " + v)).toList();
+        final var declared = Nulls.stream(variables).map(Nulls.nonNull(v -> "var " + v)).toList();
         return new Pattern(tested.name() + "(" + String.join(", ", declared) + ")", "@" + String.join(",", pairs) + ":" + bare);
     }
     private List<String> genericRecordFields(TypeRef tested, @Nullable TypeRef subject) {
@@ -1939,7 +1939,7 @@ import org.axl.compiler.check.Whens;
         }
         final var decl = declaredType(tested.name());
         if (decl instanceof Decl.DataClass decl$1 && !decl$1.typeParams().isEmpty()) {
-            return decl$1.fields().stream().map(Nulls.nonNull(f -> f.name())).toList();
+            return Nulls.stream(decl$1.fields()).map(Nulls.nonNull(f -> f.name())).toList();
         }
         if (decl != null) {
             return List.of();
@@ -2034,7 +2034,7 @@ import org.axl.compiler.check.Whens;
         if (subject != null && !subject.args().isEmpty() && tested.args().isEmpty()) {
             final var arguments = argumentsOf(tested, subject);
             if (arguments != null) {
-                return name + "<" + String.join(", ", arguments.stream().map(Nulls.nonNull(a -> "?")).toList()) + ">";
+                return name + "<" + String.join(", ", Nulls.stream(arguments).map(Nulls.nonNull(a -> "?")).toList()) + ">";
             }
         }
         return boxedType(tested);
@@ -2057,14 +2057,14 @@ import org.axl.compiler.check.Whens;
         final var decl = declaredType(tested.name());
         if (decl != null) {
             final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
-            return (parent == null ? null : passedOn(typeParamsOf(decl).stream().map(Nulls.nonNull(p -> p.name())).toList(), parent.args().stream().map(Nulls.nonNull(a -> a.name())).toList(), subject));
+            return (parent == null ? null : passedOn(typeParamsOf(decl).stream().map(Nulls.nonNull(p -> p.name())).toList(), Nulls.stream(parent.args()).map(Nulls.nonNull(a -> a.name())).toList(), subject));
         }
         final var library = Libraries.classNamed(file, options.classes(), tested.name());
         final var parentLibrary = Libraries.classNamed(file, options.classes(), subject.name());
         if (library == null || parentLibrary == null) {
             return null;
         }
-        final var parent = Nulls.first(library.shape().supertypes().stream().filter(t -> t.name().equals(parentLibrary.name()) && t.arguments().size() == subject.args().size()).iterator());
+        final var parent = Nulls.first(Nulls.stream(library.shape().supertypes()).filter(t -> t.name().equals(parentLibrary.name()) && t.arguments().size() == subject.args().size()).iterator());
         return (parent == null ? null : passedOn(library.shape().typeParameters(), parent.arguments(), subject));
     }
     private @Nullable List<String> passedOn(List<String> typeParams, List<String> written, TypeRef subject) {
@@ -2149,7 +2149,7 @@ import org.axl.compiler.check.Whens;
         smart = outer;
     }
     private String genericNew(Expr.GenericNew g, String args) {
-        final var typeArgs = g.typeArgs().stream().map(Nulls.nonNull(t -> boxedType(t))).toList();
+        final var typeArgs = Nulls.stream(g.typeArgs()).map(Nulls.nonNull(t -> boxedType(t))).toList();
         return "new " + g.type() + "<" + String.join(", ", typeArgs) + ">(" + args + ")";
     }
     private String callCode(Expr.Call c, String args) {
@@ -2183,9 +2183,9 @@ import org.axl.compiler.check.Whens;
             return false;
         }
         final var arity = c.args().size();
-        final var methods = currentMethods.stream().filter(m -> m.name().equals(c.name())).toList();
-        final var method = methods.stream().anyMatch(m -> m.params().size() == arity);
-        final var function = file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(c.name()) && d$1.params().size() == arity);
+        final var methods = Nulls.stream(currentMethods).filter(m -> m.name().equals(c.name())).toList();
+        final var method = Nulls.stream(methods).anyMatch(m -> m.params().size() == arity);
+        final var function = Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(c.name()) && d$1.params().size() == arity);
         return !methods.isEmpty() && !method && function;
     }
     private String chainCode(Chains.Chain chain, boolean inLambda) {
@@ -2307,8 +2307,8 @@ import org.axl.compiler.check.Whens;
         if (params.size() == 1 && params.getFirst().type() == null) {
             return params.getFirst().name();
         }
-        final var plain = params.stream().allMatch(p -> isPlainParam(p));
-        final var names = (plain ? params.stream().map(Nulls.nonNull(p -> p.name())).toList() : params.stream().map(Nulls.nonNull(p -> typedParam(p))).toList());
+        final var plain = Nulls.stream(params).allMatch(p -> isPlainParam(p));
+        final var names = (plain ? Nulls.stream(params).map(Nulls.nonNull(p -> p.name())).toList() : Nulls.stream(params).map(Nulls.nonNull(p -> typedParam(p))).toList());
         return "(" + String.join(", ", names) + ")";
     }
     private boolean isPlainParam(Expr.Param p) {
@@ -2550,7 +2550,7 @@ import org.axl.compiler.check.Whens;
     }
     private boolean isPureResult(Expr.Call c) {
         if (c.target() == null && (c.name().equals("Ok") || c.name().equals("Err"))) {
-            return c.args().stream().allMatch(a -> isPure(a));
+            return Nulls.stream(c.args()).allMatch(a -> isPure(a));
         }
         return false;
     }
@@ -2684,9 +2684,11 @@ import org.axl.compiler.check.Whens;
         if (mapResult == stages.size()) {
             return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false);
         }
-        final var items = (mapResult == 0 && isStream(typeOf(pipe.source())) ? parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()" :
+        final var sourceType = typeOf(pipe.source());
+        final var items = (mapResult == 0 && sourceType == null ? "Nulls.stream(" + ops.getFirst().code() + ").toList()" :
+                (mapResult == 0 && isStream(sourceType) ? parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()" :
                 (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) :
-                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null)));
+                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null))));
         final var list = mapResultLoop(line, stages.get(mapResult), items);
         final var rest = stages.subList(mapResult + 1, stages.size());
         if (rest.isEmpty()) {
@@ -2738,14 +2740,16 @@ import org.axl.compiler.check.Whens;
         return type;
     }
     private String pipeCode(String source, Expr sourceExpr, List<Expr.Stage> stages, Function<Expr, String> arg, @Nullable TypeRef target) {
-        final var sb = new StringBuilder(parenthesized(source, sourceExpr));
-        if (!isStream(typeOf(sourceExpr))) {
+        final var sourceType = typeOf(sourceExpr);
+        final var sb = (sourceType == null ? new StringBuilder("Nulls.stream(").append(source).append(")") :
+                new StringBuilder(parenthesized(source, sourceExpr)));
+        if (sourceType != null && !isStream(sourceType)) {
             sb.append(".stream()");
         }
         var terminal = false;
         var previousLine = startLine(sourceExpr);
         var index = 0;
-        var element = elementTypeOf(typeOf(sourceExpr));
+        var element = elementTypeOf(sourceType);
         for (final var stage : stages) {
             final var stageBody = stage.lambda();
             final var outerStage = valueStage;
@@ -2966,7 +2970,7 @@ import org.axl.compiler.check.Whens;
             name = (generic || type.nullable() ? BOXED_NAMES.getOrDefault(type.name(), primitive) : primitive);
         }
         if (!type.args().isEmpty()) {
-            final var args = type.args().stream().map(Nulls.nonNull(t -> typeText(t, true))).toList();
+            final var args = Nulls.stream(type.args()).map(Nulls.nonNull(t -> typeText(t, true))).toList();
             name += "<" + String.join(", ", args) + ">";
         }
         if (!type.nullable()) {
@@ -3056,7 +3060,7 @@ import org.axl.compiler.check.Whens;
         for (final var a : list) {
             sb.append("@").append(a.name());
             if (!a.args().isEmpty()) {
-                sb.append("(").append(String.join(", ", a.args().stream().map(Nulls.nonNull(arg -> annotationArg(arg))).toList())).append(")");
+                sb.append("(").append(String.join(", ", Nulls.stream(a.args()).map(Nulls.nonNull(arg -> annotationArg(arg))).toList())).append(")");
             }
             sb.append(" ");
         }
@@ -3064,7 +3068,7 @@ import org.axl.compiler.check.Whens;
     }
     private static String annotationArg(Decl.AnnotationArg arg) {
         final var value = arg.value();
-        final var code = (value != null ? annotationValue(value) : "{" + String.join(", ", arg.elements().stream().map(Nulls.nonNull(e -> annotationArg(e))).toList()) + "}");
+        final var code = (value != null ? annotationValue(value) : "{" + String.join(", ", Nulls.stream(arg.elements()).map(Nulls.nonNull(e -> annotationArg(e))).toList()) + "}");
         final var name = arg.name();
         return (name == null ? code : name + " = " + code);
     }
@@ -3247,8 +3251,8 @@ import org.axl.compiler.check.Whens;
         if (!(e instanceof Expr.When e$1)) {
             return false;
         }
-        final var hasElse = e$1.arms().stream().anyMatch(a -> a.conditions().isEmpty());
-        final var allLeave = e$1.arms().stream().allMatch(a -> !a.body().isEmpty() && exits(a.body().getLast()));
+        final var hasElse = Nulls.stream(e$1.arms()).anyMatch(a -> a.conditions().isEmpty());
+        final var allLeave = Nulls.stream(e$1.arms()).allMatch(a -> !a.body().isEmpty() && exits(a.body().getLast()));
         return hasElse && allLeave;
     }
     private static boolean exitsIf(Stmt.If ifStmt) {
@@ -3264,7 +3268,7 @@ import org.axl.compiler.check.Whens;
                 return inWrapper || (inWhen && stmt$1.isBreak());
             }
             case Stmt.Block stmt$2 -> {
-                return stmt$2.statements().stream().anyMatch(s -> leavesThroughJava(s, inWhen, inWrapper));
+                return Nulls.stream(stmt$2.statements()).anyMatch(s -> leavesThroughJava(s, inWhen, inWrapper));
             }
             case Stmt.If stmt$3 -> {
                 final var elseBranch = stmt$3.elseBranch();
@@ -3294,7 +3298,7 @@ import org.axl.compiler.check.Whens;
         if (!(w instanceof Expr.When w$1)) {
             return false;
         }
-        return w$1.arms().stream().anyMatch(a -> a.body().stream().anyMatch(s -> leavesThroughJava(s, true, inWrapper)));
+        return Nulls.stream(w$1.arms()).anyMatch(a -> Nulls.stream(a.body()).anyMatch(s -> leavesThroughJava(s, true, inWrapper)));
     }
     private static boolean becomesWrapper(Stmt.If ifStmt) {
         final var split = shortCircuitWithLift(ifStmt.condition());
@@ -3366,8 +3370,8 @@ import org.axl.compiler.check.Whens;
         return type.name().equals("Result") || type.name().equals("axl.lang.Result");
     }
     private static boolean needsUnreachableDefault(Expr.When w) {
-        final var hasElse = w.arms().stream().anyMatch(a -> a.conditions().isEmpty());
-        final var testsTypes = w.arms().stream().anyMatch(a -> a.conditions().stream().anyMatch(c -> c.type() != null));
+        final var hasElse = Nulls.stream(w.arms()).anyMatch(a -> a.conditions().isEmpty());
+        final var testsTypes = Nulls.stream(w.arms()).anyMatch(a -> Nulls.stream(a.conditions()).anyMatch(c -> c.type() != null));
         return !hasElse && !testsTypes;
     }
     private static boolean notSwitchable(String text) {

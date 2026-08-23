@@ -233,7 +233,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private boolean hasMain() {
-        return file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && isMain(d$1));
+        return Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Function d$1 && isMain(d$1));
     }
     private void checkFileTypeMembers() {
         for (final var decl : file.decls()) {
@@ -256,8 +256,8 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private boolean hasSignatureLike(Decl.Interface iface, Decl.Function f) {
-        return (iface.methods().stream().anyMatch(m -> m.name().equals(f.name()) && m.params().size() == f.params().size())) ||
-                (f.params().isEmpty() && (iface.members().stream().anyMatch(m -> m.name().equals(f.name()))));
+        return (Nulls.stream(iface.methods()).anyMatch(m -> m.name().equals(f.name()) && m.params().size() == f.params().size())) ||
+                (f.params().isEmpty() && (Nulls.stream(iface.members()).anyMatch(m -> m.name().equals(f.name()))));
     }
     private void classFileMembers(Decl.ClassDecl c) {
         final var properties = new HashSet<String>();
@@ -279,7 +279,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private boolean hasMethodLike(Decl.ClassDecl c, Decl.Function f) {
-        return c.methods().stream().anyMatch(m -> m.name().equals(f.name()) && m.params().size() == f.params().size());
+        return Nulls.stream(c.methods()).anyMatch(m -> m.name().equals(f.name()) && m.params().size() == f.params().size());
     }
     private void recordFileMembers(Decl.DataClass data) {
         for (final var decl : file.decls()) {
@@ -289,7 +289,7 @@ import org.axl.compiler.ast.TypeRef;
                         "` of `" +
                         data.name() +
                         "`, the type of this file; give the function another name");
-            } else if (decl instanceof Decl.Function decl$2 && (data.methods().stream().anyMatch(m -> m.name().equals(decl$2.name()) && m.params().size() == decl$2.params().size()))) {
+            } else if (decl instanceof Decl.Function decl$2 && (Nulls.stream(data.methods()).anyMatch(m -> m.name().equals(decl$2.name()) && m.params().size() == decl$2.params().size()))) {
                 error(decl$2.namePos(), ErrorCode.DUPLICATE_NAME, "`" + data.name() + "`, the type of this file, has a method `" +
                         decl$2.name() +
                         "` with as many parameters, so a function of the file cannot have its name; rename one");
@@ -297,10 +297,10 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private boolean hasField(Decl.DataClass data, String name) {
-        return data.fields().stream().anyMatch(f -> f.name().equals(name));
+        return Nulls.stream(data.fields()).anyMatch(f -> f.name().equals(name));
     }
     private boolean hasTopLevelValue(String name) {
-        return file.decls().stream().anyMatch(d -> d instanceof Decl.Value d$1 && d$1.name().equals(name));
+        return Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Value d$1 && d$1.name().equals(name));
     }
     private void checkInitOrder() {
         for (final var problem : InitOrder.check(file)) {
@@ -355,7 +355,7 @@ import org.axl.compiler.ast.TypeRef;
         final var superArgs = c.superArgs();
         if (superArgs != null) {
             final var parent = c.supertypes().getFirst();
-            if (file.decls().stream().anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.name().equals(parent.name()))) {
+            if (Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.name().equals(parent.name()))) {
                 error(parent.pos(), ErrorCode.SYNTAX, "an interface takes no `()`: `: " + parent.name() + "`");
             }
             exprs(superArgs);
@@ -375,8 +375,8 @@ import org.axl.compiler.ast.TypeRef;
                 expr(init);
             }
         }
-        integerAllowed = c.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
-        enclosingTypeParams = c.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
+        integerAllowed = Nulls.stream(c.supertypes()).anyMatch(t -> !declaresType(t.name()));
+        enclosingTypeParams = Nulls.stream(c.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : c.methods()) {
             checkReserved(m.namePos(), m.name());
             typeParams(m);
@@ -416,11 +416,11 @@ import org.axl.compiler.ast.TypeRef;
         final var outerOpen = openTypeParams;
         openTypeParams = openTypeParams(data.typeParams());
         currentMethods = data.methods();
-        integerAllowed = data.supertypes().stream().anyMatch(t -> !declaresType(t.name()));
-        enclosingTypeParams = data.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
+        integerAllowed = Nulls.stream(data.supertypes()).anyMatch(t -> !declaresType(t.name()));
+        enclosingTypeParams = Nulls.stream(data.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : data.methods()) {
             checkReserved(m.namePos(), m.name());
-            if (m.params().isEmpty() && (data.fields().stream().anyMatch(f -> f.name().equals(m.name())))) {
+            if (m.params().isEmpty() && (Nulls.stream(data.fields()).anyMatch(f -> f.name().equals(m.name())))) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "()` already reads the field `" + m.name() +
                         "` of `" +
                         data.name() +
@@ -436,7 +436,7 @@ import org.axl.compiler.ast.TypeRef;
         pop();
     }
     private boolean declaresType(String name) {
-        return file.decls().stream().anyMatch(d -> isTypeDecl(d) && d.name().equals(name));
+        return Nulls.stream(file.decls()).anyMatch(d -> isTypeDecl(d) && d.name().equals(name));
     }
     private @Nullable TypeRef propertyType(Decl.Property p) {
         final var written = p.type();
@@ -480,7 +480,7 @@ import org.axl.compiler.ast.TypeRef;
         scope = java.util.Objects.requireNonNull(scope.parent);
     }
     private boolean fileIsInterface() {
-        return file.decls().stream().anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.name().equals(file.className()));
+        return Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.name().equals(file.className()));
     }
     private void checkTypeName(Decl decl) {
         final var name = decl.name();
@@ -516,9 +516,9 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void interfaceMethods(Decl.Interface iface) {
-        final var values = iface.members().stream().map(Nulls.nonNull(m -> m.name())).toList();
+        final var values = Nulls.stream(iface.members()).map(Nulls.nonNull(m -> m.name())).toList();
         final var seen = new HashSet<String>();
-        enclosingTypeParams = iface.typeParams().stream().map(Nulls.nonNull(p -> p.name())).toList();
+        enclosingTypeParams = Nulls.stream(iface.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : iface.methods()) {
             annotations(m.annotations());
             typeParams(m);
@@ -555,7 +555,7 @@ import org.axl.compiler.ast.TypeRef;
                 checkReserved(e.namePos(), constant);
             }
             if (arguments.size() != e.fields().size()) {
-                final var names = e.fields().stream().map(Nulls.nonNull(f -> f.name())).toList();
+                final var names = Nulls.stream(e.fields()).map(Nulls.nonNull(f -> f.name())).toList();
                 error(e.namePos(), ErrorCode.SYNTAX, (e.fields().isEmpty() ?
                         "`" + constant + "` takes no arguments: `" + e.name() + "` declares no fields; declare them after the name: `enum " +
                         e.name() +
@@ -869,7 +869,7 @@ import org.axl.compiler.ast.TypeRef;
         return "cannot assign to `val` `" + name + "`; declare it with `var`";
     }
     private String topLevelProblem(String name) {
-        final var isFunction = file.decls().stream().anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(name));
+        final var isFunction = Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(name));
         if (isFunction) {
             return "`" + name + "` is a function, not a variable";
         }
@@ -1274,7 +1274,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private String elseMessage(Expr.When w) {
-        final var booleans = w.arms().stream().allMatch(a -> a.conditions().stream().allMatch(c -> isBooleanConstant(c)));
+        final var booleans = Nulls.stream(w.arms()).allMatch(a -> Nulls.stream(a.conditions()).allMatch(c -> isBooleanConstant(c)));
         return (booleans ? "a `when` over `true` and `false` that gives a value still needs an `else` branch; use `if (c) a else b`" :
                 "a `when` over constants that gives a value needs an `else` branch");
     }
@@ -1305,7 +1305,7 @@ import org.axl.compiler.ast.TypeRef;
             allowed.add(c);
             allowed.add(e.name() + "." + c);
         }
-        final var covered = e.constants().stream().allMatch(c -> named.contains(e.name() + "." + c) || named.contains(c));
+        final var covered = Nulls.stream(e.constants()).allMatch(c -> named.contains(e.name() + "." + c) || named.contains(c));
         return covered && allowed.containsAll(named);
     }
     private void pipeExpr(Expr.Pipe p) {
@@ -1688,7 +1688,7 @@ import org.axl.compiler.ast.TypeRef;
                     buildsResult(inner$1.otherwise());
         }
         if (inner instanceof Expr.When inner$2) {
-            return inner$2.arms().stream().anyMatch(a -> armBuildsResult(a));
+            return Nulls.stream(inner$2.arms()).anyMatch(a -> armBuildsResult(a));
         }
         return false;
     }

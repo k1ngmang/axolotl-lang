@@ -173,7 +173,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (data != null) {
             return new DataClass(pos(data.start), pos(data.identifier().start), data.PRIVATE() != null,
                     nameOf(data.identifier()), buildFields(data.field()), buildTypes(data.type()), buildAnnotations(data.annotation()),
-                    buildTypeParams(data.typeParams()), data.functionDecl().stream().map(Nulls.nonNull(f -> buildFunction(f))).toList());
+                    buildTypeParams(data.typeParams()), Nulls.stream(data.functionDecl()).map(Nulls.nonNull(f -> buildFunction(f))).toList());
         }
         final var enumeration = top.enumDecl();
         if (enumeration != null) {
@@ -187,7 +187,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (iface != null) {
             return new Interface(pos(iface.start), pos(iface.identifier().start), iface.PRIVATE() != null,
                     nameOf(iface.identifier()), iface.SEALED() != null, buildFields(iface.field()),
-                    iface.interfaceMethod().stream().map(Nulls.nonNull(m -> buildSignature(m))).toList(), buildTypes(iface.type()), buildAnnotations(iface.annotation()),
+                    Nulls.stream(iface.interfaceMethod()).map(Nulls.nonNull(m -> buildSignature(m))).toList(), buildTypes(iface.type()), buildAnnotations(iface.annotation()),
                     buildTypeParams(iface.typeParams()));
         }
         final var value = top.valDecl();
@@ -198,8 +198,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return null;
     }
     private static Decl.EnumDecl buildEnum(EnumDeclContext enumeration) {
-        final var constants = enumeration.enumConstant().stream().map(Nulls.nonNull(c -> nameOf(c.identifier()))).toList();
-        final var arguments = enumeration.enumConstant().stream().map(Nulls.nonNull(c -> buildArguments(c.arguments()))).toList();
+        final var constants = Nulls.stream(enumeration.enumConstant()).map(Nulls.nonNull(c -> nameOf(c.identifier()))).toList();
+        final var arguments = Nulls.stream(enumeration.enumConstant()).map(Nulls.nonNull(c -> buildArguments(c.arguments()))).toList();
         return new EnumDecl(pos(enumeration.start), pos(enumeration.identifier().start), enumeration.PRIVATE() != null,
                 nameOf(enumeration.identifier()), constants, buildAnnotations(enumeration.annotation()), buildFields(enumeration.field()),
                 arguments);
@@ -233,7 +233,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (colon == null) {
             return false;
         }
-        return ctx.LPAREN().stream().anyMatch(paren -> paren.getSymbol().getTokenIndex() > colon.getSymbol().getTokenIndex());
+        return Nulls.stream(ctx.LPAREN()).anyMatch(paren -> paren.getSymbol().getTokenIndex() > colon.getSymbol().getTokenIndex());
     }
     private static List<Expr.Param> buildFields(List<FieldContext> contexts) {
         return contexts.stream().map(Nulls.nonNull(f -> new Param(pos(f.start), nameOf(f.identifier()), buildType(f.type()), buildAnnotations(f.annotation())))).toList();
@@ -255,7 +255,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (ctx == null) {
             return List.of();
         }
-        return ctx.typeParam().stream().map(Nulls.nonNull(p -> new Decl.TypeParam(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())))).toList();
+        return Nulls.stream(ctx.typeParam()).map(Nulls.nonNull(p -> new Decl.TypeParam(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())))).toList();
     }
     private static Decl.Function buildSignature(InterfaceMethodContext ctx) {
         return new Function(pos(ctx.start), pos(ctx.identifier().start), false, nameOf(ctx.identifier()), buildParams(ctx.param()),
@@ -279,7 +279,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (expression != null) {
             return new AnnotationArg(name, buildExpr(expression), List.of());
         }
-        final List<Decl.AnnotationArg> elements = ctx.annotationValue().stream().map(Nulls.nonNull(v -> annotationValue(null, v))).toList();
+        final List<Decl.AnnotationArg> elements = Nulls.stream(ctx.annotationValue()).map(Nulls.nonNull(v -> annotationValue(null, v))).toList();
         return new AnnotationArg(name, null, elements);
     }
     private static Stmt.Block buildBlock(BlockContext ctx) {
@@ -410,7 +410,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (ctx.pipeStage().isEmpty()) {
             return source;
         }
-        final var stages = ctx.pipeStage().stream().map(Nulls.nonNull(stage -> buildStage(stage))).toList();
+        final var stages = Nulls.stream(ctx.pipeStage()).map(Nulls.nonNull(stage -> buildStage(stage))).toList();
         final var pipe = new Pipe(source.pos(), source, stages);
         final var fallback = ctx.additive();
         return (fallback == null ? pipe : new Elvis(pipe.pos(), pipe, buildAdditive(fallback)));
@@ -421,19 +421,19 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Stage(pos(stage.start), nameOf(stage.identifier()), buildArguments(stage.arguments()), lambda);
     }
     private static Expr buildDisjunction(DisjunctionContext ctx) {
-        final var operands = ctx.conjunction().stream().map(Nulls.nonNull(c -> buildConjunction(c))).toList();
+        final var operands = Nulls.stream(ctx.conjunction()).map(Nulls.nonNull(c -> buildConjunction(c))).toList();
         return leftFold(ctx, operands);
     }
     private static Expr buildConjunction(ConjunctionContext ctx) {
-        final var operands = ctx.equality().stream().map(Nulls.nonNull(c -> buildEquality(c))).toList();
+        final var operands = Nulls.stream(ctx.equality()).map(Nulls.nonNull(c -> buildEquality(c))).toList();
         return leftFold(ctx, operands);
     }
     private static Expr buildEquality(EqualityContext ctx) {
-        final var operands = ctx.comparison().stream().map(Nulls.nonNull(c -> buildComparison(c))).toList();
+        final var operands = Nulls.stream(ctx.comparison()).map(Nulls.nonNull(c -> buildComparison(c))).toList();
         return leftFold(ctx, operands);
     }
     private static Expr buildComparison(ComparisonContext ctx) {
-        final var operands = ctx.isCheck().stream().map(Nulls.nonNull(c -> buildIsCheck(c))).toList();
+        final var operands = Nulls.stream(ctx.isCheck()).map(Nulls.nonNull(c -> buildIsCheck(c))).toList();
         return leftFold(ctx, operands);
     }
     private static Expr buildIsCheck(IsCheckContext ctx) {
@@ -445,7 +445,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Is(target.pos(), target, new TypeRef(pos(type.start), type.getText(), List.of(), false), ctx.BANG() != null);
     }
     private static Expr buildElvis(ElvisContext ctx) {
-        final var operands = ctx.additive().stream().map(Nulls.nonNull(a -> buildAdditive(a))).toList();
+        final var operands = Nulls.stream(ctx.additive()).map(Nulls.nonNull(a -> buildAdditive(a))).toList();
         var result = operands.getLast();
         var i = operands.size() - 2;
         while (i >= 0) {
@@ -455,11 +455,11 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return result;
     }
     private static Expr buildAdditive(AdditiveContext ctx) {
-        final var operands = ctx.multiplicative().stream().map(Nulls.nonNull(m -> buildMultiplicative(m))).toList();
+        final var operands = Nulls.stream(ctx.multiplicative()).map(Nulls.nonNull(m -> buildMultiplicative(m))).toList();
         return leftFold(ctx, operands);
     }
     private static Expr buildMultiplicative(MultiplicativeContext ctx) {
-        final var operands = ctx.prefixExpression().stream().map(Nulls.nonNull(p -> buildPrefix(p))).toList();
+        final var operands = Nulls.stream(ctx.prefixExpression()).map(Nulls.nonNull(p -> buildPrefix(p))).toList();
         return leftFold(ctx, operands);
     }
     private static Expr leftFold(ParserRuleContext ctx, List<Expr> operands) {
@@ -577,7 +577,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         if (ctx == null) {
             return List.of();
         }
-        return ctx.expression().stream().map(Nulls.nonNull(e -> buildExpr(e))).toList();
+        return Nulls.stream(ctx.expression()).map(Nulls.nonNull(e -> buildExpr(e))).toList();
     }
     private static Expr buildPrimary(PrimaryContext ctx) {
         switch (ctx) {
@@ -619,8 +619,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Conditional(pos(ctx.start), buildExpr(ctx.expression(0)), thenExpr, otherwise);
     }
     private static Expr buildGenericNew(GenericConstructorContext ctx) {
-        final var typeArgs = ctx.typeArgs().type().stream().map(Nulls.nonNull(t -> buildType(t))).toList();
-        final var path = ctx.qualifiedName().identifier().stream().map(Nulls.nonNull(i -> nameOf(i))).toList();
+        final var typeArgs = Nulls.stream(ctx.typeArgs().type()).map(Nulls.nonNull(t -> buildType(t))).toList();
+        final var path = Nulls.stream(ctx.qualifiedName().identifier()).map(Nulls.nonNull(i -> nameOf(i))).toList();
         return new GenericNew(pos(ctx.start), String.join(".", path), typeArgs, buildArguments(ctx.arguments()));
     }
     private static Expr buildWhen(WhenExpressionContext ctx) {
@@ -678,7 +678,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return buildType(ctx);
     }
     private static TypeRef buildType(TypeContext ctx) {
-        final var args = ctx.typeArg().stream().map(Nulls.nonNull(t -> buildTypeArg(t))).toList();
+        final var args = Nulls.stream(ctx.typeArg()).map(Nulls.nonNull(t -> buildTypeArg(t))).toList();
         return new TypeRef(pos(ctx.start), ctx.qualifiedName().getText(), args, ctx.QUESTION() != null);
     }
     private static TypeRef buildTypeArg(TypeArgContext ctx) {

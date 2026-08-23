@@ -585,7 +585,7 @@ import org.axl.compiler.ast.TypeRef;
         return (type.args().isEmpty() ? null : type.args().get(type.args().size() - 1).name());
     }
     private static boolean hasMethod(Decl.ClassDecl c, String name) {
-        return c.methods().stream().anyMatch(m -> m.name().equals(name));
+        return Nulls.stream(c.methods()).anyMatch(m -> m.name().equals(name));
     }
     private static Expr.@Nullable Lambda lambdaOf(Expr expr) {
         final var inner = unparenthesized(expr);

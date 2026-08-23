@@ -24,7 +24,7 @@ import java.util.stream.Collectors;
         for (final var key : counts.keySet()) {
             names.add(key.toUpperCase());
         }
-        final var total = counts.values().stream().map(Nulls.nonNull(it -> it + 0)).count();
+        final var total = Nulls.stream(counts.values()).map(Nulls.nonNull(it -> it + 0)).count();
         return String.join(",", names) + " " + total + " " + counts.headMap("m").size();
     }
     public static void main(String[] args) {

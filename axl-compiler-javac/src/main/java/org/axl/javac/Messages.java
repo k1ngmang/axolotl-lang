@@ -881,6 +881,10 @@ final class Messages {
             boolean elvis = value.contains("Nulls.or(");
             String subject = name ? "`" + value + "`" : elvis ? "the value of `?:`" : value.contains("Nulls.map(") ? "the value of `?.`"
                     : "the argument";
+            if (text.contains("Nulls.stream(" + value + ")")) {
+                return new Translated(ErrorCode.NULLABLE_DEREFERENCE, (name ? "`" + value + "`" : "the value") + " may be null, but "
+                        + "`|>` needs a collection; check it for null first or give a default with `?:`");
+            }
             String check = name ? "check `if (" + value + " != null)`" : "a null check";
             String open = name ? openTypeOf(value, javaLines, javaLine) : null;
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, elvis
@@ -1175,6 +1179,11 @@ final class Messages {
         Matcher noSuitable = NO_SUITABLE.matcher(message);
         if (noSuitable.find() && noSuitable.group(1).matches("println|print") && splitTopLevel(noSuitable.group(2)).size() > 1) {
             return "`" + noSuitable.group(1) + "` takes one value; join them with `+`, as in `println(a + \" \" + b)`";
+        }
+        // The source of a pipe whose type the translator does not know is passed to Nulls.stream.
+        if (noSuitable.find(0) && noSuitable.group(1).equals("stream") && message.contains("axl.lang.Nulls.")
+                && splitTopLevel(noSuitable.group(2)).size() == 1) {
+            return pipeSubject(noSuitable.group(2), axlText);
         }
         if (noSuitable.find(0)) {
             List<String> candidates = new ArrayList<>();
@@ -2416,11 +2425,6 @@ final class Messages {
     /** The message for a pipe over a value that is not a collection; an array of objects can be wrapped in a list. */
     private static String pipeSubject(String javaType, String axlText) {
         String found = PIPE_SUBJECT + ", found `" + axlType(javaType) + "`";
-        // A stream whose type the translator cannot tell is taken as a collection.
-        if (javaType.startsWith("java.util.stream.Stream<")) {
-            return found + ", which `|>` takes only where its type is known; write it, `val items: " + axlType(javaType)
-                    + " = ...`, or collect it with `.toList()` first";
-        }
         if (NUMBER_STREAM.matcher(javaType).matches()) {
             String source = pipeSource(axlText);
             return found + "; a stream of numbers needs `.boxed()` first" + (source == null ? "" : ": `" + source + ".boxed() |> ...`");

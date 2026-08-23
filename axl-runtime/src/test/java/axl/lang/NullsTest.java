@@ -45,4 +45,10 @@ class NullsTest {
     void nonNullsDropsNulls() {
         assertEquals(List.of("a", "b"), Nulls.nonNulls(Stream.of("a", null, "b")).toList());
     }
+
+    @Test
+    void streamTakesCollectionsAndStreams() {
+        assertEquals(List.of("a", "b"), Nulls.stream(List.of("a", "b")).toList());
+        assertEquals(List.of("a", "b"), Nulls.stream(Stream.of("a", "b")).toList());
+    }
 }

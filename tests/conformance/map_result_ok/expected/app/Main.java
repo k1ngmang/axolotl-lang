@@ -11,7 +11,7 @@ import java.util.List;
     public static Result<List<List<Integer>>, String> f(List<List<String>> xss) {
         final java.util.List<List<Integer>> $p1 = new java.util.ArrayList<>();
         for (final var row : xss) {
-            final var $t1 = new Ok<>(row.stream().map(Nulls.nonNull(it -> it.length())).toList());
+            final var $t1 = new Ok<>(Nulls.stream(row).map(Nulls.nonNull(it -> it.length())).toList());
             $p1.add(Result.<List<Integer>>unwrap($t1));
         }
         final List<List<Integer>> r = $p1;

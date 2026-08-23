@@ -7,3 +7,7 @@ Ok[value=3]
 Err[error=bad x]
 [two, three]
 [lines.txt]
+1
+[5, 3]
+[a, aa, aaa]
+Err[error=bad apple]

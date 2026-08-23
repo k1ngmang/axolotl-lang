@@ -19,7 +19,7 @@ import java.util.List;
             if ($t1.isErr()) return Result.propagate($t1);
             $p1.add(Result.<Integer>unwrap($t1));
         }
-        $p1.stream().forEach(it -> System.out.println(it));
+        Nulls.stream($p1).forEach(it -> System.out.println(it));
         return new Ok<>(0);
     }
     public static void main(String[] args) {

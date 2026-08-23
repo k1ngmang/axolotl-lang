@@ -150,7 +150,7 @@ import org.axl.compiler.ast.TypeRef;
         return (right != null && left != null && sameType(left, right) ? right : null);
     }
     private @Nullable TypeRef call(Expr.Call c) {
-        final var own = methods.stream().filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();
+        final var own = Nulls.stream(methods).filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();
         if (!own.isEmpty()) {
             return (own.size() == 1 && own.getFirst().typeParams().isEmpty() ? own.getFirst().returnType() : null);
         }
@@ -218,7 +218,7 @@ import org.axl.compiler.ast.TypeRef;
         if (!params.isEmpty() && params.size() != receiver.args().size()) {
             return null;
         }
-        final var field = Nulls.first(fieldsOf(decl).stream().filter(f -> f.name().equals(name)).iterator());
+        final var field = Nulls.first(Nulls.stream(fieldsOf(decl)).filter(f -> f.name().equals(name)).iterator());
         final var type = Nulls.map(field, $n1 -> $n1.type());
         return (type == null ? null : Implementations.substitute(type, params, receiver.args()));
     }
@@ -418,7 +418,7 @@ import org.axl.compiler.ast.TypeRef;
                 return decl$1.fields();
             }
             case Decl.ClassDecl decl$2 -> {
-                final var fields = new ArrayList<Expr.Param>(decl$2.parameters().stream().map(Nulls.nonNull(p -> new Expr.Param(p.pos(), p.name(), p.type(), List.of()))).toList());
+                final var fields = new ArrayList<Expr.Param>(Nulls.stream(decl$2.parameters()).map(Nulls.nonNull(p -> new Expr.Param(p.pos(), p.name(), p.type(), List.of()))).toList());
                 for (final var p : decl$2.properties()) {
                     fields.add(new Expr.Param(p.pos(), p.name(), p.type(), List.of()));
                 }

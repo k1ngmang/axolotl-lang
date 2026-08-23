@@ -1,6 +1,7 @@
 package app
 
 import java.nio.file.Files
+import java.util.ArrayList
 import java.util.List
 import java.util.stream.Stream
 
@@ -14,6 +15,16 @@ fn total(numbers: Stream<String>) -> Result<Int, String> {
         sum += n
     }
     return Ok(sum)
+}
+
+// A pipe over a property or a generic factory, whose type the translator does not know, takes a stream as well.
+class Bag {
+    val items = ArrayList<String>()
+}
+
+fn parsedAll(bag: Bag) -> Result<List<Int>, String> {
+    val numbers = bag.items.stream() |> mapResult { parse(it) }
+    return Ok(numbers)
 }
 
 fn main() {
@@ -36,4 +47,11 @@ fn main() {
     use (val files = Files.list(dir)) {
         println(files |> map { it.getFileName().toString() })
     } else e -> println(e.getMessage())
+    val bag = Bag()
+    bag.items.add("apple")
+    bag.items.add("fig")
+    println(bag.items.stream() |> filter { it.length() > 3 } |> count)
+    println(bag.items |> map { it.length() })
+    println(Stream.iterate("a", { it + "a" }) |> limit(3))
+    println(parsedAll(bag))
 }

@@ -30,10 +30,10 @@ import java.util.List;
     @Marker("value") public static final int limit =
             3;
     public static java.lang.reflect.Method method(Class<?> c, String name) {
-        return java.util.Objects.requireNonNull((Nulls.first(List.of(c.getDeclaredMethods()).stream().filter(it -> it.getName().equals(name)).iterator())));
+        return java.util.Objects.requireNonNull((Nulls.first(Nulls.stream(List.of(c.getDeclaredMethods())).filter(it -> it.getName().equals(name)).iterator())));
     }
     public static java.lang.reflect.Field field(Class<?> c, String name) {
-        return java.util.Objects.requireNonNull((Nulls.first(List.of(c.getDeclaredFields()).stream().filter(it -> it.getName().equals(name)).iterator())));
+        return java.util.Objects.requireNonNull((Nulls.first(Nulls.stream(List.of(c.getDeclaredFields())).filter(it -> it.getName().equals(name)).iterator())));
     }
     @Marker("fn") public static void main(String[] args) {
         System.out.println(method(Main.class, "main").getAnnotation(Marker.class).value());

@@ -2,6 +2,7 @@ package app;
 import axl.lang.*;
 import org.jspecify.annotations.*;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -23,6 +24,19 @@ import java.util.stream.Stream;
             sum += n;
         }
         return new Ok<>(sum);
+    }
+    public static final class Bag {
+        public final ArrayList<String> items = new ArrayList<String>();
+    }
+    public static Result<List<Integer>, String> parsedAll(Bag bag) {
+        final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
+        for (final var it : Nulls.stream(bag.items.stream()).toList()) {
+            final var $t1 = parse(it);
+            if ($t1.isErr()) return Result.propagate($t1);
+            $p1.add(Result.<Integer>unwrap($t1));
+        }
+        final var numbers = $p1;
+        return new Ok<>(numbers);
     }
     public static void main(String[] args) {
         final var s = Stream.of("b", "a", "c");
@@ -55,5 +69,12 @@ import java.util.stream.Stream;
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             System.out.println(e.getMessage());
         }
+        final var bag = new Bag();
+        bag.items.add("apple");
+        bag.items.add("fig");
+        System.out.println(Nulls.stream(bag.items.stream()).filter(it -> it.length() > 3).count());
+        System.out.println(Nulls.stream(bag.items).map(Nulls.nonNull(it -> it.length())).toList());
+        System.out.println(Nulls.stream(Stream.iterate("a", it -> it + "a")).limit(3).toList());
+        System.out.println(parsedAll(bag));
     }
 }

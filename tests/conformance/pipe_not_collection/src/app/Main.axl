@@ -1,7 +1,5 @@
 package app
 
-import java.io.BufferedReader
-import java.io.StringReader
 import java.util.Map
 
 fn f(m: Map<String, Int>) {
@@ -10,5 +8,4 @@ fn f(m: Map<String, Int>) {
     val parts = "a,b".split(",")
     val c = parts |> map { it }
     val d = "a,b".split(",") |> map { it }
-    val e = BufferedReader(StringReader("a")).lines() |> map { it }
 }

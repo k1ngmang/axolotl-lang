@@ -17,10 +17,10 @@ import org.axl.compiler.ast.TypeRef;
         for (final var decl : declsOf(file, siblings)) {
             if (decl instanceof Decl.EnumDecl decl$1) {
                 final var prefix = decl$1.name() + ".";
-                final var mentioned = decl$1.constants().stream().anyMatch(c -> named.contains(c) || named.contains(prefix + c));
-                final var missing = decl$1.constants().stream().filter(c -> !named.contains(c) && !named.contains(prefix + c)).toList();
+                final var mentioned = Nulls.stream(decl$1.constants()).anyMatch(c -> named.contains(c) || named.contains(prefix + c));
+                final var missing = Nulls.stream(decl$1.constants()).filter(c -> !named.contains(c) && !named.contains(prefix + c)).toList();
                 if (mentioned && !missing.isEmpty()) {
-                    return quoted(missing.stream().map(Nulls.nonNull(c -> prefix + c)).toList());
+                    return quoted(Nulls.stream(missing).map(Nulls.nonNull(c -> prefix + c)).toList());
                 }
             }
         }

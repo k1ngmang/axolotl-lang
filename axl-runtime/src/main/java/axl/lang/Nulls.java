@@ -1,4 +1,5 @@
 package axl.lang;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.function.Function;
@@ -70,4 +71,8 @@ import org.jspecify.annotations.Nullable;
     public static <T, R> @Nullable R map(@Nullable T a, Function<? super T, ? extends @Nullable R> f) {
         return a == null ? null : f.apply(a);
     }
+    // The source of a pipe whose type the translator does not know, such as `bag.items.stream()`:
+    // Java picks the overload, so a stream is not streamed again.
+    public static <T extends @Nullable Object> Stream<T> stream(Collection<T> items) { return items.stream(); }
+    public static <T extends @Nullable Object> Stream<T> stream(Stream<T> items) { return items; }
 }
