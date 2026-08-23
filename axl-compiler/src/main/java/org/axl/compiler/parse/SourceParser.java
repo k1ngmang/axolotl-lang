@@ -755,6 +755,22 @@ public final class SourceParser {
         return first;
     }
 
+    /** All tokens, comments and whitespace included, and the parse tree. */
+    public record Syntax(List<Token> tokens, AxolotlParser.CompilationUnitContext tree) {}
+
+    /**
+     * For tools that rewrite the text, such as the formatter: source has `\n` line ends and no byte order
+     * mark, and {@link #parse} found no syntax errors in it.
+     */
+    public static Syntax syntax(String source) {
+        var lexer = new AxolotlLexer(CharStreams.fromString(source));
+        lexer.removeErrorListeners();
+        var tokens = new BlockTokens(lexer);
+        tokens.fill();
+        tokens.markIfBlocks();
+        return new Syntax(tokens.getTokens(), parseTree(tokens, new BaseErrorListener()));
+    }
+
     public static Result parse(String path, String className, String source) {
         return LargeStack.call(() -> parseHere(path, className, source), () -> new Result(null, List.of(
                 AxlDiagnostic.error(path, 1, 1, ErrorCode.SYNTAX, "the code is nested too deeply to translate; "
