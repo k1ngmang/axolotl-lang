@@ -2,11 +2,13 @@ package org.axl.intellij;
 
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.lang.annotation.HighlightSeverity;
+import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
 import com.intellij.psi.PsiReference;
+import com.intellij.psi.codeStyle.CodeStyleManager;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
@@ -126,6 +128,14 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         myFixture.configureByText("Main.axl", "package app\n\nfn f(xs: java.util.List<Int>) = xs |> fil<caret>\n");
         myFixture.completeBasic();
         assertTrue(myFixture.getEditor().getDocument().getText().contains("xs |> filter"));
+    }
+
+    public void testReformatsWithTheCompilersFormatter() {
+        myFixture.configureByText("Main.axl", "package app\nimport java.util.Map\nimport java.util.List\nfn f(a:Int)->Int{\n  return a+1\n}\n");
+        WriteCommandAction.runWriteCommandAction(getProject(), () -> {
+            CodeStyleManager.getInstance(getProject()).reformat(myFixture.getFile());
+        });
+        myFixture.checkResult("package app\n\nimport java.util.List\nimport java.util.Map\n\nfn f(a: Int) -> Int {\n    return a + 1\n}\n");
     }
 
     public void testCompletesTheKeywordsOfLoopsDataClassesAndWhen() {

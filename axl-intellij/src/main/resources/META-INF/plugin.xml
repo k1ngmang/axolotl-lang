@@ -33,6 +33,7 @@
     <lang.braceMatcher language="Axolotl" implementationClass="org.axl.intellij.highlight.AxlBraceMatcher"/>
     <lang.commenter language="Axolotl" implementationClass="org.axl.intellij.highlight.AxlCommenter"/>
     <lang.foldingBuilder language="Axolotl" implementationClass="org.axl.intellij.highlight.AxlFoldingBuilder"/>
+    <formattingService implementation="org.axl.intellij.format.AxlFormattingService"/>
     <lang.psiStructureViewFactory language="Axolotl"
                                   implementationClass="org.axl.intellij.highlight.AxlStructureViewFactory"/>
     <annotator language="Axolotl" implementationClass="org.axl.intellij.annotate.AxlAnnotator"/>
