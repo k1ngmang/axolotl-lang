@@ -71,12 +71,15 @@ public final class Main {
         CommandLine commandLine = new CommandLine(new Main(daemon));
         // Everything after the .axl file belongs to the program, options included.
         commandLine.getSubcommands().get("run").setStopAtPositional(true);
-        // `axl daemon` compiles nothing, so the inherited options about compiling only confuse its help; they are still accepted.
-        CommandSpec daemonCommand = commandLine.getSubcommands().get("daemon").getCommandSpec();
-        for (String name : List.of("--no-daemon", "--verbose")) {
-            OptionSpec option = daemonCommand.findOption(name);
-            daemonCommand.remove(option);
-            daemonCommand.addOption(OptionSpec.builder(option).hidden(true).build());
+        // `axl daemon` and `axl fmt` compile nothing, so the inherited options about compiling only confuse
+        // their help; they are still accepted.
+        for (String command : List.of("daemon", "fmt")) {
+            CommandSpec spec = commandLine.getSubcommands().get(command).getCommandSpec();
+            for (String name : List.of("--no-daemon", "--verbose")) {
+                OptionSpec option = spec.findOption(name);
+                spec.remove(option);
+                spec.addOption(OptionSpec.builder(option).hidden(true).build());
+            }
         }
         // picocli's own converter hides the InvalidPathException in a message.
         commandLine.registerConverter(Path.class, text -> Path.of(text));

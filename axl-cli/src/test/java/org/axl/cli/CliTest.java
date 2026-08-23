@@ -88,6 +88,9 @@ class CliTest {
         assertEquals(0, axl("daemon", "--help"), err.toString());
         assertFalse(out.toString().contains("[--no-daemon]") || out.toString().contains("--verbose"), out.toString());
         assertTrue(out.toString().contains("--stop"), out.toString());
+        out.reset();
+        assertEquals(0, axl("fmt", "--help"), err.toString());
+        assertFalse(out.toString().contains("[--no-daemon]") || out.toString().contains("--verbose"), out.toString());
     }
 
     @Test
