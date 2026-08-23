@@ -1193,7 +1193,7 @@ import org.axl.compiler.ast.TypeRef;
         return !body.isEmpty() && body.getLast() instanceof Stmt.ExprStmt;
     }
     private boolean endsWithJump(List<Stmt> body) {
-        return !body.isEmpty() && body.getLast() instanceof Stmt.Jump;
+        return !body.isEmpty() && (body.getLast() instanceof Stmt.Jump || body.getLast() instanceof Stmt.Return);
     }
     private boolean endsWithIfOfValues(List<Stmt> body) {
         if (body.isEmpty()) {

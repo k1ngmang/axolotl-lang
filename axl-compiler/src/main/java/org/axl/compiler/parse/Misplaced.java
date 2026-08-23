@@ -75,17 +75,13 @@ final class Misplaced {
         return null;
     }
 
-    /** Kotlin's `1 -> return "a"` and `n > 0 -> "pos"`. */
+    /** Kotlin's `1 -> a(); b()` and `n > 0 -> "pos"`. */
     private static Placed whenBranch(CommonTokenStream tokens, Token at, Token previous) {
         Token first = SourceParser.lineStart(tokens, at);
         if (!SourceParser.inWhenBraces(tokens, first)) {
             return null;
         }
         Token arrow = arrowBefore(tokens, first, at);
-        if (arrow != null && at.getType() == AxolotlLexer.RETURN && previous == arrow) {
-            return new Placed(at, "a `return` in a `when` branch goes in braces: `" + text(tokens, first, arrow) + " -> { "
-                    + restOfLine(tokens, SourceParser.nextToken(tokens, arrow)) + " }`", true);
-        }
         Token semicolon = arrow == null ? null : semicolonBefore(tokens, arrow, at);
         if (semicolon != null) {
             return new Placed(semicolon, "several statements in a `when` branch go in braces: `" + text(tokens, first, arrow)
@@ -157,17 +153,6 @@ final class Misplaced {
         StringBuilder text = new StringBuilder();
         for (Token t = first; t.getTokenIndex() < end.getTokenIndex(); t = SourceParser.nextToken(tokens, t)) {
             text.append(text.isEmpty() ? "" : " ").append(t.getText());
-        }
-        return text.toString();
-    }
-
-    private static String restOfLine(CommonTokenStream tokens, Token first) {
-        StringBuilder text = new StringBuilder();
-        for (Token t = first; t.getLine() == first.getLine() && t.getType() != Token.EOF; t = SourceParser.nextToken(tokens, t)) {
-            text.append(text.isEmpty() ? "" : " ").append(t.getText());
-            if (SourceParser.nextToken(tokens, t) == t) {
-                break;
-            }
         }
         return text.toString();
     }

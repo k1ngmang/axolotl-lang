@@ -1,7 +1,6 @@
 AXL001 app/Main.axl:13:5: error: `else` must be the last branch of a `when`
 AXL001 app/Main.axl:16:35: error: a `when` tests either types with `is` or constants, not both
 AXL006 app/Main.axl:24:22: error: `try` cannot be used in a `when` that gives a value, since it would return from the function in the middle of the `when`; write the `when` as a statement or as `return when ...`
-AXL001 app/Main.axl:32:9: error: each branch of a `when` that gives a value ends with the value
 AXL001 app/Main.axl:33:13: error: `return` cannot leave a `when` that gives a value; write the `when` as a statement or as `return when ...`
 AXL001 app/Main.axl:40:11: error: a `when` that gives a value must be inside a function
 AXL001 app/Main.axl:46:21: error: a `when` that gives a value cannot be inside a lambda of one expression; give the lambda statements and write `return when ...`

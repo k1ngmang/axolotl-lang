@@ -304,10 +304,10 @@ whenExpression
     : WHEN LPAREN (VAL identifier ASSIGN)? expression RPAREN LBRACE whenArm* RBRACE
     ;
 
-// After `->` a block or a value; a jump or an assignment, statements elsewhere, also stand in a `when` statement.
+// After `->` a block or a value; a jump, a `return` or an assignment, statements elsewhere, also stand in a `when` statement.
 whenArm
     : (whenCondition (COMMA whenCondition)* | ELSE) ARROW
-      (block | BREAK | CONTINUE | postfixExpression assignOp expression | expression) SEMI?
+      (block | BREAK | CONTINUE | RETURN ({sameLine()}? expression)? | postfixExpression assignOp expression | expression) SEMI?
     ;
 
 whenCondition

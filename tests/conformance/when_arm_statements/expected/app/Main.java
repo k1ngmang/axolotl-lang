@@ -1,6 +1,7 @@
 package app;
 import axl.lang.*;
 import org.jspecify.annotations.*;
+import java.util.ArrayList;
 import java.util.List;
 
 @NullMarked public final class Main {
@@ -10,6 +11,34 @@ import java.util.List;
         public Counter(int count) {
             this.count = count;
         }
+    }
+    public static final class Spawner {
+        public final ArrayList<String> names = new ArrayList<String>();
+        public void spawn(Character c) {
+            switch (c) {
+                case 'r' -> {
+                    names.add("rat");
+                }
+                case 'o' -> {
+                    names.add("orc");
+                }
+                default -> {
+                    return;
+                }
+            }
+            System.out.println("spawned " + names.size());
+        }
+    }
+    public static String describe(int n) {
+        switch (n) {
+            case 1 -> {
+                return "one";
+            }
+            case 2 -> {
+                return "two";
+            }
+        }
+        return "many";
     }
     public static void main(String[] args) {
         var n = 0;
@@ -49,5 +78,10 @@ import java.util.List;
             }
         }
         System.out.println(s + " " + c.count);
+        final var spawner = new Spawner();
+        spawner.spawn('r');
+        spawner.spawn('#');
+        spawner.spawn('o');
+        System.out.println(describe(1) + " " + describe(2) + " " + describe(3));
     }
 }

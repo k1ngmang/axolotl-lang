@@ -1247,8 +1247,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>) {
 
     private fn endsWithValue(body: List<Stmt>) -> Boolean = !body.isEmpty() && body.getLast() is Stmt.ExprStmt
 
-    /** A branch that leaves with `break` or `continue` gets the error about leaving the `when`, which says it all. */
-    private fn endsWithJump(body: List<Stmt>) -> Boolean = !body.isEmpty() && body.getLast() is Stmt.Jump
+    /** A branch that leaves with `break`, `continue` or `return` gets the error about leaving the `when`, which says it all. */
+    private fn endsWithJump(body: List<Stmt>) -> Boolean = !body.isEmpty() && (body.getLast() is Stmt.Jump || body.getLast() is Stmt.Return)
 
     /** `if (c) { Err("x") } else { Ok(v) }` as the last statement: its branches end with values that go nowhere. */
     private fn endsWithIfOfValues(body: List<Stmt>) -> Boolean {

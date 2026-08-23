@@ -1,8 +1,0 @@
-package app
-
-fn f(n: Int) -> String {
-    when (n) {
-        1 -> return "a"
-        else -> return "b"
-    }
-}

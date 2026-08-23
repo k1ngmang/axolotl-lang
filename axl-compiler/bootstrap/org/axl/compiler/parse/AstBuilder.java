@@ -643,6 +643,11 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Arm(pos(arm.start), conditions, body, blockCtx != null);
     }
     private static Stmt armStatement(WhenArmContext arm) {
+        final var returnWord = arm.RETURN();
+        if (returnWord != null) {
+            final var value = arm.expression();
+            return new Return(pos(returnWord.getSymbol()), (value == null ? null : buildExpr(value)));
+        }
         final var breakWord = arm.BREAK();
         if (breakWord != null) {
             return new Stmt.Jump(pos(breakWord.getSymbol()), true);

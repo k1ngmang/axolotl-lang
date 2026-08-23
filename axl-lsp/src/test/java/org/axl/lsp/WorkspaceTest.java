@@ -1254,6 +1254,23 @@ class WorkspaceTest {
     }
 
     @Test
+    void readsReturnAsTheArmOfAWhenStatement() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn f(n: Int) -> String {
+                    val word = "one"
+                    when (n) {
+                        1 -> return word
+                        else -> return "many"
+                    }
+                }
+                """);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        assertEquals(List.of(3), definitionLines(uri, 5, 21));
+    }
+
+    @Test
     void readsBreakContinueAndReturnAsTheHandlerOfAnAttemptStatement() throws Exception {
         String uri = open("Main.axl", """
                 package app

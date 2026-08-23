@@ -14,3 +14,11 @@ fn main() {
         println(label)
     }
 }
+
+fn pick(x: Int) -> String {
+    val label = when (x) {
+        1 -> "one"
+        else -> return "other"
+    }
+    return label
+}

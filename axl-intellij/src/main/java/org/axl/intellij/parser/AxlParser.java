@@ -523,8 +523,8 @@ public final class AxlParser implements PsiParser {
         }
     }
 
-    /** The handler of an `attempt` on a line of its own may be `break`, `continue` or `return value`. */
-    private void attemptExit() {
+    /** The handler of an `attempt` on a line of its own, and a branch of a `when`, may be `break`, `continue` or `return value`. */
+    private void exit() {
         PsiBuilder.Marker m = b.mark();
         boolean returns = at(RETURN);
         b.advanceLexer();
@@ -793,7 +793,7 @@ public final class AxlParser implements PsiParser {
                     b.advanceLexer();
                 }
                 if (statement && (at(BREAK) || at(CONTINUE) || at(RETURN))) {
-                    attemptExit();
+                    exit();
                 } else {
                     expression();
                 }
@@ -972,8 +972,8 @@ public final class AxlParser implements PsiParser {
         if (expect(ARROW, "`->` expected")) {
             if (at(LBRACE) && !lambdaAhead()) {
                 block();
-            } else if (at(BREAK) || at(CONTINUE)) {
-                jump();
+            } else if (at(BREAK) || at(CONTINUE) || at(RETURN)) {
+                exit();
             } else {
                 // A value, or an assignment, a statement elsewhere, which stands in a `when` statement like a jump.
                 PsiBuilder.Marker body = b.mark();

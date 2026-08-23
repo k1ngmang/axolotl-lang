@@ -48,7 +48,6 @@ AXL001 app/PrivateClassParameter.axl:3:9: error: class parameters cannot be `pri
 AXL001 app/PropertyWithoutValue.axl:4:9: error: a property needs a value: `var count: Int = ...`
 AXL001 app/Repeat.axl:4:15: error: Axolotl has no `repeat`; count with a `while` loop
 AXL001 app/ReturnInBody.axl:3:23: error: a body after `=` is the value itself; remove `return`
-AXL001 app/ReturnInWhenBranch.axl:5:14: error: a `return` in a `when` branch goes in braces: `1 -> { return "a" }`
 AXL001 app/SemicolonAfterHeader.axl:3:14: error: a function needs a body after its header: `= value` or `{ ... }`
 AXL001 app/SignatureAtEnd.axl:3:14: error: the declaration is not finished at the end of this line
 AXL001 app/StrayElse.axl:4:5: error: `else` needs an `if` before it: `if (c) { ... } else { ... }`

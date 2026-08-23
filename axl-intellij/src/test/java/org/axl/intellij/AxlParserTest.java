@@ -363,6 +363,32 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertErrors("fn f(n: Int) {\n    when (n) {\n        1 -> n + 1 = 2\n    }\n}\n");
     }
 
+    public void testReadsReturnAsTheArmOfAWhenStatement() {
+        PsiFile file = myFixture.configureByText("Returns.axl", """
+                package app
+
+                fn f(n: Int) -> String {
+                    when (n) {
+                        1 -> return "one"
+                        2 -> println("two")
+                    }
+                    return n.toString()
+                }
+
+                fn g(n: Int) {
+                    when (n) {
+                        1 -> println("one")
+                        else -> return
+                    }
+                    println(n)
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        PsiElement[] returns = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.RETURN
+                && e.getParent().getNode().getElementType() == AxlElementTypes.WHEN_ARM);
+        assertEquals(List.of("return \"one\"", "return"), Arrays.stream(returns).map(PsiElement::getText).toList());
+    }
+
     public void testReadsBreakContinueAndReturnAsTheHandlerOfAnAttemptStatement() {
         PsiFile file = myFixture.configureByText("Exits.axl", """
                 package app

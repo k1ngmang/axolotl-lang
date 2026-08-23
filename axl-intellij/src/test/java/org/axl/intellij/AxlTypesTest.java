@@ -507,10 +507,11 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "when_arm_statement_errors", "src", "app", "Main.axl")));
         List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
                 .map(h -> h.getDescription()).toList();
-        assertEquals(errors.toString(), 3, errors.size());
+        assertEquals(errors.toString(), 4, errors.size());
         assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`break` cannot leave a `when` that gives a value")));
         assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`continue` cannot leave a `when` that gives a value")));
         assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("each branch of a `when` that gives a value ends with the value")));
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`return` cannot leave a `when` that gives a value")));
     }
 
     public void testNarrowsAndResolvesInTheAssignmentArmsOfAWhenStatement() {

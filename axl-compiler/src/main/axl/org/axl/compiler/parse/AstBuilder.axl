@@ -620,8 +620,13 @@ private fn buildArm(arm: WhenArmContext) -> Expr.Arm {
     return Arm(pos(arm.start), conditions, body, blockCtx != null)
 }
 
-/** The one statement of an arm without braces: its value, or a jump or an assignment, statements elsewhere too. */
+/** The one statement of an arm without braces: its value, or a jump, a `return` or an assignment, statements elsewhere too. */
 private fn armStatement(arm: WhenArmContext) -> Stmt {
+    val returnWord = arm.RETURN()
+    if (returnWord != null) {
+        val value = arm.expression()
+        return Return(pos(returnWord.getSymbol()), if (value == null) null else buildExpr(value))
+    }
     val breakWord = arm.BREAK()
     if (breakWord != null) {
         return Stmt.Jump(pos(breakWord.getSymbol()), true)
