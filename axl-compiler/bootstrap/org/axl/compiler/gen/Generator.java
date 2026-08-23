@@ -2,6 +2,7 @@ package org.axl.compiler.gen;
 import axl.lang.*;
 import org.jspecify.annotations.*;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -57,6 +58,7 @@ import org.axl.compiler.check.Whens;
     public @Nullable TypeRef storedType;
     public int patternCount;
     public final IdentityHashMap<Expr, String> arrayArguments;
+    public final Set<Expr> genericArrayArguments;
     public List<String> overridden;
     public List<RequiredMethod> requiredMethods;
     public @Nullable TypeRef subjectTypeOf;
@@ -97,6 +99,7 @@ import org.axl.compiler.check.Whens;
         this.storedType = null;
         this.patternCount = 0;
         this.arrayArguments = new IdentityHashMap<Expr, String>();
+        this.genericArrayArguments = Collections.newSetFromMap(new IdentityHashMap<Expr, Boolean>());
         this.overridden = List.of();
         this.requiredMethods = List.of();
         this.subjectTypeOf = null;
@@ -1443,7 +1446,9 @@ import org.axl.compiler.check.Whens;
     private String exprIn(Expr e, boolean inLambda) {
         final var element = arrayArguments.get(e);
         final var code = exprCode(e, inLambda);
-        return (element == null ? code : code + ".toArray(new " + element + "[0])");
+        return (element == null ? code :
+                (genericArrayArguments.contains(e) ? "Nulls.arrayOf(" + code + ", " + element + ".class)" :
+                code + ".toArray(new " + element + "[0])"));
     }
     private String exprCode(Expr e, boolean inLambda) {
         switch (e) {
@@ -1570,13 +1575,34 @@ import org.axl.compiler.check.Whens;
             if (element != null) {
                 arrayArguments.put(arg, element);
             }
+            if (element != null && isGeneric(signatures, i, args.size())) {
+                genericArrayArguments.add(arg);
+            }
             i += 1;
         }
     }
     private boolean isListArgument(Expr arg) {
         final var plain = arg instanceof Expr.Name arg$1 || arg instanceof Expr.Call arg$2 || arg instanceof Expr.Member arg$3 || arg instanceof Expr.GenericNew arg$4 || arg instanceof Expr.Pipe arg$5;
         final var type = (plain ? typeOf(arg) : null);
-        return type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1));
+        return isCollectionFactory(arg) ||
+                (type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1)));
+    }
+    private boolean isCollectionFactory(Expr arg) {
+        if (!(arg instanceof Expr.Call arg$1)) {
+            return false;
+        }
+        final var target = arg$1.target();
+        return target instanceof Expr.Name target$2 && COLLECTION_NAMES.contains(target$2.name()) && (arg$1.name().equals("of") || arg$1.name().equals("copyOf"));
+    }
+    private boolean isGeneric(List<Signature> signatures, int index, int arity) {
+        for (final var signature : signatures) {
+            final var params = signature.parameters();
+            if (params.size() == arity && params.get(index).endsWith("[]")) {
+                final var shape = options.classes().shape(params.get(index).substring(0, params.get(index).length() - 2));
+                return shape != null && !shape.typeParameters().isEmpty();
+            }
+        }
+        return false;
     }
     private @Nullable String arrayElement(List<Signature> signatures, int index, int arity) {
         @Nullable String element = null;

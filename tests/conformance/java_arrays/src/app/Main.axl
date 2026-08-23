@@ -3,6 +3,7 @@ package app
 import java.nio.file.Path
 import java.util.ArrayList
 import java.util.List
+import java.util.Map
 import java.util.concurrent.CompletableFuture
 
 // A list goes where Java takes an array of objects, unless the method also takes a collection there
@@ -19,4 +20,10 @@ fn main() {
     println(String.join("-", parts))
     println(String.format("%s", parts))
     println(ProcessBuilder(parts).command())
+    // An array of a generic class gets its type arguments from the list, also from `List.of(...)` written there.
+    val entries: List<Map.Entry<String, Int>> = List.of(Map.entry("a", 1), Map.entry("b", 2))
+    val fromVal: Map<String, Int> = Map.ofEntries(entries)
+    val inline: Map<String, Int> = Map.ofEntries(List.of(Map.entry("c", 3)))
+    println(fromVal.get("a") + " " + fromVal.get("b") + " " + inline.get("c"))
+    println(Path.of("x", List.of("y", "z")).getNameCount())
 }

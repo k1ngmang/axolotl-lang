@@ -44,8 +44,9 @@ final class Messages {
     private static final Pattern GENERATED_OR_SUBJECT = Pattern.compile("\\w*\\$e\\d+");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
+    // In the reason of a candidate, the parenthesis that closes the reason ends the message.
     private static final Pattern NO_INSTANCE = Pattern.compile(
-            "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+)$");
+            "no instance\\(s\\) of type variable\\(s\\) [\\w,]+ exist so that ([\\w.$]+(?:<.*>)?) conforms to (.+?)\\)?$");
     private static final Pattern LOSSY = Pattern.compile("^incompatible types: possible lossy conversion from (\\w+) to (\\w+)$");
     private static final Pattern INCOMPATIBLE = Pattern.compile(
             "^incompatible types: (?:bad type in conditional expression; )?(.+) cannot be converted to (.+?)(?: \\(.+ is a subtype of .+\\))?$");

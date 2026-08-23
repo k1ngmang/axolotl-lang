@@ -1,6 +1,7 @@
 package org.axl.compiler.gen
 
 import java.util.ArrayList
+import java.util.Collections
 import java.util.HashMap
 import java.util.HashSet
 import java.util.IdentityHashMap
@@ -94,6 +95,8 @@ class Generator(
     var patternCount: Int = 0
     // Lists passed where Java takes an array, with the class of the elements of the array.
     val arrayArguments: IdentityHashMap<Expr, String> = IdentityHashMap<Expr, String>()
+    // Those of them whose element class has type parameters, which a raw `new Map.Entry[0]` would lose.
+    val genericArrayArguments: Set<Expr> = Collections.newSetFromMap(IdentityHashMap<Expr, Boolean>())
 
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
     var overridden: List<String> = List.of()
@@ -1639,7 +1642,9 @@ class Generator(
     private fn exprIn(e: Expr, inLambda: Boolean) -> String {
         val element = arrayArguments.get(e)
         val code = exprCode(e, inLambda)
-        return if (element == null) code else code + ".toArray(new " + element + "[0])"
+        return if (element == null) code
+            else if (genericArrayArguments.contains(e)) "Nulls.arrayOf(" + code + ", " + element + ".class)"
+            else code + ".toArray(new " + element + "[0])"
     }
 
     private fn exprCode(e: Expr, inLambda: Boolean) -> String = when (e) {
@@ -1743,6 +1748,9 @@ class Generator(
             if (element != null) {
                 arrayArguments.put(arg, element)
             }
+            if (element != null && isGeneric(signatures, i, args.size())) {
+                genericArrayArguments.add(arg)
+            }
             i += 1
         }
     }
@@ -1751,7 +1759,29 @@ class Generator(
     private fn isListArgument(arg: Expr) -> Boolean {
         val plain = arg is Expr.Name || arg is Expr.Call || arg is Expr.Member || arg is Expr.GenericNew || arg is Expr.Pipe
         val type = if (plain) typeOf(arg) else null
-        return type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1))
+        return isCollectionFactory(arg)
+            || (type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1)))
+    }
+
+    /** `List.of(...)`, whose type the code does not tell, is a collection all the same. */
+    private fn isCollectionFactory(arg: Expr) -> Boolean {
+        if (arg !is Expr.Call) {
+            return false
+        }
+        val target = arg.target()
+        return target is Expr.Name && COLLECTION_NAMES.contains(target.name()) && (arg.name().equals("of") || arg.name().equals("copyOf"))
+    }
+
+    /** Whether the class of the elements of the array at that place has type parameters, as `Map.Entry` has. */
+    private fn isGeneric(signatures: List<Signature>, index: Int, arity: Int) -> Boolean {
+        for (signature in signatures) {
+            val params = signature.parameters()
+            if (params.size() == arity && params.get(index).endsWith("[]")) {
+                val shape = options.classes().shape(params.get(index).substring(0, params.get(index).length() - 2))
+                return shape != null && !shape.typeParameters().isEmpty()
+            }
+        }
+        return false
     }
 
     /** The class of the elements of the array that each method with as many parameters takes at that place, or null. */

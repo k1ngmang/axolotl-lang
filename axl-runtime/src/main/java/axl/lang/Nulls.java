@@ -1,4 +1,5 @@
 package axl.lang;
+import java.lang.reflect.Array;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
@@ -75,4 +76,10 @@ import org.jspecify.annotations.Nullable;
     // Java picks the overload, so a stream is not streamed again.
     public static <T extends @Nullable Object> Stream<T> stream(Collection<T> items) { return items.stream(); }
     public static <T extends @Nullable Object> Stream<T> stream(Stream<T> items) { return items; }
+    // A list passed where Java takes an array of a generic class, `Map.ofEntries(entries)`: unlike
+    // `entries.toArray(new Map.Entry[0])`, the array gets its type arguments from the list.
+    @SuppressWarnings("unchecked")
+    public static <T> T[] arrayOf(Collection<? extends T> items, Class<?> element) {
+        return items.toArray((T[]) Array.newInstance(element, 0));
+    }
 }

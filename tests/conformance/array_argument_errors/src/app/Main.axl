@@ -1,0 +1,9 @@
+package app
+
+import java.util.Collections
+import java.util.Map
+
+fn main() {
+    val part: Map<String, Int> = Map.ofEntries(Collections.singletonList(Map.entry("c", 3)))
+    println(part)
+}
