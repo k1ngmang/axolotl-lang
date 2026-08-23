@@ -211,6 +211,11 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - `axl run` leaves out `.axl` files under its root whose package is not their directory, such as a vendored library in a subdirectory, whose classes used to shadow those of `-cp`; `--verbose` names them.
   - `axl check .` prints paths without `./`; `axl daemon --help` no longer lists `--no-daemon` and `--verbose`.
   - The test of the Maven archetype is `src/test/axl/.../AppTest.axl` instead of a Java file.
+  - A pipe whose source has a type the translator cannot tell, such as `bag.items.stream() |> filter { ... }` or `Stream.iterate("a", { it + "a" }) |> limit(3)`, works with a stream as well as a collection; it no longer becomes `.stream().stream()`.
+  - `try` passes on an error whose type is a subtype of the function's error type, such as a `BadDate` that implements the sealed `Problem` the function returns; AXL101 remains for unrelated error types.
+  - A list passed where Java takes an array of a generic class, such as `Map.ofEntries(entries)` or `Map.ofEntries(List.of(Map.entry("c", 3)))`, keeps its type arguments; the error for a list that cannot be passed so no longer shows a stray `)`.
+  - A branch of a `when` statement may be a bare `return` or `return value`, like `break`, `continue` and assignments.
+  - A `when` over a sealed type of the classpath names the classes it does not test, and a `when` that names every constant of an enum of the classpath, such as `DayOfWeek`, needs no `else`.
 - Twelfth audit, three more programs (an HTTP service with an in-process client, a command-line log tool, a concurrent batch processor with JUnit tests):
   - `attempt ... else` and `use ... else` no longer clear a thread's interrupt flag: an interrupted worker looping on `isInterrupted()` now stops after `shutdownNow()`.
   - `if (f(x) is Err)` no longer fails with "unknown type" when the type arguments of the result come from another file that this file does not import.

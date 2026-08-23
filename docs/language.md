@@ -266,10 +266,11 @@ fn size(n: Int) -> String = when (n) {
 
 It becomes a Java `switch`. The subject of `is` branches is narrowed in each branch (`when (val e = f())`
 names a subject that is not already a name). A branch is an expression or, after `->`, a block whose last
-expression is the value; in a `when` statement a branch may also be `break`, `continue` or an assignment:
-`2 -> continue`, `else -> n += x`. Branches with `is` must cover a sealed interface or end with `else`; a
-`when` over constants that gives a value needs an `else`, unless it names every constant of an enum of
-the package.
+expression is the value; in a `when` statement a branch may also be a single statement without braces: `break`,
+`continue`, `return` or `return value`, or an assignment (`2 -> continue`, `else -> n += x`); a `when` that gives a
+value cannot be left with any of them. Branches with `is` must cover a sealed interface or end with `else`; a
+`when` over constants that gives a value needs an `else`, unless it names every constant of an enum. The
+sealed types and enums may be declared in the build or come from the classpath.
 Constants are literals, negative numbers or names of constants such as `Color.RED`; a `Long`, `Double` or
 `Boolean` subject is compared branch by branch. A subject that may be null goes to `else`, or to a
 `null ->` branch, which may also stand next to `is` branches. A `when` stands as a statement, after `return` or as
@@ -415,7 +416,8 @@ fn doubled(s: String) -> Result<Int, String> {
   These exits stand only on a line of its own, not in `val r = attempt ...`, and `break` and `continue` not inside a
   lambda or a `when` that gives a value.
 - `try r` unwraps an `Ok`, or returns the `Err` from the enclosing function, which must return
-  `Result`. The error types must match; convert them first with `mapErr`:
+  `Result`. The error type must be the function's error type or a subtype of it, such as a class that implements
+  the sealed interface the function returns; convert any other error first with `mapErr`:
   `try parse(s).mapErr({ code -> "error " + code })`.
 - After `if (r is Err) { ...; return }` the `r` is an `Ok` and `r.value()` reads its value; after `if (r is Ok) { return }`
   it is an `Err` and `r.error()` reads the error, as in the `else` branch of such an `if`. (`r` must be a `val` or a parameter.)
@@ -438,8 +440,9 @@ fn doubled(s: String) -> Result<Int, String> {
 
 ## Arrays and Java buffers
 
-Axolotl has lists, not arrays. Where a Java method takes an array of objects, pass a list: `CompletableFuture.allOf(futures)`
-and `Path.of("a", parts)` get `futures.toArray(new CompletableFuture[0])`. This applies when every overload of the method with
+Axolotl has lists, not arrays. Where a Java method takes an array of objects, pass a list: `CompletableFuture.allOf(futures)`,
+`Map.ofEntries(entries)` and `Path.of("a", parts)` get an array of the list, which keeps its type arguments; a `List.of(...)`
+written in the call works too. This applies when every overload of the method with
 that many arguments takes an array of a class there, and the code tells that the value is a collection (a written or inferred
 type). A method that also takes a collection there (`ProcessBuilder(list)`, `String.join(",", list)`), or a varargs parameter
 of `Object` that the list is one value of (`String.format("%s", list)`), gets the list. For input and output buffers,
@@ -453,7 +456,8 @@ InputStream, buffer: ByteArray)`. Pass them to Java (`read`, `write`, `String(bu
 
 `|>` feeds a collection through Java stream operations; it also takes a `Stream` whose type the code tells (`Stream.of`,
 `xs.stream()`, `Files.lines(p)`, `val s: Stream<String> = ...`) as it is. A stream of numbers, such as `IntStream.range(0, 4)`
-or `Random().ints(...)`, goes through `|>` after `.boxed()`:
+or `Random().ints(...)`, goes through `|>` after `.boxed()`. The source of a pipe is a collection or a stream, whatever
+its type is written as:
 
 ```axl
 val evens = numbers |> filter { it % 2 == 0 } |> map { it * 10 }
