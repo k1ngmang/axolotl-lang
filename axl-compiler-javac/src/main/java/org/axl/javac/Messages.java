@@ -205,6 +205,9 @@ final class Messages {
     private static final String LAMBDA_RETURN_VALUE = "`return` in a lambda ends only the lambda, not ";
     private static final String LAMBDA_VALUE = "the lambda returns a value, but nothing is expected here; "
             + "use the value in a call, such as `println(...)`, or remove it";
+    private static final String MISSING_RETURN_VALUE = "bad return type in lambda expression; missing return value";
+    private static final String LAMBDA_BLOCK_VALUE = "a lambda with several statements gives its value with `return`";
+    private static final Pattern LAMBDA_OPEN = Pattern.compile("(\\{)[\\w\\s,]*->\\s*$");
     private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
     private static final Pattern RETURNED_NAME = Pattern.compile("^\\s*return (\\w+);$");
     private static final String GENERATED_VALUE = "the result of `value()` may be null: its type is a type argument written with `?`";
@@ -254,6 +257,9 @@ final class Messages {
         }
         if (translated.startsWith(ATTEMPT_STATEMENT)) {
             return ATTEMPT;
+        }
+        if (translated.startsWith(LAMBDA_BLOCK_VALUE)) {
+            return LAMBDA_OPEN;
         }
         Matcher unknownPackage = UNKNOWN_PACKAGE.matcher(translated);
         if (unknownPackage.find()) {
@@ -348,6 +354,11 @@ final class Messages {
         }
         // Java takes a value of an unknown type, and a lambda parameter that comes from one, for an `Object`.
         if (cause.message().startsWith(UNKNOWN_TYPE) && OBJECT_MEMBER.matcher(effect.message()).find()) {
+            return true;
+        }
+        // A pipe stage whose lambda gives no value leaves Java without the type of its parameter.
+        if (cause.message().startsWith(LAMBDA_BLOCK_VALUE) && cause.line() < effect.line()
+                && OBJECT_MEMBER.matcher(effect.message()).find()) {
             return true;
         }
         Matcher nonNullLocal = NON_NULL_LOCAL.matcher(cause.message());
@@ -822,6 +833,10 @@ final class Messages {
             return new Translated(ErrorCode.DUPLICATE_NAME, "`" + clash.group(1) + "(" + argumentList(clash.group(2)) + ")` and `"
                     + clash.group(3) + "(" + argumentList(clash.group(4)) + ")` differ only in type arguments, which Java "
                     + "does not keep at run time; give one of them another name");
+        }
+        String blockValue = message.contains(MISSING_RETURN_VALUE) ? blockLambdaValue(text, javaLines, javaLine) : null;
+        if (blockValue != null) {
+            return new Translated(ErrorCode.JAVAC, blockValue);
         }
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines, javaColumn, axlText)).replaceAll(""));
     }
@@ -2095,6 +2110,33 @@ final class Messages {
             }
         }
         return null;
+    }
+
+    /**
+     * `{ s -> val t = s.trim(); t.length() }`, opened at the end of the Java line javaLine (1-based): a lambda
+     * of several statements gives no value without `return`. Null when the line opens no such lambda.
+     */
+    private static String blockLambdaValue(String text, String[] javaLines, int javaLine) {
+        if (!text.stripTrailing().endsWith("-> {")) {
+            return null;
+        }
+        String last = null;
+        int depth = 1;
+        for (int i = javaLine; i < javaLines.length && depth > 0; i++) {
+            String line = javaLines[i].strip();
+            int before = depth;
+            for (char c : STRING_LITERAL.matcher(line).replaceAll("\"\"").toCharArray()) {
+                depth += c == '{' ? 1 : c == '}' ? -1 : 0;
+            }
+            boolean starts = i == javaLine || javaLines[i - 1].strip().matches(".*[;{}]$");
+            if (depth > 0) {
+                last = before == 1 && depth == 1 && starts && line.endsWith(";") ? line.substring(0, line.length() - 1) : null;
+            }
+        }
+        boolean shown = last != null && !last.matches("^(?:return|throw|final|var|System\\.out)\\b.*")
+                && !ASSIGNMENT.matcher(last).find() && !GENERATED.matcher(last).find();
+        return LAMBDA_BLOCK_VALUE + (shown ? ": write `return " + last.replaceAll("\\bnew ", "") + "`"
+                : "; end it with `return` and the value");
     }
 
     /** The data class of the file that has a field of this name, or null. */

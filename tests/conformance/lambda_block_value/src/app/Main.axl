@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+import java.util.function.Function
+
+fn lengths(words: List<String>) -> List<Int> = words |> map { s ->
+    val t = s.trim()
+    t.length()
+}
+
+fn main() {
+    val f: Function<String, Int> = { s ->
+        val t = s.trim()
+        if (t.isEmpty()) {
+            println("empty")
+        }
+    }
+    val sizes = List.of("a", "bb") |> map { s ->
+        val t = s.trim()
+        t.length()
+    }
+    println(sizes)
+    println(lengths(List.of("a")))
+    println(f.apply(" x "))
+}
