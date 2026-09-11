@@ -31,6 +31,7 @@ nav:
       - IntelliJ IDEA plugin: intellij.md
       - Debugging and stack traces: debugging.md
       - Error codes: errors.md
+      - Formatter: fmt.md
       - Line map format: axlmap.md
       - Performance: perf.md
       - Decisions: decisions.md

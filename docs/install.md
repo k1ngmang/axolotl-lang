@@ -109,6 +109,7 @@ axl run src/app/Main.axl                 # translate, compile and run one progra
 axl run -cp lib/sqlite-jdbc.jar src/app/Main.axl   # with a library
 axl build src -d out/classes             # compile a source tree
 axl check src/main/axl src/main/java     # print errors only
+axl fmt src                              # format .axl files in place; --check lists them for CI, - reads stdin
 axl retrace trace.txt -m out/classes     # rewrite an old stack trace (.java lines) to .axl lines
 ```
 
