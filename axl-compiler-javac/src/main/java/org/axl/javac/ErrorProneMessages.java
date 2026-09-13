@@ -53,10 +53,12 @@ final class ErrorProneMessages {
             "^\\[ComparisonOutOfRange] (\\w+?)s may have a value in the range (\\S+) to (\\S+); therefore, this comparison to "
             + "(\\S+) will always evaluate to (\\w+)");
     private static final Pattern SENTENCE_START = Pattern.compile("(?:This|The|A|An|It|Use|Using|Calling|Consider|Prefer|"
-            + "Avoid|Do|Don't|Expected|Found)\\b");
+            + "Avoid|Do|Don't|Expected|Found|Method)\\b");
     private static final Pattern ALWAYS = Pattern.compile("always evaluates to `(\\w+)`");
     private static final Pattern CALL = Pattern.compile("\\w\\(");
     private static final Pattern INTERFACE = Pattern.compile("java\\.\\w+\\.(\\w+)");
+    // `java.util.List<java.lang.Integer>` in a finding, which Axolotl writes `List<Int>`.
+    private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:[a-z]\\w*\\.)+[A-Z][\\w$]*(?:<\\S*>)?");
     private static final Pattern SUPPRESSION = Pattern.compile(" \\(Error Prone check \\w+; @SuppressWarnings\\(\"\\w+\"\\) turns it off\\)$");
 
     private ErrorProneMessages() {}
@@ -81,7 +83,9 @@ final class ErrorProneMessages {
      * become `trim`, a method a function.
      */
     private static String plain(String message) {
-        String text = TAG.matcher(message).replaceFirst("").replaceAll("\\b[A-Z]\\w*#(\\w+)", "$1").replace("#", "")
+        String named = QUALIFIED_TYPE.matcher(message)
+                .replaceAll(m -> Matcher.quoteReplacement(Messages.simpleNames(Messages.axlType(m.group()))));
+        String text = TAG.matcher(named).replaceFirst("").replaceAll("\\b[A-Z]\\w*#(\\w+)", "$1").replace("#", "")
                 .replaceAll("\\bmethod\\b", "function").replaceAll("\\bmethods\\b", "functions")
                 .replaceAll("\\bInteger\\b", "Int").replaceFirst("\\.$", "");
         // A sentence starts lowercase in Axolotl's messages, but a class name keeps its capital.

@@ -59,6 +59,25 @@ class AxlBuildTest {
     }
 
     @Test
+    void namesTypesOfAFindingWithoutTheirPackages(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.util.List
+                import java.util.concurrent.CompletableFuture
+
+                fn later(x: Int) -> CompletableFuture<Result<List<Int>, String>> = CompletableFuture.completedFuture(Ok(List.of(x)))
+
+                fn main() {
+                    val f = CompletableFuture.supplyAsync({ -> later(1) }).thenCompose({ g -> g })
+                    println(f.join())
+                }
+                """);
+        assertEquals(List.of("9:31 method returns a nested type, CompletableFuture<CompletableFuture<Result<List<Int>, String>>>"),
+                warnings);
+    }
+
+    @Test
     void namesTheErrorProneCheckOncePerBuild(@TempDir Path tmp) throws Exception {
         List<String> warnings = warningsWithChecks(tmp, """
                 package app
