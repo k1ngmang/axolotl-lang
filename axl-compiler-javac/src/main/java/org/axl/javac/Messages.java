@@ -182,6 +182,9 @@ final class Messages {
     private static final Pattern OPEN_TYPE_PARAMETER = Pattern.compile("\\b(\\w+) extends @Nullable Object\\b");
     private static final Pattern CLASS_HEADER = Pattern.compile("\\b(?:class|record|interface) \\w+<");
     private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
+    // The buffers of `java.nio` that read the elements of an array of a primitive type in place.
+    private static final Map<String, String> BUFFERS = Map.of("byte", "ByteBuffer", "char", "CharBuffer", "short", "ShortBuffer",
+            "int", "IntBuffer", "long", "LongBuffer", "float", "FloatBuffer", "double", "DoubleBuffer");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
     private static final Pattern ATTEMPT_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*->");
     private static final Pattern SINGLE_FORMAT_VALUE = Pattern.compile(
@@ -1244,7 +1247,7 @@ final class Messages {
             if (!inThisFile && owner.endsWith("[]")) {
                 String member = unknown.group(1).equals("method") ? "method `" + withoutLambdas(symbol) + "`"
                         : "field `" + symbol + "`";
-                return arrayMember(axlType(owner.substring(0, owner.length() - 2)), member, location);
+                return arrayMember(owner.substring(0, owner.length() - 2), member, location, text);
             }
             String constants = unknown.group(1).equals("variable") ? enumConstants(javaLines, simpleNames(axlType(owner))) : null;
             if (!inThisFile && constants != null) {
@@ -2021,15 +2024,27 @@ final class Messages {
                 + (receiver == null ? "`" + property + "`" : "`" + receiver + "." + property + "`");
     }
 
-    /** `s.split(",").size()`: Axolotl has no arrays of its own, but Java methods return them. */
-    private static String arrayMember(String element, String member, String location) {
-        boolean primitive = Character.isLowerCase(element.charAt(0));
+    /**
+     * `s.split(",").size()`: Axolotl has no arrays of its own, but Java methods return them. element is the
+     * Java type of the elements; text is the Java line, where an element read with `get` is looked for.
+     */
+    private static String arrayMember(String element, String member, String location, String text) {
+        boolean primitive = PRIMITIVE_ARRAY.matcher(element + "[]").matches();
+        // `char` and `byte` keep Java's names, as in `CharArray` and `ByteArray`; `Character` would be the boxed class.
+        String shown = element.equals("char") || element.equals("byte") ? element : axlType(element);
         int ofType = location.indexOf(" of type ");
         String name = location.startsWith("variable ") && ofType > 0 ? location.substring("variable ".length(), ofType) : null;
         String array = name == null ? "this is a Java array" : "`" + name + "` is a Java array";
+        String found = array + " of `" + shown + "`, which has no " + member + "; ";
+        String buffer = BUFFERS.get(element);
+        if (buffer != null && member.startsWith("method `get(")) {
+            Matcher read = Pattern.compile("\\b" + Pattern.quote(name == null ? "" : name) + "\\.get\\(([^()]*)\\)").matcher(text);
+            String index = name != null && read.find() ? read.group(1).strip() : "i";
+            return found + "read an element with `" + buffer + ".wrap(" + (name == null ? "..." : name) + ").get(" + index
+                    + ")`, with `import java.nio." + buffer + "`, or read its `length`";
+        }
         String list = "turn it into a list with `List.of(" + (name == null ? "..." : name) + ")`";
-        return array + " of `" + element + "`, which has no " + member + "; "
-                + (primitive ? "read its `length`" : list + ", or read its `length`");
+        return found + (primitive ? "read its `length`" : list + ", or read its `length`");
     }
 
     /** `name` of `P(null)`: the parameter that the call `null` is passed to declares. */

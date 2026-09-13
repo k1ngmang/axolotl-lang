@@ -1,4 +1,7 @@
 AXL100 app/ArgsAsList.axl:4:18: error: `args` is a Java array of `String`, which has no method `get(Int)`; turn it into a list with `List.of(args)`, or read its `length`
+AXL100 app/ArrayElement.axl:7:18: error: `data` is a Java array of `byte`, which has no method `get(Int)`; read an element with `ByteBuffer.wrap(data).get(0)`, with `import java.nio.ByteBuffer`, or read its `length`
+AXL100 app/ArrayElement.axl:9:17: error: `row` is a Java array of `char`, which has no method `get(Int)`; read an element with `CharBuffer.wrap(row).get(1)`, with `import java.nio.CharBuffer`, or read its `length`
+AXL100 app/ArrayElement.axl:11:19: error: `codes` is a Java array of `Int`, which has no method `get(Int)`; read an element with `IntBuffer.wrap(codes).get(1)`, with `import java.nio.IntBuffer`, or read its `length`
 AXL100 app/BracesAfterEquals.axl:3:17: error: a function body in braces comes without `=`: `fn f(...) -> Type { ... }`; after `=`, braces make a lambda
 AXL100 app/ImportedTwice.axl:4:1: error: `List` is already imported from `java.util`; use the other one by its full name instead
 AXL100 app/PrintlnTwoValues.axl:4:5: error: `println` takes one value; join them with `+`, as in `println(a + " " + b)`

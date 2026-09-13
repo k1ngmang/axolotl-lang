@@ -1,0 +1,12 @@
+package app
+
+import java.nio.charset.StandardCharsets
+
+fn main() {
+    val data = "hi".getBytes(StandardCharsets.UTF_8)
+    println(data.get(0))
+    val row = CharArray(3)
+    println(row.get(1))
+    val codes = "ab".chars().toArray()
+    println(codes.get(1))
+}
