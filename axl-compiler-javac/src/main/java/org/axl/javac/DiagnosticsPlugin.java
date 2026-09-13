@@ -69,9 +69,12 @@ public final class DiagnosticsPlugin implements Plugin {
         task.addTaskListener(rawTypes);
         PrivateAccess privateAccess = new PrivateAccess(task);
         task.addTaskListener(privateAccess);
+        ListAsValues listAsValues = new ListAsValues(task);
+        task.addTaskListener(listAsValues);
         task.addTaskListener(new AnalysisEnd(task, () -> {
             rawTypes.report();
             privateAccess.report();
+            listAsValues.report();
             initCycles.report();
             nullChecker.report();
         }));

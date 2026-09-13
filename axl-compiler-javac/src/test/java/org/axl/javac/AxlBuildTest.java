@@ -59,6 +59,32 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutAListGivenAsTheOnlyValueOfObjectValues(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.text.MessageFormat
+                import java.util.List
+                import java.util.Objects
+
+                fn main() {
+                    val values: List<Object> = List.of("x", 2)
+                    println(MessageFormat.format("{0}-{1}", values))
+                    println(MessageFormat.format("{0}", List.of(1, 2)))
+                    println(MessageFormat.format("{0}-{1}", values.toArray()))
+                    println(MessageFormat.format("{0}-{1}", "a", values))
+                    println(String.format("items: %s", values))
+                    println(Objects.hash(values))
+                }
+                """);
+        assertEquals(List.of(
+                "9:45 the list `values` is one value here, since `format` takes any number of values; pass its elements with "
+                        + "`values.toArray()`, or the values one by one",
+                "10:46 this list is one value here, since `format` takes any number of values; add `.toArray()` to pass its "
+                        + "elements, or pass the values one by one"), warnings);
+    }
+
+    @Test
     void namesTypesOfAFindingWithoutTheirPackages(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app
