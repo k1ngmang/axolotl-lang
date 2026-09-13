@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:6:13: error: unknown name `NULL`; it is declared in app/Values.axl: `import val app.Values.NULL`
+AXL100 app/Main.axl:7:13: error: unknown name `EMPTY_NAME` (and 1 more use in this file); it is declared in app/Values.axl: `import val app.Values.EMPTY_NAME`

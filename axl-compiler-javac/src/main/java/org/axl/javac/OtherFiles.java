@@ -79,6 +79,11 @@ final class OtherFiles {
             return "unknown name `" + unknownName.group(1) + Messages.DECLARED_IN + nameFile + ".axl: `import "
                     + nameFile.replace('/', '.') + "." + unknownName.group(1) + "`";
         }
+        String valueFile = unknownName.find(0) ? declaringValue(unknownName.group(1)) : null;
+        if (valueFile != null) {
+            return "unknown name `" + unknownName.group(1) + Messages.DECLARED_IN + valueFile + ".axl: `import val "
+                    + valueFile.replace('/', '.') + "." + unknownName.group(1) + "`";
+        }
         String unknown = unknownName.find(0) ? unknownName.group(1) : unknownType.find(0) ? unknownType.group(1) : null;
         List<String> classes = unknown != null && Character.isUpperCase(unknown.charAt(0)) ? classpath.named(unknown) : List.of();
         if (!classes.isEmpty()) {
@@ -157,6 +162,13 @@ final class OtherFiles {
         Pattern nested = Pattern.compile("^    (?:public |private )?(?:static |sealed |final )*(?:record|class|interface|enum) "
                 + Pattern.quote(type) + "\\b", Pattern.MULTILINE);
         return sources.stream().map(GeneratedSource::unit).filter(u -> nested.matcher(u.javaSource()).find())
+                .map(u -> u.qualifiedName().replace('.', '/')).findFirst().orElse(null);
+    }
+
+    /** A public top-level value of a file of the build, given as the path of the file without extension. */
+    private String declaringValue(String name) {
+        Pattern declaration = Pattern.compile("^    public static (?:final )?[^=(]*\\b" + Pattern.quote(name) + "\\s*[=;]", Pattern.MULTILINE);
+        return sources.stream().map(GeneratedSource::unit).filter(u -> declaration.matcher(u.javaSource()).find())
                 .map(u -> u.qualifiedName().replace('.', '/')).findFirst().orElse(null);
     }
 

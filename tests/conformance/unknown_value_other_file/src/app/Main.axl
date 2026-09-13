@@ -1,0 +1,9 @@
+package app
+
+// A top-level value of another file needs `import val`, also in the same package; the name `NULL` gets
+// the import before the hint to write `null`.
+fn main() {
+    println(NULL)
+    println(EMPTY_NAME)
+    println(EMPTY_NAME.isEmpty())
+}
