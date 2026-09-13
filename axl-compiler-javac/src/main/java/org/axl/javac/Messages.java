@@ -2200,11 +2200,19 @@ final class Messages {
 
     /** The mismatch at the place javac points at in the Java line text, with how to write an `Int` as a `Long`. */
     private static String mismatch(String expected, String found, String text, long javaColumn) {
+        String rest = javaColumn <= 0 || javaColumn > text.length() ? "" : text.substring((int) javaColumn - 1);
+        Matcher name = Pattern.compile("^[a-z]\\w*(?![\\w.(])").matcher(rest);
+        boolean named = name.lookingAt();
+        // `List.of(Dot(1), Box(2))` is a `List<Record&Shape>` for Java, which no type of the program names.
+        if (!isIntersection(found) && found.contains("&")) {
+            String local = named ? name.group() : "xs";
+            return "type mismatch: expected `" + axlType(expected) + "`, but the elements" + (named ? " of `" + local + "`" : "")
+                    + " have no common type for Java; write it: `val " + local + ": " + simpleNames(axlType(expected)) + " = ...`";
+        }
         String message = mismatch(expected, found);
-        if (!message.equals("type mismatch: expected `Long`, found `Int`") || javaColumn <= 0 || javaColumn > text.length()) {
+        if (!message.equals("type mismatch: expected `Long`, found `Int`") || rest.isEmpty()) {
             return message;
         }
-        String rest = text.substring((int) javaColumn - 1);
         Matcher number = WHOLE_NUMBER.matcher(rest);
         if (number.lookingAt()) {
             return message + "; write `" + number.group() + "L` for a `Long`";
@@ -2215,8 +2223,7 @@ final class Messages {
             String numbers = Arrays.stream(factory.group(2).split(",")).map(n -> n.strip() + "L").collect(Collectors.joining(", "));
             return message + "; write the numbers with `L`: `" + factory.group(1) + "(" + numbers + ")`";
         }
-        Matcher name = Pattern.compile("^[a-z]\\w*(?![\\w.(])").matcher(rest);
-        return name.lookingAt() ? message + "; an `Int` fits a `Long` as it is, so give it a name of that type first: `val l: Long = "
+        return named ? message + "; an `Int` fits a `Long` as it is, so give it a name of that type first: `val l: Long = "
                 + name.group() + "`" : message;
     }
 

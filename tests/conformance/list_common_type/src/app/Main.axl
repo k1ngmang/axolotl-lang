@@ -1,0 +1,24 @@
+package app
+
+import java.util.List
+
+interface Named {
+    fn label() -> String
+}
+
+interface Stored
+
+data class File(val name: String) : Named, Stored {
+    fn label() -> String = "file " + name
+}
+
+data class Folder(val name: String) : Named, Stored {
+    fn label() -> String = "folder " + name
+}
+
+fn labels(items: List<Named>) -> List<String> = items |> map { it.label() }
+
+fn main() {
+    val items = List.of(File("a"), Folder("b"))
+    println(labels(items))
+}

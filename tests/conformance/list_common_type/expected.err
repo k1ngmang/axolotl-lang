@@ -1,0 +1,1 @@
+AXL100 app/Main.axl:23:20: error: type mismatch: expected `List<Named>`, but the elements of `items` have no common type for Java; write it: `val items: List<Named> = ...`
