@@ -4,6 +4,8 @@ AXL100 app/ArrayElement.axl:9:17: error: `row` is a Java array of `char`, which 
 AXL100 app/ArrayElement.axl:11:19: error: `codes` is a Java array of `Int`, which has no method `get(Int)`; read an element with `IntBuffer.wrap(codes).get(1)`, with `import java.nio.IntBuffer`, or read its `length`
 AXL100 app/BracesAfterEquals.axl:3:17: error: a function body in braces comes without `=`: `fn f(...) -> Type { ... }`; after `=`, braces make a lambda
 AXL100 app/ImportedTwice.axl:4:1: error: `List` is already imported from `java.util`; use the other one by its full name instead
+AXL100 app/ListForValues.axl:12:21: error: type mismatch: expected `Enum<E>`, found `List<Color>`; a list is passed as an array only when every overload takes one there; pass the values one by one, or use `addAll`
+AXL100 app/ListForValues.axl:15:17: error: type mismatch: expected `String`, found `List<String>`; a list is passed as an array only when every overload takes one there; pass the values one by one, or use `addAll`
 AXL100 app/PrintlnTwoValues.axl:4:5: error: `println` takes one value; join them with `+`, as in `println(a + " " + b)`
 AXL100 app/TypeArgumentCount.axl:5:13: error: `Map` takes 2 type arguments, as in `Map<String, Int>`
 AXL100 app/Types.axl:5:18: error: unknown type `java.util.Lisst`; check the spelling

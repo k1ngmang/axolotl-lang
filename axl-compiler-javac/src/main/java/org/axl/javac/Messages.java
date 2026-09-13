@@ -182,6 +182,8 @@ final class Messages {
     private static final Pattern OPEN_TYPE_PARAMETER = Pattern.compile("\\b(\\w+) extends @Nullable Object\\b");
     private static final Pattern CLASS_HEADER = Pattern.compile("\\b(?:class|record|interface) \\w+<");
     private static final Pattern PRIMITIVE_ARRAY = Pattern.compile("^(?:int|long|double|float|short|byte|char|boolean)\\[\\]$");
+    // A varargs parameter, as javac names it in a candidate or in the parameters a method requires.
+    private static final Pattern VARARGS = Pattern.compile("\\.\\.\\.\\)|required: [^;]*\\[]");
     // The buffers of `java.nio` that read the elements of an array of a primitive type in place.
     private static final Map<String, String> BUFFERS = Map.of("byte", "ByteBuffer", "char", "CharBuffer", "short", "ShortBuffer",
             "int", "IntBuffer", "long", "LongBuffer", "float", "FloatBuffer", "double", "DoubleBuffer");
@@ -1107,7 +1109,8 @@ final class Messages {
         if (bounds.find()) {
             String expected = splitTopLevel(bounds.group(1)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(bounds.group(1));
-            return mismatch(expected, splitTopLevel(bounds.group(2)).getFirst(), text, javaColumn);
+            String found = splitTopLevel(bounds.group(2)).getFirst();
+            return mismatch(expected, found, text, javaColumn) + listForValues(expected, found, message);
         }
         if (message.startsWith("incompatible types: inferred type does not conform to upper bound(s)")) {
             Matcher inferred = INFERRED.matcher(message);
@@ -2240,6 +2243,17 @@ final class Messages {
         }
         return named ? message + "; an `Int` fits a `Long` as it is, so give it a name of that type first: `val l: Long = "
                 + name.group() + "`" : message;
+    }
+
+    /**
+     * `EnumSet.of(RED, rest)` and `Collections.addAll(set, list)`: a list where a varargs method takes single
+     * values, which the translator passes as an array only when every overload takes one there.
+     */
+    private static String listForValues(String expected, String found, String message) {
+        boolean list = COLLECTION_TYPE.matcher(found.replaceFirst("<.*", "")).find();
+        boolean values = !COLLECTION_TYPE.matcher(expected.replaceFirst("<.*", "")).find() && !expected.contains("Iterable");
+        return list && values && VARARGS.matcher(message).find() ? "; a list is passed as an array only when every overload "
+                + "takes one there; pass the values one by one, or use `addAll`" : "";
     }
 
     /** A `try` whose value is not what its place needs: an operand of `&&` or `||`, or a condition. */

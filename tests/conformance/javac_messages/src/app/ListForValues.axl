@@ -1,0 +1,17 @@
+package app
+
+import java.util.Collections
+import java.util.EnumSet
+import java.util.HashSet
+import java.util.List
+
+enum Color { RED, GREEN, BLUE }
+
+fn main() {
+    val rest = List.of(Color.GREEN, Color.BLUE)
+    println(EnumSet.of(Color.RED, rest))
+    val set = HashSet<String>()
+    val words = List.of("a", "b")
+    Collections.addAll(set, words)
+    println(set)
+}
