@@ -150,6 +150,8 @@ class Generator(
     val localTypes: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
     // Untyped locals set from `try` or `?:`, which Java keeps as the boxed type Result.unwrap or Nulls.or gives.
     val boxedLocals: HashSet<String> = HashSet<String>()
+    // Untyped locals set from `List.of(...)`, a new collection or a pipe, whose element type the code may not tell.
+    val collectionLocals: HashSet<String> = HashSet<String>()
     // Inside a branch of an `if` value or the left side of `?:`, where NullAway infers a nested `?:` from the target.
     var nestedValues: Int = 0
     /** Inside the lambda of a pipe stage that gives a value, where a lone `attempt` is the value. */
@@ -573,6 +575,7 @@ class Generator(
         localTypes.clear()
         boxedLocals.clear()
         boxedLocals.addAll(boxed)
+        collectionLocals.clear()
         for (p in f.params()) {
             localTypes.put(p.name(), p.type())
         }
@@ -662,6 +665,11 @@ class Generator(
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
         })
         localTypes.put(local.name(), localType)
+        if (declared == null && isCollectionValue(whole)) {
+            collectionLocals.add(local.name())
+        } else {
+            collectionLocals.remove(local.name())
+        }
         val unwrapped = whole is Expr.Try || whole is Expr.Elvis
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name())
@@ -1759,8 +1767,19 @@ class Generator(
     private fn isListArgument(arg: Expr) -> Boolean {
         val plain = arg is Expr.Name || arg is Expr.Call || arg is Expr.Member || arg is Expr.GenericNew || arg is Expr.Pipe
         val type = if (plain) typeOf(arg) else null
-        return isCollectionFactory(arg)
+        return isCollectionValue(arg) || (arg is Expr.Name && collectionLocals.contains(arg.name()))
             || (type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1)))
+    }
+
+    /** `List.of(...)`, `ArrayList<T>(...)` or a pipe without an ending stage: a collection whatever its elements are. */
+    private fn isCollectionValue(e: Expr) -> Boolean {
+        if (e is Expr.GenericNew) {
+            return COLLECTION_NAMES.contains(e.type().substring(e.type().lastIndexOf('.') + 1))
+        }
+        if (e is Expr.Pipe) {
+            return !(e.stages() |> anyMatch { s -> Checker.TERMINAL_STAGES.contains(s.name()) })
+        }
+        return isCollectionFactory(e)
     }
 
     /** `List.of(...)`, whose type the code does not tell, is a collection all the same. */

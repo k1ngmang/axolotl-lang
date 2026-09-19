@@ -83,6 +83,7 @@ import org.axl.compiler.check.Whens;
     public @Nullable TypeRef resultTypeRef;
     public final HashMap<String, @Nullable TypeRef> localTypes;
     public final HashSet<String> boxedLocals;
+    public final HashSet<String> collectionLocals;
     public int nestedValues;
     public boolean valueStage;
     public Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
@@ -124,6 +125,7 @@ import org.axl.compiler.check.Whens;
         this.resultTypeRef = null;
         this.localTypes = new HashMap<String, @Nullable TypeRef>();
         this.boxedLocals = new HashSet<String>();
+        this.collectionLocals = new HashSet<String>();
         this.nestedValues = 0;
         this.valueStage = false;
     }
@@ -533,6 +535,7 @@ import org.axl.compiler.check.Whens;
         localTypes.clear();
         boxedLocals.clear();
         boxedLocals.addAll(boxed);
+        collectionLocals.clear();
         for (final var p : f.params()) {
             localTypes.put(p.name(), p.type());
         }
@@ -633,6 +636,11 @@ import org.axl.compiler.check.Whens;
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
         });
         localTypes.put(local.name(), localType);
+        if (declared == null && isCollectionValue(whole)) {
+            collectionLocals.add(local.name());
+        } else {
+            collectionLocals.remove(local.name());
+        }
         final var unwrapped = whole instanceof Expr.Try whole$4 || whole instanceof Expr.Elvis whole$5;
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name());
@@ -1584,8 +1592,17 @@ import org.axl.compiler.check.Whens;
     private boolean isListArgument(Expr arg) {
         final var plain = arg instanceof Expr.Name arg$1 || arg instanceof Expr.Call arg$2 || arg instanceof Expr.Member arg$3 || arg instanceof Expr.GenericNew arg$4 || arg instanceof Expr.Pipe arg$5;
         final var type = (plain ? typeOf(arg) : null);
-        return isCollectionFactory(arg) ||
+        return isCollectionValue(arg) || (arg instanceof Expr.Name arg$6 && collectionLocals.contains(arg$6.name())) ||
                 (type != null && !type.nullable() && COLLECTION_NAMES.contains(type.name().substring(type.name().lastIndexOf('.') + 1)));
+    }
+    private boolean isCollectionValue(Expr e) {
+        if (e instanceof Expr.GenericNew e$1) {
+            return COLLECTION_NAMES.contains(e$1.type().substring(e$1.type().lastIndexOf('.') + 1));
+        }
+        if (e instanceof Expr.Pipe e$2) {
+            return !(Nulls.stream(e$2.stages()).anyMatch(s -> Checker.TERMINAL_STAGES.contains(s.name())));
+        }
+        return isCollectionFactory(e);
     }
     private boolean isCollectionFactory(Expr arg) {
         if (!(arg instanceof Expr.Call arg$1)) {

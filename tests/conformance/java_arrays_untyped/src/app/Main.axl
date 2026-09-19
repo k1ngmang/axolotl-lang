@@ -1,0 +1,23 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.Map
+import java.util.TreeMap
+import java.util.concurrent.CompletableFuture
+
+// A `val` without a type set from `List.of(...)`, a new collection or a pipe goes where Java takes an
+// array as the list itself does, also when the code does not tell the type of its elements.
+fn main() {
+    val entries = List.of(Map.entry("a", 1), Map.entry("b", 2))
+    println(TreeMap<String, Int>(Map.ofEntries(entries)))
+    val futures = List.of(CompletableFuture.completedFuture(1))
+    CompletableFuture.allOf(futures).join()
+    val mapped = List.of(2, 3) |> map { CompletableFuture.completedFuture(it) }
+    CompletableFuture.allOf(mapped).join()
+    println(mapped |> map { it.join() })
+    val made = ArrayList<CompletableFuture<Int>>(mapped)
+    CompletableFuture.allOf(made).join()
+    CompletableFuture.allOf(List.of(4, 5) |> map { CompletableFuture.completedFuture(it) }).join()
+    println(made.size())
+}
