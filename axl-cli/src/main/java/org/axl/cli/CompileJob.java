@@ -25,15 +25,26 @@ record CompileJob(Kind kind, List<Path> sourceDirs, @Nullable Path file, Path ge
     /** What the job leaves to the command: whether it compiled, and for `run` the class to start. */
     record Result(boolean success, @Nullable String mainClass) {}
 
-    /** The same job with absolute paths, for a process with another working directory. */
+    /**
+     * The same job with absolute paths, for a process with another working directory. The source directories
+     * and the file keep the form they were written in, which diagnostics show their paths in.
+     */
     CompileJob resolved() {
-        return new CompileJob(kind, resolve(sourceDirs), file == null ? null : workingDirectory.resolve(file),
-                workingDirectory.resolve(generatedDir), workingDirectory.resolve(classesDir), resolve(classpath),
-                nullChecks, strictNull, inlineElvis, smap, workingDirectory);
+        return new CompileJob(kind, sourceDirs, file, workingDirectory.resolve(generatedDir), workingDirectory.resolve(classesDir),
+                resolve(classpath), nullChecks, strictNull, inlineElvis, smap, workingDirectory);
     }
 
-    private List<Path> resolve(List<Path> paths) {
+    List<Path> resolve(List<Path> paths) {
         return paths.stream().map(workingDirectory::resolve).toList();
+    }
+
+    /**
+     * A path of a diagnostic: absolute when a source directory or the file was written absolute, else relative
+     * to the working directory where it lies under it, as javac shows paths.
+     */
+    String display(Path path) {
+        boolean absolute = sourceDirs.stream().anyMatch(Path::isAbsolute) || file != null && file.isAbsolute();
+        return absolute ? workingDirectory.resolve(path).normalize().toString() : Paths.display(workingDirectory, path);
     }
 
     void write(DataOutputStream out) throws IOException {

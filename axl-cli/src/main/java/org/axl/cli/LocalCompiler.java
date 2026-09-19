@@ -34,9 +34,8 @@ final class LocalCompiler implements Compiler {
     }
 
     private static CompileJob.Result check(CompileJob job) throws IOException {
-        Path cwd = job.workingDirectory();
-        AxlBuild.Result result = configure(new AxlBuild(job.sourceDirs(), job.generatedDir(), job.classesDir()), job)
-                .display(p -> cwd.resolve(p).normalize().toString())
+        AxlBuild.Result result = configure(new AxlBuild(job.resolve(job.sourceDirs()), job.generatedDir(), job.classesDir()), job)
+                .display(job::display)
                 .skip(Paths::isInWorkDirectory)
                 .run();
         result.diagnostics().forEach(d -> System.out.println(format(d)));
@@ -44,10 +43,10 @@ final class LocalCompiler implements Compiler {
     }
 
     private static CompileJob.Result build(CompileJob job) throws IOException {
-        Path sourceDir = job.sourceDirs().getFirst();
+        Path sourceDir = job.workingDirectory().resolve(job.sourceDirs().getFirst());
         StaleOutputs.remove(sourceDir, job.generatedDir(), job.classesDir());
         AxlBuild.Result result = configure(new AxlBuild(sourceDir, job.generatedDir(), job.classesDir()), job)
-                .display(p -> Paths.display(job.workingDirectory(), p))
+                .display(job::display)
                 .run();
         report(result.diagnostics());
         StaleOutputs.record(sourceDir, job.generatedDir());
@@ -59,16 +58,15 @@ final class LocalCompiler implements Compiler {
 
     /** The command has checked that the file is UTF-8 text with the .axl extension. */
     private static CompileJob.Result run(CompileJob job) throws IOException {
-        Path file = job.file();
+        Path file = job.workingDirectory().resolve(job.file()).normalize();
         String text = Files.readString(file, StandardCharsets.UTF_8);
         String className = Translator.className(file.getFileName().toString());
         SourceFile parsed = SourceParser.parse(file.toString(), className, text).file();
         String packageName = parsed != null && parsed.packageName() != null ? parsed.packageName() : "";
-        Path absolute = job.workingDirectory().resolve(file).normalize();
-        Path root = RunCommand.sourceRoot(absolute, packageName);
-        Set<Path> otherTrees = Paths.otherSourceTrees(root, absolute);
+        Path root = RunCommand.sourceRoot(file, packageName);
+        Set<Path> otherTrees = Paths.otherSourceTrees(root, file);
         AxlBuild.Result result = configure(new AxlBuild(root, job.generatedDir(), job.classesDir()), job)
-                .display(p -> Paths.display(job.workingDirectory(), p))
+                .display(job::display)
                 .skip(p -> Paths.isInWorkDirectory(p) || otherTrees.contains(p.toAbsolutePath().normalize()))
                 .run();
         report(result.diagnostics());

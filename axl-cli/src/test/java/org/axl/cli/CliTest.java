@@ -415,6 +415,25 @@ class CliTest {
     }
 
     @Test
+    void checkAndRunShowPathsAsTheCommandLineWritesThem() throws Exception {
+        Path dir = Files.createTempDirectory(Files.createDirectories(Path.of("build", "tmp")), "paths");
+        try {
+            Path app = Files.createDirectories(dir.resolve("src/app"));
+            Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(nope)\n}\n");
+            Path main = app.resolve("Main.axl");
+            assertEquals(1, axl("check", dir.resolve("src").toString(), "--no-null-checks"));
+            assertTrue(out.toString(StandardCharsets.UTF_8).startsWith(main + ":4:13: "), out.toString());
+            assertEquals(1, axl("run", main.toString(), "--no-null-checks"));
+            assertTrue(err.toString(StandardCharsets.UTF_8).startsWith(main + ":4:13: "), err.toString());
+            err.reset();
+            assertEquals(1, axl("run", main.toAbsolutePath().toString(), "--no-null-checks"));
+            assertTrue(err.toString(StandardCharsets.UTF_8).startsWith(main.toAbsolutePath() + ":4:13: "), err.toString());
+        } finally {
+            Paths.deleteRecursively(dir);
+        }
+    }
+
+    @Test
     void checkReadsEachFileOnceWhenSourceDirectoriesOverlap(@TempDir Path tmp) throws Exception {
         Path app = Files.createDirectories(tmp.resolve("src/app"));
         Files.writeString(app.resolve("Main.axl"), "package app\n\nfn main() {\n    println(1)\n}\n");
