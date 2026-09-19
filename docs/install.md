@@ -116,6 +116,8 @@ axl retrace trace.txt -m out/classes     # rewrite an old stack trace (.java lin
 Libraries besides the Axolotl runtime go on `-cp` (or `--classpath`): jars and class directories
 separated by `:` (`;` on Windows), repeatable. `axl run`, `axl check` and `axl build` take it alike;
 `axl run` has the libraries on the classpath both when it compiles the program and when it runs it.
+Paths in messages take the form of the arguments: absolute for an absolute source directory or file, else
+relative to the working directory.
 
 `axl build` removes the `.java`, `.axlmap` and `.class` files it generated for `.axl` files that
 were deleted since its previous run with the same source directory; it keeps a list of them in

@@ -102,7 +102,8 @@ digits and `_`.
 Lambdas are written in braces: `{ x -> x + 1 }`, `{ a, b -> a.compareTo(b) }`. Without an arrow,
 `it` is the parameter if the body uses it: `{ it > 0 }`; `{ -> run() }` takes no parameters. Inside
 a lambda that has `it`, a nested lambda without an arrow reads that `it`; otherwise `it` belongs to
-the innermost lambda that uses it. A lambda with several statements returns its value with `return`.
+the innermost lambda that uses it. A lambda with several statements gives its value with `return`:
+`{ s -> val t = s.trim(); return t.length() }`; only a lambda of one expression gives that expression's value.
 A lambda parameter takes its type from the call. Where Java cannot tell it, as in
 `Comparator.comparing({ p -> p.city() }).thenComparing(...)`, write the type: `{ p: Person -> p.city() }`, or use a
 method reference, `Person::city`.
@@ -445,7 +446,9 @@ Axolotl has lists, not arrays. Where a Java method takes an array of objects, pa
 written in the call works too. This applies when every overload of the method with
 that many arguments takes an array of a class there, and the code tells that the value is a collection (a written or inferred
 type). A method that also takes a collection there (`ProcessBuilder(list)`, `String.join(",", list)`), or a varargs parameter
-of `Object` that the list is one value of (`String.format("%s", list)`), gets the list. For input and output buffers,
+of `Object` that the list is one value of (`String.format("%s", list)`), gets the list; to pass its elements, write
+`MessageFormat.format("{0}-{1}", values.toArray())`. The compiler warns about a list given alone to such a parameter.
+`List.of(Dot(1), Box(2))` kept in a `val` without a type has a type only Java knows; write it: `val shapes: List<Shape> = ...`. For input and output buffers,
 `ByteArray(n)` and `CharArray(n)` create Java's `byte[]` and `char[]`, which are also the type names: `fn copy(input:
 InputStream, buffer: ByteArray)`. Pass them to Java (`read`, `write`, `String(buf, 0, n, UTF_8)`, `ByteBuffer.wrap(buf)`), read
 `.length`, or go over them with `for (b in buf)`. Their elements are read and written by Java code:
