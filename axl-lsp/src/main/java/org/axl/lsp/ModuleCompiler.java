@@ -34,6 +34,11 @@ final class ModuleCompiler {
         this.work = Files.createTempDirectory("axl-lsp");
     }
 
+    /** The directory of the generated Java and classes, deleted on close. */
+    Path work() {
+        return work;
+    }
+
     /**
      * documents: every .axl file of the module, already translated. standIns: by URI, the Java
      * compiled for documents that do not translate, whose own errors are the translator's. One at a

@@ -857,12 +857,11 @@ class WorkspaceTest {
 
     @Test
     void deletesTheDirectoryOfACompilationThatOutlivesTheServer() throws Exception {
-        Path tmp = Path.of(System.getProperty("java.io.tmpdir"));
-        List<Path> before = temporaryDirectories(tmp);
+        // Only this compiler's directory: other tests and builds share the temporary directory.
         ModuleCompiler compiler = new ModuleCompiler();
         compiler.close();
         compiler.compile(new Module(project, List.of(), List.of(), List.of(), List.of(), false), List.of(), Map.of());
-        assertEquals(List.of(), temporaryDirectories(tmp).stream().filter(p -> !before.contains(p)).toList());
+        assertFalse(Files.exists(compiler.work()));
     }
 
     private static List<Path> temporaryDirectories(Path tmp) throws Exception {

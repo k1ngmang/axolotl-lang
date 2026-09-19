@@ -24,6 +24,10 @@ application {
 tasks.test {
     @Suppress("UNCHECKED_CAST")
     jvmArgs(rootProject.extra["errorProneJvmArgs"] as List<String>)
+    // The tests look for the server's temporary directories; other builds on the machine make their own.
+    val tmp = layout.buildDirectory.dir("tmp/test-files")
+    doFirst { tmp.get().asFile.mkdirs() }
+    systemProperty("java.io.tmpdir", tmp.get().asFile.absolutePath)
 }
 
 val vscode = rootProject.layout.projectDirectory.dir("editors/vscode")
