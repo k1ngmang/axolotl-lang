@@ -21,6 +21,7 @@ import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.ShowMessageRequestParams;
 import org.eclipse.lsp4j.SymbolKind;
 import org.eclipse.lsp4j.services.LanguageClient;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -209,6 +210,11 @@ class TypesAndMembersTest {
         Files.createDirectories(project.resolve("src/main/axl/app"));
         workspace.connect(new Client());
         workspace.open(List.of(project));
+    }
+
+    @AfterEach
+    void stop() {
+        workspace.close();
     }
 
     private String open(String name, String text) throws Exception {
