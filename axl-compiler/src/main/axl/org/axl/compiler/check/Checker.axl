@@ -819,8 +819,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     private fn jump(stmt: Stmt.Jump) {
         val word = if (stmt.isBreak()) "break" else "continue"
         if (loopDepth == 0) {
-            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` is used inside a `while` or `for` loop" +
-                (if (lambdaDepth > 0) ", not in a lambda; a lambda ends with `return`" else ""))
+            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` works only inside a `while` or `for` loop" +
+                (if (lambdaDepth > 0) ", not in a lambda; a lambda ends with `return`" else ", and there is none around it"))
         } else if (valueWhenDepth == lambdaDepth) {
             error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` cannot leave a `when` that gives a value; " +
                 "write the `when` as a statement")

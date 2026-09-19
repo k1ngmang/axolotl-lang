@@ -769,8 +769,8 @@ import org.axl.compiler.ast.TypeRef;
     private void jump(Stmt.Jump stmt) {
         final var word = (stmt.isBreak() ? "break" : "continue");
         if (loopDepth == 0) {
-            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` is used inside a `while` or `for` loop" +
-                    ((lambdaDepth > 0 ? ", not in a lambda; a lambda ends with `return`" : "")));
+            error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` works only inside a `while` or `for` loop" +
+                    ((lambdaDepth > 0 ? ", not in a lambda; a lambda ends with `return`" : ", and there is none around it")));
         } else if (valueWhenDepth == lambdaDepth) {
             error(stmt.pos(), ErrorCode.SYNTAX, "`" + word + "` cannot leave a `when` that gives a value; " +
                     "write the `when` as a statement");

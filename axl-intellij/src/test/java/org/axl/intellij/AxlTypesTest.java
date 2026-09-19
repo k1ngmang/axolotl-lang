@@ -560,7 +560,7 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
                 .map(h -> h.getDescription()).toList();
         assertEquals(errors.toString(), 5, errors.size());
-        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`break` is used inside a `while` or `for` loop")));
+        assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`break` works only inside a `while` or `for` loop")));
         assertTrue(errors.toString(), errors.stream().anyMatch(e -> e.contains("`return` cannot leave a `when` that gives a value")));
     }
 
