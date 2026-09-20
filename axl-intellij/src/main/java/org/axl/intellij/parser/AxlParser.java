@@ -1069,7 +1069,9 @@ public final class AxlParser implements PsiParser {
             b.advanceLexer();
             b.advanceLexer();
             int depth = 1;
+            boolean argumentStart = true;
             while (!b.eof()) {
+                boolean opens = at(LT) || at(COMMA);
                 if (at(LT)) {
                     depth++;
                 } else if (at(GT)) {
@@ -1083,10 +1085,18 @@ public final class AxlParser implements PsiParser {
                     if (!at(DOT) && (name == null || !Character.isUpperCase(name.charAt(0)))) {
                         return false;
                     }
+                    argumentStart = false;
                     continue;
+                } else if (at(STAR)) {
+                    // `HashMap<Class<*>, String>()`: a `*` stands alone as an argument of a nested type.
+                    IElementType next = b.lookAhead(1);
+                    if (depth < 2 || !argumentStart || (next != AxlTokenTypes.of(GT) && next != AxlTokenTypes.of(COMMA))) {
+                        return false;
+                    }
                 } else if (!at(DOT) && !at(COMMA) && !at(QUESTION)) {
                     return false;
                 }
+                argumentStart = opens;
                 b.advanceLexer();
             }
             return false;

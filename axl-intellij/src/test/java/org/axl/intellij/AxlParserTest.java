@@ -89,6 +89,9 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
         file = myFixture.configureByText("Qualified.axl", "package app\n\nfn f() = java.util.HashMap<String, Int>()\n");
         assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
+        file = myFixture.configureByText("Star.axl", "package app\n\nfn f() = HashMap<Class<*>, Map<*, String>>()\n");
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(1, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.GENERIC_NEW).length);
     }
 
     public void testReadsABraceAfterAWhenArmWithAnArrowInsideAsALambda() {

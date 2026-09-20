@@ -40,6 +40,14 @@ tokens { BLOCK_START }
                     }
                 }
                 case DOT, COMMA, QUESTION -> { }
+                // `HashMap<Class<*>, String>()`: a `*` stands alone as an argument of a nested type.
+                case STAR -> {
+                    int before = _input.LT(i - 1).getType();
+                    int after = _input.LT(i + 1).getType();
+                    if (depth < 2 || (before != LT && before != COMMA) || (after != GT && after != COMMA)) {
+                        return false;
+                    }
+                }
                 default -> {
                     return false;
                 }

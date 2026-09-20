@@ -1,0 +1,20 @@
+package app
+
+import java.util.HashMap
+import java.util.List
+import java.util.Map
+
+fn names() -> Map<Class<*>, String> {
+    val m = HashMap<Class<*>, String>()
+    m.put(String.class, "text")
+    return m
+}
+
+fn main() {
+    println(names().get(String.class))
+    val lists = java.util.ArrayList<List<*>>()
+    lists.add(List.of(1, 2))
+    val maps = HashMap<String, Map<*, *>>()
+    maps.put("a", Map.of(1, "x"))
+    println(lists.get(0).size() + maps.get("a")!!.size())
+}
