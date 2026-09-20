@@ -32,13 +32,15 @@ import sun.misc.SignalHandler;
  * System.err. The daemon ends after a time without work, when asked to stop, and when its registry
  * entry is gone or names another daemon.
  *
- * Arguments: the daemon's directory, the fingerprint of its installation and the idle time in milliseconds.
+ * Arguments: the daemon's directory, the fingerprint of its installation, the idle time in milliseconds
+ * and the directory of the installation.
  */
 final class Daemon {
 
     private final Path dir;
     private final String fingerprint;
     private final long idleMillis;
+    private final String installation;
     private final long pid = ProcessHandle.current().pid();
     private final String token = newToken();
     private final long started = System.currentTimeMillis();
@@ -52,20 +54,22 @@ final class Daemon {
     private volatile boolean stopping;
     private ServerSocket server;
 
-    private Daemon(Path dir, String fingerprint, long idleMillis) {
+    private Daemon(Path dir, String fingerprint, long idleMillis, String installation) {
         this.dir = dir;
         this.fingerprint = fingerprint;
         this.idleMillis = idleMillis;
+        this.installation = installation;
     }
 
     public static void main(String[] args) throws IOException {
-        new Daemon(Path.of(args[0]), args[1], Long.parseLong(args[2])).serve();
+        new Daemon(Path.of(args[0]), args[1], Long.parseLong(args[2]), args[3]).serve();
     }
 
     private void serve() throws IOException {
         ignoreTerminalSignals();
         server = new ServerSocket(0, 50, InetAddress.getLoopbackAddress());
-        DaemonFiles.write(dir, new DaemonFiles.Entry(pid, server.getLocalPort(), token, fingerprint, DaemonSettings.version()));
+        DaemonFiles.write(dir, new DaemonFiles.Entry(pid, server.getLocalPort(), token, fingerprint, DaemonSettings.version(),
+                installation));
         Runtime.getRuntime().addShutdownHook(new Thread(() -> DaemonFiles.deleteIfOwn(dir, pid, token)));
         log("started on port " + server.getLocalPort());
         Thread.ofPlatform().daemon().name("axl-daemon-idle").start(this::watch);

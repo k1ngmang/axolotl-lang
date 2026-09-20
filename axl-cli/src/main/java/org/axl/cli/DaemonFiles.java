@@ -32,7 +32,8 @@ final class DaemonFiles {
 
     private DaemonFiles() {}
 
-    record Entry(long pid, int port, String token, String fingerprint, String version) {}
+    /** The installation is missing in the entries of daemons of earlier builds of axl. */
+    record Entry(long pid, int port, String token, String fingerprint, String version, @Nullable String installation) {}
 
     /** Creates the directories with access for the owner only, where the file system has POSIX permissions. */
     static void createPrivateDirectories(Path dir) throws IOException {
@@ -48,7 +49,8 @@ final class DaemonFiles {
         try (Reader reader = Files.newBufferedReader(dir.resolve(REGISTRY), StandardCharsets.UTF_8)) {
             properties.load(reader);
             return new Entry(Long.parseLong(properties.getProperty("pid")), Integer.parseInt(properties.getProperty("port")),
-                    properties.getProperty("token"), properties.getProperty("fingerprint"), properties.getProperty("version"));
+                    properties.getProperty("token"), properties.getProperty("fingerprint"), properties.getProperty("version"),
+                    properties.getProperty("installation"));
         } catch (IOException | RuntimeException e) {
             return null;
         }
@@ -69,6 +71,9 @@ final class DaemonFiles {
         properties.setProperty("token", entry.token());
         properties.setProperty("fingerprint", entry.fingerprint());
         properties.setProperty("version", entry.version());
+        if (entry.installation() != null) {
+            properties.setProperty("installation", entry.installation());
+        }
         try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
             properties.store(writer, null);
         }

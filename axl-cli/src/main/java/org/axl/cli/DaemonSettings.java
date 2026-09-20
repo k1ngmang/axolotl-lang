@@ -20,12 +20,17 @@ import org.jspecify.annotations.Nullable;
  * Whether commands compile in a daemon, where its files are, and how long it waits for work.
  * AXL_DAEMON=off switches the daemon off, AXL_DAEMON_IDLE sets the time, such as 30m or 8h.
  *
- * @param fingerprint the installation the daemon belongs to
+ * @param fingerprint the installation the daemon belongs to, with its Java and settings
+ * @param installation the directory axl is installed in, which `axl daemon` shows and stops the daemons of
  */
-record DaemonSettings(boolean enabled, Path baseDir, Duration idle, String fingerprint) {
+record DaemonSettings(boolean enabled, Path baseDir, Duration idle, String fingerprint, Path installation) {
 
     static final Duration DEFAULT_IDLE = Duration.ofHours(3);
     private static final Pattern DURATION = Pattern.compile("(\\d{1,9})([smh]?)");
+
+    DaemonSettings(boolean enabled, Path baseDir, Duration idle, String fingerprint) {
+        this(enabled, baseDir, idle, fingerprint, installationOf(System.getProperty("java.class.path", "")));
+    }
 
     static DaemonSettings fromEnvironment() {
         String switched = System.getenv("AXL_DAEMON");
@@ -45,7 +50,27 @@ record DaemonSettings(boolean enabled, Path baseDir, Duration idle, String finge
     }
 
     DaemonSettings disabled() {
-        return new DaemonSettings(false, baseDir, idle, fingerprint);
+        return new DaemonSettings(false, baseDir, idle, fingerprint, installation);
+    }
+
+    /**
+     * The directory of an installation, from the class path it starts axl with: the parent of the lib
+     * directory of its first jar (lib/app in the Linux packages, app on Windows), or the class directory
+     * of a development build.
+     */
+    static Path installationOf(String classPath) {
+        String first = classPath.split(Pattern.quote(File.pathSeparator), -1)[0];
+        Path path = Path.of(first).toAbsolutePath().normalize();
+        if (!first.endsWith(".jar") || path.getParent() == null) {
+            return path;
+        }
+        Path dir = path.getParent();
+        for (String name : List.of("app", "lib")) {
+            if (dir.getFileName() != null && dir.getFileName().toString().equals(name) && dir.getParent() != null) {
+                dir = dir.getParent();
+            }
+        }
+        return dir;
     }
 
     /** A number of minutes, or a number with s, m or h; anything else gives the default. */

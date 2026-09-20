@@ -127,7 +127,8 @@ final class DaemonClient implements Compiler {
                 "-Dfile.encoding=" + System.getProperty("file.encoding"),
                 "-Djava.io.tmpdir=" + System.getProperty("java.io.tmpdir"),
                 "-cp", System.getProperty("java.class.path"),
-                Daemon.class.getName(), dir.toString(), settings.fingerprint(), Long.toString(settings.idle().toMillis())));
+                Daemon.class.getName(), dir.toString(), settings.fingerprint(), Long.toString(settings.idle().toMillis()),
+                settings.installation().toString()));
         Path log = dir.resolve(DaemonFiles.LOG);
         // Without a terminal and without the launcher's pipes, which whoever started axl may wait to be closed.
         Process process = new ProcessBuilder(command)

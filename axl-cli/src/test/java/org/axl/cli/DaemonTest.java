@@ -34,7 +34,7 @@ class DaemonTest {
 
     @AfterEach
     void stopDaemons() {
-        axl(settings("any"), "daemon", "--stop");
+        axl(settings("any"), "daemon", "--stop", "--all");
     }
 
     private DaemonSettings settings(String fingerprint) {
@@ -86,11 +86,12 @@ class DaemonTest {
         out.reset();
         assertEquals(0, axl(settings, "daemon", "--status"));
         assertTrue(out.toString().contains("daemon, pid " + pid + ": up "), out.toString());
-        assertTrue(out.toString().contains(", 2 jobs; stops after 10 min without work"), out.toString());
+        assertTrue(out.toString().contains(", 2 jobs; stops after 10 min without work\n  installation: " + settings.installation()
+                + " (this one)\n"), out.toString());
 
         out.reset();
         assertEquals(0, axl(settings, "daemon", "--stop"));
-        assertEquals("Stopped the axl dev daemon (pid " + pid + ")\n", out.toString().replace("\r\n", "\n"));
+        assertEquals("Stopped the axl dev daemon of " + settings.installation() + " (pid " + pid + ")\n", out.toString().replace("\r\n", "\n"));
         assertTrue(ProcessHandle.of(pid).isEmpty() || !ProcessHandle.of(pid).get().isAlive());
         assertNull(DaemonFiles.read(settings.directory()));
         out.reset();
@@ -128,7 +129,57 @@ class DaemonTest {
 
         out.reset();
         assertEquals(0, axl(one, "daemon", "--status"));
-        assertEquals(3, out.toString().lines().count(), out.toString());
+        assertEquals(6, out.toString().lines().count(), out.toString());
+        String own = "  installation: " + one.installation() + " (this one)";
+        assertEquals(3, out.toString().lines().filter(own::equals).count(), out.toString());
+    }
+
+    @Test
+    void stopStopsTheDaemonsOfThisInstallationAndAllThoseOfEveryInstallation() throws Exception {
+        Path src = sources("    println(1)");
+        DaemonSettings here = settings("one");
+        DaemonSettings there = new DaemonSettings(true, here.baseDir(), Duration.ofMinutes(10), "two", tmp.resolve("other-axl"));
+        assertEquals(0, axl(here, "check", "--no-null-checks", src.toString()), err.toString());
+        assertEquals(0, axl(there, "check", "--no-null-checks", src.toString()), err.toString());
+        long herePid = pid(here);
+        long therePid = pid(there);
+
+        out.reset();
+        assertEquals(0, axl(here, "daemon", "--status"));
+        String status = out.toString().replace("\r\n", "\n");
+        assertTrue(status.contains("\n  installation: " + here.installation() + " (this one)\n"), status);
+        assertTrue(status.contains("\n  installation: " + there.installation() + "\n"), status);
+
+        out.reset();
+        assertEquals(0, axl(here, "daemon", "--stop"));
+        assertEquals("Stopped the axl dev daemon of " + here.installation() + " (pid " + herePid + ")\n"
+                + "1 daemon of other installations left running; axl daemon --stop --all stops them too\n",
+                out.toString().replace("\r\n", "\n"));
+        assertNull(DaemonFiles.read(here.directory()));
+        assertEquals(therePid, pid(there));
+
+        // The registry of an earlier build names no installation; the daemon's class path still does, where
+        // the system tells the arguments of a process (not on Windows).
+        DaemonFiles.Entry entry = DaemonFiles.read(there.directory());
+        DaemonFiles.write(there.directory(), new DaemonFiles.Entry(entry.pid(), entry.port(), entry.token(), entry.fingerprint(),
+                entry.version(), null));
+        boolean windows = File.separatorChar == '\\';
+        String installation = windows ? "unknown (an earlier build of axl)" : here.installation().toString();
+        DaemonSettings elsewhere = new DaemonSettings(true, here.baseDir(), Duration.ofMinutes(10), "three", tmp.resolve("third-axl"));
+        out.reset();
+        assertEquals(0, axl(elsewhere, "daemon", "--status"));
+        assertTrue(out.toString().replace("\r\n", "\n").endsWith("\n  installation: " + installation + "\n"), out.toString());
+        out.reset();
+        assertEquals(0, axl(elsewhere, "daemon", "--stop"));
+        assertEquals("No axl daemon of this installation is running\n"
+                + "1 daemon of other installations left running; axl daemon --stop --all stops them too\n",
+                out.toString().replace("\r\n", "\n"));
+
+        out.reset();
+        assertEquals(0, axl(elsewhere, "daemon", "--stop", "--all"));
+        assertEquals("Stopped the axl dev daemon" + (windows ? "" : " of " + installation) + " (pid " + therePid + ")\n",
+                out.toString().replace("\r\n", "\n"));
+        assertTrue(ProcessHandle.of(therePid).isEmpty() || !ProcessHandle.of(therePid).get().isAlive());
     }
 
     @Test
