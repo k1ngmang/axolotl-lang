@@ -1731,6 +1731,68 @@ class Generator(
         }
     }
 
+    /**
+     * `List.of(Dot(1), Box(2))`: Java gives the list the type `List<Record & Shape>`, which no `List<Shape>`
+     * takes. The one interface of the build that elements of different types share names the type of the
+     * elements instead.
+     */
+    private fn sharedSupertype(chain: Chains.Chain) -> String? {
+        val base = chain.base()
+        val steps = chain.steps()
+        if (base !is Expr.Name || !isStaticName(base) || !(base.name().equals("List") || base.name().equals("Set")) || steps.isEmpty()) {
+            return null
+        }
+        val first = steps.getFirst()
+        val args = first.args()
+        if (!first.name().equals("of") || args == null || args.size() < 2 || first.safe()) {
+            return null
+        }
+        val types = HashSet<String>()
+        var shared: Set<String>? = null
+        for (arg in args) {
+            val type = typeOf(arg)
+            if (type == null || type.nullable() || !type.args().isEmpty()) {
+                return null
+            }
+            types.add(type.name())
+            val own = LinkedHashSet<String>(interfacesOf(type.name()))
+            if (declaredType(type.name()) is Decl.Interface) {
+                own.add(type.name())
+            }
+            val before = shared
+            if (before != null) {
+                own.retainAll(before)
+            }
+            shared = own
+        }
+        val common = shared
+        if (types.size() < 2 || common == null) {
+            return null
+        }
+        // The most specific of them: one that no other of them extends.
+        val closest = common |> filter { s -> !(common |> anyMatch { o -> !o.equals(s) && interfacesOf(o).contains(s) }) }
+        return if (closest.size() == 1) closest.getFirst() else null
+    }
+
+    /** The interfaces of the build without type parameters that a type of the build implements or extends, also indirectly. */
+    private fn interfacesOf(name: String) -> Set<String> {
+        val result = LinkedHashSet<String>()
+        val decl = declaredType(name)
+        val supertypes: List<TypeRef> = when (decl) {
+            is Decl.DataClass -> decl.supertypes()
+            is Decl.ClassDecl -> decl.supertypes()
+            is Decl.Interface -> decl.supertypes()
+            else -> List.of()
+        }
+        for (supertype in supertypes) {
+            val found = declaredType(supertype.name())
+            if (found is Decl.Interface && found.typeParams().isEmpty() && supertype.args().isEmpty() && result.add(supertype.name())) {
+                result.addAll(interfacesOf(supertype.name()))
+            }
+        }
+        return result
+    }
+
     /** The first call of a chain, on a class or on a value whose type the code tells. */
     private fn passArraysToChain(chain: Chains.Chain) {
         val steps = chain.steps()
@@ -2611,6 +2673,14 @@ class Generator(
         passArraysToChain(chain)
         val steps = chain.steps()
         val created = constructorStep(chain)
+        val shared = sharedSupertype(chain)
+        if (created < 0 && shared != null) {
+            val first = steps.getFirst()
+            val text = ".<" + shared + ">" + first.name() + "(" + argsCode(first.args() ?: List.of(), inLambda, first.line()) + ")"
+            val baseLine = startLine(chain.base())
+            val start = exprIn(chain.base(), inLambda) + (if (first.line() > baseLine) Emitter.continued(first.line(), text) else text)
+            return chainFrom(start, steps, 1, inLambda, baseLine)
+        }
         if (created < 0) {
             return chainFrom(exprIn(chain.base(), inLambda), steps, 0, inLambda, startLine(chain.base()))
         }

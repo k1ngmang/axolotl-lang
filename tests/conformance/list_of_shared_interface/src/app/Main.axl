@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+import java.util.Set
+
+sealed interface Shape
+interface Named : Shape
+data class Dot(val x: Int) : Named
+data class Box(val w: Int) : Shape
+class Circle(val r: Int) : Named
+
+fn count(shapes: List<Shape>) -> Int = shapes.size()
+
+fn names(named: Set<Named>) -> Int = named.size()
+
+// Elements of different classes of the build that share one interface make a list of that interface,
+// where Java would make a list of `Record & Shape`.
+fn main() {
+    val shapes = List.of(Dot(1), Box(2))
+    println(count(shapes))
+    println(count(List.of(Dot(1), Box(2), Circle(3))))
+    println(names(Set.of(Dot(4), Circle(5))))
+    val same = List.of(Dot(6), Dot(7))
+    println(same.get(1).x())
+}

@@ -38,7 +38,7 @@ import java.util.List;
             System.out.print("| ");
         }
         System.out.println("i=" + i);
-        System.out.println("sum=" + sumUntilDot(List.of(new Circle(1), new Dot("stop"), new Circle(2))));
+        System.out.println("sum=" + sumUntilDot(List.<Shape>of(new Circle(1), new Dot("stop"), new Circle(2))));
         System.out.println(firstOrNone(List.of(1, 2)) + " " + firstOrNone(List.of(2, 1)));
         nested();
     }

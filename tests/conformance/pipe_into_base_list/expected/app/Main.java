@@ -12,7 +12,7 @@ import java.util.List;
         return tokens.stream().filter(it -> it instanceof Num it$1).toList();
     }
     public static void main(String[] args) {
-        final List<Token> tokens = List.of(new Num(1), new Word("a"), new Num(2));
+        final List<Token> tokens = List.<Token>of(new Num(1), new Word("a"), new Num(2));
         final List<Token> kept = tokens.stream().filter(it -> it instanceof Num it$1).toList();
         final var nums = tokens.stream().filter(it -> it instanceof Num it$2).<Num>map(Num.class::cast).toList();
         System.out.println(kept.size());

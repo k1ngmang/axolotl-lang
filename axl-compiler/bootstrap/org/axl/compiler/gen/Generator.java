@@ -1562,6 +1562,59 @@ import org.axl.compiler.check.Whens;
             passArrays(c.name(), "<init>", c.args());
         }
     }
+    private @Nullable String sharedSupertype(Chains.Chain chain) {
+        final var base = chain.base();
+        final var steps = chain.steps();
+        if (!(base instanceof Expr.Name base$1) || !isStaticName(base$1) || !(base$1.name().equals("List") || base$1.name().equals("Set")) || steps.isEmpty()) {
+            return null;
+        }
+        final var first = steps.getFirst();
+        final var args = first.args();
+        if (!first.name().equals("of") || args == null || args.size() < 2 || first.safe()) {
+            return null;
+        }
+        final var types = new HashSet<String>();
+        @Nullable Set<String> shared = null;
+        for (final var arg : args) {
+            final var type = typeOf(arg);
+            if (type == null || type.nullable() || !type.args().isEmpty()) {
+                return null;
+            }
+            types.add(type.name());
+            final var own = new LinkedHashSet<String>(interfacesOf(type.name()));
+            if (declaredType(type.name()) instanceof Decl.Interface) {
+                own.add(type.name());
+            }
+            final var before = shared;
+            if (before != null) {
+                own.retainAll(before);
+            }
+            shared = own;
+        }
+        final var common = shared;
+        if (types.size() < 2 || common == null) {
+            return null;
+        }
+        final var closest = common.stream().filter(s -> !(common.stream().anyMatch(o -> !o.equals(s) && interfacesOf(o).contains(s)))).toList();
+        return (closest.size() == 1 ? closest.getFirst() : null);
+    }
+    private Set<String> interfacesOf(String name) {
+        final var result = new LinkedHashSet<String>();
+        final var decl = declaredType(name);
+        final List<TypeRef> supertypes = switch (decl) {
+            case Decl.DataClass decl$1 -> decl$1.supertypes();
+            case Decl.ClassDecl decl$2 -> decl$2.supertypes();
+            case Decl.Interface decl$3 -> decl$3.supertypes();
+            case null, default -> List.of();
+        };
+        for (final var supertype : supertypes) {
+            final var found = declaredType(supertype.name());
+            if (found instanceof Decl.Interface found$4 && found$4.typeParams().isEmpty() && supertype.args().isEmpty() && result.add(supertype.name())) {
+                result.addAll(interfacesOf(supertype.name()));
+            }
+        }
+        return result;
+    }
     private void passArraysToChain(Chains.Chain chain) {
         final var steps = chain.steps();
         final var args = (steps.isEmpty() ? null : steps.getFirst().args());
@@ -2262,6 +2315,14 @@ import org.axl.compiler.check.Whens;
         passArraysToChain(chain);
         final var steps = chain.steps();
         final var created = constructorStep(chain);
+        final var shared = sharedSupertype(chain);
+        if (created < 0 && shared != null) {
+            final var first = steps.getFirst();
+            final var text = ".<" + shared + ">" + first.name() + "(" + argsCode(Nulls.<List<Expr>>or(first.args(), () -> List.of()), inLambda, first.line()) + ")";
+            final var baseLine = startLine(chain.base());
+            final var start = exprIn(chain.base(), inLambda) + ((first.line() > baseLine ? Emitter.continued(first.line(), text) : text));
+            return chainFrom(start, steps, 1, inLambda, baseLine);
+        }
         if (created < 0) {
             return chainFrom(exprIn(chain.base(), inLambda), steps, 0, inLambda, startLine(chain.base()));
         }
