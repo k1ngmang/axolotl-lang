@@ -1,0 +1,51 @@
+package app
+
+import java.util.Map
+import java.util.function.Function
+
+data class Box<T>(val item: T)
+
+// `is Class` checks the class only, and `Class<*>` promises nothing more.
+fn asClass(o: Object) -> Class<*>? {
+    if (o is Class) {
+        return o
+    }
+    return null
+}
+
+fn asStarClass(o: Object) -> Class<*>? {
+    if (o is Class<*>) {
+        return o
+    }
+    return null
+}
+
+fn describe(o: Object) -> String {
+    if (o is Box<*>) {
+        val box: Box<*> = o
+        return "box of " + box.item()
+    }
+    if (o is Map.Entry<*, *>) {
+        val entry: Map.Entry<*, *> = o
+        return "entry " + entry.getKey()
+    }
+    if (o is java.util.Map) {
+        val map: Map<*, *> = o
+        return "map of " + map.size()
+    }
+    if (o is Function<*, *>) {
+        val f: Function<*, *> = o
+        return "function " + f.equals(o)
+    }
+    return "other"
+}
+
+fn main() {
+    println(asClass(String.class)?.getSimpleName())
+    println(asStarClass("x") == null)
+    println(describe(Box<String>("a")))
+    println(describe(Map.entry("k", 1)))
+    println(describe(Map.of(1, 2)))
+    val id: Function<String, String> = Function.identity()
+    println(describe(id))
+}

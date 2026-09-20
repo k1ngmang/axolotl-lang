@@ -2477,7 +2477,7 @@ final class NullChecker implements TaskListener {
     }
 
     /** `?`, which a raw type fits. */
-    private static boolean anything(TypeMirror type) {
+    static boolean anything(TypeMirror type) {
         return type instanceof WildcardType wildcard && wildcard.getExtendsBound() == null && wildcard.getSuperBound() == null;
     }
 

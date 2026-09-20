@@ -2118,7 +2118,7 @@ import org.axl.compiler.check.Whens;
         return new Pattern(tested.name() + "(" + String.join(", ", declared) + ")", "@" + String.join(",", pairs) + ":" + bare);
     }
     private List<String> genericRecordFields(TypeRef tested, @Nullable TypeRef subject) {
-        if (!tested.args().isEmpty() || (subject != null && argumentsOf(tested, subject) != null)) {
+        if (!tested.args().isEmpty() || (subject != null && (subject.args().isEmpty() || argumentsOf(tested, subject) != null))) {
             return List.of();
         }
         final var decl = declaredType(tested.name());

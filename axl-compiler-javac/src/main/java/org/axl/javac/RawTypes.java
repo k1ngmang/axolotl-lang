@@ -155,11 +155,14 @@ final class RawTypes implements TaskListener {
             return trees.getTypeMirror(new TreePath(getCurrentPath(), tree));
         }
 
-        /** A raw value stored where type arguments are written: Java only warns of the unchecked conversion. */
+        /**
+         * A raw value stored where type arguments are written: Java only warns of the unchecked conversion.
+         * `Class<*>` promises nothing about its arguments, so a raw `Class` fits it.
+         */
         private void converted(ExpressionTree value, TypeMirror target) {
             TypeMirror source = type(value);
             if (isRaw(source) && target instanceof DeclaredType declared && !declared.getTypeArguments().isEmpty()
-                    && testedName(value)) {
+                    && !declared.getTypeArguments().stream().allMatch(NullChecker::anything) && testedName(value)) {
                 String message = PREFIX + uncheckedMessage(simpleName(source), simpleName(target));
                 found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, value, unit));
             }

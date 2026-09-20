@@ -2432,9 +2432,12 @@ class Generator(
         return Pattern(tested.name() + "(" + String.join(", ", declared) + ")", "@" + String.join(",", pairs) + ":" + bare)
     }
 
-    /** The fields of a generic data class of the build or record of the classpath whose type arguments the subject does not tell. */
+    /**
+     * The fields of a generic data class of the build or record of the classpath whose type arguments the subject does not tell.
+     * A subject without type arguments, an `Object`, tells javac nothing either, and a type pattern keeps the value whole.
+     */
     private fn genericRecordFields(tested: TypeRef, subject: TypeRef?) -> List<String> {
-        if (!tested.args().isEmpty() || (subject != null && argumentsOf(tested, subject) != null)) {
+        if (!tested.args().isEmpty() || (subject != null && (subject.args().isEmpty() || argumentsOf(tested, subject) != null))) {
             return List.of()
         }
         val decl = declaredType(tested.name())
