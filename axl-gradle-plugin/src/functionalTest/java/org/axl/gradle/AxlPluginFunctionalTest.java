@@ -342,6 +342,41 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void errorProneChecksTheHandWrittenJavaOnlyWithCheckJava() throws IOException {
+        Path java = project.resolve("core/src/main/java/core/Labels.java");
+        Files.writeString(java, """
+                package core;
+
+                import org.jspecify.annotations.NullMarked;
+                import org.jspecify.annotations.Nullable;
+
+                @NullMarked
+                public final class Labels {
+                    public static @Nullable String label(String key) {
+                        int unread = 5;
+                        return key.isEmpty() ? null : key;
+                    }
+                }
+                """);
+        Path titles = project.resolve("core/src/main/axl/core/Titles.axl");
+        String sources = Files.readString(titles);
+        Files.writeString(titles, sources + "\nfn labelLength() -> Int = Labels.label(\"x\").length()\n");
+        BuildResult result = gradle(":core:compileJava").buildAndFail();
+        assertTrue(result.getOutput().contains(titles.toAbsolutePath() + ":18:"), result.getOutput());
+        assertTrue(result.getOutput().contains("may be null"), result.getOutput());
+        assertFalse(result.getOutput().contains("Labels.java"), result.getOutput());
+
+        Files.writeString(titles, sources + "\nfn labelLength() -> Int = Labels.label(\"x\")?.length() ?: 0\n");
+        result = gradle(":core:compileJava").build();
+        assertFalse(result.getOutput().contains("Labels.java"), result.getOutput());
+
+        Path build = project.resolve("core/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + "\naxl {\n    checkJava = true\n}\n");
+        result = gradle(":core:compileJava").build();
+        assertTrue(result.getOutput().contains(java.toAbsolutePath() + ":9:13: warning: [UnusedVariable]"), result.getOutput());
+    }
+
+    @Test
     void strictNullFlagsUncheckedJavaValues() throws IOException {
         Path build = project.resolve("app/build.gradle.kts");
         Files.writeString(build, Files.readString(build) + "\naxl {\n    strictNull = true\n}\n");

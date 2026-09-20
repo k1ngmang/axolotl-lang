@@ -11,6 +11,12 @@ public abstract class AxlExtension {
     /** Runs Error Prone and NullAway on `compileJava`. */
     public abstract Property<Boolean> getNullAway();
 
+    /**
+     * Runs Error Prone and NullAway on the hand-written Java of the source sets too; by default they check
+     * only the code translated from .axl files.
+     */
+    public abstract Property<Boolean> getCheckJava();
+
     /** `--release` for Java compilation. */
     public abstract Property<Integer> getJavaRelease();
 

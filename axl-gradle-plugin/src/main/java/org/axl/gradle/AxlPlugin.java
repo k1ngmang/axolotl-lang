@@ -39,6 +39,7 @@ public class AxlPlugin implements Plugin<Project> {
         AxlExtension axl = project.getExtensions().create("axl", AxlExtension.class);
         axl.getAddRuntime().convention(true);
         axl.getNullAway().convention(true);
+        axl.getCheckJava().convention(false);
         axl.getJavaRelease().convention(21);
         axl.getInlineElvis().convention(false);
         axl.getSmap().convention(true);
@@ -147,6 +148,11 @@ public class AxlPlugin implements Plugin<Project> {
             ErrorProneOptions errorprone = ((ExtensionAware) compile.getOptions()).getExtensions()
                     .getByType(ErrorProneOptions.class);
             errorprone.getEnabled().set(axl.getNullAway());
+            GeneratedOnlyArguments generatedOnly = project.getObjects().newInstance(GeneratedOnlyArguments.class);
+            generatedOnly.getGeneratedDir().set(generate.flatMap(GenerateAxlTask::getOutputDir));
+            generatedOnly.getCheckJava().set(axl.getCheckJava());
+            generatedOnly.getExcludedPaths().set(errorprone.getExcludedPaths());
+            errorprone.getErrorproneArgumentProviders().add(generatedOnly);
             errorprone.check("NullAway", CheckSeverity.ERROR);
             errorprone.check("NarrowingCompoundAssignment", CheckSeverity.ERROR);
             errorprone.check("ReferenceEquality", CheckSeverity.ERROR);
