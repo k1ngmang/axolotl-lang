@@ -47,6 +47,7 @@ import org.axl.compiler.ast.TypeRef;
     public Set<String> openTypeParams;
     public List<String> enclosingTypeParams;
     public @Nullable Stmt lastInLambda;
+    public final HashMap<Pos, String> createdTypes;
     public int lambdaDepth;
     public int safeTailDepth;
     public int attemptDepth;
@@ -79,6 +80,7 @@ import org.axl.compiler.ast.TypeRef;
         this.openTypeParams = new HashSet<String>();
         this.enclosingTypeParams = List.of();
         this.lastInLambda = null;
+        this.createdTypes = new HashMap<Pos, String>();
         this.lambdaDepth = 0;
         this.safeTailDepth = 0;
         this.attemptDepth = 0;
@@ -707,6 +709,9 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var kind = (stmt.mutable() ? Kind.MUTABLE_LOCAL : Kind.LOCAL);
         declare(stmt.namePos(), stmt.name(), kind, type);
+        if (type == null && init instanceof Expr.Call init$4 && init$4.target() == null && typeOfBuild(init$4.name()) != null) {
+            createdTypes.put(stmt.namePos(), init$4.name());
+        }
         if (stmt.mutable()) {
             unassigned.put(stmt.namePos(), stmt.name());
         }
@@ -818,11 +823,100 @@ import org.axl.compiler.ast.TypeRef;
             final var hint = (stmt.equals(lastInLambda) ? "to return it from the lambda, write `return` before it" : "use its value, for example in a `val`, or remove it");
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint);
         }
-        if (e instanceof Expr.Try e$6) {
-            statementTry(e$6);
+        if (inner instanceof Expr.Call inner$6 && !stmt.equals(lastInLambda) && dropsResult(inner$6)) {
+            final var receiver = inner$6.target();
+            final var shown = ((receiver instanceof Expr.Name receiver$7 ? receiver$7.name() + "." : "")) + inner$6.name() + "(...)";
+            final var at = Nulls.or(Nulls.map(receiver, $n1 -> $n1.pos()), () -> e.pos());
+            diagnostics.add(AxlDiagnostic.warning(file.path(), at.line(), at.column(), ErrorCode.UNNEEDED,
+                    "the `Result` of `" + shown + "` is dropped; handle the `Err` (`try`, `if (r is Err)`) or keep it with `val unused = ...`"));
+        }
+        if (e instanceof Expr.Try e$8) {
+            statementTry(e$8);
         } else {
             expr(e);
         }
+    }
+    private boolean dropsResult(Expr.Call c) {
+        final var called = calledFunctions(c);
+        return !called.isEmpty() && (Nulls.stream(called).allMatch(f -> returnsResult(f)));
+    }
+    private List<Decl.Function> calledFunctions(Expr.Call c) {
+        final var target = c.target();
+        if (c.safe()) {
+            return List.of();
+        }
+        if (target == null) {
+            final var own = functionsNamed(currentMethods, c);
+            if (!own.isEmpty()) {
+                return own;
+            }
+            final var topLevel = functionsNamed(functionsIn(file.decls()), c);
+            if (!topLevel.isEmpty()) {
+                return topLevel;
+            }
+            final var imported = Nulls.stream(file.imports()).filter(i -> i.kind() == Import.Kind.FN && i.simpleName().equals(c.name())).toList();
+            if (imported.isEmpty()) {
+                return List.of();
+            }
+            final var path = imported.getFirst().name();
+            return functionsOfFile(path.substring(0, path.lastIndexOf('.')), c);
+        }
+        if (!(target instanceof Expr.Name target$1)) {
+            return List.of();
+        }
+        final var symbol = scope.lookup(target$1.name());
+        if (symbol == null) {
+            return (Character.isUpperCase(target$1.name().charAt(0)) ? functionsOfFile(target$1.name(), c) : List.of());
+        }
+        final var written = symbol.type();
+        final var typeName = (written != null && written.args().isEmpty() ? written.name() : createdTypes.get(symbol.pos()));
+        final var decl = (typeName == null ? null : typeOfBuild(typeName));
+        switch (decl) {
+            case Decl.ClassDecl decl$2 -> {
+                return functionsNamed(decl$2.methods(), c);
+            }
+            case Decl.DataClass decl$3 -> {
+                return functionsNamed(decl$3.methods(), c);
+            }
+            case Decl.Interface decl$4 -> {
+                return functionsNamed(decl$4.methods(), c);
+            }
+            case null, default -> {
+                return List.of();
+            }
+        }
+    }
+    private List<Decl.Function> functionsOfFile(String name, Expr.Call c) {
+        final var dot = name.lastIndexOf('.');
+        final var packageName = (dot < 0 ? file.packageName() : name.substring(0, dot));
+        final var className = name.substring(dot + 1);
+        for (final var sibling : siblings) {
+            final var theirs = sibling.packageName();
+            final var same = (packageName == null ? Boolean.valueOf(theirs == null) : packageName.equals(theirs));
+            if (same && sibling.className().equals(className)) {
+                return functionsNamed(functionsIn(sibling.decls()), c).stream().filter(f -> !f.isPrivate()).toList();
+            }
+        }
+        return List.of();
+    }
+    private @Nullable Decl typeOfBuild(String name) {
+        for (final var decl : file.decls()) {
+            if (decl.name().equals(name) && isTypeDecl(decl)) {
+                return decl;
+            }
+        }
+        for (final var sibling : siblings) {
+            final var own = file.packageName();
+            final var theirs = sibling.packageName();
+            if ((own == null ? Boolean.valueOf(theirs == null) : own.equals(theirs))) {
+                for (final var decl : sibling.decls()) {
+                    if (decl.name().equals(name) && isTypeDecl(decl)) {
+                        return decl;
+                    }
+                }
+            }
+        }
+        return null;
     }
     private void attemptStatementShape(Expr.Attempt a) {
         attemptBodyShape(a.body());
@@ -1792,6 +1886,18 @@ import org.axl.compiler.ast.TypeRef;
                 return false;
             }
         }
+    }
+    private static List<Decl.Function> functionsNamed(List<Decl.Function> functions, Expr.Call c) {
+        return functions.stream().filter(f -> f.name().equals(c.name()) && f.params().size() == c.args().size()).toList();
+    }
+    private static List<Decl.Function> functionsIn(List<Decl> decls) {
+        final var result = new ArrayList<Decl.Function>();
+        for (final var decl : decls) {
+            if (decl instanceof Decl.Function decl$1) {
+                result.add(decl$1);
+            }
+        }
+        return result;
     }
     private static boolean returnsResult(Decl.@Nullable Function f) {
         if (f == null) {

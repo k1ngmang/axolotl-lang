@@ -158,6 +158,62 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutADroppedResult(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                import java.util.List
+
+                interface Store {
+                    fn put(key: String) -> Result<Int, String>
+                }
+
+                class Memory : Store {
+                    fn put(key: String) -> Result<Int, String> = Ok(key.length())
+                }
+
+                class Bank(val names: List<String>) {
+                    fn open(name: String) -> Result<Int, String> = if (names.contains(name)) Err(name) else Ok(1)
+
+                    fn openAll() {
+                        open("a")
+                    }
+                }
+
+                fn check(n: Int) -> Result<Int, String> = if (n > 0) Ok(n) else Err("negative")
+
+                fn log(n: Int) -> Int = n
+
+                fn run(store: Store) -> Result<Int, String> {
+                    val bank = Bank(List.of("b"))
+                    bank.open("b")
+                    store.put("k")
+                    check(1)
+                    log(2)
+                    val unused = check(3)
+                    try check(4)
+                    attempt Integer.parseInt("5") else e -> println(e)
+                    List.of(6) |> forEach { check(it) }
+                    List.of(7) |> forEach { n ->
+                        println(n)
+                        check(n)
+                    }
+                    return Ok(0)
+                }
+
+                fn main() {
+                    println(run(Memory()))
+                }
+                """);
+        String dropped = "is dropped; handle the `Err` (`try`, `if (r is Err)`) or keep it with `val unused = ...`";
+        assertEquals(List.of(
+                "17:9 the `Result` of `open(...)` " + dropped,
+                "27:5 the `Result` of `bank.open(...)` " + dropped,
+                "28:5 the `Result` of `store.put(...)` " + dropped,
+                "29:5 the `Result` of `check(...)` " + dropped), warnings);
+    }
+
+    @Test
     void warnsAboutNullChecksOfPropertiesAndValuesThatAreNeverNull(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

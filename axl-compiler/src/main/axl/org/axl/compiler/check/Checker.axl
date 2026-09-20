@@ -144,6 +144,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     /** The type parameters of the type whose methods are being checked, which a method's must not hide. */
     var enclosingTypeParams: List<String> = List.of()
     var lastInLambda: Stmt? = null
+    // The class of the build that an untyped local was created as, `val bank = Bank(log)`, by where its name is.
+    val createdTypes: HashMap<Pos, String> = HashMap<Pos, String>()
     var lambdaDepth: Int = 0
     var safeTailDepth: Int = 0
     var attemptDepth: Int = 0
@@ -750,6 +752,9 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         }
         val kind = if (stmt.mutable()) Kind.MUTABLE_LOCAL else Kind.LOCAL
         declare(stmt.namePos(), stmt.name(), kind, type)
+        if (type == null && init is Expr.Call && init.target() == null && typeOfBuild(init.name()) != null) {
+            createdTypes.put(stmt.namePos(), init.name())
+        }
         if (stmt.mutable()) {
             unassigned.put(stmt.namePos(), stmt.name())
         }
@@ -870,11 +875,101 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
             val hint = if (stmt.equals(lastInLambda)) "to return it from the lambda, write `return` before it" else "use its value, for example in a `val`, or remove it"
             error(e.pos(), ErrorCode.SYNTAX, "this expression does nothing on its own; " + hint)
         }
+        if (inner is Expr.Call && !stmt.equals(lastInLambda) && dropsResult(inner)) {
+            val receiver = inner.target()
+            val shown = (if (receiver is Expr.Name) receiver.name() + "." else "") + inner.name() + "(...)"
+            val at = receiver?.pos() ?: e.pos()
+            diagnostics.add(AxlDiagnostic.warning(file.path(), at.line(), at.column(), ErrorCode.UNNEEDED,
+                "the `Result` of `" + shown + "` is dropped; handle the `Err` (`try`, `if (r is Err)`) or keep it with `val unused = ...`"))
+        }
         if (e is Expr.Try) {
             statementTry(e)
         } else {
             expr(e)
         }
+    }
+
+    /** A call on a line of its own of functions of the build that all return a `Result`. */
+    private fn dropsResult(c: Expr.Call) -> Boolean {
+        val called = calledFunctions(c)
+        return !called.isEmpty() && (called |> allMatch { f -> returnsResult(f) })
+    }
+
+    /** The functions of the build with that name and number of parameters that the call may run; empty when the receiver does not tell. */
+    private fn calledFunctions(c: Expr.Call) -> List<Decl.Function> {
+        val target = c.target()
+        if (c.safe()) {
+            return List.of()
+        }
+        if (target == null) {
+            val own = functionsNamed(currentMethods, c)
+            if (!own.isEmpty()) {
+                return own
+            }
+            val topLevel = functionsNamed(functionsIn(file.decls()), c)
+            if (!topLevel.isEmpty()) {
+                return topLevel
+            }
+            val imported = file.imports() |> filter { i -> i.kind() == Import.Kind.FN && i.simpleName().equals(c.name()) }
+            if (imported.isEmpty()) {
+                return List.of()
+            }
+            val path = imported.getFirst().name()
+            return functionsOfFile(path.substring(0, path.lastIndexOf('.')), c)
+        }
+        if (target !is Expr.Name) {
+            return List.of()
+        }
+        val symbol = scope.lookup(target.name())
+        if (symbol == null) {
+            // `Accounts.open(name)`: a function of another file of the package.
+            return if (Character.isUpperCase(target.name().charAt(0))) functionsOfFile(target.name(), c) else List.of()
+        }
+        val written = symbol.type()
+        val typeName = if (written != null && written.args().isEmpty()) written.name() else createdTypes.get(symbol.pos())
+        val decl = if (typeName == null) null else typeOfBuild(typeName)
+        return when (decl) {
+            is Decl.ClassDecl -> functionsNamed(decl.methods(), c)
+            is Decl.DataClass -> functionsNamed(decl.methods(), c)
+            is Decl.Interface -> functionsNamed(decl.methods(), c)
+            else -> List.of()
+        }
+    }
+
+    /** The functions of the file whose class has that name, `Parse` in this package or `util.Parse`. */
+    private fn functionsOfFile(name: String, c: Expr.Call) -> List<Decl.Function> {
+        val dot = name.lastIndexOf('.')
+        val packageName = if (dot < 0) file.packageName() else name.substring(0, dot)
+        val className = name.substring(dot + 1)
+        for (sibling in siblings) {
+            val theirs = sibling.packageName()
+            val same = if (packageName == null) theirs == null else packageName.equals(theirs)
+            if (same && sibling.className().equals(className)) {
+                return functionsNamed(functionsIn(sibling.decls()), c) |> filter { f -> !f.isPrivate() }
+            }
+        }
+        return List.of()
+    }
+
+    /** A data class, class or interface of this file or of another file of the package. */
+    private fn typeOfBuild(name: String) -> Decl? {
+        for (decl in file.decls()) {
+            if (decl.name().equals(name) && isTypeDecl(decl)) {
+                return decl
+            }
+        }
+        for (sibling in siblings) {
+            val own = file.packageName()
+            val theirs = sibling.packageName()
+            if (if (own == null) theirs == null else own.equals(theirs)) {
+                for (decl in sibling.decls()) {
+                    if (decl.name().equals(name) && isTypeDecl(decl)) {
+                        return decl
+                    }
+                }
+            }
+        }
+        return null
     }
 
     /** On a line of its own `attempt` becomes a `try`, so its call and its handler must be statements in Java. */
@@ -1790,6 +1885,19 @@ private fn doesSomething(e: Expr) -> Boolean = when (e) {
     is Expr.Member, is Expr.Call, is Expr.GenericNew, is Expr.Try, is Expr.Pipe, is Expr.Throw -> true
     is Expr.When, is Expr.Attempt, is Expr.NotNull, is Expr.Lambda -> true
     else -> false
+}
+
+private fn functionsNamed(functions: List<Decl.Function>, c: Expr.Call) -> List<Decl.Function> =
+    functions |> filter { f -> f.name().equals(c.name()) && f.params().size() == c.args().size() }
+
+private fn functionsIn(decls: List<Decl>) -> List<Decl.Function> {
+    val result = ArrayList<Decl.Function>()
+    for (decl in decls) {
+        if (decl is Decl.Function) {
+            result.add(decl)
+        }
+    }
+    return result
 }
 
 private fn returnsResult(f: Decl.Function?) -> Boolean {
