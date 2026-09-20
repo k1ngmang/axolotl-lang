@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -63,6 +64,15 @@ public final class JavaCompilation {
     /** strictNull: values from Java code without nullness annotations may be null (see NullChecker). */
     public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions,
                                   boolean nullChecks, boolean strictNull) {
+        return compile(sources, classpath, classesDir, extraOptions, nullChecks, strictNull, List.of());
+    }
+
+    /**
+     * unchecked: sources that Error Prone and NullAway skip, such as the hand-written Java next to .axl
+     * files; javac still compiles them and reports their errors.
+     */
+    public static Outcome compile(List<Path> sources, List<Path> classpath, Path classesDir, List<String> extraOptions,
+                                  boolean nullChecks, boolean strictNull, List<Path> unchecked) {
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
         if (compiler == null) {
             throw new IllegalStateException("no Java compiler available: run with a JDK, not a JRE");
@@ -83,7 +93,8 @@ public final class JavaCompilation {
                         "-XDaddTypeAnnotationsToSymbol=true",
                         "--should-stop=ifError=FLOW",
                         "-processorpath", processorPath(),
-                        ERROR_PRONE_PLUGIN));
+                        unchecked.isEmpty() ? ERROR_PRONE_PLUGIN
+                                : ERROR_PRONE_PLUGIN + " -XepExcludedPaths:" + filesPattern(unchecked)));
             }
             if (strictNull && !nullChecks) {
                 options.addAll(List.of("-processorpath", processorPath()));
@@ -102,6 +113,51 @@ public final class JavaCompilation {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    /** A pattern for -XepExcludedPaths that matches these files. */
+    public static String filesPattern(Collection<Path> files) {
+        return files.stream().flatMap(JavaCompilation::uriPaths).map(JavaCompilation::literal)
+                .distinct().collect(Collectors.joining("|"));
+    }
+
+    /** A pattern for -XepExcludedPaths that matches every file outside these directories. */
+    public static String outsidePattern(Collection<Path> dirs) {
+        String inside = dirs.stream().flatMap(JavaCompilation::uriPaths)
+                .map(path -> literal(path.endsWith("/") ? path : path + "/"))
+                .distinct().collect(Collectors.joining("|"));
+        return "(?!(?:" + inside + ")).*";
+    }
+
+    /**
+     * Error Prone matches the path of a source's URI, which javac makes from the real path of the file:
+     * both forms, for a path through a symbolic link.
+     */
+    private static Stream<String> uriPaths(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        Path real;
+        try {
+            real = absolute.toRealPath();
+        } catch (IOException e) {
+            real = absolute;
+        }
+        return Stream.of(absolute, real).map(p -> p.toUri().getPath()).distinct();
+    }
+
+    /**
+     * Escapes every character but ASCII letters, digits, `/`, `_` and `-`: javac splits the Error Prone
+     * argument at spaces, so the pattern must have none.
+     */
+    private static String literal(String text) {
+        StringBuilder result = new StringBuilder();
+        text.codePoints().forEach(c -> {
+            if (c < 128 && (Character.isLetterOrDigit(c) || c == '/' || c == '_' || c == '-')) {
+                result.appendCodePoint(c);
+            } else {
+                result.append("\\x{").append(Integer.toHexString(c)).append('}');
+            }
+        });
+        return result.toString();
     }
 
     /**

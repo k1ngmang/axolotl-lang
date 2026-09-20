@@ -551,6 +551,72 @@ class AxlBuildTest {
         assertTrue(result.success());
     }
 
+    @Test
+    void checksOnlyTheTranslatedCodeUnlessAskedToCheckTheJavaToo(@TempDir Path tmp) throws Exception {
+        // A space, a dot and a plus, which the pattern of excluded paths must escape.
+        Path src = tmp.resolve("my src.d+1");
+        Files.createDirectories(src.resolve("app"));
+        Files.writeString(src.resolve("app/Main.axl"), """
+                package app
+
+                private val never = 3
+
+                fn main() {
+                    println(Legacy.describe(1))
+                    println(Lookup.find("x").length())
+                }
+                """);
+        Files.writeString(src.resolve("app/Legacy.java"), """
+                package app;
+
+                public class Legacy {
+                    public static String describe(Object e) {
+                        int count = 5;
+                        return String.valueOf(e);
+                    }
+                }
+                """);
+        Files.writeString(src.resolve("app/Lookup.java"), """
+                package app;
+
+                import org.jspecify.annotations.NullMarked;
+                import org.jspecify.annotations.Nullable;
+
+                @NullMarked
+                public class Lookup {
+                    public static @Nullable String find(String key) {
+                        return key.isEmpty() ? null : key;
+                    }
+                }
+                """);
+        List<String> generatedOnly = messages(new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).run());
+        assertEquals(List.of(
+                "Main.axl:3:13 `never` is never read",
+                "Main.axl:7:30 `Lookup.find(\"x\")` may be null: copy it to a `val` and check that, or use `?.`, `?:` or `!!`"),
+                generatedOnly.stream().map(ErrorProneMessages::withoutSuppression).toList());
+
+        List<String> all = messages(new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).checkJava(true).run());
+        assertTrue(all.containsAll(generatedOnly), all.toString());
+        assertTrue(all.stream().anyMatch(m -> m.startsWith("Legacy.java:5:13 [UnusedVariable]")), all.toString());
+
+        Files.writeString(src.resolve("app/Legacy.java"), """
+                package app;
+
+                public class Legacy {
+                    public static String describe(Object e) {
+                        return 1;
+                    }
+                }
+                """);
+        List<String> broken = messages(new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).run());
+        assertTrue(broken.stream().anyMatch(m -> m.startsWith("Legacy.java:5:16 incompatible types")), broken.toString());
+    }
+
+    private static List<String> messages(AxlBuild.Result result) {
+        return result.diagnostics().stream()
+                .map(d -> Path.of(d.file()).getFileName() + ":" + d.line() + ":" + d.column() + " " + d.message()).toList();
+    }
+
     /** The warnings without the Error Prone check that the first warning of each check names. */
     private static List<String> warnings(Path tmp, String source) throws Exception {
         return warningsWithChecks(tmp, source).stream().map(ErrorProneMessages::withoutSuppression).toList();

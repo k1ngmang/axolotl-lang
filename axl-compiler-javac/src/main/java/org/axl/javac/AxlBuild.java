@@ -30,6 +30,7 @@ public final class AxlBuild {
     private Function<Path, String> display = Path::toString;
     private Predicate<Path> skipped = file -> false;
     private boolean nullChecks = true;
+    private boolean checkJava;
     private boolean strictNull;
     private Options options = Options.DEFAULT;
 
@@ -56,6 +57,15 @@ public final class AxlBuild {
     /** Turns Error Prone and NullAway on or off; on by default. */
     public AxlBuild nullChecks(boolean enabled) {
         this.nullChecks = enabled;
+        return this;
+    }
+
+    /**
+     * Runs Error Prone and NullAway on the .java files of the source directories too; by default they
+     * check only the code translated from .axl files, and javac alone compiles the hand-written Java.
+     */
+    public AxlBuild checkJava(boolean enabled) {
+        this.checkJava = enabled;
         return this;
     }
 
@@ -105,12 +115,14 @@ public final class AxlBuild {
         if (diagnostics.stream().anyMatch(AxlDiagnostic::isError)) {
             return new Result(false, sorted(diagnostics), generated);
         }
-        List<Path> sources = new ArrayList<>(files(".java"));
+        List<Path> javaFiles = files(".java");
+        List<Path> sources = new ArrayList<>(javaFiles);
         generated.forEach(g -> sources.add(g.javaFile()));
         if (sources.isEmpty()) {
             return new Result(true, diagnostics, generated);
         }
-        JavaCompilation.Outcome outcome = JavaCompilation.compile(sources, classpath, classesDir, javacOptions, nullChecks, strictNull);
+        JavaCompilation.Outcome outcome = JavaCompilation.compile(sources, classpath, classesDir, javacOptions, nullChecks, strictNull,
+                checkJava ? List.of() : javaFiles);
         var translator = new DiagnosticTranslator(generated, display).classpath(classpath);
         for (var d : outcome.diagnostics()) {
             AxlDiagnostic translated = translator.translate(d);

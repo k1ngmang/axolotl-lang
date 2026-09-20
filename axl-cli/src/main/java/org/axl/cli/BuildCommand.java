@@ -31,6 +31,11 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--check-java", description = {
+            "Run Error Prone and NullAway on the .java files of the source directory too.",
+            "By default they check only the Java translated from Axolotl."})
+    boolean checkJava;
+
     @Option(names = "--strict-null", description = "Treat values from Java code without nullness annotations as nullable.")
     boolean strictNull;
 
@@ -51,7 +56,7 @@ final class BuildCommand implements Callable<Integer> {
         Paths.warnAboutTooDeep(List.of(sourceDir));
         Path generated = generatedDir != null ? generatedDir : classesDir;
         var job = new CompileJob(CompileJob.Kind.BUILD, List.of(sourceDir), null, generated, classesDir, classpath,
-                !noNullChecks, strictNull, inlineElvis, !noSmap, Paths.workingDirectory());
+                !noNullChecks, checkJava, strictNull, inlineElvis, !noSmap, Paths.workingDirectory());
         return main.compiler().compile(job).success() ? 0 : 1;
     }
 }

@@ -27,6 +27,11 @@ final class CheckCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--check-java", description = {
+            "Run Error Prone and NullAway on the .java files of the source directories too.",
+            "By default they check only the Java translated from Axolotl."})
+    boolean checkJava;
+
     @Option(names = "--strict-null", description = "Treat values from Java code without nullness annotations as nullable.")
     boolean strictNull;
 
@@ -43,7 +48,7 @@ final class CheckCommand implements Callable<Integer> {
         Path work = WorkDirectories.create(WorkDirectories.CHECK);
         try {
             var job = new CompileJob(CompileJob.Kind.CHECK, sourceDirs, null, work.resolve("generated"),
-                    work.resolve("classes"), classpath, !noNullChecks, strictNull, inlineElvis, false, Paths.workingDirectory());
+                    work.resolve("classes"), classpath, !noNullChecks, checkJava, strictNull, inlineElvis, false, Paths.workingDirectory());
             return main.compiler().compile(job).success() ? 0 : 1;
         } finally {
             WorkDirectories.delete(work);

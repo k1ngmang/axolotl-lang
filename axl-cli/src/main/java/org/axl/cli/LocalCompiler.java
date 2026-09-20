@@ -76,6 +76,7 @@ final class LocalCompiler implements Compiler {
     private static AxlBuild configure(AxlBuild build, CompileJob job) {
         return build.classpath(job.classpath())
                 .nullChecks(job.nullChecks())
+                .checkJava(job.checkJava())
                 .strictNull(job.strictNull())
                 .options(new Options(job.inlineElvis()));
     }

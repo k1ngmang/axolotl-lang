@@ -41,6 +41,11 @@ final class RunCommand implements Callable<Integer> {
     @Option(names = "--no-null-checks", description = "Skip Error Prone and NullAway.")
     boolean noNullChecks;
 
+    @Option(names = "--check-java", description = {
+            "Run Error Prone and NullAway on the .java files of the source tree too.",
+            "By default they check only the Java translated from Axolotl."})
+    boolean checkJava;
+
     @Option(names = "--strict-null", description = "Treat values from Java code without nullness annotations as nullable.")
     boolean strictNull;
 
@@ -68,7 +73,7 @@ final class RunCommand implements Callable<Integer> {
         }
         Path work = WorkDirectories.create(WorkDirectories.RUN);
         var job = new CompileJob(CompileJob.Kind.RUN, List.of(), file, work.resolve("generated"), work.resolve("classes"),
-                classpath, !noNullChecks, strictNull, inlineElvis, false, Paths.workingDirectory());
+                classpath, !noNullChecks, checkJava, strictNull, inlineElvis, false, Paths.workingDirectory());
         CompileJob.Result result = main.compiler().compile(job);
         if (!result.success()) {
             return 1;

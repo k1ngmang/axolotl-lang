@@ -243,14 +243,44 @@ class CliTest {
     }
 
     @Test
-    void checkShowsWarningsOfHandWrittenJava(@TempDir Path tmp) throws Exception {
+    void checkShowsWarningsOfHandWrittenJavaOnlyWithCheckJava(@TempDir Path tmp) throws Exception {
+        Files.createDirectories(tmp.resolve("app"));
+        Files.writeString(tmp.resolve("app/Main.axl"), "package app\n\nfn main() {\n    val s: String? = J.name()\n"
+                + "    println(J.f(s.length()))\n}\n");
+        Files.writeString(tmp.resolve("app/J.java"), "package app;\n\nclass J {\n    static int f(int x) {\n"
+                + "        int it = 5;\n        return x;\n    }\n\n    static String name() {\n        return \"j\";\n    }\n}\n");
+        assertEquals(1, axl("check", tmp.toString()), err.toString());
+        String printed = out.toString(StandardCharsets.UTF_8) + err;
+        assertTrue(printed.contains("Main.axl:5:19: error: `s` may be null"), printed);
+        assertFalse(printed.contains("J.java"), printed);
+
+        out.reset();
+        assertEquals(1, axl("check", "--check-java", tmp.toString()), err.toString());
+        printed = out.toString(StandardCharsets.UTF_8) + err;
+        assertTrue(printed.contains("Main.axl:5:19: error: `s` may be null"), printed);
+        assertTrue(printed.contains("J.java:5:13: warning: [UnusedVariable]"), printed);
+
+        out.reset();
+        Path classes = tmp.resolve("out");
+        assertEquals(1, axl("build", tmp.toString(), "-d", classes.toString()), err.toString());
+        assertFalse((out.toString(StandardCharsets.UTF_8) + err).contains("J.java"), out.toString() + err);
+        err.reset();
+        assertEquals(1, axl("build", "--check-java", tmp.toString(), "-d", classes.toString()), err.toString());
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("J.java:5:13: warning: [UnusedVariable]"), err.toString());
+        err.reset();
+        assertEquals(1, axl("run", "--check-java", tmp.resolve("app/Main.axl").toString()), err.toString());
+        assertTrue(err.toString(StandardCharsets.UTF_8).contains("J.java:5:13: warning: [UnusedVariable]"), err.toString());
+    }
+
+    @Test
+    void checkReportsJavacErrorsOfHandWrittenJava(@TempDir Path tmp) throws Exception {
         Files.createDirectories(tmp.resolve("app"));
         Files.writeString(tmp.resolve("app/Main.axl"), "package app\n\nfn main() {\n    println(J.f(1))\n}\n");
         Files.writeString(tmp.resolve("app/J.java"), "package app;\n\nclass J {\n    static int f(int x) {\n"
-                + "        int it = 5;\n        return x;\n    }\n}\n");
-        assertEquals(0, axl("check", tmp.toString()), err.toString());
+                + "        return \"x\";\n    }\n}\n");
+        assertEquals(1, axl("check", tmp.toString()), err.toString());
         String printed = out.toString(StandardCharsets.UTF_8) + err;
-        assertTrue(printed.contains("J.java:5:13: warning: [UnusedVariable]"), printed);
+        assertTrue(printed.contains("J.java:5:16: error: incompatible types"), printed);
     }
 
     @Test
