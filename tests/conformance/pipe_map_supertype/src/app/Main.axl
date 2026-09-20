@@ -1,0 +1,28 @@
+package app
+
+import java.util.List
+
+sealed interface Shape
+data class Dot(val x: Int) : Shape
+data class Box(val w: Int) : Shape
+
+data class Group(val shapes: List<Shape>)
+
+// A `map` whose list is stored as a list of a supertype maps to that type, as Java lists are invariant.
+fn dots(xs: List<Int>) -> List<Shape> = xs |> map { Dot(it) }
+
+fn boxes(xs: List<Int>) -> List<Shape> {
+    return xs |> map { Box(it) } |> distinct |> limit(2)
+}
+
+fn main() {
+    val typed: List<Shape> = List.of(1, 2) |> map { Dot(it) }
+    val positive: List<Dot> = List.of(-1, 3) |> map { Dot(it) } |> filter { it.x() > 0 }
+    val boxed: List<Shape> = List.of(4) |> map { Box(it) }
+    val group = Group(boxed)
+    println(typed)
+    println(positive)
+    println(dots(List.of(5)))
+    println(boxes(List.of(6, 6, 7, 8)))
+    println(group.shapes().size())
+}

@@ -50,6 +50,9 @@ private val BOXED_NAMES: Map<String, String> = Map.of("Int", "Integer", "Long", 
 // The buffers that Java's input and output read into and write from.
 private val ARRAY_NAMES: Map<String, String> = Map.of("ByteArray", "byte", "CharArray", "char")
 
+// Stages that keep the elements as they are without reading them.
+private val ORDER_STAGES: Set<String> = Set.of("distinct", "limit", "skip")
+
 // Types whose values Java unboxes in a conditional, as Axolotl or Java names them.
 private val MAPPING_STAGES: Set<String> = Set.of("map", "mapResult", "flatMap")
 
@@ -92,6 +95,8 @@ class Generator(
     val branchTypes: IdentityHashMap<Expr, TypeRef?> = IdentityHashMap<Expr, TypeRef?>()
     // The written type a value goes to, which a pipe stored as a `List<Token>` keeps instead of narrowing to `List<Num>`.
     var storedType: TypeRef? = null
+    // The value stored, which a pipe that is the whole of it maps to the written element type.
+    var storedValue: Expr? = null
     var patternCount: Int = 0
     // Lists passed where Java takes an array, with the class of the elements of the array.
     val arrayArguments: IdentityHashMap<Expr, String> = IdentityHashMap<Expr, String>()
@@ -660,8 +665,10 @@ class Generator(
         val stored = if (declared == null) null else nullableType(declared)
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
             storedType = declared
+            storedValue = whole
             val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
             storedType = null
+            storedValue = null
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
         })
         localTypes.put(local.name(), localType)
@@ -725,8 +732,10 @@ class Generator(
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), { ->
             storedType = resultTypeRef
+            storedValue = whole
             val code = valueCode(line, widened(value, resultTypeRef), returnType)
             storedType = null
+            storedValue = null
             em.line(line, "return " + code + ";")
         })
     }
@@ -1676,8 +1685,10 @@ class Generator(
         is Expr.Pipe -> {
             // A pipe inside the source or a stage is not the value stored.
             val target = storedType
+            val whole = e.equals(storedValue)
             storedType = null
-            pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) }, target)
+            storedValue = null
+            pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) }, target, whole)
         }
         is Expr.Try -> throw IllegalStateException("try at " + e.pos() + " should have been lifted")
         is Expr.When -> throw IllegalStateException("when at " + e.pos() + " should have been lifted")
@@ -3105,13 +3116,13 @@ class Generator(
         }
         val argOf: Function<Expr, String> = { a -> argCodes.getOrDefault(a, "") }
         if (mapResult == stages.size()) {
-            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false)
+            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null, false), false)
         }
         val sourceType = typeOf(pipe.source())
         val items = if (mapResult == 0 && sourceType == null) "Nulls.stream(" + ops.getFirst().code() + ").toList()"
             else if (mapResult == 0 && isStream(sourceType)) parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()"
             else if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
-            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null)
+            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null, false)
         val list = mapResultLoop(line, stages.get(mapResult), items)
         val rest = stages.subList(mapResult + 1, stages.size())
         if (rest.isEmpty()) {
@@ -3170,9 +3181,13 @@ class Generator(
         return type
     }
 
-    /** Pipe stages as a Java stream; without a terminal stage the result is a List. */
-    /** target: the written type the pipe's list goes to, whose element type a narrowing `filter` keeps. */
-    private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>, target: TypeRef?) -> String {
+    /**
+     * Pipe stages as a Java stream; without a terminal stage the result is a List.
+     * target: the written type the pipe's list goes to, whose element type a narrowing `filter` keeps and,
+     * when the pipe is the whole value stored (whole), a `map` gives.
+     */
+    private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>, target: TypeRef?,
+                        whole: Boolean) -> String {
         val sourceType = typeOf(sourceExpr)
         // A source of unknown type may be a collection or a stream; Java picks the overload of Nulls.stream.
         val sb = if (sourceType == null) StringBuilder("Nulls.stream(").append(source).append(")")
@@ -3196,10 +3211,13 @@ class Generator(
                 previousLine = stage.pos().line()
             }
             val next = if (index + 1 < stages.size()) stages.get(index + 1) else null
-            // The written type says what the elements are only when no later stage maps them.
-            val mapsLater = stages.subList(index + 1, stages.size()) |> anyMatch { s -> MAPPING_STAGES.contains(s.name()) }
-            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element,
-                if (mapsLater) null else elementTypeOf(target))
+            // The written type says what the elements are only when no later stage maps them, and for a `map`
+            // only when no later stage reads them, as it would read a `Shape` where the lambda gives a `Dot`.
+            val later = stages.subList(index + 1, stages.size())
+            val mapsLater = later |> anyMatch { s -> MAPPING_STAGES.contains(s.name()) }
+            val readLater = later |> anyMatch { s -> !ORDER_STAGES.contains(s.name()) }
+            val written = if (mapsLater || (stage.name().equals("map") && (readLater || !whole))) null else elementTypeOf(target)
+            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element, written)
             if (MAPPING_STAGES.contains(stage.name())) {
                 element = analysis.mapResultTypes().get(stage)
             }
@@ -3220,7 +3238,11 @@ class Generator(
             "count" -> sb.append(".count()")
             "first" -> sb.insert(0, "Nulls.first(").append(".iterator())")
             "map" -> {
-                val mapped = analysis.mapResultTypes().get(stage)
+                // `val shapes: List<Shape> = xs |> map { Dot(it) }`: Java lists are invariant, so the stream maps to `Shape`s.
+                val given = analysis.mapResultTypes().get(stage)
+                val written = if (targetElement == null || targetElement.nullable() || targetElement.name().equals(TypeRef.ANY)) null
+                    else if (given != null || declaredType(targetElement.name()) is Decl.Interface) targetElement else null
+                val mapped = written ?: given
                 val witness = if (mapped == null) "" else "<" + boxedType(mapped) + ">"
                 val wrap = if (nullsDropped) "Nulls.nullable(" else "Nulls.nonNull("
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))")

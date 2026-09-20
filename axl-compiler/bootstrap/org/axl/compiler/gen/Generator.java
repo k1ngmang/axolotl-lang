@@ -56,6 +56,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr.Is, String> patternVariables;
     public final IdentityHashMap<Expr, @Nullable TypeRef> branchTypes;
     public @Nullable TypeRef storedType;
+    public @Nullable Expr storedValue;
     public int patternCount;
     public final IdentityHashMap<Expr, String> arrayArguments;
     public final Set<Expr> genericArrayArguments;
@@ -98,6 +99,7 @@ import org.axl.compiler.check.Whens;
         this.patternVariables = new IdentityHashMap<Expr.Is, String>();
         this.branchTypes = new IdentityHashMap<Expr, @Nullable TypeRef>();
         this.storedType = null;
+        this.storedValue = null;
         this.patternCount = 0;
         this.arrayArguments = new IdentityHashMap<Expr, String>();
         this.genericArrayArguments = Collections.newSetFromMap(new IdentityHashMap<Expr, Boolean>());
@@ -631,8 +633,10 @@ import org.axl.compiler.check.Whens;
         final var stored = (declared == null ? null : nullableType(declared));
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
             storedType = declared;
+            storedValue = whole;
             final var code = (init instanceof Expr.Try init$3 ? unwrapTry(line, init$3) : valueCode(line, init, stored));
             storedType = null;
+            storedValue = null;
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
         });
         localTypes.put(local.name(), localType);
@@ -691,8 +695,10 @@ import org.axl.compiler.check.Whens;
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), () -> {
             storedType = resultTypeRef;
+            storedValue = whole;
             final var code = valueCode(line, widened(value, resultTypeRef), returnType);
             storedType = null;
+            storedValue = null;
             em.line(line, "return " + code + ";");
         });
     }
@@ -1513,8 +1519,10 @@ import org.axl.compiler.check.Whens;
             }
             case Expr.Pipe e$18 -> {
                 final var target = storedType;
+                final var whole = e$18.equals(storedValue);
                 storedType = null;
-                return pipeCode(exprIn(e$18.source(), inLambda), e$18.source(), e$18.stages(), a -> exprIn(a, inLambda), target);
+                storedValue = null;
+                return pipeCode(exprIn(e$18.source(), inLambda), e$18.source(), e$18.stages(), a -> exprIn(a, inLambda), target, whole);
             }
             case Expr.Try e$19 -> {
                 throw new IllegalStateException("try at " + e$19.pos() + " should have been lifted");
@@ -2744,13 +2752,13 @@ import org.axl.compiler.check.Whens;
         }
         final Function<Expr, String> argOf = a -> argCodes.getOrDefault(a, "");
         if (mapResult == stages.size()) {
-            return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null), false);
+            return new Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null, false), false);
         }
         final var sourceType = typeOf(pipe.source());
         final var items = (mapResult == 0 && sourceType == null ? "Nulls.stream(" + ops.getFirst().code() + ").toList()" :
                 (mapResult == 0 && isStream(sourceType) ? parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()" :
                 (mapResult == 0 ? parenthesized(ops.getFirst().code(), pipe.source()) :
-                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null))));
+                pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null, false))));
         final var list = mapResultLoop(line, stages.get(mapResult), items);
         final var rest = stages.subList(mapResult + 1, stages.size());
         if (rest.isEmpty()) {
@@ -2801,7 +2809,8 @@ import org.axl.compiler.check.Whens;
         }
         return type;
     }
-    private String pipeCode(String source, Expr sourceExpr, List<Expr.Stage> stages, Function<Expr, String> arg, @Nullable TypeRef target) {
+    private String pipeCode(String source, Expr sourceExpr, List<Expr.Stage> stages, Function<Expr, String> arg, @Nullable TypeRef target,
+            boolean whole) {
         final var sourceType = typeOf(sourceExpr);
         final var sb = (sourceType == null ? new StringBuilder("Nulls.stream(").append(source).append(")") :
                 new StringBuilder(parenthesized(source, sourceExpr)));
@@ -2823,9 +2832,11 @@ import org.axl.compiler.check.Whens;
                 previousLine = stage.pos().line();
             }
             final var next = (index + 1 < stages.size() ? stages.get(index + 1) : null);
-            final var mapsLater = stages.subList(index + 1, stages.size()).stream().anyMatch(s -> MAPPING_STAGES.contains(s.name()));
-            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element,
-                    (mapsLater ? null : elementTypeOf(target)));
+            final var later = stages.subList(index + 1, stages.size());
+            final var mapsLater = later.stream().anyMatch(s -> MAPPING_STAGES.contains(s.name()));
+            final var readLater = later.stream().anyMatch(s -> !ORDER_STAGES.contains(s.name()));
+            final var written = (mapsLater || (stage.name().equals("map") && (readLater || !whole)) ? null : elementTypeOf(target));
+            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element, written);
             if (MAPPING_STAGES.contains(stage.name())) {
                 element = analysis.mapResultTypes().get(stage);
             }
@@ -2853,7 +2864,10 @@ import org.axl.compiler.check.Whens;
                 sb.insert(0, "Nulls.first(").append(".iterator())");
             }
             case "map" -> {
-                final var mapped = analysis.mapResultTypes().get(stage);
+                final var given = analysis.mapResultTypes().get(stage);
+                final var written = (targetElement == null || targetElement.nullable() || targetElement.name().equals(TypeRef.ANY) ? null :
+                        Nulls.box((given != null || declaredType(targetElement.name()) instanceof Decl.Interface ? targetElement : null)));
+                final var mapped = Nulls.or(written, () -> given);
                 final var witness = (mapped == null ? "" : "<" + boxedType(mapped) + ">");
                 final var wrap = (nullsDropped ? "Nulls.nullable(" : "Nulls.nonNull(");
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))");
@@ -2985,6 +2999,7 @@ import org.axl.compiler.check.Whens;
     private static final Map<String, String> BOXED_NAMES = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
             "Double", "Double");
     private static final Map<String, String> ARRAY_NAMES = Map.of("ByteArray", "byte", "CharArray", "char");
+    private static final Set<String> ORDER_STAGES = Set.of("distinct", "limit", "skip");
     private static final Set<String> MAPPING_STAGES = Set.of("map", "mapResult", "flatMap");
     private static final Set<String> NUMBERS = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character");
     private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte", "Character", "char",
