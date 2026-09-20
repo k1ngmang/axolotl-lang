@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.axl.compiler.GeneratedUnit;
+import org.axl.compiler.JavaClasses.ClassShape;
 import org.axl.compiler.JavaClasses.Signature;
 import org.axl.compiler.JavaTypes;
 import org.axl.compiler.LineMap;
@@ -1763,8 +1764,8 @@ import org.axl.compiler.check.Whens;
         return c.args();
     }
     private String binaryCode(Expr.Binary b, boolean inLambda) {
-        final var left = compared(b, b.left(), exprIn(b.left(), inLambda));
-        final var right = compared(b, b.right(), narrowedValue(rightNarrowing(b), () -> exprIn(b.right(), inLambda)));
+        final var left = compared(b, b.left(), b.right(), exprIn(b.left(), inLambda));
+        final var right = compared(b, b.right(), b.left(), narrowedValue(rightNarrowing(b), () -> exprIn(b.right(), inLambda)));
         return comparison(b, left, right);
     }
     private String comparison(Expr.Binary b, String left, String right) {
@@ -1793,6 +1794,35 @@ import org.axl.compiler.check.Whens;
         return inner instanceof Expr.Try inner$1 || inner instanceof Expr.Elvis inner$2 || inner instanceof Expr.NotNull inner$3 ||
                 (inner instanceof Expr.Name inner$4 && boxedLocals.contains(inner$4.name()));
     }
+    private boolean isBoxedResult(Expr e) {
+        final var inner = withoutParens(e);
+        if (!(inner instanceof Expr.Call inner$1) || inner$1.safe()) {
+            return false;
+        }
+        final var target = inner$1.target();
+        final var receiver = (target == null ? null : typeOf(target));
+        if (receiver == null || receiver.args().isEmpty()) {
+            return false;
+        }
+        final var library = Libraries.classNamed(file, options.classes(), receiver.name());
+        return library != null && returnsTypeVariable(library.name(), library.shape(), inner$1.name(), inner$1.args().size(), 0);
+    }
+    private boolean returnsTypeVariable(String name, ClassShape shape, String method, int arity, int depth) {
+        final var own = Nulls.stream(options.classes().methods(name)).filter(m -> m.name().equals(method) && m.typeVariables().size() == arity).toList();
+        if (!own.isEmpty()) {
+            return Nulls.stream(own).allMatch(m -> m.typeVariable());
+        }
+        if (depth > 3) {
+            return false;
+        }
+        for (final var supertype : shape.supertypes()) {
+            final var above = options.classes().shape(supertype.name());
+            if (above != null && returnsTypeVariable(supertype.name(), above, method, arity, depth + 1)) {
+                return true;
+            }
+        }
+        return false;
+    }
     private @Nullable String primitiveOf(Expr e) {
         final var inner = withoutParens(e);
         if (inner instanceof Expr.Literal inner$1) {
@@ -1801,8 +1831,11 @@ import org.axl.compiler.check.Whens;
         final var type = typeOf(e);
         return (type == null || type.nullable() ? null : PRIMITIVE_NAMES.get(type.name()));
     }
-    private String compared(Expr.Binary b, Expr operand, String code) {
-        if ((!b.op().equals("==") && !b.op().equals("!=")) || !isUnwrapped(operand)) {
+    private String compared(Expr.Binary b, Expr operand, Expr other, String code) {
+        if (!b.op().equals("==") && !b.op().equals("!=")) {
+            return code;
+        }
+        if (!isUnwrapped(operand) && !(isBoxedResult(operand) && (isUnwrapped(other) || isBoxedResult(other)))) {
             return code;
         }
         final var type = typeOf(operand);
@@ -2546,8 +2579,8 @@ import org.axl.compiler.check.Whens;
             return shortCircuit(line, b);
         }
         final var ops = operands(line, List.of(b.left(), b.right()));
-        final var left = compared(b, b.left(), ops.get(0).code());
-        return new Lifted(comparison(b, left, compared(b, b.right(), ops.get(1).code())), false);
+        final var left = compared(b, b.left(), b.right(), ops.get(0).code());
+        return new Lifted(comparison(b, left, compared(b, b.right(), b.left(), ops.get(1).code())), false);
     }
     private Lifted liftedElvis(int line, Expr.Elvis el) {
         if (Lifts.needed(el.right())) {

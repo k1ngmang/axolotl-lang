@@ -13,6 +13,7 @@ import java.util.Set
 import java.util.function.Function
 import java.util.function.Supplier
 import org.axl.compiler.GeneratedUnit
+import org.axl.compiler.JavaClasses.ClassShape
 import org.axl.compiler.JavaClasses.Signature
 import org.axl.compiler.JavaTypes
 import org.axl.compiler.LineMap
@@ -1979,8 +1980,8 @@ class Generator(
     }
 
     private fn binaryCode(b: Expr.Binary, inLambda: Boolean) -> String {
-        val left = compared(b, b.left(), exprIn(b.left(), inLambda))
-        val right = compared(b, b.right(), narrowedValue(rightNarrowing(b), { -> exprIn(b.right(), inLambda) }))
+        val left = compared(b, b.left(), b.right(), exprIn(b.left(), inLambda))
+        val right = compared(b, b.right(), b.left(), narrowedValue(rightNarrowing(b), { -> exprIn(b.right(), inLambda) }))
         return comparison(b, left, right)
     }
 
@@ -2017,6 +2018,39 @@ class Generator(
             || (inner is Expr.Name && boxedLocals.contains(inner.name()))
     }
 
+    /** `xs.get(0)` on a `List<Int>`: a method whose result is a type variable gives the box, `Integer`, in Java. */
+    private fn isBoxedResult(e: Expr) -> Boolean {
+        val inner = withoutParens(e)
+        if (inner !is Expr.Call || inner.safe()) {
+            return false
+        }
+        val target = inner.target()
+        val receiver = if (target == null) null else typeOf(target)
+        if (receiver == null || receiver.args().isEmpty()) {
+            return false
+        }
+        val library = Libraries.classNamed(file, options.classes(), receiver.name())
+        return library != null && returnsTypeVariable(library.name(), library.shape(), inner.name(), inner.args().size(), 0)
+    }
+
+    /** Whether the method of the class or of its supertypes with that many parameters returns a type variable. */
+    private fn returnsTypeVariable(name: String, shape: ClassShape, method: String, arity: Int, depth: Int) -> Boolean {
+        val own = options.classes().methods(name) |> filter { m -> m.name().equals(method) && m.typeVariables().size() == arity }
+        if (!own.isEmpty()) {
+            return own |> allMatch { m -> m.typeVariable() }
+        }
+        if (depth > 3) {
+            return false
+        }
+        for (supertype in shape.supertypes()) {
+            val above = options.classes().shape(supertype.name())
+            if (above != null && returnsTypeVariable(supertype.name(), above, method, arity, depth + 1)) {
+                return true
+            }
+        }
+        return false
+    }
+
     private fn primitiveOf(e: Expr) -> String? {
         val inner = withoutParens(e)
         if (inner is Expr.Literal) {
@@ -2028,10 +2062,13 @@ class Generator(
 
     /**
      * `try a() == try b()` compares what Result.unwrap and Nulls.or give, which are boxed: a cast to
-     * the primitive compares the numbers, not the objects.
+     * the primitive compares the numbers, not the objects. So does `xs.get(0) == xs.get(1)` on a `List<Int>`.
      */
-    private fn compared(b: Expr.Binary, operand: Expr, code: String) -> String {
-        if ((!b.op().equals("==") && !b.op().equals("!=")) || !isUnwrapped(operand)) {
+    private fn compared(b: Expr.Binary, operand: Expr, other: Expr, code: String) -> String {
+        if (!b.op().equals("==") && !b.op().equals("!=")) {
+            return code
+        }
+        if (!isUnwrapped(operand) && !(isBoxedResult(operand) && (isUnwrapped(other) || isBoxedResult(other)))) {
             return code
         }
         val type = typeOf(operand)
@@ -2906,8 +2943,8 @@ class Generator(
             return shortCircuit(line, b)
         }
         val ops = operands(line, List.of(b.left(), b.right()))
-        val left = compared(b, b.left(), ops.get(0).code())
-        return Lifted(comparison(b, left, compared(b, b.right(), ops.get(1).code())), false)
+        val left = compared(b, b.left(), b.right(), ops.get(0).code())
+        return Lifted(comparison(b, left, compared(b, b.right(), b.left(), ops.get(1).code())), false)
     }
 
     private fn liftedElvis(line: Int, el: Expr.Elvis) -> Lifted {

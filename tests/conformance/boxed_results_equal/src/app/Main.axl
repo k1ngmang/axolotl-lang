@@ -1,0 +1,17 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+// `==` between values of a collection, which Java keeps as boxes, compares the numbers.
+fn main() {
+    val xs = List.of(1000, 1000, 7)
+    println(xs.get(0) == xs.get(1))
+    println(xs.get(0) != xs.get(2))
+    val longs = ArrayList<Long>()
+    longs.add(5000L)
+    longs.add(5000L)
+    println(longs.get(0) == longs.get(1))
+    println(xs.getLast() != xs.get(0))
+    println(xs.size() == longs.size() + 1)
+}
