@@ -1,9 +1,0 @@
-package app
-
-import java.util.List
-
-fn describe(o: Object) -> String = when (o) {
-    is String -> "text"
-    is List<*> -> "list"
-    else -> "other"
-}

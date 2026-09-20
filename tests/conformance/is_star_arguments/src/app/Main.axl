@@ -1,0 +1,20 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+// `is List<*>` is `is List`: a type test checks the class only.
+fn size(v: Object?) -> Int = when (v) {
+    is List<*> -> v.size()
+    is Map<*, *> -> v.size()
+    else -> 0
+}
+
+fn main() {
+    val o: Object = List.of(1, 2)
+    if (o is List<*>) {
+        println(o.size())
+    }
+    println(o !is Map<*, *>)
+    println(size(Map.of("a", 1)))
+}

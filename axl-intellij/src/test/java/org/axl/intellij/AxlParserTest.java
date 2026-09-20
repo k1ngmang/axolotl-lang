@@ -46,6 +46,8 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "fn f(s: Shape) -> Boolean = when (s) { is Circle -> s is Circle else -> false }\n",
                 "fn f() = java.util.HashMap<String, Int>()\n", "fn f() = java.util.ArrayList<String>()\n",
                 "fn f(a: A, c: Int) = a.b < c\n",
+                "fn f(o: Object) -> Int = when (o) { is List<*> -> 1 is java.util.Map<*, *> -> 2 else -> 0 }\n",
+                "fn f(o: Object) -> Boolean = o is List<*> && o !is Map<*, *>\n",
                 "fn f(n: Int) -> Function<String, Int> = when (n) {\n    1 -> { s: String -> s.length() }\n"
                         + "    2 -> { a, b: java.util.Map<String, Int?> -> 0 }\n    else -> { 0 }\n}\n")) {
             PsiFile file = myFixture.configureByText("Ok.axl", "package app\n\n" + body);

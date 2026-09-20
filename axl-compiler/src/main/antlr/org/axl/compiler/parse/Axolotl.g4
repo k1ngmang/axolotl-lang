@@ -250,7 +250,12 @@ comparison
 
 // `x is Circle` and `x !is Circle`; a val or parameter is known as a Circle where the check holds.
 isCheck
-    : elvis ({sameLine()}? BANG? IS qualifiedName)?
+    : elvis ({sameLine()}? BANG? IS qualifiedName starArgs?)?
+    ;
+
+// `is List<*>` is `is List`: a type test checks the class only.
+starArgs
+    : LT STAR (COMMA STAR)* GT
     ;
 
 elvis
@@ -311,7 +316,7 @@ whenArm
     ;
 
 whenCondition
-    : IS qualifiedName
+    : IS qualifiedName starArgs?
     | MINUS? literal
     | qualifiedName
     ;

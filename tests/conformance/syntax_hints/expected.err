@@ -20,8 +20,6 @@ AXL001 app/ImportDot.axl:3:17: error: `.` needs a name after it
 AXL001 app/InterfaceFunction.axl:4:26: error: a method of an interface has no body; it ends after `)` or its result type, and each class that implements the interface writes the body
 AXL001 app/InterfaceMethod.axl:4:5: error: a method of an interface is written `fn greet(name: Type) -> Type`, without a body
 AXL001 app/InterfaceMethodBody.axl:4:26: error: a method of an interface has no body; it ends after `)` or its result type, and each class that implements the interface writes the body
-AXL001 app/IsStar.axl:6:18: error: a type test names the class only, and `is List` already matches a `List` of anything; write `is List`
-AXL001 app/IsStarWhen.axl:7:12: error: a type test names the class only, and `is List` already matches a `List` of anything; write `is List`
 AXL001 app/IsTypeArguments.axl:6:18: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
 AXL001 app/IsTypeArgumentsAtEnd.axl:5:39: error: a type test cannot check type arguments, which Java does not keep at run time; write `is List`
 AXL001 app/KeywordAsName.axl:4:9: error: `class` is a keyword and cannot be a name; choose another name

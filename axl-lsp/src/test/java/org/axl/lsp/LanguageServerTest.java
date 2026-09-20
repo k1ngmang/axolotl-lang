@@ -189,6 +189,13 @@ class LanguageServerTest {
     }
 
     @Test
+    void acceptsStarArgumentsInATypeTest() throws Exception {
+        open(MAIN.replace("fn greet(", "fn size(o: Object) -> Int = when (o) {\n    is java.util.Map<*, *> -> o.size()\n"
+                + "    else -> if (o is java.util.List<*>) o.size() else 0\n}\n\nfn greet("));
+        assertTrue(diagnosticsWhere(d -> true).isEmpty());
+    }
+
+    @Test
     void reportsNullAwayErrorsOfTheModule() throws Exception {
         open(MAIN.replace("val label: String = greet(\"x\")", "val label: String? = null\n    println(label.length())"));
         List<Diagnostic> found = diagnosticsWhere(d -> !d.isEmpty());

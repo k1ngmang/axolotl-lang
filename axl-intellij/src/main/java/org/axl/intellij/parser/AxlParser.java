@@ -742,6 +742,13 @@ public final class AxlParser implements PsiParser {
         while (b.lookAhead(i + 1) == AxlTokenTypes.of(DOT) && b.lookAhead(i + 2) == AxlTokenTypes.IDENTIFIER) {
             i += 2;
         }
+        if (b.lookAhead(i + 1) == AxlTokenTypes.of(LT) && b.lookAhead(i + 2) == AxlTokenTypes.of(STAR)) {
+            i += 2;
+            while (b.lookAhead(i + 1) == AxlTokenTypes.of(COMMA) && b.lookAhead(i + 2) == AxlTokenTypes.of(STAR)) {
+                i += 2;
+            }
+            i += 1;
+        }
         return b.lookAhead(i + 1) == AxlTokenTypes.of(ARROW);
     }
 
@@ -757,10 +764,21 @@ public final class AxlParser implements PsiParser {
         }
     }
 
-    /** A type without arguments, as after `is`. */
+    /** A type without arguments, as after `is`, where `List<*>` is `List`. */
     private void typeName() {
         PsiBuilder.Marker m = b.mark();
         referenceChain();
+        if (at(LT) && b.lookAhead(1) == AxlTokenTypes.of(STAR)) {
+            PsiBuilder.Marker args = b.mark();
+            b.advanceLexer();
+            b.advanceLexer();
+            while (at(COMMA) && b.lookAhead(1) == AxlTokenTypes.of(STAR)) {
+                b.advanceLexer();
+                b.advanceLexer();
+            }
+            expect(GT, "`>` expected");
+            args.done(AxlElementTypes.TYPE_ARGUMENTS);
+        }
         m.done(AxlElementTypes.TYPE);
     }
 
