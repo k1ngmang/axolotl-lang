@@ -1,0 +1,38 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+// Values are never called, so `add(add)` calls the method `add` that the local hides.
+class Values {
+    private val values = ArrayList<String>()
+
+    private fn add(value: String) {
+        values.add(value)
+    }
+
+    fn process(value: String) -> List<String> {
+        val add = value.trim()
+        add(add)
+        val wrap: java.util.function.Function<String, String> = { label -> label(label) + label(add) }
+        add(wrap.apply("x"))
+        return values
+    }
+}
+
+class Recent : ArrayList<String>() {
+    fn keep(value: String) -> Int {
+        val size = value.length()
+        add(value)
+        return size() + size
+    }
+}
+
+fn label(text: String) -> String = "<" + text + ">"
+
+fn main() {
+    val label = "top"
+    println(label(label))
+    println(Values().process("  a  "))
+    println(Recent().keep("abc"))
+}

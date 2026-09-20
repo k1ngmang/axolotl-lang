@@ -1174,7 +1174,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         }
         if (target != null) {
             expr(target)
-        } else if (localLookup(e.name()) != null) {
+        } else if (localLookup(e.name()) != null && !functionExists(e.name())) {
             error(e.pos(), ErrorCode.JAVAC, "`" + e.name() + "` is a value, not a function; " +
                 "call its method, such as `" + e.name() + ".apply(...)` or `" + e.name() + ".get()`")
         }
@@ -1187,6 +1187,22 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         if (safeTail) {
             safeTailDepth = safeTailDepth - 1
         }
+    }
+
+    /** A value is never called with `(...)`, so `add(add)` calls the function or method `add` that a local hides. */
+    private fn functionExists(name: String) -> Boolean {
+        if ((currentMethods |> anyMatch { f -> f.name().equals(name) })
+            || (functionsIn(file.decls()) |> anyMatch { f -> f.name().equals(name) })
+            || (file.imports() |> anyMatch { i -> i.kind() == Import.Kind.FN && i.simpleName().equals(name) })) {
+            return true
+        }
+        val c = currentClass
+        return c != null && (c.supertypes() |> anyMatch { t -> inheritsMethod(t, name) })
+    }
+
+    private fn inheritsMethod(supertype: TypeRef, name: String) -> Boolean {
+        val library = Libraries.classNamed(file, classes, supertype.name())
+        return library != null && !classes.signatures(library.name(), name).isEmpty()
     }
 
     /** The body and the handler of `attempt` run inside lambdas. */

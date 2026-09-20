@@ -1130,7 +1130,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         if (target != null) {
             expr(target);
-        } else if (localLookup(e.name()) != null) {
+        } else if (localLookup(e.name()) != null && !functionExists(e.name())) {
             error(e.pos(), ErrorCode.JAVAC, "`" + e.name() + "` is a value, not a function; " +
                     "call its method, such as `" +
                     e.name() +
@@ -1146,6 +1146,19 @@ import org.axl.compiler.ast.TypeRef;
         if (safeTail) {
             safeTailDepth = safeTailDepth - 1;
         }
+    }
+    private boolean functionExists(String name) {
+        if ((Nulls.stream(currentMethods).anyMatch(f -> f.name().equals(name))) ||
+                (functionsIn(file.decls()).stream().anyMatch(f -> f.name().equals(name))) ||
+                (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.FN && i.simpleName().equals(name)))) {
+            return true;
+        }
+        final var c = currentClass;
+        return c != null && (Nulls.stream(c.supertypes()).anyMatch(t -> inheritsMethod(t, name)));
+    }
+    private boolean inheritsMethod(TypeRef supertype, String name) {
+        final var library = Libraries.classNamed(file, classes, supertype.name());
+        return library != null && !classes.signatures(library.name(), name).isEmpty();
     }
     private void attemptExpr(Expr.Attempt e) {
         lambdaDepth = lambdaDepth + 1;
