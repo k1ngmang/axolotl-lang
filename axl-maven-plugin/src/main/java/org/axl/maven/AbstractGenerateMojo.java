@@ -30,6 +30,7 @@ import org.axl.compiler.Translator;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.SourceParser;
 import org.axl.javac.DiagnosticsPlugin;
+import org.axl.javac.JavaCompilation;
 import org.axl.javac.Translation;
 import org.apache.maven.artifact.DependencyResolutionRequiredException;
 
@@ -38,6 +39,12 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
 
     /** Project property holding the `-Xplugin:AxlDiagnostics ...` javac argument for `compilerArgs`. */
     static final String DIAGNOSTICS_PROPERTY = "axl.javacPlugin";
+
+    /** Project property holding the options for the end of the `-Xplugin:ErrorProne ...` javac argument. */
+    static final String ERROR_PRONE_PROPERTY = "axl.errorProneArgs";
+
+    /** The output directories of the executions so far, whose Java Error Prone checks. */
+    private static final String GENERATED_ROOTS = "axl.generatedRoots";
 
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     MavenProject project;
@@ -53,6 +60,13 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     /** `--release` for compilation; sets `maven.compiler.release` unless the project defines it. */
     @Parameter(property = "axl.javaRelease", defaultValue = "21")
     int javaRelease;
+
+    /**
+     * Run Error Prone and NullAway on the hand-written Java too; by default `axl.errorProneArgs` keeps
+     * them to the Java generated from .axl files.
+     */
+    @Parameter(property = "axl.checkJava", defaultValue = "false")
+    boolean checkJava;
 
     @Parameter(property = "axl.skip", defaultValue = "false")
     boolean skip;
@@ -113,6 +127,8 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         } catch (IOException e) {
             throw new MojoExecutionException("Axolotl generation failed", e);
         }
+        // After the generation, which creates the directory: the pattern names its real path too.
+        addErrorProneRoot(output);
     }
 
     /** Without the source directory, what earlier runs generated from it must not be compiled. */
@@ -352,6 +368,23 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
             option += " strict";
         }
         project.getProperties().setProperty(DIAGNOSTICS_PROPERTY, option);
+    }
+
+    /**
+     * Keeps Error Prone and NullAway to the generated Java of every execution so far: the hand-written
+     * Java of a mixed module keeps the warnings of plain javac, which a migration would otherwise drown in.
+     */
+    private void addErrorProneRoot(Path output) {
+        @SuppressWarnings("unchecked")
+        List<Path> roots = (List<Path>) project.getContextValue(GENERATED_ROOTS);
+        roots = roots == null ? new ArrayList<>() : new ArrayList<>(roots);
+        Path root = output.toAbsolutePath().normalize();
+        if (!roots.contains(root)) {
+            roots.add(root);
+        }
+        project.setContextValue(GENERATED_ROOTS, roots);
+        project.getProperties().setProperty(ERROR_PRONE_PROPERTY,
+                checkJava ? "" : "-XepExcludedPaths:" + JavaCompilation.outsidePattern(roots));
     }
 
     private static Map<String, Path> axlFiles(Path sources) throws IOException {

@@ -1,0 +1,8 @@
+package app
+
+private val never = 3
+
+fn main() {
+    println(Legacy.describe(1))
+    println(Labels.label("x")?.length() ?: 0)
+}

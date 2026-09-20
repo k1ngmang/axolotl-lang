@@ -63,7 +63,8 @@
             <arg>-XDcompilePolicy=simple</arg>
             <arg>--should-stop=ifError=FLOW</arg>
             <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
-            <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR -Xep:ReferenceEquality:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -Xep:LoopOverCharArray:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
+            <!-- axl.errorProneArgs is set by axl:generate: Error Prone checks only the Java generated from .axl files. -->
+            <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR -Xep:ReferenceEquality:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -Xep:LoopOverCharArray:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true ${axl.errorProneArgs}</arg>
             <!-- Set by axl:generate: reports errors in generated code at the .axl lines. -->
             <arg>${axl.javacPlugin}</arg>
           </compilerArgs>

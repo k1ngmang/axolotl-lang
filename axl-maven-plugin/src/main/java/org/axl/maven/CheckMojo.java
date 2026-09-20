@@ -42,6 +42,10 @@ public class CheckMojo extends AbstractMojo {
     @Parameter(property = "axl.nullAway", defaultValue = "true")
     boolean nullAway;
 
+    /** Run Error Prone and NullAway on the hand-written Java too; by default they check only the generated files. */
+    @Parameter(property = "axl.checkJava", defaultValue = "false")
+    boolean checkJava;
+
     /** Treat values from Java code without nullness annotations as nullable. */
     @Parameter(property = "axl.strictNull", defaultValue = "false")
     boolean strictNull;
@@ -60,7 +64,11 @@ public class CheckMojo extends AbstractMojo {
             List<Path> classpath = project.getCompileClasspathElements().stream().map(Path::of).toList();
             // Inside target, so that `mvn clean` removes it; it is not the real output directory.
             Path classes = Files.createDirectories(Path.of(project.getBuild().getDirectory(), "axl-check-classes"));
-            JavaCompilation.Outcome outcome = JavaCompilation.compile(javaSources(), classpath, classes, List.of(), nullAway, strictNull);
+            List<Path> sources = javaSources();
+            Path generatedRoot = outputDirectory.toPath().toAbsolutePath().normalize();
+            List<Path> unchecked = checkJava ? List.of()
+                    : sources.stream().filter(p -> !p.toAbsolutePath().normalize().startsWith(generatedRoot)).toList();
+            JavaCompilation.Outcome outcome = JavaCompilation.compile(sources, classpath, classes, List.of(), nullAway, strictNull, unchecked);
             var translator = new DiagnosticTranslator(generated, Path::toString).classpath(classpath);
             boolean failed = false;
             for (var d : outcome.diagnostics()) {

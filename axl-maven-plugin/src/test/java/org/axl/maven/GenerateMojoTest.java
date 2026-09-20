@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugin.MojoFailureException;
@@ -107,6 +108,35 @@ class GenerateMojoTest {
         assertEquals("Translated 0 of 1 .axl file(s)", messages.getLast());
         assertTrue(Files.exists(base.resolve("target/generated-sources/axl/app/A.java")));
         assertTrue(Files.exists(base.resolve("target/generated-sources/axl/extra/E.java")));
+    }
+
+    @Test
+    void keepsErrorProneToTheGeneratedJavaUnlessCheckJava(@TempDir Path tmp) throws Exception {
+        Path base = tmp.resolve("my project");
+        Files.writeString(Files.createDirectories(base.resolve("src/main/axl/app")).resolve("A.axl"),
+                "package app\n\nfn a() -> Int = 1\n");
+        GenerateMojo mojo = mojo(base);
+        mojo.execute();
+        String args = mojo.project.getProperties().getProperty("axl.errorProneArgs");
+        assertTrue(args.startsWith("-XepExcludedPaths:") && !args.contains(" "), args);
+        Pattern excluded = Pattern.compile(args.substring("-XepExcludedPaths:".length()));
+        Path generated = base.resolve("target/generated-sources/axl/app/A.java").toRealPath();
+        assertFalse(excluded.matcher(generated.toUri().getPath()).matches(), args);
+        assertTrue(excluded.matcher(base.resolve("src/main/java/app/B.java").toAbsolutePath().toUri().getPath()).matches(), args);
+
+        // A second execution into another directory keeps the first one's files checked.
+        GenerateMojo extra = configure(new GenerateMojo(), base);
+        extra.project = mojo.project;
+        extra.outputDirectory = base.resolve("target/generated-sources/extra").toFile();
+        extra.execute();
+        excluded = Pattern.compile(mojo.project.getProperties().getProperty("axl.errorProneArgs").substring("-XepExcludedPaths:".length()));
+        assertFalse(excluded.matcher(generated.toUri().getPath()).matches());
+        assertFalse(excluded.matcher(base.resolve("target/generated-sources/extra/app/A.java").toRealPath().toUri().getPath()).matches());
+
+        GenerateMojo checkingJava = mojo(base);
+        checkingJava.checkJava = true;
+        checkingJava.execute();
+        assertEquals("", checkingJava.project.getProperties().getProperty("axl.errorProneArgs"));
     }
 
     @Test
