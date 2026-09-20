@@ -48,6 +48,7 @@ The `.axlmap` line maps stay next to the generated `.java` files, where the java
 | `strictNull`  | `axl.strictNull`  | `false` | Treat values from Java code without nullness annotations as nullable (AXL104). |
 | `skip`        | `axl.skip`        | `false` | Skip the goal. |
 | `nullAway`    | `axl.nullAway`    | `true`  | `axl:check` only: run Error Prone and NullAway. |
+| `checkJava`   | `axl.checkJava`   | `false` | `generate`, `generate-test` and `check`: run Error Prone and NullAway on the hand-written Java too; by default they check only the generated files. |
 
 The directories are parameters too, without a property:
 
@@ -77,11 +78,15 @@ in one execution; otherwise `smap` finds no line maps and adds no SMAP. The same
    <arg>-XDcompilePolicy=simple</arg>
    <arg>--should-stop=ifError=FLOW</arg>
    <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
-   <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR -Xep:ReferenceEquality:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -Xep:LoopOverCharArray:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true</arg>
+   <arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -Xep:NarrowingCompoundAssignment:ERROR -Xep:ReferenceEquality:ERROR -Xep:IdentityBinaryExpression:WARN -Xep:AlwaysThrows:WARN -Xep:AlreadyChecked:OFF -Xep:BadImport:OFF -Xep:InlineMeSuggester:OFF -Xep:LoopOverCharArray:OFF -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:OnlyNullMarked=true ${axl.errorProneArgs}</arg>
    <arg>${axl.javacPlugin}</arg>
    ```
    `axl:generate` sets the property `axl.javacPlugin` to `-Xplugin:AxlDiagnostics <generated>=<sources>`,
    with both directories as file URIs in which `=` is written `%3D`.
+   `axl:generate` also sets `axl.errorProneArgs` to an `-XepExcludedPaths` option that keeps Error Prone and NullAway to
+   `target/generated-sources/axl` and the other output directories of the plugin, so the module's hand-written Java keeps the
+   warnings of plain javac; with `checkJava` it is empty. Without `${axl.errorProneArgs}` Error Prone checks all the Java of
+   the module.
    That javac plugin reports every error in generated code at the `.axl` file and line:
    ```
    [ERROR] /work/demo/src/main/axl/app/Main.axl:[5,5] value `trimmed` may be null: use `?.`, `?:` or check `if (trimmed != null)`

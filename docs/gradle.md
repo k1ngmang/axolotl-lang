@@ -65,12 +65,16 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
 axl {
     addRuntime = true    // add org.axl:axl-runtime to implementation of every source set
     nullAway = true      // Error Prone + NullAway on compileJava
+    checkJava = false    // Error Prone + NullAway on hand-written Java too; by default only on the Java translated from .axl
     javaRelease = 21     // --release, unless the task sets its own
     inlineElvis = false  // expand statement-level ?: without a lambda
     smap = true          // classes report .axl files and lines (stack traces, debuggers); false keeps the Java lines
     strictNull = false   // treat values from unannotated Java code as nullable
 }
 ```
+
+By default the plugin passes Error Prone `-XepExcludedPaths` for everything outside `build/generated/axl/<sourceSet>`, so the
+module's own Java keeps the warnings of plain javac. An `excludedPaths` set in `options.errorprone` replaces it.
 
 ## How errors reach the `.axl` file
 

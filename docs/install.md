@@ -136,7 +136,9 @@ repository as above.
 
 Common options: `--no-null-checks` skips Error Prone and NullAway, `--strict-null` turns on
 [strict null mode](language.md#java-code-without-nullness-annotations), `--inline-elvis` expands a
-statement-level `?:` without a lambda. `axl <command> --help` lists the options of each command.
+statement-level `?:` without a lambda. `--check-java` runs Error Prone and NullAway on the hand-written `.java` files of the
+source directories too; by default they check only the code translated from `.axl` files, and javac alone compiles the rest.
+`axl <command> --help` lists the options of each command.
 
 Options of `axl run` go before the `.axl` file; everything after it, options and `--` included, is
 passed to the program unchanged: `axl run --no-null-checks app/Main.axl --verbose`. The program
@@ -158,8 +160,10 @@ them loaded, and later commands hand their compilation to it: a small program th
 second. `axl run` still runs the program in its own process.
 
 The daemon ends after 3 hours without work. `AXL_DAEMON_IDLE` sets another time, such as `30m` or `8h`. It also ends
-when axl is upgraded or reinstalled. `axl daemon --status` lists running daemons and `axl daemon --stop` stops them;
-the next command starts one again.
+when axl is upgraded or reinstalled. `axl daemon --status` lists the running daemons of every installation, each with its
+installation directory, and marks the one of the `axl` you ran. `axl daemon --stop` stops the daemons of that installation
+only; `axl daemon --stop --all` stops every one of your daemons, also those of other versions. The next command starts one
+again.
 
 `--no-daemon` (for example `axl run --no-daemon app/Main.axl`) or the environment variable `AXL_DAEMON=off` compile in
 the command's own process. `axl` does the same by itself when the daemon cannot start or fails, and `--verbose` says
