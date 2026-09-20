@@ -1624,14 +1624,15 @@ import org.axl.compiler.check.Whens;
     private @Nullable String arrayElement(List<Signature> signatures, int index, int arity) {
         @Nullable String element = null;
         for (final var signature : signatures) {
-            final var params = signature.parameters();
-            if (params.size() == arity || (signature.varargs() && arity >= params.size() - 1)) {
-                final var param = (params.size() == arity ? params.get(index) : "");
-                final var inner = (param.endsWith("[]") ? param.substring(0, param.length() - 2) : "");
+            final var param = parameterAt(signature, index, arity);
+            if (param != null && param.endsWith("[]")) {
+                final var inner = param.substring(0, param.length() - 2);
                 if (!inner.contains(".") || inner.endsWith("]") || LIST_SUPERTYPES.contains(inner) || (element != null && !inner.equals(element))) {
                     return null;
                 }
                 element = inner;
+            } else if (param != null && holdsList(param)) {
+                return null;
             }
         }
         final var found = element;
@@ -1641,6 +1642,24 @@ import org.axl.compiler.check.Whens;
         final var simple = found.substring(found.lastIndexOf('.') + 1);
         final var imported = Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals(found));
         return (imported || found.equals("java.lang." + simple) ? simple : found);
+    }
+    private @Nullable String parameterAt(Signature signature, int index, int arity) {
+        final var params = signature.parameters();
+        if (params.size() == arity) {
+            return params.get(index);
+        }
+        if (!signature.varargs() || arity < params.size() - 1) {
+            return null;
+        }
+        if (index < params.size() - 1) {
+            return params.get(index);
+        }
+        final var last = params.getLast();
+        final var value = last.substring(0, last.length() - 2);
+        return (value.endsWith("]") ? "" : value);
+    }
+    private boolean holdsList(String param) {
+        return !param.contains(".") || LIST_SUPERTYPES.contains(param) || param.startsWith("java.util.");
     }
     private List<Expr> widenedArgs(Expr.Call c) {
         for (final var decl : file.decls()) {

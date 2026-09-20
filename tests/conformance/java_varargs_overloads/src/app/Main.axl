@@ -1,0 +1,21 @@
+package app
+
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.OpenOption
+import java.nio.file.StandardOpenOption
+import java.util.List
+
+// A list goes to the varargs array of the overload that has as many parameters, also when another
+// overload has fewer or more of them and cannot take a list at that place.
+fn main() {
+    val file = attempt Files.createTempFile("varargs", ".txt") else e -> throw IllegalStateException(e)
+    val options: List<OpenOption> = List.of(StandardOpenOption.CREATE, StandardOpenOption.APPEND)
+    use (val out = Files.newBufferedWriter(file, StandardCharsets.UTF_8, options)) {
+        out.write("one")
+    } else e -> throw IllegalStateException(e)
+    val more = List.of(StandardOpenOption.APPEND)
+    attempt Files.writeString(file, " two", more) else e -> throw IllegalStateException(e)
+    println(attempt Files.readString(file) else e -> throw IllegalStateException(e))
+    attempt Files.delete(file) else e -> throw IllegalStateException(e)
+}

@@ -1803,20 +1803,23 @@ class Generator(
         return false
     }
 
-    /** The class of the elements of the array that each method with as many parameters takes at that place, or null. */
+    /**
+     * The class of the elements of the array that each method with as many parameters takes at that
+     * place, leaving out those that cannot take a list there at all; null when one takes the list itself.
+     */
     private fn arrayElement(signatures: List<Signature>, index: Int, arity: Int) -> String? {
         var element: String? = null
         for (signature in signatures) {
-            val params = signature.parameters()
-            if (params.size() == arity || (signature.varargs() && arity >= params.size() - 1)) {
-                // A list past the fixed parameters is one of the varargs values.
-                val param = if (params.size() == arity) params.get(index) else ""
-                val inner = if (param.endsWith("[]")) param.substring(0, param.length() - 2) else ""
+            val param = parameterAt(signature, index, arity)
+            if (param != null && param.endsWith("[]")) {
+                val inner = param.substring(0, param.length() - 2)
                 // A primitive or a type variable has no package; a list is an Object or a Collection already.
                 if (!inner.contains(".") || inner.endsWith("]") || LIST_SUPERTYPES.contains(inner) || (element != null && !inner.equals(element))) {
                     return null
                 }
                 element = inner
+            } else if (param != null && holdsList(param)) {
+                return null
             }
         }
         val found = element
@@ -1827,6 +1830,35 @@ class Generator(
         val imported = file.imports() |> anyMatch { i -> i.kind() == Import.Kind.TYPE && i.name().equals(found) }
         return if (imported || found.equals("java.lang." + simple)) simple else found
     }
+
+    /**
+     * The type of the parameter that takes the argument at that place, past the fixed parameters the type
+     * of one varargs value; null when the method does not take as many arguments.
+     */
+    private fn parameterAt(signature: Signature, index: Int, arity: Int) -> String? {
+        val params = signature.parameters()
+        if (params.size() == arity) {
+            return params.get(index)
+        }
+        if (!signature.varargs() || arity < params.size() - 1) {
+            return null
+        }
+        if (index < params.size() - 1) {
+            return params.get(index)
+        }
+        val last = params.getLast()
+        val value = last.substring(0, last.length() - 2)
+        // A list as one value of an array type would be one more guess; give up then.
+        return if (value.endsWith("]")) "" else value
+    }
+
+    /**
+     * Whether a parameter that is not an array may take the list as it is: a type variable, a supertype
+     * of a list or a class of java.util. Another overload, such as `(Path, OpenOption...)` beside
+     * `(Path, Charset, OpenOption...)`, cannot take it, and does not count.
+     */
+    private fn holdsList(param: String) -> Boolean =
+        !param.contains(".") || LIST_SUPERTYPES.contains(param) || param.startsWith("java.util.")
 
     /** `f(5)` for `fn f(x: Long?)`: Java boxes the 5 as an Integer, which is no Long. */
     private fn widenedArgs(c: Expr.Call) -> List<Expr> {
