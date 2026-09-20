@@ -1,0 +1,28 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+// `attempt ... else e -> continue` at the end of a loop's body: the loop goes on after it anyway, so
+// the Java has no `continue` there, which Error Prone would call redundant.
+fn main() {
+    val words = List.of("1", "x", "3", "-4")
+    val out = ArrayList<Int>()
+    for (s in words) {
+        attempt out.add(Integer.parseInt(s)) else e -> continue
+    }
+    println(out)
+    var i = 0
+    val signs = ArrayList<String>()
+    while (i < words.size()) {
+        val s = words.get(i)
+        i += 1
+        if (s.startsWith("-")) {
+            attempt signs.add("minus " + Integer.parseInt(s.substring(1))) else e -> continue
+        } else {
+            attempt Integer.parseInt(s) else e -> continue
+            signs.add("plus " + s)
+        }
+    }
+    println(signs)
+}

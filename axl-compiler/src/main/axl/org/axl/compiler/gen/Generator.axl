@@ -102,6 +102,8 @@ class Generator(
     val arrayArguments: IdentityHashMap<Expr, String> = IdentityHashMap<Expr, String>()
     // Those of them whose element class has type parameters, which a raw `new Map.Entry[0]` would lose.
     val genericArrayArguments: Set<Expr> = Collections.newSetFromMap(IdentityHashMap<Expr, Boolean>())
+    // `attempt f() else e -> continue` at the end of a loop's body, whose `continue` Java would call redundant.
+    val lastContinues: Set<Stmt> = Collections.newSetFromMap(IdentityHashMap<Stmt, Boolean>())
 
     // Names of the values the interfaces of the class being emitted require, which its methods may give.
     var overridden: List<String> = List.of()
@@ -989,6 +991,7 @@ class Generator(
         val line = loop.pos().line()
         val condition = loop.condition()
         val label = newLoopLabel(loop.body())
+        markLastContinue(loop.body())
         val plain = Captures.capturedIn(condition, analysis).isEmpty()
         if (plain && !Lifts.needed(condition)) {
             em.line(line, loopHead(label) + "while (" + expr(condition) + ") {")
@@ -1252,6 +1255,7 @@ class Generator(
     private fn emitFor(loop: Stmt.For) {
         val line = loop.pos().line()
         val label = newLoopLabel(loop.body())
+        markLastContinue(loop.body())
         withCopies(line, loop.iterable(), { ->
             val name = if (loop.name().equals("_")) "$unused" + newPattern() else loop.name()
             em.line(line, loopHead(label) + "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {")
@@ -1270,6 +1274,30 @@ class Generator(
     }
 
     private fn loopHead(label: String?) -> String = if (label == null) "" else label + ": "
+
+    /** The `attempt ... else e -> continue` that ends the body, also in the last branches of an `if` there. */
+    private fn markLastContinue(body: Stmt.Block) {
+        if (!body.statements().isEmpty()) {
+            markEnd(body.statements().getLast())
+        }
+    }
+
+    private fn markEnd(last: Stmt) {
+        if (last is Stmt.AttemptExit) {
+            val exit = last.exit()
+            if (exit is Stmt.Jump && !exit.isBreak()) {
+                lastContinues.add(last)
+            }
+        } else if (last is Stmt.Block) {
+            markLastContinue(last)
+        } else if (last is Stmt.If) {
+            markLastContinue(last.then())
+            val otherwise = last.elseBranch()
+            if (otherwise != null) {
+                markEnd(otherwise)
+            }
+        }
+    }
 
     /** Emits the body of a loop, whose jumps leave this loop and no longer a `when` or a split `if` around it. */
     private fn inLoop(label: String?, body: Runnable) {
@@ -2278,7 +2306,11 @@ class Generator(
             em.line(line, "} catch (Exception " + error + ") {")
             em.indent()
             keepInterrupt(line, error)
-            statement(stmt.exit())
+            val exit = stmt.exit()
+            // The loop goes on after the `try` anyway.
+            if (!(exit is Stmt.Jump && lastContinues.contains(stmt) && jumpCode(exit).equals("continue;"))) {
+                statement(exit)
+            }
             em.dedent()
             em.line(line, "}")
         })

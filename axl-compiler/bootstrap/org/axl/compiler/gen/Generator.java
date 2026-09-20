@@ -60,6 +60,7 @@ import org.axl.compiler.check.Whens;
     public int patternCount;
     public final IdentityHashMap<Expr, String> arrayArguments;
     public final Set<Expr> genericArrayArguments;
+    public final Set<Stmt> lastContinues;
     public List<String> overridden;
     public List<RequiredMethod> requiredMethods;
     public @Nullable TypeRef subjectTypeOf;
@@ -103,6 +104,7 @@ import org.axl.compiler.check.Whens;
         this.patternCount = 0;
         this.arrayArguments = new IdentityHashMap<Expr, String>();
         this.genericArrayArguments = Collections.newSetFromMap(new IdentityHashMap<Expr, Boolean>());
+        this.lastContinues = Collections.newSetFromMap(new IdentityHashMap<Stmt, Boolean>());
         this.overridden = List.of();
         this.requiredMethods = List.of();
         this.subjectTypeOf = null;
@@ -914,6 +916,7 @@ import org.axl.compiler.check.Whens;
         final var line = loop.pos().line();
         final var condition = loop.condition();
         final var label = newLoopLabel(loop.body());
+        markLastContinue(loop.body());
         final var plain = Captures.capturedIn(condition, analysis).isEmpty();
         if (plain && !Lifts.needed(condition)) {
             em.line(line, loopHead(label) + "while (" + expr(condition) + ") {");
@@ -1135,6 +1138,7 @@ import org.axl.compiler.check.Whens;
     private void emitFor(Stmt.For loop) {
         final var line = loop.pos().line();
         final var label = newLoopLabel(loop.body());
+        markLastContinue(loop.body());
         withCopies(line, loop.iterable(), () -> {
             final var name = (loop.name().equals("_") ? "$unused" + newPattern() : loop.name());
             em.line(line, loopHead(label) + "for (final var " + name + " : " + lifted(line, loop.iterable()).code() + ") {");
@@ -1151,6 +1155,27 @@ import org.axl.compiler.check.Whens;
     }
     private String loopHead(@Nullable String label) {
         return (label == null ? "" : label + ": ");
+    }
+    private void markLastContinue(Stmt.Block body) {
+        if (!body.statements().isEmpty()) {
+            markEnd(body.statements().getLast());
+        }
+    }
+    private void markEnd(Stmt last) {
+        if (last instanceof Stmt.AttemptExit last$1) {
+            final var exit = last$1.exit();
+            if (exit instanceof Stmt.Jump exit$2 && !exit$2.isBreak()) {
+                lastContinues.add(last$1);
+            }
+        } else if (last instanceof Stmt.Block last$3) {
+            markLastContinue(last$3);
+        } else if (last instanceof Stmt.If last$4) {
+            markLastContinue(last$4.then());
+            final var otherwise = last$4.elseBranch();
+            if (otherwise != null) {
+                markEnd(otherwise);
+            }
+        }
     }
     private void inLoop(@Nullable String label, Runnable body) {
         final var outerLabel = loopLabel;
@@ -1996,7 +2021,10 @@ import org.axl.compiler.check.Whens;
             em.line(line, "} catch (Exception " + error + ") {");
             em.indent();
             keepInterrupt(line, error);
-            statement(stmt.exit());
+            final var exit = stmt.exit();
+            if (!(exit instanceof Stmt.Jump exit$1 && lastContinues.contains(stmt) && jumpCode(exit$1).equals("continue;"))) {
+                statement(exit);
+            }
             em.dedent();
             em.line(line, "}");
         });
