@@ -246,6 +246,8 @@ fn describe(shape: Shape) -> String {
 }
 ```
 
+A type test checks the class only: `is List<*>` is the same as `is List`; other type arguments are an error.
+
 A `var` can be tested but is not narrowed, since it may change. Neither is the result of a call, such as
 `first.value() is Punct`: copy it to a `val` first (`val value = first.value()`) and test that, or name the
 subject of a `when`: `when (val value = first.value())`.
@@ -400,7 +402,8 @@ fn doubled(s: String) -> Result<Int, String> {
   `val r: Result<String?, Exception?> = attempt ... else e -> null`.
 - `==` on strings, data classes and other values that define their own equality is an error: it would
   compare the objects, not their values; write `a.equals(b)`. `==` on numbers, booleans and enum constants
-  compares the values.
+  compares the values, also for numbers taken from a collection, such as `xs.get(0) == xs.get(1)` on a
+  `List<Int>`; nullable ones (`Int?`, `Map.get`) are an error: write `java.util.Objects.equals(a, b)`.
 - `attempt X else e -> throw Y` gives the value of `X` itself, not a `Result`: a failure of `X` is
   a bug here, so `Y`, a `RuntimeException`, is thrown instead. This is how a Java method that
   declares a checked exception is called where no `Result` is wanted, such as in a test:
@@ -443,9 +446,10 @@ fn doubled(s: String) -> Result<Int, String> {
 
 Axolotl has lists, not arrays. Where a Java method takes an array of objects, pass a list: `CompletableFuture.allOf(futures)`,
 `Map.ofEntries(entries)` and `Path.of("a", parts)` get an array of the list, which keeps its type arguments; a `List.of(...)`
-written in the call works too. This applies when every overload of the method with
-that many arguments takes an array of a class there, and the code tells that the value is a collection (a written or inferred
-type). A method that also takes a collection there (`ProcessBuilder(list)`, `String.join(",", list)`), or a varargs parameter
+written in the call works too, and `List.of(Dot(1), Box(2))` of classes of the build that share one interface is a list of
+that interface. This applies when every overload of the method with that many arguments that can take a list there takes
+an array of a class, and the code tells that the value is a collection (a written or inferred type, or a `val` set from
+`List.of`, a new collection or a pipe). A method that also takes a collection there (`ProcessBuilder(list)`, `String.join(",", list)`), or a varargs parameter
 of `Object` that the list is one value of (`String.format("%s", list)`), gets the list; to pass its elements, write
 `MessageFormat.format("{0}-{1}", values.toArray())`. The compiler warns about a list given alone to such a parameter.
 `List.of(Dot(1), Box(2))` kept in a `val` without a type has a type only Java knows; write it: `val shapes: List<Shape> = ...`. For input and output buffers,
@@ -481,6 +485,9 @@ numbers |> forEach { println(it) }
 Circle } |> map { it.radius() }` is a `List<Double>`, and `filter { it is Circle }` alone is a `List<Circle>`.
 `Ok`, `Err` and a generic data class keep the type arguments of the elements: `results |> filter { it is Ok }
 |> map { it.value() }` on a `List<Result<Int, String>>` is a `List<Int>`.
+A pipe stored in a typed `val` or returned from a function may give a supertype of what `map` gives:
+`val shapes: List<Shape> = xs |> map { Dot(it) }`, when only `distinct`, `limit` or `skip` follow the `map`.
+Passed straight as an argument it does not; store it in a typed `val` first.
 A `map` that gives null may be followed by `filter { it != null }`, which drops the nulls and gives a list
 without them.
 

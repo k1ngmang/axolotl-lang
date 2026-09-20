@@ -207,6 +207,15 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - An unknown name that is a top-level value of another file of the build gets the `import val` to add.
   - Error Prone findings without their own wording name types without packages and with Axolotl's names (`CompletableFuture<List<Int>>`).
   - New warning: a list given as the only value where a Java method takes `Object...` (such as `MessageFormat.format("{0}-{1}", values)`) is one value; pass `values.toArray()`.
+  - A `val` without a type set from `List.of(...)`, a new collection or a pipe is passed where Java takes an array, also when the type of its elements is not known (`Map.ofEntries(entries)`, `CompletableFuture.allOf(futures)`).
+  - A list goes to the varargs array of the overload with as many parameters even when another overload, such as `Files.newBufferedWriter(Path, OpenOption...)`, cannot take a list there.
+  - `val shapes: List<Shape> = xs |> map { Dot(it) }` and a function returning `List<Shape>` with such a pipe compile: the `map` gives the written element type.
+  - `List.of(Dot(1), Box(2))` is a `List<Shape>` when the elements share one interface of the build.
+  - `attempt f() else e -> continue` at the end of a loop body no longer gets Error Prone's RedundantControlFlow warning.
+  - `xs.get(0) == xs.get(1)` on a `List<Int>` compares the numbers instead of being an error.
+  - `is List<*>` and `is Map<*, *>` are accepted and mean `is List` and `is Map`.
+  - New warning AXL018: the `Result` of a call of the build used as a statement is dropped; keep it with `val unused = ...` if that is meant.
+  - `break` or `continue` outside a loop says that a loop is needed around it, and in a lambda that a lambda ends with `return`.
   - `axl check`, `axl build` and `axl run` show paths in the form the command line gives them: absolute for absolute arguments, else relative to the working directory. Before, `check` always showed absolute paths and `build` and `run` relative ones.
 - Thirteenth audit, three more programs (a Markdown to HTML converter, a grid game with A*, a Maven money library with JUnit tests in Axolotl):
   - The `try` error-type message reads the result type of the method it is in; a `try` in a method of a class used to get javac's own words.
