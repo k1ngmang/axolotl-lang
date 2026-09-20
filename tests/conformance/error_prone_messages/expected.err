@@ -1,7 +1,7 @@
 AXL100 app/Format.axl:5:51: error: `%s` in the format has no value to show; the list `words` is one value here: pass the values one by one
 AXL100 app/Format.axl:7:48: error: `%s` in the format has no value to show
 AXL100 app/Format.axl:11:19: error: `%s` in the format has no value to show; the list `parts` is one value here: pass the values one by one
-AXL100 app/Main.axl:6:15: error: `==` compares these numbers as objects, not by value, since they may be null or come from a collection; use `java.util.Objects.equals(a, b)`
+AXL100 app/Main.axl:6:15: error: `==` compares these numbers as objects, not by value, since they may be null; use `java.util.Objects.equals(a, b)`
 AXL100 app/Main.axl:7:16: error: `1` is of type `Int`, but the collection holds `String`, so this call never finds it
 AXL100 app/Main.axl:8:20: error: `%d` cannot format a value of type `String`
 AXL100 app/Main.axl:10:20: error: the format uses 1 of the values after it, but 2 are given

@@ -19,8 +19,8 @@ final class ErrorProneMessages {
 
     static final String REFERENCE_EQUALITY = "`==` tests whether both sides are the same object, not whether they are equal; "
             + "compare them with `a.equals(b)`";
-    static final String BOXED_EQUALITY = "`==` compares these numbers as objects, not by value, since they may be null "
-            + "or come from a collection; use `java.util.Objects.equals(a, b)`";
+    static final String BOXED_EQUALITY = "`==` compares these numbers as objects, not by value, since they may be null; "
+            + "use `java.util.Objects.equals(a, b)`";
 
     /** The check that evaluates a call with constant arguments, such as `LocalDate.parse("2026-13-40")`. */
     static final String ALWAYS_THROWS = "AlwaysThrows";
