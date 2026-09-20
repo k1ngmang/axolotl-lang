@@ -506,3 +506,18 @@ String msg = switch (util.Parse.doubled("x")) {
     case Err<Integer, String>(var e) -> "fail " + e;
 };
 ```
+
+A library written in Axolotl gives Java the shape of Axolotl: final classes, lists instead of arrays, `Result`
+instead of checked exceptions, `Character` for a character, and public or private members only. Where Java
+callers need more, such as `String[]` results, varargs or a `throws` clause, add a Java interface to the module
+whose default methods adapt the Axolotl class, and let the class implement it:
+
+```java
+public interface CommandLineApi {
+    List<String> argList();
+
+    default String[] getArgs() {
+        return argList().toArray(String[]::new);
+    }
+}
+```
