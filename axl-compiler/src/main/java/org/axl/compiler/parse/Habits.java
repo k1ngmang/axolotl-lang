@@ -49,7 +49,8 @@ final class Habits {
             case AxolotlLexer.FOR -> javaFor(tokens, i);
             case AxolotlLexer.IMPORT -> text(tokens, SourceParser.nextCode(tokens, i)).equals("static")
                     ? staticImport(tokens, i) : wildcardImport(tokens, i);
-            case AxolotlLexer.QUESTION -> followedBy(tokens, i, AxolotlLexer.QUESTION) ? nullish(tokens, i) : ternary(tokens, i);
+            case AxolotlLexer.QUESTION -> wildcard(tokens, i) != null ? wildcard(tokens, i)
+                    : followedBy(tokens, i, AxolotlLexer.QUESTION) ? nullish(tokens, i) : ternary(tokens, i);
             case AxolotlLexer.CLASS -> kotlinClass(tokens, i);
             case AxolotlLexer.COLON -> label(tokens, i) != null ? label(tokens, i) : pythonBlock(tokens, i);
             case AxolotlLexer.ASSIGN -> followedBy(tokens, i, AxolotlLexer.GT) ? fatArrow(tokens, i) : null;
@@ -153,6 +154,86 @@ final class Habits {
         String right = type(tokens, next) == AxolotlLexer.IDENTIFIER ? source(tokens, next, operandEnd(tokens, next))
                 : text(tokens, next);
         return "write `?:` for a default: `" + source(tokens, operandStart(tokens, previous), previous) + " ?: " + right + "`";
+    }
+
+    /** Java's `?`, `? extends Number` and `? super T` among type arguments, where nothing else starts with `?`. */
+    private static String wildcard(List<Token> tokens, int i) {
+        int previous = type(tokens, SourceParser.previousCode(tokens, i));
+        if (previous != AxolotlLexer.LT && previous != AxolotlLexer.COMMA) {
+            return null;
+        }
+        int next = SourceParser.nextCode(tokens, i);
+        if (type(tokens, next) == AxolotlLexer.GT || type(tokens, next) == AxolotlLexer.COMMA) {
+            return "Axolotl writes a type argument that is not known as `*`: `" + withArgument(tokens, i, i, "*") + "`";
+        }
+        String word = text(tokens, next);
+        if (!word.equals("extends") && !word.equals("super")) {
+            return null;
+        }
+        int boundStart = SourceParser.nextCode(tokens, next);
+        int boundEnd = typeEnd(tokens, boundStart);
+        String bound = source(tokens, boundStart, boundEnd);
+        String problem = "Axolotl has no bounded wildcards such as `? " + word + " " + bound + "`; ";
+        if (word.equals("super")) {
+            return problem + "write `" + withArgument(tokens, i, boundEnd, bound) + "`, or `*` for any type";
+        }
+        int first = lineStart(tokens, i);
+        boolean function = type(tokens, first) == AxolotlLexer.FN
+                || (type(tokens, first) == AxolotlLexer.PRIVATE && type(tokens, SourceParser.nextCode(tokens, first)) == AxolotlLexer.FN);
+        if (!function) {
+            return problem + "write `" + withArgument(tokens, i, boundEnd, bound) + "`, or `*` for any type";
+        }
+        String variable = bound.equals("T") ? "E" : "T";
+        return problem + "for a parameter write `" + withArgument(tokens, i, boundEnd, bound) + "`, or a type parameter `<"
+                + variable + " : " + bound + ">` with `" + withArgument(tokens, i, boundEnd, variable) + "`; `*` stands for any type";
+    }
+
+    /** The last token of the type that starts at the token at start: `Map<String, Int>`, `java.util.List`. */
+    private static int typeEnd(List<Token> tokens, int start) {
+        int end = start;
+        int depth = 0;
+        for (int j = start; type(tokens, j) != Token.EOF; j = SourceParser.nextCode(tokens, j)) {
+            int t = type(tokens, j);
+            if (t == AxolotlLexer.LT) {
+                depth++;
+            } else if ((t == AxolotlLexer.GT && --depth < 0) || (t == AxolotlLexer.COMMA && depth == 0)) {
+                break;
+            } else if (t != AxolotlLexer.GT && t != AxolotlLexer.IDENTIFIER && t != AxolotlLexer.DOT && t != AxolotlLexer.COMMA
+                    && t != AxolotlLexer.QUESTION && t != AxolotlLexer.STAR) {
+                break;
+            }
+            end = j;
+        }
+        return end;
+    }
+
+    /** The generic type around the tokens from first to last, with the replacement in their place. */
+    private static String withArgument(List<Token> tokens, int first, int last, String replacement) {
+        int open = first;
+        int depth = 0;
+        for (int j = SourceParser.previousCode(tokens, first); j >= 0; j = SourceParser.previousCode(tokens, j)) {
+            if (type(tokens, j) == AxolotlLexer.GT) {
+                depth++;
+            } else if (type(tokens, j) == AxolotlLexer.LT && depth-- == 0) {
+                open = j;
+                break;
+            }
+        }
+        int close = last;
+        depth = 0;
+        for (int j = SourceParser.nextCode(tokens, last); type(tokens, j) != Token.EOF; j = SourceParser.nextCode(tokens, j)) {
+            if (type(tokens, j) == AxolotlLexer.LT) {
+                depth++;
+            } else if (type(tokens, j) == AxolotlLexer.GT && depth-- == 0) {
+                close = j;
+                break;
+            }
+        }
+        if (open == first || close == last) {
+            return replacement;
+        }
+        return text(tokens, SourceParser.previousCode(tokens, open)) + source(tokens, open, first - 1) + replacement
+                + source(tokens, last + 1, close);
     }
 
     /** `=>` of TypeScript lambdas, or a `when` branch written with the wrong arrow. */

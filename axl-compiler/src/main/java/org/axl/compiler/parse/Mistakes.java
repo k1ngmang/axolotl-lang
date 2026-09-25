@@ -68,6 +68,10 @@ final class Mistakes {
                     + name + "` of anything; write `is " + name + "`"
                     : "a type test cannot check type arguments, which Java does not keep at run time; write `is " + name + "`");
         }
+        Placed cast = javaCast(tokens, at, previous);
+        if (cast != null) {
+            return cast;
+        }
         Placed unfinished = previous.getLine() < at.getLine() ? unfinishedLine(tokens, previous)
                 : at.getType() == AxolotlLexer.RBRACE ? unfinished(tokens, previous) : null;
         if (unfinished != null) {
@@ -119,6 +123,48 @@ final class Mistakes {
             default -> missingComma(tokens, at, previous);
         };
         return message == null ? null : new Placed(at, message);
+    }
+
+    private static final Set<Integer> CAST_TYPE_TOKENS = Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.DOT, AxolotlLexer.LT,
+            AxolotlLexer.GT, AxolotlLexer.COMMA, AxolotlLexer.QUESTION, AxolotlLexer.STAR);
+
+    private static final Set<Integer> VALUE_STARTS = Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.LPAREN,
+            AxolotlLexer.INT_LITERAL, AxolotlLexer.FLOAT_LITERAL, AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL);
+
+    /**
+     * Java's `(String) o` and `(Function<String, T>) f`, where the parser gives up at the value after the
+     * `)` or inside the type arguments. A call such as `f(String) o` is not a cast.
+     */
+    private static Placed javaCast(CommonTokenStream tokens, Token at, Token previous) {
+        Token open = previous.getType() == AxolotlLexer.RPAREN ? matchingOpen(tokens, previous) : enclosingParen(tokens, at);
+        Token close = open == null ? null : matchingClose(tokens, open);
+        Token first = open == null ? null : SourceParser.nextToken(tokens, open);
+        Token value = close == null ? null : SourceParser.nextToken(tokens, close);
+        int callee = type(before(tokens, open));
+        if (first == null || value == null || first.getType() != AxolotlLexer.IDENTIFIER || !VALUE_STARTS.contains(value.getType())
+                || value.getLine() != close.getLine() || callee == AxolotlLexer.IDENTIFIER || callee == AxolotlLexer.RPAREN) {
+            return null;
+        }
+        Token name = first;
+        for (Token t = first; t != close; t = SourceParser.nextToken(tokens, t)) {
+            if (!CAST_TYPE_TOKENS.contains(t.getType())) {
+                return null;
+            }
+            if (t.getType() == AxolotlLexer.LT) {
+                break;
+            }
+            name = t.getType() == AxolotlLexer.IDENTIFIER ? t : name;
+        }
+        if (!Character.isUpperCase(name.getText().charAt(0)) && !PRIMITIVES.contains(name.getText())) {
+            return null;
+        }
+        String conversion = Habits.numberConversion(name.getText());
+        int afterValue = type(SourceParser.nextToken(tokens, value));
+        boolean named = value.getType() == AxolotlLexer.IDENTIFIER && afterValue != AxolotlLexer.DOT
+                && afterValue != AxolotlLexer.SAFE_DOT && afterValue != AxolotlLexer.LPAREN;
+        String tested = named ? value.getText() : "x";
+        return new Placed(open, conversion != null ? conversion
+                : "Axolotl has no casts; test the type with `is`: `if (" + tested + " is " + name.getText() + ") { ... }`", true);
     }
 
     /** `val r = attempt f() else e -> break`: only a statement of its own can leave the loop or the function. */

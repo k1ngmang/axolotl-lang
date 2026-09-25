@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+fn main() {
+    val xs: List<? extends Number> = List.of(1)
+    println(xs)
+}

@@ -1,0 +1,6 @@
+package app
+
+import java.util.Map
+import java.util.function.Function
+
+fn sizeOf(map: Map<Class<*>, Function<String, ? extends Number>>) -> Int = map.size()

@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+fn size(xs: List<?>) -> Int = xs.size()

@@ -1,0 +1,5 @@
+package app
+
+import java.util.Comparator
+
+fn first(c: Comparator<? super String>) -> Int = c.compare("a", "b")

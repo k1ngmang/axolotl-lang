@@ -5,9 +5,11 @@ AXL001 app/AssignAsValue.axl:5:16: error: an assignment is a statement, not a va
 AXL001 app/AssignInCondition.axl:5:18: error: an assignment is a statement, not a value: write `line = readLine()` on its own line, then `while (line != null)`
 AXL001 app/AssignInIf.axl:5:11: error: compare with `==`; `=` assigns
 AXL001 app/BinaryNumber.axl:4:17: error: Axolotl has no binary numbers such as `0b1010_0101`; write `165`, or `0xA5` in hexadecimal
+AXL001 app/BoundedWildcard.axl:6:47: error: Axolotl has no bounded wildcards such as `? extends Number`; for a parameter write `Function<String, Number>`, or a type parameter `<T : Number>` with `Function<String, T>`; `*` stands for any type
 AXL001 app/BufferIndex.axl:4:18: error: Axolotl has no `[]` indexing, and `buffer` is a `ByteArray`; read an element with `ByteBuffer.wrap(buffer).get(0)`, with `import java.nio.ByteBuffer`
 AXL001 app/BufferIndexAssign.axl:5:8: error: Axolotl has no `[]` indexing, and `row` is a `CharArray`; to change an element, write `CharBuffer.wrap(row).put(2, '#')`, with `import java.nio.CharBuffer`, which writes through to the array
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
+AXL001 app/CastInBody.axl:3:32: error: Axolotl has no casts; test the type with `is`: `if (o is String) { ... }`
 AXL001 app/ChainedAssignment.axl:6:11: error: an assignment is a statement, not a value: write `b = 3`, then `a = b`
 AXL001 app/CharsIndex.axl:5:31: error: Axolotl has no `[]` indexing; read a character of the string with `charAt`: `word.charAt(1)`
 AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
@@ -15,6 +17,7 @@ AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection: `
 AXL001 app/DoWhile.axl:5:5: error: Axolotl has no `do`-`while`; write a `while` loop
 AXL001 app/EmptyArrow.axl:6:13: error: `->` needs a value or a block after it
 AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?
+AXL001 app/GenericCast.axl:7:5: error: Axolotl has no casts; test the type with `is`: `if (x is Function) { ... }`
 AXL001 app/Implements.axl:5:26: error: a class names its interfaces after `:`: `class C(...) : I, J`
 AXL001 app/ImportAlias.axl:3:23: error: an import has no alias in Axolotl; write `import java.util.List` and use `List`; a second type of that name is written with its full name
 AXL001 app/Index.axl:7:15: error: Axolotl has no `[]` indexing; call `get`: `xs.get(0)`
@@ -38,6 +41,7 @@ AXL001 app/RawString.axl:4:15: error: Axolotl has no raw strings or text blocks 
 AXL001 app/SplitIndex.axl:5:25: error: Axolotl has no `[]` indexing, and `split` gives a Java array; read it as a list: `List.of(x.split(":")).get(0)`
 AXL001 app/StaticFn.axl:3:1: error: Axolotl has no `static`; remove it: functions and values at the top of a file need no object
 AXL001 app/StaticImport.axl:3:1: error: Axolotl has no `import static`; import a function with `import fn java.lang.Math.max`, and a constant with `import val`
+AXL001 app/SuperWildcard.axl:5:24: error: Axolotl has no bounded wildcards such as `? super String`; write `Comparator<String>`, or `*` for any type
 AXL001 app/Switch.axl:5:5: error: Axolotl has `when` instead of `switch`: `when (n) { 1 -> ... else -> ... }`
 AXL001 app/Synchronized.axl:6:5: error: Axolotl has no `synchronized`; use a class of `java.util.concurrent`, such as `ConcurrentHashMap`, `AtomicInteger` or `ReentrantLock`
 AXL001 app/SynchronizedBlock.axl:8:9: error: Axolotl has no `synchronized`; use a class of `java.util.concurrent`, such as `ConcurrentHashMap`, `AtomicInteger` or `ReentrantLock`
@@ -47,8 +51,10 @@ AXL001 app/TryCatch.axl:6:7: error: Axolotl has no `try`-`catch`; turn the excep
 AXL001 app/TryCatchFinally.axl:6:7: error: Axolotl has no `try`-`catch`; turn the exception into a `Result` with `attempt f() else e -> ...`
 AXL001 app/TryFinally.axl:10:7: error: Axolotl has no `try`-`finally`; for cleanup, write a class whose `close()` does it, `class Cleanup(...) : AutoCloseable { fn close() { lock.unlock() } }`, and run the block in `use (val c = Cleanup(...)) { ... }`, which calls `close()` also when the block throws
 AXL001 app/TypeArgumentCall.axl:6:13: error: Axolotl has no type arguments on calls; remove `<String>` and give the type to the value instead: `val f: Function<String, String> = Function.identity()`
+AXL001 app/UnknownWildcard.axl:5:18: error: Axolotl writes a type argument that is not known as `*`: `List<*>`
 AXL001 app/VoidMain.axl:3:1: error: functions are declared with `fn`: `fn main(...)`
 AXL001 app/Volatile.axl:4:5: error: Axolotl has no `volatile`; use `AtomicBoolean`, `AtomicInteger` or `AtomicReference` from `java.util.concurrent.atomic`
 AXL001 app/WhenNoSubject.axl:5:10: error: `when` needs a subject in parentheses: `when (x) { ... }`; test conditions with `if` and `else if`
 AXL001 app/Wildcard.axl:3:1: error: Axolotl imports one type at a time; write an import for each type you use: `import java.util.Name`
 AXL001 app/WildcardOwn.axl:3:1: error: Axolotl imports one type at a time; write an import for each type you use: `import app.Model.Name`
+AXL001 app/WildcardValue.axl:6:18: error: Axolotl has no bounded wildcards such as `? extends Number`; write `List<Number>`, or `*` for any type

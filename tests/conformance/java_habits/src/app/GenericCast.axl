@@ -1,0 +1,7 @@
+package app
+
+import java.util.Map
+import java.util.function.Function
+
+fn converter(map: Map<Class<*>, Function<String, *>>, type: Class<*>) -> Function<String, Int> =
+    (Function<String, Int>) map.get(type)
