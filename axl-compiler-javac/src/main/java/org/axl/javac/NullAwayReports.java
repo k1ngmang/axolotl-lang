@@ -4,6 +4,7 @@ import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.LambdaExpressionTree;
+import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.ReturnTree;
@@ -31,27 +32,39 @@ import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 
 /**
  * Remembers where NullAway reported errors, so that NullChecker does not report the same problem again.
  * Drops NullAway's error for a value from Java code without nullness annotations stored where its
  * type arguments have `?`, such as `val l: List<String?> = J.list()`: Java says nothing about them.
+ * For the same reason an override of such code may add `?` to the type arguments of its parameters and
+ * result, as `Result<Void?, String>` for `Result<Void, String>`.
  */
 final class NullAwayReports extends Log.DiagnosticHandler implements TaskListener {
 
     private static final Pattern INCOMPATIBLE =
             Pattern.compile("^\\[NullAway] incompatible types: (.+) cannot be converted to (.+)$");
     private static final Pattern NULLABLE = Pattern.compile("@(?:[\\w.]+\\.)?Nullable ");
+    private static final Pattern OVERRIDE =
+            Pattern.compile("^\\[NullAway] .+, but overridden method .+, which has mismatched type parameter nullability");
 
     private record Reported(URI file, long start) {}
 
     private final Trees trees;
+    private final Elements elements;
+    private final Types types;
     private final List<Reported> reported = new ArrayList<>();
     private final Map<URI, CompilationUnitTree> units = new HashMap<>();
     private boolean errors;
 
     NullAwayReports(BasicJavacTask task) {
         this.trees = Trees.instance(task);
+        this.elements = task.getElements();
+        this.types = task.getTypes();
         task.addTaskListener(this);
         install(Log.instance(task.getContext()));
     }
@@ -76,6 +89,11 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
                 if (fromUnannotated(stored) || isAttempt(stored)) {
                     return;
                 }
+            }
+            // Java code without nullness annotations says nothing about its type arguments, so an override may add `?`.
+            if (OVERRIDE.matcher(message.lines().findFirst().orElse("").strip()).matches() && units.containsKey(file)
+                    && overridesUnannotated(units.get(file), start)) {
+                return;
             }
             reported.add(new Reported(file, start));
         }
@@ -138,6 +156,42 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
             default -> reported.getLeaf();
         };
         return value == null ? null : new TreePath(reported, value);
+    }
+
+    /** Whether the method at the position overrides only methods of Java code that is not null-marked. */
+    private boolean overridesUnannotated(CompilationUnitTree unit, long position) {
+        TreePath[] found = new TreePath[1];
+        new TreePathScanner<Void, Void>() {
+            @Override
+            public Void visitMethod(MethodTree method, Void unused) {
+                long start = trees.getSourcePositions().getStartPosition(unit, method);
+                long end = trees.getSourcePositions().getEndPosition(unit, method);
+                if (start <= position && position <= end) {
+                    found[0] = getCurrentPath();
+                }
+                return super.visitMethod(method, unused);
+            }
+        }.scan(unit, null);
+        if (found[0] == null || !(trees.getElement(found[0]) instanceof ExecutableElement method)
+                || !(method.getEnclosingElement() instanceof TypeElement owner)) {
+            return false;
+        }
+        List<ExecutableElement> overridden = new ArrayList<>();
+        collectOverridden(method, owner, owner.asType(), overridden);
+        return !overridden.isEmpty() && overridden.stream().noneMatch(PlatformValues::trusted);
+    }
+
+    private void collectOverridden(ExecutableElement method, TypeElement owner, TypeMirror type, List<ExecutableElement> found) {
+        for (TypeMirror supertype : types.directSupertypes(type)) {
+            if (types.asElement(supertype) instanceof TypeElement parent) {
+                for (ExecutableElement candidate : ElementFilter.methodsIn(parent.getEnclosedElements())) {
+                    if (elements.overrides(method, candidate, owner)) {
+                        found.add(candidate);
+                    }
+                }
+                collectOverridden(method, owner, supertype, found);
+            }
+        }
     }
 
     /** `Result.attempt(...)`, which `attempt` becomes. */

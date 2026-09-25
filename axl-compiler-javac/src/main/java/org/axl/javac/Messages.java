@@ -42,6 +42,8 @@ final class Messages {
     private static final Pattern NULLABLE_SELECTOR = Pattern.compile("^switch selector expression '(.+?)' is @Nullable");
     private static final Pattern NULLABLE_ITERABLE = Pattern.compile("^enhanced-for expression '?(.+?)'? is @Nullable");
     private static final Pattern GENERATED_OR_SUBJECT = Pattern.compile("\\w*\\$e\\d+");
+    private static final Pattern OVERRIDE_TYPE_ARGUMENTS = Pattern.compile("^(?:Method returns (.+), but overridden method returns (.+)"
+            + "|Parameter has type (.+), but overridden method has parameter type (.+)), which has mismatched type parameter nullability");
     private static final Pattern NULLABLE_ARGUMENT = Pattern.compile("^\\[NullAway] passing @Nullable parameter '(.+?)' where @NonNull is required");
     private static final Pattern LAMBDA_RETURN = Pattern.compile("^incompatible types: bad return type in lambda expression; (.+) cannot be converted to (.+)$");
     // In the reason of a candidate, the parenthesis that closes the reason ends the message.
@@ -950,6 +952,10 @@ final class Messages {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, value + " may be null, but the result type has no `?`; "
                     + "add `?` to the result type or return a value that is not null");
         }
+        Matcher override = OVERRIDE_TYPE_ARGUMENTS.matcher(plain);
+        if (override.find()) {
+            return new Translated(ErrorCode.NULLABLE_DEREFERENCE, overrideTypeArguments(override));
+        }
         if (plain.startsWith("assigning @Nullable expression to @NonNull field")) {
             return new Translated(ErrorCode.NULLABLE_DEREFERENCE, nullableToField(text, javaLines));
         }
@@ -962,6 +968,20 @@ final class Messages {
         }
         return new Translated(plain.startsWith("incompatible types: ") ? ErrorCode.NULLABLE_DEREFERENCE : ErrorCode.JAVAC,
                 javacMessage(plain, text, javaLines, javaColumn));
+    }
+
+    /**
+     * An override whose type arguments differ in `?` from those of a null-marked Java method; Java code
+     * without nullness annotations takes either, see NullAwayReports.
+     */
+    private static String overrideTypeArguments(Matcher override) {
+        boolean result = override.group(1) != null;
+        String own = simpleNames(axlType(result ? override.group(1) : override.group(3)));
+        String inherited = simpleNames(axlType(result ? override.group(2) : override.group(4)));
+        String problem = (result ? "the result type `" : "the parameter type `") + own + "` does not match `" + inherited
+                + "` of the method it overrides, whose type arguments say whether they may be null; write `" + inherited + "`";
+        return own.chars().filter(c -> c == '?').count() > inherited.chars().filter(c -> c == '?').count()
+                ? problem + ", or mark the type argument `@Nullable` in the Java code" : problem;
     }
 
     /** `n + 1` and `if (b)` with a nullable `n` or `b`, which Java unboxes. */

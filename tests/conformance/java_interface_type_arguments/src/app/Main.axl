@@ -1,0 +1,28 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import lib.Selector
+
+// Java code without nullness annotations says nothing about its type arguments, so the override may add `?`.
+class Group : Selector {
+    private var selected: String? = null
+
+    fn select(name: String) -> Result<Void?, String> {
+        if (selected != null) {
+            return Err("already selected")
+        }
+        selected = name
+        return Ok(null)
+    }
+
+    fn count(names: List<String?>) -> Int = names.size() + names.indexOf(null)
+}
+
+fn main() {
+    val group = Group()
+    val names = ArrayList<String>()
+    names.add("a")
+    println(Selector.run(group, names))
+    println(group.select("b"))
+}

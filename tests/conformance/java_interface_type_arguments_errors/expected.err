@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:7:8: error: the result type `Result<Void?, String>` does not match `Result<Void, String>` of the method it overrides, whose type arguments say whether they may be null; write `Result<Void, String>`, or mark the type argument `@Nullable` in the Java code
+AXL102 app/Main.axl:9:14: error: the parameter type `List<String?>` does not match `List<String>` of the method it overrides, whose type arguments say whether they may be null; write `List<String>`, or mark the type argument `@Nullable` in the Java code

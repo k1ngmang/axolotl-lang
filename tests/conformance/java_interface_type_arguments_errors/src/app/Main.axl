@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+import lib.Selector
+
+class Group : Selector {
+    fn select(name: String) -> Result<Void?, String> = Ok(null)
+
+    fn count(names: List<String?>) -> Int = names.size()
+}
