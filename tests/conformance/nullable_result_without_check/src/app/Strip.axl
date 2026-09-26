@@ -1,0 +1,15 @@
+package app
+
+fn strip(str: String?) -> String? = if (str == null) null else str.strip()
+
+// The duplicate stops NullAway, so the translator's own null checks report the calls below.
+fn strip(str: String) -> String = strip(str)
+
+fn length(token: String) -> Int = strip(token).length()
+
+fn checked(token: String) -> Int {
+    if (strip(token) != null) {
+        return strip(token).length()
+    }
+    return 0
+}

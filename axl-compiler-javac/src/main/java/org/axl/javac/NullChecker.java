@@ -98,6 +98,7 @@ final class NullChecker implements TaskListener {
             + "which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`";
     private static final String REASSIGNED_FIX = "a null check does not narrow a property of a local that is assigned "
             + "again; copy the property to a local `val` first, or use `?.`, `?:` or `!!`";
+    private static final String UNCHECKED_FIX = "copy it to a local `val` to check it for null, or use `?.`, `?:` or `!!`";
     private static final Set<String> BOXES = Set.of("java.lang.Integer", "java.lang.Long", "java.lang.Double",
             "java.lang.Boolean", "java.lang.Character", "java.lang.Short", "java.lang.Byte", "java.lang.Float");
     /** The runtime methods whose `.value()` only gives their argument a type of its own. */
@@ -2305,12 +2306,71 @@ final class NullChecker implements TaskListener {
             Origin origin = origin(value);
             boolean checked = nullAwayChecks && !switchedBoxes.contains(narrowable(value));
             if (checked && origin == Origin.DECLARED && mayChange(value)) {
-                String changing = reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
+                String changing = !checkedForNull(value) ? UNCHECKED_FIX
+                        : reassigned.contains(element(receiver(value))) ? REASSIGNED_FIX : CHANGING_FIX;
                 return report(at, origin, false, describe(value) + problem + "; " + changing);
             }
             String how = origin == Origin.OPEN && fix.equals(FIX)
                     ? fix + ", or `" + typeOf(value) + " : Object` on the declaration to rule null out" : fix;
             return report(at, origin, checked, describe(value) + problem + "; " + how);
+        }
+
+        /**
+         * Whether a condition around the tree being checked, or an `if` before it in a block around it, compares
+         * the value with null: only then is it worth saying that the check does not narrow it.
+         */
+        private boolean checkedForNull(ExpressionTree value) {
+            String text = unwrap(value).toString();
+            Tree child = null;
+            for (TreePath path = getCurrentPath(); path != null && !(path.getLeaf() instanceof MethodTree);
+                    child = path.getLeaf(), path = path.getParentPath()) {
+                Tree condition = switch (path.getLeaf()) {
+                    case IfTree statement -> statement.getCondition();
+                    case ConditionalExpressionTree conditional -> conditional.getCondition();
+                    case WhileLoopTree loop -> loop.getCondition();
+                    case BinaryTree binary when binary.getKind() == Tree.Kind.CONDITIONAL_AND
+                            || binary.getKind() == Tree.Kind.CONDITIONAL_OR -> binary.getLeftOperand();
+                    default -> null;
+                };
+                if (condition != null && comparesWithNull(condition, text)) {
+                    return true;
+                }
+                if (path.getLeaf() instanceof BlockTree block) {
+                    for (StatementTree statement : block.getStatements()) {
+                        if (statement == child) {
+                            break;
+                        }
+                        if (statement instanceof IfTree check && comparesWithNull(check.getCondition(), text)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        private static boolean comparesWithNull(Tree condition, String text) {
+            Boolean found = new TreeScanner<Boolean, Void>() {
+                @Override
+                public Boolean visitBinary(BinaryTree binary, Void unused) {
+                    boolean comparison = binary.getKind() == Tree.Kind.EQUAL_TO || binary.getKind() == Tree.Kind.NOT_EQUAL_TO;
+                    if (comparison && (isNullWith(binary.getLeftOperand(), binary.getRightOperand(), text)
+                            || isNullWith(binary.getRightOperand(), binary.getLeftOperand(), text))) {
+                        return true;
+                    }
+                    return super.visitBinary(binary, unused);
+                }
+
+                @Override
+                public Boolean reduce(Boolean a, Boolean b) {
+                    return Boolean.TRUE.equals(a) || Boolean.TRUE.equals(b);
+                }
+            }.scan(condition, null);
+            return Boolean.TRUE.equals(found);
+        }
+
+        private static boolean isNullWith(ExpressionTree literal, ExpressionTree other, String text) {
+            return literal.getKind() == Tree.Kind.NULL_LITERAL && unwrap(other).toString().equals(text);
         }
 
         /** Reports unless NullAway reports the same problem; returns whether anything is wrong. */

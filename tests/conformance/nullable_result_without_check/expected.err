@@ -1,0 +1,4 @@
+AXL010 app/Strip.axl:6:4: error: `strip` is already declared with the same parameter types
+AXL102 app/Strip.axl:6:35: error: the result of `strip()` may be null, but the function does not return null; copy it to a local `val` to check it for null, or use `?.`, `?:` or `!!`
+AXL102 app/Strip.axl:8:48: error: the result of `strip()` may be null; copy it to a local `val` to check it for null, or use `?.`, `?:` or `!!`
+AXL102 app/Strip.axl:12:29: error: the result of `strip()` may be null; a null check does not narrow a `var` property or the result of a call, which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`

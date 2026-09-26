@@ -1,0 +1,12 @@
+package app
+
+// Without a null check nearby, the message does not explain why one would not narrow.
+fn strip(s: String?) -> String? = s
+
+fn length(token: String) -> Int = strip(token).length()
+
+class Link(val name: String) {
+    var next: Link? = null
+
+    fn nextName() -> String = next.name
+}

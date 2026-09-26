@@ -1069,7 +1069,8 @@ final class Messages {
         }
         String name = value.substring(value.lastIndexOf('.') + 1);
         Pattern varField = Pattern.compile("^\\s+public (?!final )[\\w.<>?, @]+ " + Pattern.quote(name) + ";$");
-        return !value.contains(".") || Arrays.stream(javaLines).noneMatch(l -> varField.matcher(l).find());
+        // A method reads a `var` property of its class by its bare name.
+        return Arrays.stream(javaLines).noneMatch(l -> varField.matcher(l).find());
     }
 
     private static String javacMessage(String message, String text, String[] javaLines) {
