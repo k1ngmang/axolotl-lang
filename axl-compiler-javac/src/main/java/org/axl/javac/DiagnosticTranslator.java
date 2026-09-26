@@ -56,7 +56,8 @@ public final class DiagnosticTranslator {
         if (source == null) {
             // Hand-written Java gets every warning; only generated code has a shape of its own.
             return new AxlDiagnostic(javaDisplay.apply(javaFile), javaLine, (int) diagnostic.getColumnNumber(),
-                    Messages.alwaysFailsUnhandled(message, "") ? AxlDiagnostic.Severity.ERROR : severity, ErrorCode.JAVAC, message);
+                    Messages.alwaysFailsUnhandled(message, "") ? AxlDiagnostic.Severity.ERROR : severity, ErrorCode.JAVAC,
+                    Messages.typeNames(message));
         }
         String[] javaLines = source.unit().javaSource().split("\n", -1);
         String javaText = javaLine >= 1 && javaLine <= javaLines.length ? javaLines[javaLine - 1] : "";
@@ -106,9 +107,9 @@ public final class DiagnosticTranslator {
                 warning.message() + ErrorProneMessages.suppression(check));
     }
 
-    /** javac puts symbol and location details on extra lines. */
+    /** javac puts symbol and location details on extra lines, after a line that may end in `;` already. */
     static String oneLine(String message) {
-        return message.lines().map(l -> l.strip().replaceAll("\\s+", " ")).filter(l -> !l.isEmpty())
+        return message.lines().map(l -> l.strip().replaceAll("\\s+", " ").replaceFirst(";$", "")).filter(l -> !l.isEmpty())
                 .collect(Collectors.joining("; "));
     }
 

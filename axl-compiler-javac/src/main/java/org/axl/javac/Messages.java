@@ -2448,6 +2448,15 @@ final class Messages {
                 + "`, but the function returns errors of type `" + expected + "`; convert it with `mapErr`");
     }
 
+    /**
+     * The types of a message about hand-written Java as Axolotl writes them where it can without changing their
+     * meaning: `String?` for `@org.jspecify.annotations.Nullable java.lang.String`, one type after another with `, `.
+     */
+    static String typeNames(String message) {
+        String types = QUALIFIED_TYPE.matcher(NULLABLE_TYPE.matcher(message).replaceAll("$1?")).replaceAll("$1");
+        return types.replaceAll(",(?=[\\w@])", ", ");
+    }
+
     /** `java.util.Map<String, Int>` as `Map<String, Int>`, the way the function's own type is written. */
     static String simpleNames(String type) {
         return type.replaceAll("\\b[a-z]\\w*(?:\\.[a-z]\\w*)*\\.(?=[A-Z])", "");

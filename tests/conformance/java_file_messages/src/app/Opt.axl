@@ -1,0 +1,5 @@
+package app
+
+class Opt(val name: String?, val longName: String?, val hasArg: Boolean, var description: String?) {
+    fn describe() -> String = name + ": " + description
+}
