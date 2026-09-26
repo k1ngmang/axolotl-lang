@@ -62,6 +62,8 @@ that names the bound and the types that fit it. An object of a generic class is 
 arguments, `Pair<String, Int>("age", 41)`, or with `Pair<>(...)` where the type it is stored as tells
 them. Calls of generic functions need no arguments: `largest(numbers)`. The functions of a file whose
 type has parameters are static and cannot use them; they take their own.
+Axolotl has no bounded wildcards (`? extends T`, `? super T`). A parameter that takes a list of numbers is
+`List<Number>`, or generic, `fn sum<T : Number>(xs: List<T>)`; a type argument that is not known is `*`, Java's `?`.
 
 ## Statements
 
@@ -98,6 +100,9 @@ qualified by a package: `java.sql.Timestamp(1L)`. A generic class needs its type
 `ArrayList()` is an error, since any value could go in, and so is `val xs = ArrayList<>()`, where
 no type gives them. Names use the letters A to Z and a to z,
 digits and `_`.
+
+Values and functions may share a name: `add(x)` always calls the function or method `add`, also where a local
+`add` is in scope, because Axolotl never calls a value with `(...)`.
 
 Lambdas are written in braces: `{ x -> x + 1 }`, `{ a, b -> a.compareTo(b) }`. Without an arrow,
 `it` is the parameter if the body uses it: `{ it > 0 }`; `{ -> run() }` takes no parameters. Inside
@@ -246,7 +251,8 @@ fn describe(shape: Shape) -> String {
 }
 ```
 
-A type test checks the class only: `is List<*>` is the same as `is List`; other type arguments are an error.
+A type test checks the class only: `is List<*>` is the same as `is List`; other type arguments are an error. The
+narrowed value fits `Class<*>` after `is Class`, since `*` promises nothing about the argument, but not `Class<String>`.
 
 A `var` can be tested but is not narrowed, since it may change. Neither is the result of a call, such as
 `first.value() is Punct`: copy it to a `val` first (`val value = first.value()`) and test that, or name the
@@ -343,6 +349,11 @@ Axolotl function or stored where the type is written without `?` until it is che
 parameters (also when an Axolotl function hands it on as a parameter of a JDK interface type), and
 a method reference passed to such code must accept null: not `Main::print` with a parameter without
 `?`, `String::length` or `ys::add` on an `ArrayList<String>`.
+
+Such code says nothing about the nullness of its type arguments either. A class that implements
+`Result<Void, String> select(String)` of it may write `fn select(name: String) -> Result<Void?, String>` and return
+`Ok(null)`. Against `@NullMarked` Java code, write the type arguments as it does, or annotate the Java type argument
+`@Nullable` (`Result<@Nullable Void, String>`).
 
 Trusted in strict mode: static final fields of the JDK such as `System.out`, constants, the Axolotl
 runtime, code in a `@NullMarked` scope, the stream operations that pipes expand to, what a JDK class
