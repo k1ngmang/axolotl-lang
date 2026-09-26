@@ -179,8 +179,25 @@ Function<Int, Int> { fn apply(x: Int) -> Int = x * 2 }`. The same holds for a ge
 classpath or from your own Java files, since the compiler reads their signatures. A property
 without a written type may be initialized by a method of its class that has a written result type (`val total = compute()`).
 Every parameter of a class is a property and is written with `val` or `var`: `class Dice(seed: Long) { val random =
-Random(seed) }` is rejected, write `class Dice(val seed: Long)`. Axolotl has no parameters that only the constructor sees,
-which keeps one way to declare state.
+Random(seed) }` is rejected, write `class Dice(val seed: Long)`. `private` before a parameter keeps it inside the class:
+`class Opt(val name: String?, private val description: String?)` makes `description` a private field that the class's
+properties and methods read and other code cannot see; `private var` likewise. The fields of a data class stay public.
+
+A class may have more constructors, each passing values on to the class's parameters:
+
+```axl
+class Opt(val opt: String?, val longOpt: String?, val hasArg: Boolean, private val description: String?) {
+    constructor(opt: String?, description: String?) = this(opt, null, false, description)
+    @Deprecated
+    constructor(opt: String?) = this(opt, null, false, null)
+}
+```
+
+`Opt("v", "verbose")` and Java's `new Opt("v", "verbose")` call the first. A constructor has no body: `this(...)` gives a
+value to each parameter of the class and sees only the constructor's own parameters, since it runs before the object has
+fields. It may carry annotations and `private`. Java tells constructors apart by their parameter types without `?` and type
+arguments, so two constructors that differ only there are an error. Data classes, enums and interfaces have only their own
+constructor.
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
@@ -411,6 +428,11 @@ fn doubled(s: String) -> Result<Int, String> {
 - `attempt X else e -> Y` runs `X`; an `Exception` becomes `Err(Y)`. Without a name the exception
   is not available: `attempt X else Y`. `Y` is the error of the `Result` and cannot be `null` unless the error type is written with `?`:
   `val r: Result<String?, Exception?> = attempt ... else e -> null`.
+- `attempt X else e: IOException -> Y` catches only an `IOException`, as Java's `catch (IOException e)` does. `e` is an
+  `IOException` in the handler, and any other exception is thrown on as it would be without `attempt`, so a checked one
+  that the class does not take is an error: `val text = attempt Files.readString(p) else e: IOException -> throw
+  UncheckedIOException(e)`. The same holds for the handler and the exits of an `attempt` statement and for the `else` of
+  `use`. Without a class, the handler takes any `Exception`.
 - `==` on strings, data classes and other values that define their own equality is an error: it would
   compare the objects, not their values; write `a.equals(b)`. `==` on numbers, booleans and enum constants
   compares the values, also for numbers taken from a collection, such as `xs.get(0) == xs.get(1)` on a
