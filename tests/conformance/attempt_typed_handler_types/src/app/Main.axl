@@ -1,0 +1,11 @@
+package app
+
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
+
+fn size(p: Path) -> Result<Long, String> = attempt Files.size(p) else e: IOException? -> "cannot read"
+
+fn delete(p: Path) {
+    attempt Files.delete(p) else e: IOException<String> -> println(e)
+}

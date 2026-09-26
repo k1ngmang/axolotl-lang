@@ -86,6 +86,7 @@ import org.axl.compiler.parse.AxolotlParser.ForStatementContext
 import org.axl.compiler.parse.AxolotlParser.FunctionBodyContext
 import org.axl.compiler.parse.AxolotlParser.FunctionDeclContext
 import org.axl.compiler.parse.AxolotlParser.GenericConstructorContext
+import org.axl.compiler.parse.AxolotlParser.HandlerParamContext
 import org.axl.compiler.parse.AxolotlParser.IdentifierContext
 import org.axl.compiler.parse.AxolotlParser.IfPrimaryContext
 import org.axl.compiler.parse.AxolotlParser.IfStatementContext
@@ -337,13 +338,18 @@ private fn buildVal(ctx: ValStatementContext) -> Stmt.Local {
 }
 
 private fn buildUse(ctx: UseStatementContext) -> Stmt.Use {
-    val names = ctx.identifier()
-    val errorName: String? = if (names.size() > 1) nameOf(names.get(1)) else null
-    val errorPos: Pos? = if (names.size() > 1) pos(names.get(1).start) else null
+    val param = ctx.handlerParam()
     val handler: Expr? = if (ctx.expression().size() > 1) buildExpr(ctx.expression(1)) else null
-    return Stmt.Use(pos(ctx.start), pos(names.get(0).start), nameOf(names.get(0)), typeOrNull(ctx.type()),
-        buildExpr(ctx.expression(0)), buildBlock(ctx.block()), errorName, errorPos, handler)
+    return Stmt.Use(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()), typeOrNull(ctx.type()),
+        buildExpr(ctx.expression(0)), buildBlock(ctx.block()), handlerName(param), handlerNamePos(param), handlerType(param), handler)
 }
+
+/** `e` of `else e ->` and `else e: IOException ->`; null without a name. */
+private fn handlerName(ctx: HandlerParamContext?) -> String? = if (ctx == null) null else nameOf(ctx.identifier())
+
+private fn handlerNamePos(ctx: HandlerParamContext?) -> Pos? = if (ctx == null) null else pos(ctx.identifier().start)
+
+private fn handlerType(ctx: HandlerParamContext?) -> TypeRef? = if (ctx == null) null else typeOrNull(ctx.type())
 
 private fn buildReturn(ctx: ReturnStatementContext) -> Stmt.Return {
     val value = ctx.expression()
@@ -352,10 +358,9 @@ private fn buildReturn(ctx: ReturnStatementContext) -> Stmt.Return {
 }
 
 private fn buildAttemptExit(ctx: AttemptExitStatementContext) -> Stmt.AttemptExit {
-    val name = ctx.identifier()
-    val errorName: String? = if (name == null) null else nameOf(name)
-    val errorPos: Pos? = if (name == null) null else pos(name.start)
-    return Stmt.AttemptExit(pos(ctx.start), buildExpr(ctx.expression()), errorName, errorPos, buildExit(ctx.attemptExit()))
+    val param = ctx.handlerParam()
+    return Stmt.AttemptExit(pos(ctx.start), buildExpr(ctx.expression()), handlerName(param), handlerNamePos(param), handlerType(param),
+        buildExit(ctx.attemptExit()))
 }
 
 private fn buildExit(ctx: AttemptExitContext) -> Stmt {
@@ -497,10 +502,9 @@ private fn buildUnary(ctx: UnaryExpressionContext) -> Expr {
 }
 
 private fn buildAttempt(ctx: AttemptExpressionContext) -> Expr {
-    val name = ctx.identifier()
-    val errorName: String? = if (name == null) null else nameOf(name)
-    val errorPos: Pos? = if (name == null) null else pos(name.start)
-    return Attempt(pos(ctx.start), buildExpr(ctx.expression(0)), errorName, errorPos, buildExpr(ctx.expression(1)))
+    val param = ctx.handlerParam()
+    return Attempt(pos(ctx.start), buildExpr(ctx.expression(0)), handlerName(param), handlerNamePos(param), handlerType(param),
+        buildExpr(ctx.expression(1)))
 }
 
 private fn hasSafeStep(e: Expr) -> Boolean = when (e) {

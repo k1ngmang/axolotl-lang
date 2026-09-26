@@ -227,6 +227,47 @@ class FormatterTest {
     }
 
     @Test
+    void spacesTheClassOfAHandler() {
+        formats("""
+                package app
+
+                import java.io.IOException
+                import java.io.UncheckedIOException
+                import java.nio.file.Files
+                import java.nio.file.Path
+
+                fn read(p: Path) -> String = attempt Files.readString(p) else e : IOException->throw UncheckedIOException(e)
+
+                fn delete(ps: List<Path>) {
+                    for (p in ps) {
+                        attempt Files.delete(p) else e:IOException->continue
+                    }
+                    use (val r = Files.newBufferedReader(ps.get(0))) {
+                        println(r.readLine())
+                    } else e:IOException -> println(e)
+                }
+                """, """
+                package app
+
+                import java.io.IOException
+                import java.io.UncheckedIOException
+                import java.nio.file.Files
+                import java.nio.file.Path
+
+                fn read(p: Path) -> String = attempt Files.readString(p) else e: IOException -> throw UncheckedIOException(e)
+
+                fn delete(ps: List<Path>) {
+                    for (p in ps) {
+                        attempt Files.delete(p) else e: IOException -> continue
+                    }
+                    use (val r = Files.newBufferedReader(ps.get(0))) {
+                        println(r.readLine())
+                    } else e: IOException -> println(e)
+                }
+                """);
+    }
+
+    @Test
     void allowsOneBlankLineInARow() {
         formats("""
 

@@ -68,6 +68,9 @@ private val WIDENING: List<String> = List.of("Int", "Long", "Double")
 private val TARGET_TYPED_FACTORIES: Set<String> = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
     "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity")
 
+// The classes a `catch` of which may hold an InterruptedException among others.
+private val INTERRUPT_CATCHERS: Set<String> = Set.of("Exception", "Throwable", "java.lang.Exception", "java.lang.Throwable")
+
 /** Where a `when` stands: what its branches do with their value. */
 enum WhenForm { STATEMENT, RESULT, VALUE }
 
@@ -2270,10 +2273,13 @@ class Generator(
         val errorName = a.errorName()
         val error = if (errorName != null) errorName else "$ex" + nextException()
         val handler = withoutParens(a.handler())
+        // The class goes last, so that the call reads as one without it; Java infers the type of `e` from it.
+        val errorType = a.errorType()
+        val caught = if (errorType == null) "" else ", " + javaType(errorType) + ".class"
         if (handler is Expr.Throw) {
-            return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler.value(), true) + ")"
+            return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler.value(), true) + caught + ")"
         }
-        return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")"
+        return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + caught + ")"
     }
 
     /** `use (val r = open()) { ... } else e -> h` is a try with the resource, and a catch of Exception when there is an else. */
@@ -2293,9 +2299,9 @@ class Generator(
         }
         val errorName = stmt.errorName()
         val error = if (errorName != null) errorName else "$ex" + nextException()
-        em.line(stmt.body().end().line(), "} catch (Exception " + error + ") {")
+        em.line(stmt.body().end().line(), "} catch (" + caughtType(stmt.errorType()) + " " + error + ") {")
         em.indent()
-        keepInterrupt(stmt.body().end().line(), error)
+        keepInterrupt(stmt.body().end().line(), error, stmt.errorType())
         val inner = withoutParens(handler)
         if (inner is Expr.Throw) {
             em.line(startLine(inner), "throw " + exprIn(inner.value(), true) + ";")
@@ -2318,9 +2324,9 @@ class Generator(
         em.indent()
         em.line(line, exprIn(a.body(), true) + ";")
         em.dedent()
-        em.line(line, "} catch (Exception " + error + ") {")
+        em.line(line, "} catch (" + caughtType(a.errorType()) + " " + error + ") {")
         em.indent()
-        keepInterrupt(line, error)
+        keepInterrupt(line, error, a.errorType())
         if (handler is Expr.Throw) {
             em.line(startLine(handler), "throw " + exprIn(handler.value(), true) + ";")
         } else {
@@ -2340,9 +2346,9 @@ class Generator(
             em.indent()
             em.line(line, exprIn(stmt.body(), true) + ";")
             em.dedent()
-            em.line(line, "} catch (Exception " + error + ") {")
+            em.line(line, "} catch (" + caughtType(stmt.errorType()) + " " + error + ") {")
             em.indent()
-            keepInterrupt(line, error)
+            keepInterrupt(line, error, stmt.errorType())
             val exit = stmt.exit()
             // The loop goes on after the `try` anyway.
             if (!(exit is Stmt.Jump && lastContinues.contains(stmt) && jumpCode(exit).equals("continue;"))) {
@@ -2356,10 +2362,19 @@ class Generator(
     /**
      * `catch (Exception e)` also catches an InterruptedException, which clears the interrupt flag: it is
      * set again, so that a loop over `isInterrupted()` ends after `shutdownNow` whatever the handler does.
+     * A `catch` of InterruptedException itself needs no test, and one of an unrelated class cannot hold one.
      */
-    private fn keepInterrupt(line: Int, error: String) {
-        em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();")
+    private fn keepInterrupt(line: Int, error: String, caught: TypeRef?) {
+        val name = if (caught == null) "Exception" else caught.name()
+        if (name.equals("InterruptedException") || name.equals("java.lang.InterruptedException")) {
+            em.line(line, "Thread.currentThread().interrupt();")
+        } else if (INTERRUPT_CATCHERS.contains(name)) {
+            em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();")
+        }
     }
+
+    /** `Exception` for `else e ->`, the written class for `else e: IOException ->`. */
+    private fn caughtType(caught: TypeRef?) -> String = if (caught == null) "Exception" else javaType(caught)
 
     private fn nextException() -> Int {
         exceptionCount += 1

@@ -1,0 +1,57 @@
+package app
+
+import java.io.IOException
+import java.io.StringReader
+import java.io.UncheckedIOException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.List
+
+// The everyday Java `catch (IOException e) { throw new UncheckedIOException(e); }`.
+fn read(p: Path) -> String = attempt Files.readString(p) else e: IOException -> throw UncheckedIOException(e)
+
+fn size(p: Path) -> Result<Long, String> = attempt Files.size(p) else e: IOException -> "cannot read " + e.getMessage()
+
+fn number(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e: NumberFormatException -> "not a number: " + s
+
+// Only an IllegalStateException becomes an Err; anything else is thrown on.
+fn parsedOrState(s: String) -> Result<Int, String> = attempt Integer.parseInt(s) else e: IllegalStateException -> "illegal state"
+
+fn put(out: Appendable, text: String) {
+    attempt out.append(text) else e: IOException -> throw UncheckedIOException(e)
+}
+
+fn firstChar(text: String) -> Int {
+    use (val reader = StringReader(text)) {
+        return reader.read()
+    } else e: IOException -> throw UncheckedIOException(e)
+}
+
+fn deleted(paths: List<Path>) -> Int {
+    var n = 0
+    for (p in paths) {
+        attempt Files.delete(p) else e: IOException -> continue
+        n += 1
+    }
+    return n
+}
+
+fn pause() -> String {
+    attempt Thread.sleep(1L) else e: InterruptedException -> return "interrupted"
+    return "rested"
+}
+
+fn main() {
+    println(number("12"))
+    println(number("x"))
+    println(size(Path.of("/no/such/file")))
+    val sb = StringBuilder()
+    put(sb, "abc")
+    println(sb)
+    println(firstChar("z"))
+    println(deleted(List.of(Path.of("/no/such/a"), Path.of("/no/such/b"))))
+    val unchecked = attempt read(Path.of("/no/such/file")) else e: UncheckedIOException -> e.getClass().getSimpleName()
+    println(unchecked)
+    println(attempt parsedOrState("q") else e: NumberFormatException -> "passed on: " + e.getMessage())
+    println(pause())
+}

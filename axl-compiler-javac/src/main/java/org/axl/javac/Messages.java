@@ -191,6 +191,10 @@ final class Messages {
             "int", "IntBuffer", "long", "LongBuffer", "float", "FloatBuffer", "double", "DoubleBuffer");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
     private static final Pattern ATTEMPT_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*->");
+    // `else e: IOException ->`: the name and the class a handler catches.
+    private static final Pattern TYPED_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*:\\s*([\\w.]+)\\s*->");
+    private static final Pattern TYPED_CATCH = Pattern.compile("^\\s*\\} catch \\((?!Exception )([\\w.]+) (\\w+)\\) \\{$");
+    private static final Pattern NEVER_THROWN = Pattern.compile("^exception ([\\w.$]+) is never thrown in body of corresponding try statement$");
     private static final Pattern SINGLE_FORMAT_VALUE = Pattern.compile(
             "(?:\\.(?:format|printf)\\(\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,|\\.formatted\\()\\s*([A-Za-z_]\\w*)\\s*\\)");
     private static final Pattern COLLECTION_TYPE = Pattern.compile("(?:^|\\.)(?:\\w*List|\\w*Set|Collection)(?:\\.of)?$");
@@ -624,6 +628,7 @@ final class Messages {
     /**
      * `Result.attempt(() -> value, e -> error)` or `Result.orThrow(...)` in a Java line, with the text of
      * both lambda bodies and where the value, the comma, the error and the closing parenthesis are (0-based).
+     * The class of `else e: IOException ->` follows the error as a third argument, which the error ends before.
      */
     record Attempt(String value, String error, int valueStart, int comma, int errorStart, int end) {
 
@@ -651,7 +656,9 @@ final class Messages {
                         break;
                     }
                     depth--;
-                } else if (c == ',' && depth == 0 && comma < 0) {
+                } else if (c == ',' && depth == 0 && comma >= 0) {
+                    break;
+                } else if (c == ',' && depth == 0) {
                     comma = i;
                 }
             }
@@ -847,6 +854,11 @@ final class Messages {
         String blockValue = message.contains(MISSING_RETURN_VALUE) ? blockLambdaValue(text, javaLines, javaLine) : null;
         if (blockValue != null) {
             return new Translated(ErrorCode.JAVAC, blockValue);
+        }
+        Matcher unreported = UNREPORTED.matcher(message);
+        Matcher useCatch = unreported.find() && !TYPED_HANDLER.matcher(axlText).find() ? typedUseCatch(javaLines, javaLine) : null;
+        if (useCatch != null && !text.strip().startsWith("throw ")) {
+            return new Translated(ErrorCode.JAVAC, notCaught(unreported.group(1), useCatch.group(2), useCatch.group(1)));
         }
         return new Translated(ErrorCode.JAVAC, SUGGESTION.matcher(javacMessage(message, text, javaLines, javaColumn, axlText)).replaceAll(""));
     }
@@ -1124,13 +1136,23 @@ final class Messages {
             return lambdaArity(text, javaLines);
         }
         Matcher equalityAndUpper = EQUALITY_AND_UPPER.matcher(message);
-        if (equalityAndUpper.find()) {
+        if (equalityAndUpper.find() && equalityAndUpper.group(2).equals("java.lang.Throwable") && TYPED_HANDLER.matcher(axlText).find()) {
+            return notException(equalityAndUpper.group(1));
+        }
+        if (equalityAndUpper.find(0)) {
             String expected = splitTopLevel(equalityAndUpper.group(2)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(equalityAndUpper.group(2));
             return mismatch(expected, equalityAndUpper.group(1), text, javaColumn);
         }
         Matcher bounds = BOUNDS.matcher(message);
-        if (bounds.find()) {
+        Matcher typedAttempt = TYPED_HANDLER.matcher(axlText);
+        if (bounds.find() && attempt != null && typedAttempt.find() && !attempt.inError(javaColumn)) {
+            // The call throws a checked exception besides the class it catches: the class bounds the thrown type.
+            String caught = bounds.group(1);
+            String other = splitTopLevel(bounds.group(2)).stream().filter(t -> !t.equals(caught)).findFirst().orElse(caught);
+            return notCaught(other, typedAttempt);
+        }
+        if (bounds.find(0)) {
             String expected = splitTopLevel(bounds.group(1)).stream().filter(t -> !t.equals("java.lang.Object"))
                     .findFirst().orElse(bounds.group(1));
             String found = splitTopLevel(bounds.group(2)).getFirst();
@@ -1170,8 +1192,14 @@ final class Messages {
         if (incompatible.find(0) && incompatible.group(1).equals("java.lang.Exception") && attempt != null && javaColumn > attempt.comma()) {
             Matcher handler = ATTEMPT_HANDLER.matcher(axlText);
             String e = handler.find() ? handler.group(1) : "e";
+            String expected = axlType(incompatible.group(2));
+            String fix = expected.matches("\\w*(?:Exception|Error)") ? "catch only an `" + expected + "` with `else " + e + ": "
+                    + expected + " ->`" : "wrap it in `IllegalStateException(" + e + ")`";
             return mismatch(incompatible.group(2), incompatible.group(1), text, javaColumn) + "; `" + e
-                    + "` of `attempt` is any `Exception`; wrap it in `IllegalStateException(" + e + ")`";
+                    + "` of `attempt` is any `Exception`; " + fix;
+        }
+        if (incompatible.find(0) && incompatible.group(2).equals("java.lang.Throwable") && TYPED_HANDLER.matcher(axlText).find()) {
+            return notException(incompatible.group(1));
         }
         if (incompatible.find(0)) {
             return mismatch(incompatible.group(2), incompatible.group(1), text, javaColumn);
@@ -1371,7 +1399,17 @@ final class Messages {
                     + axlType(unreportedClose.group(1)) + "`; add `else e -> ...` to the `use`";
         }
         Matcher unreported = UNREPORTED.matcher(message);
-        if (unreported.find() && text.strip().startsWith("throw ")) {
+        Matcher typedHandler = TYPED_HANDLER.matcher(axlText);
+        if (unreported.find() && !text.strip().startsWith("throw ") && typedHandler.find()) {
+            return notCaught(unreported.group(1), typedHandler);
+        }
+        Matcher neverThrown = NEVER_THROWN.matcher(message);
+        if (neverThrown.find()) {
+            String e = typedHandler.find(0) ? typedHandler.group(1) : "e";
+            return "`" + axlType(neverThrown.group(1)) + "` is never thrown here, so the handler would never run; catch the "
+                    + "exception the code throws, or every exception with `else " + e + " ->`";
+        }
+        if (unreported.find(0) && text.strip().startsWith("throw ")) {
             return "`" + axlType(unreported.group(1)) + "` is a checked exception and cannot be thrown here; throw a "
                     + "`RuntimeException`, such as `IllegalStateException`, or return an `Err`";
         }
@@ -1416,6 +1454,55 @@ final class Messages {
         }
         String structural = structuralMessage(message, text, javaLines);
         return structural != null ? structural : message;
+    }
+
+    /** `else e: String ->`: the class after the name must be one of exceptions. */
+    private static String notException(String type) {
+        return "`" + axlType(type) + "` is not an exception; write the class of the exceptions to catch, such as `IOException`";
+    }
+
+    /** A checked exception that the class of `else e: IOException ->` does not take, and that a function cannot pass on. */
+    private static String notCaught(String exception, Matcher handler) {
+        return notCaught(exception, handler.group(1), handler.group(2));
+    }
+
+    private static String notCaught(String exception, String name, String caught) {
+        return "this call can throw `" + axlType(exception) + "`, which `else " + name + ": " + axlType(caught)
+                + " ->` does not catch and Axolotl functions cannot pass on; catch every exception with `else " + name + " ->`";
+    }
+
+    /**
+     * The `catch (IOException e)` of the `use` whose block holds a Java line, when it catches one class: the block
+     * is in the `try (...)` above at a smaller indentation, and the `catch` closes it at that indentation.
+     */
+    private static Matcher typedUseCatch(String[] javaLines, int javaLine) {
+        int indent = javaLine >= 1 && javaLine <= javaLines.length ? indentation(javaLines[javaLine - 1]) : 0;
+        for (int i = javaLine - 2; i >= 0; i--) {
+            String line = javaLines[i];
+            int own = indentation(line);
+            if (line.isBlank() || own >= indent) {
+                continue;
+            }
+            indent = own;
+            if (METHOD_DECLARATION.matcher(line).find() || line.endsWith("-> {")) {
+                return null;
+            }
+            if (!line.strip().startsWith("try (")) {
+                continue;
+            }
+            for (int j = javaLine; j < javaLines.length; j++) {
+                if (indentation(javaLines[j]) == own && !javaLines[j].isBlank()) {
+                    Matcher typed = TYPED_CATCH.matcher(javaLines[j]);
+                    return typed.find() ? typed : null;
+                }
+            }
+            return null;
+        }
+        return null;
+    }
+
+    private static int indentation(String line) {
+        return line.length() - line.stripLeading().length();
     }
 
     /**

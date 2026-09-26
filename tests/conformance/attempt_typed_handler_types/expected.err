@@ -1,0 +1,2 @@
+AXL001 app/Main.axl:7:74: error: a caught exception is never null; remove the `?`: `IOException`
+AXL001 app/Main.axl:10:37: error: an exception class takes no type arguments; write `IOException`

@@ -77,12 +77,16 @@ data class Paren(val pos: Pos, val inner: Expr) : Expr
 
 data class Try(val pos: Pos, val inner: Expr) : Expr
 
-/** `attempt body else handler`; errorName and errorNamePos are null without `else e ->`. */
+/**
+ * `attempt body else handler`; errorName and errorNamePos are null without `else e ->`. errorType is the class
+ * `else e: IOException ->` catches, null for any `Exception`.
+ */
 data class Attempt(
     val pos: Pos,
     val body: Expr,
     val errorName: String?,
     val errorNamePos: Pos?,
+    val errorType: TypeRef?,
     val handler: Expr
 ) : Expr
 

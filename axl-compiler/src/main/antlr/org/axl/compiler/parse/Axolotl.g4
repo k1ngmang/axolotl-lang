@@ -204,16 +204,22 @@ statement
     | varDecl SEMI?                                         # varStatement
     | RETURN ({sameLine()}? expression)? SEMI?              # returnStatement
     | {_input.LT(1).getText().equals("use")}? IDENTIFIER LPAREN VAL identifier (COLON type)? ASSIGN expression RPAREN block
-      (ELSE (identifier ARROW)? expression)?                # useStatement
+      (ELSE handlerParam? expression)?                      # useStatement
     | BREAK SEMI?                                           # breakStatement
     | CONTINUE SEMI?                                        # continueStatement
     | ifStatement                                           # ifStatementAlt
     | WHILE LPAREN expression RPAREN block                  # whileStatement
     | FOR LPAREN identifier {_input.LT(1).getText().equals("in")}? IDENTIFIER expression RPAREN block   # forStatement
-    | ATTEMPT expression ELSE (identifier ARROW)? attemptExit SEMI?   # attemptExitStatement
+    | ATTEMPT expression ELSE handlerParam? attemptExit SEMI?   # attemptExitStatement
     | postfixExpression assignOp expression SEMI?           # assignStatement
     | expression SEMI?                                      # expressionStatement
     | SEMI                                                  # emptyStatement
+    ;
+
+// `e ->` or `e: IOException ->` before the handler of `attempt` and `use`: the exception, any `Exception` or one of
+// that class; the others are thrown on.
+handlerParam
+    : identifier (COLON type)? ARROW
     ;
 
 // The handler of an `attempt` on a line of its own may leave the loop or the function.
@@ -282,7 +288,7 @@ multiplicative
 prefixExpression
     : (BANG | BANGBANG | MINUS | PLUS) prefixExpression                     # unaryExpression
     | TRY prefixExpression                                                  # tryExpression
-    | ATTEMPT expression ELSE (identifier ARROW)? expression                # attemptExpression
+    | ATTEMPT expression ELSE handlerParam? expression                      # attemptExpression
     | THROW prefixExpression                                                # throwExpression
     | postfixExpression                                                     # postfixAlt
     ;

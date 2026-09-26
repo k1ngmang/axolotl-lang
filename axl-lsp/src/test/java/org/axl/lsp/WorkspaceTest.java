@@ -687,6 +687,18 @@ class WorkspaceTest {
     }
 
     @Test
+    void typesTheErrorNameOfAnAttemptByTheClassItCatches() throws Exception {
+        String line = "fn p(s: String) -> Result<String, String> = attempt java.nio.file.Files.readString(java.nio.file.Path.of(s)) "
+                + "else e: java.io.IOException -> e.getMessage() ?: s";
+        String uri = open("Main.axl", "package app\n\n" + line + "\n");
+        int use = line.lastIndexOf("e.getMessage");
+        assertTrue(hover(uri, 2, use).contains("e: java.io.IOException"), hover(uri, 2, use));
+        List<Location> found = new Definitions(workspace).definition(uri, 2, use);
+        assertEquals(List.of(new Position(2, line.indexOf("e: java"))), found.stream().map(l -> l.getRange().getStart()).toList());
+        assertTrue(memberNames(uri, 2, use + 2).contains("getMessage"), memberNames(uri, 2, use + 2).toString());
+    }
+
+    @Test
     void picksTheOverloadThatFitsTheArguments() throws Exception {
         open("Util.axl", "package app\n\nfn g(s: String) -> String = s\n\nfn g(n: Int) -> Int = n\n");
         String uri = open("Main.axl", """

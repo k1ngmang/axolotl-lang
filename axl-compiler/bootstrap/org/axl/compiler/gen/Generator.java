@@ -1991,10 +1991,12 @@ import org.axl.compiler.check.Whens;
         final var errorName = a.errorName();
         final var error = (errorName != null ? errorName : "$ex" + nextException());
         final var handler = withoutParens(a.handler());
+        final var errorType = a.errorType();
+        final var caught = (errorType == null ? "" : ", " + javaType(errorType) + ".class");
         if (handler instanceof Expr.Throw handler$1) {
-            return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler$1.value(), true) + ")";
+            return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler$1.value(), true) + caught + ")";
         }
-        return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + ")";
+        return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + caught + ")";
     }
     private void useStatement(Stmt.Use stmt) {
         final var line = stmt.pos().line();
@@ -2011,9 +2013,9 @@ import org.axl.compiler.check.Whens;
         }
         final var errorName = stmt.errorName();
         final var error = (errorName != null ? errorName : "$ex" + nextException());
-        em.line(stmt.body().end().line(), "} catch (Exception " + error + ") {");
+        em.line(stmt.body().end().line(), "} catch (" + caughtType(stmt.errorType()) + " " + error + ") {");
         em.indent();
-        keepInterrupt(stmt.body().end().line(), error);
+        keepInterrupt(stmt.body().end().line(), error, stmt.errorType());
         final var inner = withoutParens(handler);
         if (inner instanceof Expr.Throw inner$1) {
             em.line(startLine(inner$1), "throw " + exprIn(inner$1.value(), true) + ";");
@@ -2031,9 +2033,9 @@ import org.axl.compiler.check.Whens;
         em.indent();
         em.line(line, exprIn(a.body(), true) + ";");
         em.dedent();
-        em.line(line, "} catch (Exception " + error + ") {");
+        em.line(line, "} catch (" + caughtType(a.errorType()) + " " + error + ") {");
         em.indent();
-        keepInterrupt(line, error);
+        keepInterrupt(line, error, a.errorType());
         if (handler instanceof Expr.Throw handler$1) {
             em.line(startLine(handler$1), "throw " + exprIn(handler$1.value(), true) + ";");
         } else {
@@ -2051,9 +2053,9 @@ import org.axl.compiler.check.Whens;
             em.indent();
             em.line(line, exprIn(stmt.body(), true) + ";");
             em.dedent();
-            em.line(line, "} catch (Exception " + error + ") {");
+            em.line(line, "} catch (" + caughtType(stmt.errorType()) + " " + error + ") {");
             em.indent();
-            keepInterrupt(line, error);
+            keepInterrupt(line, error, stmt.errorType());
             final var exit = stmt.exit();
             if (!(exit instanceof Stmt.Jump exit$1 && lastContinues.contains(stmt) && jumpCode(exit$1).equals("continue;"))) {
                 statement(exit);
@@ -2062,8 +2064,16 @@ import org.axl.compiler.check.Whens;
             em.line(line, "}");
         });
     }
-    private void keepInterrupt(int line, String error) {
-        em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();");
+    private void keepInterrupt(int line, String error, @Nullable TypeRef caught) {
+        final var name = (caught == null ? "Exception" : caught.name());
+        if (name.equals("InterruptedException") || name.equals("java.lang.InterruptedException")) {
+            em.line(line, "Thread.currentThread().interrupt();");
+        } else if (INTERRUPT_CATCHERS.contains(name)) {
+            em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();");
+        }
+    }
+    private String caughtType(@Nullable TypeRef caught) {
+        return (caught == null ? "Exception" : javaType(caught));
     }
     private int nextException() {
         exceptionCount += 1;
@@ -3129,6 +3139,7 @@ import org.axl.compiler.check.Whens;
     private static final List<String> WIDENING = List.of("Int", "Long", "Double");
     private static final Set<String> TARGET_TYPED_FACTORIES = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
             "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity");
+    private static final Set<String> INTERRUPT_CATCHERS = Set.of("Exception", "Throwable", "java.lang.Exception", "java.lang.Throwable");
     public enum WhenForm { STATEMENT, RESULT, VALUE }
     public record Lifted(String code, boolean pure) {}
     public static GeneratedUnit generate(String sourcePath, SourceFile file, Analysis analysis, Options options,

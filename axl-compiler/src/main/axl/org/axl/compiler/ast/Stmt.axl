@@ -22,7 +22,8 @@ data class Return(val pos: Pos, val value: Expr?) : Stmt
 
 /**
  * `use (val reader = open()) { ... } else e -> handler`: the resource is closed after the block, and the
- * handler, a call or a `throw`, runs when opening, the block or closing throws. handler is null without `else`.
+ * handler, a call or a `throw`, runs when opening, the block or closing throws. handler is null without `else`;
+ * errorType is the class `else e: IOException ->` catches, null for any `Exception`.
  */
 data class Use(
     val pos: Pos,
@@ -33,6 +34,7 @@ data class Use(
     val body: Block,
     val errorName: String?,
     val errorNamePos: Pos?,
+    val errorType: TypeRef?,
     val handler: Expr?
 ) : Stmt
 
@@ -41,13 +43,14 @@ data class Jump(val pos: Pos, val isBreak: Boolean) : Stmt
 
 /**
  * `attempt call() else e -> exit` on a line of its own, where exit, a Jump or a Return, leaves the loop or the
- * function when the call throws. errorName and errorNamePos are null without `e ->`.
+ * function when the call throws. errorName and errorNamePos are null without `e ->`, errorType without `e: T ->`.
  */
 data class AttemptExit(
     val pos: Pos,
     val body: Expr,
     val errorName: String?,
     val errorNamePos: Pos?,
+    val errorType: TypeRef?,
     val exit: Stmt
 ) : Stmt
 

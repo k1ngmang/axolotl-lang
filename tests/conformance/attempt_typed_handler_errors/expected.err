@@ -1,0 +1,7 @@
+AXL100 app/Main.axl:11:40: error: this call can throw `URISyntaxException`, which `else e: IOException ->` does not catch and Axolotl functions cannot pass on; catch every exception with `else e ->`
+AXL100 app/Main.axl:13:54: error: this call can throw `URISyntaxException`, which `else e: IOException ->` does not catch and Axolotl functions cannot pass on; catch every exception with `else e ->`
+AXL100 app/Main.axl:16:24: error: this call can throw `URISyntaxException`, which `else e: IOException ->` does not catch and Axolotl functions cannot pass on; catch every exception with `else e ->`
+AXL100 app/Main.axl:21:38: error: this call can throw `URISyntaxException`, which `else e: IOException ->` does not catch and Axolotl functions cannot pass on; catch every exception with `else e ->`
+AXL100 app/Main.axl:26:5: error: `IOException` is never thrown here, so the handler would never run; catch the exception the code throws, or every exception with `else e ->`
+AXL100 app/Main.axl:29:46: error: `String` is not an exception; write the class of the exceptions to catch, such as `IOException`
+AXL100 app/Main.axl:33:23: error: this call can throw `IOException`, which `else e: NumberFormatException ->` does not catch and Axolotl functions cannot pass on; catch every exception with `else e ->`

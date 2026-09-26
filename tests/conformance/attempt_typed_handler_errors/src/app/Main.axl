@@ -1,0 +1,35 @@
+package app
+
+import java.io.IOException
+import java.io.UncheckedIOException
+import java.net.URI
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.List
+
+// `URI(s)` throws a URISyntaxException, which the handler does not take.
+fn link(s: String) -> String = attempt URI(s).toURL().openStream().toString() else e: IOException -> throw UncheckedIOException(e)
+
+fn linkResult(s: String) -> Result<String, String> = attempt URI(s).toURL().openStream().toString() else e: IOException -> "io"
+
+fn put(out: Appendable, s: String) {
+    attempt out.append(URI(s).toString()) else e: IOException -> throw UncheckedIOException(e)
+}
+
+fn deleteAll(xs: List<String>) {
+    for (x in xs) {
+        attempt Files.delete(Path.of(URI(x))) else e: IOException -> continue
+    }
+}
+
+fn nothing() {
+    attempt println("x") else e: IOException -> throw UncheckedIOException(e)
+}
+
+fn text(p: Path) -> Result<String, String> = attempt Files.readString(p) else e: String -> "x"
+
+fn first(text: String) -> Int {
+    use (val reader = java.io.StringReader(text)) {
+        return reader.read()
+    } else e: NumberFormatException -> throw IllegalStateException(e)
+}

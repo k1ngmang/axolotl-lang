@@ -731,6 +731,8 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
             assertTrue(line + found, found.contains("intValue"));
         }
         assertTrue(complete(main.formatted("attempt Integer.parseInt(\"1\") else e -> e.<caret>")).contains("getMessage"));
+        assertTrue(complete(main.formatted("attempt java.nio.file.Files.delete(java.nio.file.Path.of(\"a\")) "
+                + "else e: java.nio.file.FileSystemException -> println(e.<caret>)")).contains("getFile"));
     }
 
     public void testOffersAnnotationTypesAfterAnAt() {
@@ -778,7 +780,7 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
     public void testShowsNoErrorsForTheConformanceCasesOfTheNewStatementsAndMembers() {
         for (String name : List.of("loop_jumps", "use_resources", "enum_fields", "java_superclass", "data_class_methods",
                 "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io",
-                "when_arm_statements", "attempt_exits")) {
+                "when_arm_statements", "attempt_exits", "attempt_typed_handler")) {
             myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
             assertEquals(name, List.of(), myFixture.doHighlighting().stream()
                     .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());

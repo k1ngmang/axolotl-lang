@@ -45,6 +45,7 @@ import java.util.List;
             Expr body,
             @Nullable String errorName,
             @Nullable Pos errorNamePos,
+            @Nullable TypeRef errorType,
             Expr handler) implements Expr {}
     public record Lambda(
             Pos pos,

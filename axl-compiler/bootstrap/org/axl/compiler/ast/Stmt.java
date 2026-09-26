@@ -23,6 +23,7 @@ import java.util.List;
             Block body,
             @Nullable String errorName,
             @Nullable Pos errorNamePos,
+            @Nullable TypeRef errorType,
             @Nullable Expr handler) implements Stmt {}
     public record Jump(Pos pos, boolean isBreak) implements Stmt {}
     public record AttemptExit(
@@ -30,6 +31,7 @@ import java.util.List;
             Expr body,
             @Nullable String errorName,
             @Nullable Pos errorNamePos,
+            @Nullable TypeRef errorType,
             Stmt exit) implements Stmt {}
     public record If(Pos pos, Expr condition, Block then, @Nullable Stmt elseBranch) implements Stmt {}
     public record While(Pos pos, Expr condition, Block body) implements Stmt {}

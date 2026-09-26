@@ -12,8 +12,24 @@ public sealed interface Result<T extends @Nullable Object, E extends @Nullable O
     static <T extends @Nullable Object> T orThrow(ThrowingSupplier<T> x, Function<Exception, ? extends RuntimeException> y) {
         try { return x.get(); } catch (Exception ex) { keepInterrupt(ex); throw y.apply(ex); }
     }
+    // `attempt X else e: IOException -> Y`: only an exception of that class becomes an Err; any other is thrown on.
+    static <T extends @Nullable Object, X extends Throwable, E extends @Nullable Object> Result<T, E> attempt(ThrowingCall<T, X> x, Function<? super X, E> y, Class<X> type) {
+        try { return new Ok<>(x.get()); } catch (Throwable ex) { return new Err<>(y.apply(caught(ex, type))); }
+    }
+    static <T extends @Nullable Object, X extends Throwable> T orThrow(ThrowingCall<T, X> x, Function<? super X, ? extends RuntimeException> y, Class<X> type) {
+        try { return x.get(); } catch (Throwable ex) { throw y.apply(caught(ex, type)); }
+    }
+    // The exception as the class the handler takes; another one is thrown on as it is.
+    private static <X extends Throwable> X caught(Throwable ex, Class<X> type) {
+        if (!type.isInstance(ex)) throw Result.<RuntimeException>sneaky(ex);
+        keepInterrupt(ex);
+        return type.cast(ex);
+    }
+    // Throws what the handler does not take as it is: the body's ThrowingCall leaves it unchecked or an error.
+    @SuppressWarnings("unchecked")
+    private static <X extends Throwable> RuntimeException sneaky(Throwable ex) throws X { throw (X) ex; }
     // Catching InterruptedException clears the flag; setting it again lets a loop over isInterrupted() end.
-    private static void keepInterrupt(Exception ex) {
+    private static void keepInterrupt(Throwable ex) {
         if (ex instanceof InterruptedException) Thread.currentThread().interrupt();
     }
     default boolean isOk() { return this instanceof Ok; }

@@ -805,7 +805,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
             val errorName = stmt.errorName()
             val errorPos = stmt.errorNamePos()
             if (errorName != null && errorPos != null) {
-                declare(errorPos, errorName, Kind.PARAM, null)
+                declare(errorPos, errorName, Kind.PARAM, caught(stmt.errorType()))
             }
             val inner = unparenthesized(handler)
             if (inner is Expr.Throw) {
@@ -1002,10 +1002,23 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         val errorName = stmt.errorName()
         val errorPos = stmt.errorNamePos()
         if (errorName != null && errorPos != null) {
-            declare(errorPos, errorName, Kind.PARAM, null)
+            declare(errorPos, errorName, Kind.PARAM, caught(stmt.errorType()))
         }
         statement(stmt.exit())
         pop()
+    }
+
+    /** `else e: IOException ->`: the class a handler catches, as a `catch` names it. */
+    private fn caught(type: TypeRef?) -> TypeRef? {
+        if (type == null) {
+            return null
+        }
+        if (type.nullable()) {
+            error(type.pos(), ErrorCode.SYNTAX, "a caught exception is never null; remove the `?`: `" + type.name() + "`")
+        } else if (!type.args().isEmpty()) {
+            error(type.pos(), ErrorCode.SYNTAX, "an exception class takes no type arguments; write `" + type.name() + "`")
+        }
+        return type
     }
 
     private fn assignmentProblem(name: String, symbol: Symbol) -> String {
@@ -1214,7 +1227,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         val errorName = e.errorName()
         val errorPos = e.errorNamePos()
         if (errorName != null && errorPos != null) {
-            declare(errorPos, errorName, Kind.PARAM, null)
+            declare(errorPos, errorName, Kind.PARAM, caught(e.errorType()))
         }
         val handler = unparenthesized(e.handler())
         if (handler is Expr.Throw) {

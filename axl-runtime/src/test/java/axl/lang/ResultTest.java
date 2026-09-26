@@ -41,6 +41,25 @@ class ResultTest {
     }
 
     @Test
+    void attemptOfAClassCatchesOnlyThatClass() {
+        Result<Integer, String> io = Result.attempt(() -> { throw new java.io.FileNotFoundException("f"); }, e -> "io " + e.getMessage(),
+                java.io.IOException.class);
+        assertEquals(new Err<>("io f"), io);
+        assertThrows(NumberFormatException.class,
+                () -> Result.attempt(() -> Integer.parseInt("x"), e -> "io", java.io.IOException.class));
+        assertEquals(new Ok<>(3), Result.attempt(() -> 3, java.io.IOException::getMessage, java.io.IOException.class));
+        assertThrows(java.io.UncheckedIOException.class, () -> Result.orThrow(() -> { throw new java.io.IOException("io"); },
+                java.io.UncheckedIOException::new, java.io.IOException.class));
+        assertThrows(IllegalArgumentException.class, () -> Result.orThrow(() -> { throw new IllegalArgumentException(); },
+                java.io.UncheckedIOException::new, java.io.IOException.class));
+        Thread.currentThread().interrupt();
+        Result<Integer, String> slept = Result.attempt(() -> { Thread.sleep(10_000L); return 1; }, Exception::getMessage,
+                InterruptedException.class);
+        assertTrue(slept.isErr());
+        assertTrue(Thread.interrupted());
+    }
+
+    @Test
     void unwrapOnErrThrows() {
         assertThrows(IllegalStateException.class, () -> Result.unwrap(new Err<Integer, String>("e")));
     }

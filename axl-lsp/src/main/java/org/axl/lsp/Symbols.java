@@ -264,7 +264,7 @@ final class Symbols {
                 case Stmt.AttemptExit attempt -> {
                     expr(attempt.body(), pos, fn, out);
                     if (attempt.errorName() != null && before(attempt.errorNamePos(), pos)) {
-                        out.add(new Symbol(attempt.errorName(), Kind.PARAMETER, attempt.errorNamePos(), null, fn, null));
+                        out.add(new Symbol(attempt.errorName(), Kind.PARAMETER, attempt.errorNamePos(), attempt.errorType(), fn, null));
                     }
                     statements(List.of(attempt.exit()), pos, fn, out);
                 }
@@ -276,7 +276,7 @@ final class Symbols {
                     block(use.body(), pos, fn, out);
                     if (use.handler() != null) {
                         if (use.errorName() != null && before(use.errorNamePos(), pos)) {
-                            out.add(new Symbol(use.errorName(), Kind.PARAMETER, use.errorNamePos(), null, fn, null));
+                            out.add(new Symbol(use.errorName(), Kind.PARAMETER, use.errorNamePos(), use.errorType(), fn, null));
                         }
                         expr(use.handler(), pos, fn, out);
                     }
@@ -424,7 +424,7 @@ final class Symbols {
             case Expr.Attempt a -> {
                 expr(a.body(), pos, fn, out);
                 if (a.errorName() != null && before(a.errorNamePos(), pos)) {
-                    out.add(new Symbol(a.errorName(), Kind.PARAMETER, a.errorNamePos(), null, fn, null));
+                    out.add(new Symbol(a.errorName(), Kind.PARAMETER, a.errorNamePos(), a.errorType(), fn, null));
                 }
                 expr(a.handler(), pos, fn, out);
             }

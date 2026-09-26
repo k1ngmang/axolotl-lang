@@ -757,7 +757,7 @@ import org.axl.compiler.ast.TypeRef;
             final var errorName = stmt.errorName();
             final var errorPos = stmt.errorNamePos();
             if (errorName != null && errorPos != null) {
-                declare(errorPos, errorName, Kind.PARAM, null);
+                declare(errorPos, errorName, Kind.PARAM, caught(stmt.errorType()));
             }
             final var inner = unparenthesized(handler);
             if (inner instanceof Expr.Throw inner$1) {
@@ -944,10 +944,21 @@ import org.axl.compiler.ast.TypeRef;
         final var errorName = stmt.errorName();
         final var errorPos = stmt.errorNamePos();
         if (errorName != null && errorPos != null) {
-            declare(errorPos, errorName, Kind.PARAM, null);
+            declare(errorPos, errorName, Kind.PARAM, caught(stmt.errorType()));
         }
         statement(stmt.exit());
         pop();
+    }
+    private @Nullable TypeRef caught(@Nullable TypeRef type) {
+        if (type == null) {
+            return null;
+        }
+        if (type.nullable()) {
+            error(type.pos(), ErrorCode.SYNTAX, "a caught exception is never null; remove the `?`: `" + type.name() + "`");
+        } else if (!type.args().isEmpty()) {
+            error(type.pos(), ErrorCode.SYNTAX, "an exception class takes no type arguments; write `" + type.name() + "`");
+        }
+        return type;
     }
     private String assignmentProblem(String name, Symbol symbol) {
         final var kind = symbol.kind();
@@ -1168,7 +1179,7 @@ import org.axl.compiler.ast.TypeRef;
         final var errorName = e.errorName();
         final var errorPos = e.errorNamePos();
         if (errorName != null && errorPos != null) {
-            declare(errorPos, errorName, Kind.PARAM, null);
+            declare(errorPos, errorName, Kind.PARAM, caught(e.errorType()));
         }
         final var handler = unparenthesized(e.handler());
         if (handler instanceof Expr.Throw handler$1) {

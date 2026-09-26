@@ -87,6 +87,7 @@ import org.axl.compiler.parse.AxolotlParser.ForStatementContext;
 import org.axl.compiler.parse.AxolotlParser.FunctionBodyContext;
 import org.axl.compiler.parse.AxolotlParser.FunctionDeclContext;
 import org.axl.compiler.parse.AxolotlParser.GenericConstructorContext;
+import org.axl.compiler.parse.AxolotlParser.HandlerParamContext;
 import org.axl.compiler.parse.AxolotlParser.IdentifierContext;
 import org.axl.compiler.parse.AxolotlParser.IfPrimaryContext;
 import org.axl.compiler.parse.AxolotlParser.IfStatementContext;
@@ -353,12 +354,19 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
                 buildExpr(decl.expression()), false);
     }
     private static Stmt.Use buildUse(UseStatementContext ctx) {
-        final var names = ctx.identifier();
-        final @Nullable String errorName = (names.size() > 1 ? nameOf(names.get(1)) : null);
-        final @Nullable Pos errorPos = (names.size() > 1 ? pos(names.get(1).start) : null);
+        final var param = ctx.handlerParam();
         final @Nullable Expr handler = (ctx.expression().size() > 1 ? buildExpr(ctx.expression(1)) : null);
-        return new Stmt.Use(pos(ctx.start), pos(names.get(0).start), nameOf(names.get(0)), typeOrNull(ctx.type()),
-                buildExpr(ctx.expression(0)), buildBlock(ctx.block()), errorName, errorPos, handler);
+        return new Stmt.Use(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()), typeOrNull(ctx.type()),
+                buildExpr(ctx.expression(0)), buildBlock(ctx.block()), handlerName(param), handlerNamePos(param), handlerType(param), handler);
+    }
+    private static @Nullable String handlerName(@Nullable HandlerParamContext ctx) {
+        return (ctx == null ? null : nameOf(ctx.identifier()));
+    }
+    private static @Nullable Pos handlerNamePos(@Nullable HandlerParamContext ctx) {
+        return (ctx == null ? null : pos(ctx.identifier().start));
+    }
+    private static @Nullable TypeRef handlerType(@Nullable HandlerParamContext ctx) {
+        return (ctx == null ? null : typeOrNull(ctx.type()));
     }
     private static Stmt.Return buildReturn(ReturnStatementContext ctx) {
         final var value = ctx.expression();
@@ -366,10 +374,9 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Return(pos(ctx.start), result);
     }
     private static Stmt.AttemptExit buildAttemptExit(AttemptExitStatementContext ctx) {
-        final var name = ctx.identifier();
-        final @Nullable String errorName = (name == null ? null : nameOf(name));
-        final @Nullable Pos errorPos = (name == null ? null : pos(name.start));
-        return new Stmt.AttemptExit(pos(ctx.start), buildExpr(ctx.expression()), errorName, errorPos, buildExit(ctx.attemptExit()));
+        final var param = ctx.handlerParam();
+        return new Stmt.AttemptExit(pos(ctx.start), buildExpr(ctx.expression()), handlerName(param), handlerNamePos(param), handlerType(param),
+                buildExit(ctx.attemptExit()));
     }
     private static Stmt buildExit(AttemptExitContext ctx) {
         if (ctx.RETURN() == null) {
@@ -506,10 +513,9 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new Unary(pos(ctx.start), ctx.start.getText(), buildPrefix(ctx.prefixExpression()));
     }
     private static Expr buildAttempt(AttemptExpressionContext ctx) {
-        final var name = ctx.identifier();
-        final @Nullable String errorName = (name == null ? null : nameOf(name));
-        final @Nullable Pos errorPos = (name == null ? null : pos(name.start));
-        return new Attempt(pos(ctx.start), buildExpr(ctx.expression(0)), errorName, errorPos, buildExpr(ctx.expression(1)));
+        final var param = ctx.handlerParam();
+        return new Attempt(pos(ctx.start), buildExpr(ctx.expression(0)), handlerName(param), handlerNamePos(param), handlerType(param),
+                buildExpr(ctx.expression(1)));
     }
     private static boolean hasSafeStep(Expr e) {
         switch (e) {

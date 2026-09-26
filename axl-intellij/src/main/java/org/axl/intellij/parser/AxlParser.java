@@ -585,15 +585,25 @@ public final class AxlParser implements PsiParser {
         expect(RPAREN, "`)` expected");
         block(LBRACE);
         if (consume(ELSE)) {
-            if (at(IDENTIFIER) && b.lookAhead(1) == AxlTokenTypes.of(ARROW)) {
-                PsiBuilder.Marker param = b.mark();
-                b.advanceLexer();
-                param.done(AxlElementTypes.LAMBDA_PARAMETER);
-                b.advanceLexer();
-            }
+            handlerParameter();
             expression();
         }
         m.done(AxlElementTypes.USE);
+    }
+
+    /** `e ->` or `e: IOException ->` after the `else` of `attempt` and `use`: a parameter of the handler, maybe typed. */
+    private void handlerParameter() {
+        boolean typed = b.lookAhead(1) == AxlTokenTypes.of(COLON);
+        if (!at(IDENTIFIER) || b.lookAhead(1) != AxlTokenTypes.of(ARROW) && !typed) {
+            return;
+        }
+        PsiBuilder.Marker param = b.mark();
+        b.advanceLexer();
+        if (consume(COLON)) {
+            type();
+        }
+        param.done(AxlElementTypes.LAMBDA_PARAMETER);
+        expect(ARROW, "`->` expected");
     }
 
     private void forStatement() {
@@ -810,12 +820,7 @@ public final class AxlParser implements PsiParser {
             b.advanceLexer();
             expression();
             if (expect(ELSE, "`else` expected")) {
-                if (at(IDENTIFIER) && b.lookAhead(1) == AxlTokenTypes.of(ARROW)) {
-                    PsiBuilder.Marker param = b.mark();
-                    b.advanceLexer();
-                    param.done(AxlElementTypes.LAMBDA_PARAMETER);
-                    b.advanceLexer();
-                }
+                handlerParameter();
                 if (statement && (at(BREAK) || at(CONTINUE) || at(RETURN))) {
                     exit();
                 } else {
