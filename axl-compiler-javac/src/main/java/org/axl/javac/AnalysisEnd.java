@@ -4,6 +4,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
+import javax.tools.JavaFileObject;
 
 /**
  * Runs an action once javac has analyzed every class it entered, before it writes class files and
@@ -33,7 +34,8 @@ final class AnalysisEnd implements TaskListener {
             task.addTaskListener(new TaskListener() {
                 @Override
                 public void finished(TaskEvent e) {
-                    if (e.getKind() == TaskEvent.Kind.ANALYZE && ++analyzed == entered) {
+                    // javac also analyzes package-info.java and module-info.java, which declare no class.
+                    if (e.getKind() == TaskEvent.Kind.ANALYZE && declaresClasses(e) && ++analyzed == entered) {
                         run();
                     }
                 }
@@ -48,6 +50,13 @@ final class AnalysisEnd implements TaskListener {
         } else if (event.getKind() == TaskEvent.Kind.COMPILATION) {
             run();
         }
+    }
+
+    private static boolean declaresClasses(TaskEvent event) {
+        JavaFileObject file = event.getSourceFile();
+        return file == null
+                || (!file.isNameCompatible("package-info", JavaFileObject.Kind.SOURCE)
+                        && !file.isNameCompatible("module-info", JavaFileObject.Kind.SOURCE));
     }
 
     private void run() {

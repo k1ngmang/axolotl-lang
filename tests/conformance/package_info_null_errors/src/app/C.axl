@@ -1,0 +1,6 @@
+package app
+
+fn lengthC() -> Int {
+    val s: String? = System.getenv("NOPE")
+    return s.length()
+}

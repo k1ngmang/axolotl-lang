@@ -1,0 +1,2 @@
+/** The application. */
+package app;

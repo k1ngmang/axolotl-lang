@@ -1,0 +1,3 @@
+AXL102 app/A.axl:5:14: error: `s` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/B.axl:5:14: error: `s` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/C.axl:5:14: error: `s` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
