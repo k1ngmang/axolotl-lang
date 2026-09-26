@@ -207,7 +207,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     private static Decl.ClassDecl buildClass(ClassDeclContext ctx) {
         final var parameters = new ArrayList<Property>();
         for (final var p : ctx.classParam()) {
-            parameters.add(new Property(pos(p.start), pos(p.identifier().start), false, nameOf(p.identifier()),
+            parameters.add(new Property(pos(p.start), pos(p.identifier().start), p.PRIVATE() != null, nameOf(p.identifier()),
                     buildType(p.type()), null, p.VAR() != null, buildAnnotations(p.annotation())));
         }
         final var properties = new ArrayList<Property>();

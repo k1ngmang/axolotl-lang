@@ -338,10 +338,16 @@ public final class AxlParser implements PsiParser {
         }
     }
 
-    /** `val name: Type`, a component of a data class or a value an interface requires; a class takes `var` too. */
+    /**
+     * `val name: Type`, a component of a data class or a value an interface requires; a class takes `var` too, and
+     * `private` for a value only its own code reads.
+     */
     private void field(boolean allowVar) {
         PsiBuilder.Marker m = b.mark();
         annotations();
+        if (allowVar) {
+            consume(PRIVATE);
+        }
         fieldRest(m, allowVar);
     }
 

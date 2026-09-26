@@ -1,3 +1,3 @@
 package app
 
-class P(private val n: Int)
+data class P(private val n: Int)

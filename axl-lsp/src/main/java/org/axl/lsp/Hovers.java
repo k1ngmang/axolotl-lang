@@ -57,7 +57,7 @@ final class Hovers {
         Supplier<List<String>> argumentTypes = () -> workspace.argumentTypes(document, token);
         if (isMember(document, token)) {
             Declarations.Found member = declarations.member(document, token, argumentTypes);
-            return member == null ? null : member.text();
+            return member == null || member.hiddenFrom(document, Document.start(token)) ? null : member.text();
         }
         TypeParameters.Owner owner = TypeParameters.ownerOf(document.ast, Document.start(token), token.getText());
         if (owner != null) {
@@ -124,7 +124,8 @@ final class Hovers {
                     + TypeParameters.text(iface.typeParams()) + supertypes(iface.supertypes(), false) + interfaceBody(iface);
             case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + TypeParameters.text(classDecl.typeParams())
                     + classDecl.parameters().stream()
-                    .map(p -> (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"))
+                    .map(p -> (p.isPrivate() ? "private " : "") + (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type()))
+                    .collect(Collectors.joining(", ", "(", ")"))
                     + supertypes(classDecl.supertypes(), classDecl.superArgs() != null);
             case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name()
                     + (enumeration.fields().isEmpty() ? "" : fields(enumeration.fields()));

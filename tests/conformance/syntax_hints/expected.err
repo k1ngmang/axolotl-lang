@@ -42,7 +42,7 @@ AXL001 app/ParenthesizedLine.axl:5:5: error: a line that starts with `(` starts 
 AXL001 app/PlusOnNextLine.axl:5:14: error: missing `)` at the end of the line: a line that starts with `+` starts a new statement, so end this line with the `+` instead
 AXL001 app/PlusStartsLine.axl:5:9: error: a line that starts with `+` starts a new statement; to go on with the line before, end it with `+` instead
 AXL001 app/PrimitiveTypeArgument.axl:6:14: error: a type argument cannot be `int`; write `Int`, as in `ArrayList<Int>()`
-AXL001 app/PrivateClassParameter.axl:3:9: error: class parameters cannot be `private`; give the class a `private val` property with the value instead
+AXL001 app/PrivateClassParameter.axl:3:14: error: the fields of a data class are public, as those of a Java record; remove `private`, or make `P` a `class` to keep the value inside it
 AXL001 app/PropertyWithoutValue.axl:4:9: error: a property needs a value: `var count: Int = ...`
 AXL001 app/Repeat.axl:4:15: error: Axolotl has no `repeat`; count with a `while` loop
 AXL001 app/ReturnInBody.axl:3:23: error: a body after `=` is the value itself; remove `return`

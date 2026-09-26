@@ -1,0 +1,15 @@
+package app
+
+class Opt(val name: String, private val description: String?, private var uses: Int) {
+    fn describe() -> String = name + ": " + description + " " + uses
+}
+
+fn description(o: Opt) -> String? = o.description
+
+fn reset(o: Opt) {
+    o.uses = 0
+}
+
+fn freeze(o: Opt) {
+    o.description = null
+}

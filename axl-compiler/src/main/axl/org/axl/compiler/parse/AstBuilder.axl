@@ -209,7 +209,7 @@ private fn buildEnum(enumeration: EnumDeclContext) -> Decl.EnumDecl {
 private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
     val parameters = ArrayList<Property>()
     for (p in ctx.classParam()) {
-        parameters.add(Property(pos(p.start), pos(p.identifier().start), false, nameOf(p.identifier()),
+        parameters.add(Property(pos(p.start), pos(p.identifier().start), p.PRIVATE() != null, nameOf(p.identifier()),
             buildType(p.type()), null, p.VAR() != null, buildAnnotations(p.annotation())))
     }
     val properties = ArrayList<Property>()

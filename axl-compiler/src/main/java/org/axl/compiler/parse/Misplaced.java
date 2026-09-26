@@ -94,23 +94,23 @@ final class Misplaced {
         return null;
     }
 
-    /** `class Box(v: Int)` and `class P(private val n: Int)`. */
+    /** `class Box(v: Int)` and `data class P(private val n: Int)`. */
     private static Placed classParameter(CommonTokenStream tokens, Token at, Token previous) {
         Token paren = enclosingParen(tokens, at);
         Token name = before(tokens, paren);
         if (paren == null || type(before(tokens, name)) != AxolotlLexer.CLASS) {
             return null;
         }
-        if (at.getType() == AxolotlLexer.PRIVATE) {
-            return new Placed(at, "class parameters cannot be `private`; give the class a `private val` property "
-                    + "with the value instead", true);
+        boolean data = Mistakes.text(before(tokens, before(tokens, name))).equals("data");
+        if (at.getType() == AxolotlLexer.PRIVATE && data) {
+            return new Placed(at, "the fields of a data class are public, as those of a Java record; remove `private`, "
+                    + "or make `" + name.getText() + "` a `class` to keep the value inside it", true);
         }
         boolean field = at.getType() == AxolotlLexer.IDENTIFIER && type(SourceParser.nextToken(tokens, at)) == AxolotlLexer.COLON
                 && (previous == paren || previous.getType() == AxolotlLexer.COMMA);
         if (!field) {
             return null;
         }
-        boolean data = Mistakes.text(before(tokens, before(tokens, name))).equals("data");
         String declared = at.getText() + ": " + typeText(tokens, SourceParser.nextToken(tokens, SourceParser.nextToken(tokens, at)));
         return new Placed(at, "a parameter of a class is a property; write `val " + declared + "`"
                 + (data ? "" : ", or `var " + declared + "` if it changes"), true);

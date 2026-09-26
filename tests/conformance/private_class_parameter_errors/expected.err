@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:7:39: error: `description` is private to `Opt`; only the code of `Opt` can use it
+AXL100 app/Main.axl:10:7: error: `uses` is private to `Opt`; only the code of `Opt` can use it
+AXL008 app/Main.axl:14:7: error: cannot assign to the `val` property `description`; declare it with `var`
+AXL100 app/Other.axl:5:28: error: `uses` is private to `Opt` and can only be used in app/Main.axl

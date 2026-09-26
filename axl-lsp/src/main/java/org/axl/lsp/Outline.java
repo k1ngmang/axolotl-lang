@@ -81,6 +81,14 @@ final class Outline {
         return false;
     }
 
+    /** Whether a position is in the text of a top-level declaration of the document, from its start to its last token. */
+    static boolean within(Document document, Decl decl, Pos pos) {
+        List<Decl> decls = document.ast.decls();
+        int index = decls.indexOf(decl);
+        Token last = lastToken(document, decl.pos(), index >= 0 && index + 1 < decls.size() ? decls.get(index + 1).pos() : null);
+        return Symbols.before(decl.pos(), pos) && last != null && !Symbols.before(Document.end(last), pos);
+    }
+
     private static Token lastToken(Document document, Pos start, Pos next) {
         Token last = null;
         int depth = 0;

@@ -1,0 +1,5 @@
+package app
+
+import app.Main.Opt
+
+fn uses(o: Opt) -> Int = o.uses

@@ -70,14 +70,15 @@ final class PrivateAccess implements TaskListener {
             Element member = trees.getElement(getCurrentPath());
             boolean checked = member != null && member.getModifiers().contains(Modifier.PRIVATE)
                     && (member.getKind() == ElementKind.FIELD || member.getKind() == ElementKind.METHOD);
-            if (checked && sameFile(member) && !assigned(select) && !inside(member.getEnclosingElement())) {
+            boolean reported = !assigned(select) || !member.getModifiers().contains(Modifier.FINAL);
+            if (checked && reported && sameFile(member) && !inside(member.getEnclosingElement())) {
                 String message = PREFIX + message(member);
                 found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, select, unit));
             }
             return super.visitMemberSelect(select, unused);
         }
 
-        /** javac itself reports members of other files, and the checker an assignment to a field. */
+        /** javac itself reports members of other files, and an assignment to a `val` as one to a final field. */
         private boolean sameFile(Element member) {
             TreePath declaration = trees.getPath(member);
             return declaration != null && declaration.getCompilationUnit() == unit;

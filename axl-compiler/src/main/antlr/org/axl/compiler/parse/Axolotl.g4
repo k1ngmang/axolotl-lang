@@ -154,8 +154,9 @@ classDecl
       (LBRACE classMember* RBRACE)?
     ;
 
+// `private val` keeps the value inside the class: Java's private field, without the public accessor.
 classParam
-    : annotation* (VAL | VAR) identifier COLON type
+    : annotation* PRIVATE? (VAL | VAR) identifier COLON type
     ;
 
 classMember

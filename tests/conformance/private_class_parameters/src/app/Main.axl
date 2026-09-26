@@ -1,0 +1,34 @@
+package app
+
+interface Named {
+    val name: String
+}
+
+// commons-cli Option: the description is set by the constructor and read only by the class.
+class Opt(val name: String, private val description: String?, private var uses: Int) : Named {
+    private val shown: String = name + ": " + (description ?: "no description")
+
+    fn describe() -> String {
+        uses += 1
+        return shown + " (" + uses + ")"
+    }
+
+    fn sameDescription(other: Opt) -> Boolean = java.util.Objects.equals(description, other.description)
+}
+
+// The value an interface requires may be private in the class; the accessor stays public.
+class Secret(private val name: String) : Named {
+    fn masked() -> String = name.substring(0, 1) + "***"
+}
+
+fn main() {
+    val o = Opt("verbose", "print more", 0)
+    println(o.describe())
+    println(o.describe())
+    println(o.sameDescription(Opt("v", "print more", 0)))
+    println(o.name)
+    val s = Secret("hunter2")
+    println(s.masked())
+    val named: Named = s
+    println(named.name().length())
+}

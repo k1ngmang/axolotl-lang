@@ -17,8 +17,22 @@ import org.axl.compiler.ast.SourceFile;
  */
 final class Declarations {
 
-    /** A declaration: the document it is in, the position of its name, and its hover text. */
-    record Found(Document document, Pos pos, String text) {}
+    /** A declaration: the document it is in, the position of its name, and its hover text; privateTo is the class a private member is in. */
+    record Found(Document document, Pos pos, String text, Decl.ClassDecl privateTo) {
+        Found(Document document, Pos pos, String text) {
+            this(document, pos, text, null);
+        }
+
+        /** Whether code at a position of a document cannot use the member: it is private to a class the position is not in. */
+        boolean hiddenFrom(Document from, Pos at) {
+            if (privateTo == null) {
+                return false;
+            }
+            Decl own = from.ast == null || !from.path.equals(document.path) ? null : from.ast.decls().stream()
+                    .filter(d -> d instanceof Decl.ClassDecl && d.name().equals(privateTo.name())).findFirst().orElse(null);
+            return own == null || !Outline.within(from, own, at);
+        }
+    }
 
     /** A type of an .axl file; decl is null for the class of a file that declares no type of its name. */
     record TypeAt(Document document, Decl decl) {}
@@ -116,15 +130,17 @@ final class Declarations {
     private static Found classMember(Document document, Decl.ClassDecl classDecl, String name, Supplier<List<String>> argumentTypes) {
         for (Decl.Property property : classDecl.parameters()) {
             if (property.name().equals(name)) {
-                return property(document, property);
+                return property(document, property, classDecl);
             }
         }
         for (Decl.Property property : classDecl.properties()) {
             if (property.name().equals(name)) {
-                return property(document, property);
+                return property(document, property, classDecl);
             }
         }
-        return method(document, classDecl.methods(), name, argumentTypes);
+        Found method = method(document, classDecl.methods(), name, argumentTypes);
+        boolean hidden = method != null && method.text().startsWith("private ");
+        return hidden ? new Found(method.document(), method.pos(), method.text(), classDecl) : method;
     }
 
     private static Found method(Document document, List<Decl.Function> all, String name, Supplier<List<String>> argumentTypes) {
@@ -138,9 +154,10 @@ final class Declarations {
         return new Found(document, method.namePos(), Hovers.signature(method));
     }
 
-    private static Found property(Document document, Decl.Property property) {
+    private static Found property(Document document, Decl.Property property, Decl.ClassDecl owner) {
         String type = property.type() == null ? "" : ": " + Hovers.typeText(property.type());
-        return new Found(document, property.namePos(), (property.mutable() ? "var " : "val ") + property.name() + type);
+        String text = (property.isPrivate() ? "private " : "") + (property.mutable() ? "var " : "val ") + property.name() + type;
+        return new Found(document, property.namePos(), text, property.isPrivate() ? owner : null);
     }
 
     private static Found constant(Document document, Decl.EnumDecl enumeration, String name) {

@@ -1,6 +1,7 @@
 package org.axl.lsp;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -382,6 +383,28 @@ class TypesAndMembersTest {
         assertContains(hoverAt(shapes, SHAPES, "Color.|RED"), "RED: Color");
         assertContains(hoverAt(main, MAIN, "= |Counter.start"), "class Counter(val name: String, var step: Int)");
         assertContains(hoverAt(main, MAIN, "|Shapes.area"), "class Shapes");
+    }
+
+    @Test
+    void keepsPrivateClassParametersToTheirClass() throws Exception {
+        String text = """
+                package app
+
+                class Opt(val name: String, private val description: String?) {
+                    fn same(other: Opt) -> Boolean = java.util.Objects.equals(other.description, description)
+                }
+
+                fn main() {
+                    val o = Opt("a", "b")
+                    println(o.name + o.description)
+                }
+                """;
+        String uri = open("Main.axl", text);
+        assertContains(hoverAt(uri, text, "other.|description"), "private val description: String?");
+        assertContains(hoverAt(uri, text, "= |Opt(\"a\""), "class Opt(val name: String, private val description: String?)");
+        assertFalse(hoverAt(uri, text, "o.|description").contains("val description"));
+        List<String> members = membersAt(uri, text, "o.|name");
+        assertTrue(members.contains("name") && !members.contains("description"), members.toString());
     }
 
     @Test
