@@ -671,6 +671,21 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertCompletes(COUNTER.replace("println(d.count)", "println(d.<caret>)"), "count", "next");
     }
 
+    public void testDoesNotCompleteThePrivateParametersOfAClassOutsideIt() {
+        List<String> found = complete("""
+                package app
+
+                class Opt(val name: String, private val description: String?) {
+                    fn same(other: Opt) -> Boolean = java.util.Objects.equals(other.description, description)
+                }
+
+                fn main() {
+                    println(Opt("a", "b").<caret>)
+                }
+                """);
+        assertTrue(found.toString(), found.contains("name") && !found.contains("description"));
+    }
+
     public void testCompletesTheMethodsOfAnInterfaceTypedValue() {
         assertCompletes(NOTES.replace("notes.clear()", "notes.<caret>"), "add", "find", "clear", "name");
     }
