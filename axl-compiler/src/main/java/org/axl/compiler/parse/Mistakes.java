@@ -46,6 +46,10 @@ final class Mistakes {
         if ((at.getType() == AxolotlLexer.VAL || at.getType() == AxolotlLexer.VAR) && inDataClass(tokens, at)) {
             return new Placed(at, dataClassProperty(tokens, at));
         }
+        String constructor = constructorOutsideClass(tokens, at);
+        if (constructor != null) {
+            return new Placed(at, constructor);
+        }
         Token withoutBraces = withoutBraces(tokens, at);
         if (withoutBraces != null) {
             return new Placed(withoutBraces, SourceParser.needsBraces(withoutBraces));
@@ -398,6 +402,24 @@ final class Mistakes {
         Token brace = enclosingBrace(tokens, at);
         return brace != null && lineHas(tokens, brace.getLine(), AxolotlLexer.CLASS)
                 && tokens.getTokens().stream().anyMatch(t -> t.getLine() == brace.getLine() && t.getText().equals("data"));
+    }
+
+    /** `constructor(...)` in the body of a data class, an enum or an interface, whose constructors are their own. */
+    private static String constructorOutsideClass(CommonTokenStream tokens, Token at) {
+        Token brace = enclosingBrace(tokens, at);
+        boolean constructor = at.getText().equals("constructor") && type(SourceParser.nextToken(tokens, at)) == AxolotlLexer.LPAREN;
+        if (!constructor || brace == null) {
+            return null;
+        }
+        if (inDataClass(tokens, at)) {
+            return "a data class has one constructor, which takes all its fields; to create one from other values, "
+                    + "write a function of the file that calls it";
+        }
+        if (lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM)) {
+            return "an enum has one constructor, which takes its fields; each constant gives them all";
+        }
+        return lineHas(tokens, brace.getLine(), AxolotlLexer.INTERFACE)
+                ? "an interface has no constructors; the classes that implement it have them" : null;
     }
 
     /** `val message: String = reason` in the body of a data class, as the method it can be. */

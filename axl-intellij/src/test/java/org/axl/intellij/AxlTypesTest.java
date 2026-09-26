@@ -555,6 +555,38 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
                 .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
     }
 
+    public void testResolvesConstructorParametersAndHighlightsConstructor() {
+        myFixture.configureByText("Main.axl", """
+                package app
+
+                class Opt(val opt: String?, val hasArg: Boolean) {
+                    constructor(opt: String?) = this(opt, false)
+
+                    @Deprecated
+                    private constructor() = this(null, true)
+
+                    fn describe() -> String = opt + hasArg
+                }
+
+                fn main() {
+                    println(Opt("a").describe())
+                }
+                """);
+        PsiElement parameter = resolveAt("this(|opt, false)");
+        assertTrue(parameter.toString(), parameter instanceof AxlVariable variable && variable.getName().equals("opt"));
+        assertEquals(myFixture.getFile().getText().indexOf("opt: String?) ="), parameter.getTextOffset());
+        String text = myFixture.getFile().getText();
+        assertEquals(List.of("constructor", "constructor"), highlighted(text, AxlSyntaxHighlighter.KEYWORD));
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+        assertTrue(complete(text.replace("    fn describe()", "    <caret>\n    fn describe()")).contains("constructor"));
+        PsiClass opt = findClass("app.Main.Opt");
+        PsiMethod[] constructors = opt.getConstructors();
+        assertEquals(3, constructors.length);
+        assertEquals(text.indexOf("constructor(opt"), constructors[1].getNavigationElement().getTextOffset());
+        assertTrue(constructors[2].hasModifierProperty(PsiModifier.PRIVATE));
+    }
+
     public void testShowsTheErrorsOfTheExitsOfAnAttemptStatement() {
         myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "attempt_exit_errors", "src", "app", "Main.axl")));
         List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
@@ -780,7 +812,7 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
     public void testShowsNoErrorsForTheConformanceCasesOfTheNewStatementsAndMembers() {
         for (String name : List.of("loop_jumps", "use_resources", "enum_fields", "java_superclass", "data_class_methods",
                 "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io",
-                "when_arm_statements", "attempt_exits", "attempt_typed_handler")) {
+                "when_arm_statements", "attempt_exits", "attempt_typed_handler", "class_constructors")) {
             myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
             assertEquals(name, List.of(), myFixture.doHighlighting().stream()
                     .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());

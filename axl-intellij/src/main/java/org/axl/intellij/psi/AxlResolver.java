@@ -387,6 +387,8 @@ public final class AxlResolver {
     private static List<PsiElement> localDeclarations(PsiElement place) {
         List<PsiElement> result = new ArrayList<>();
         PsiElement child = place;
+        // `this(...)` of a constructor runs before the object has fields.
+        boolean inConstructor = false;
         for (PsiElement parent = place.getParent(); parent != null && !(parent instanceof AxlFile); parent = parent.getParent()) {
             var type = parent.getNode().getElementType();
             if (type == AxlElementTypes.BLOCK || type == AxlElementTypes.LAMBDA || type == AxlElementTypes.ATTEMPT) {
@@ -406,10 +408,17 @@ public final class AxlResolver {
             } else if (parent instanceof AxlFunction function) {
                 result.addAll(function.parameters());
                 result.addAll(function.typeParameters());
+            } else if (type == AxlElementTypes.CONSTRUCTOR) {
+                for (PsiElement part : parent.getChildren()) {
+                    if (part.getNode().getElementType() == AxlElementTypes.PARAMETER_LIST) {
+                        result.addAll(PsiTreeUtil.getChildrenOfTypeAsList(part, AxlVariable.class));
+                    }
+                }
+                inConstructor = true;
             } else if (parent instanceof AxlTypeDeclaration declaration) {
                 result.addAll(declaration.typeParameters());
                 // The methods of a class and of a data class read its fields by name.
-                if (type == AxlElementTypes.CLASS || type == AxlElementTypes.DATA_CLASS) {
+                if (!inConstructor && (type == AxlElementTypes.CLASS || type == AxlElementTypes.DATA_CLASS)) {
                     result.addAll(declaration.fields());
                     result.addAll(declaration.methods());
                 }

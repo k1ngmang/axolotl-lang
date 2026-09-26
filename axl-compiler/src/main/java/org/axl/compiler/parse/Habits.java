@@ -649,7 +649,9 @@ final class Habits {
             case "readonly" -> next == AxolotlLexer.IDENTIFIER ? "write `val` instead of `readonly`" : null;
             case "init" -> startsLine(tokens, i) && next == AxolotlLexer.LBRACE
                     ? "a class has no `init` block; give each property its value where it is declared" : null;
+            // Kotlin's `class Opt constructor(...)`; in the body `constructor(...) = this(...)` is a constructor of Axolotl.
             case "constructor" -> previous == AxolotlLexer.IDENTIFIER && next == AxolotlLexer.LPAREN
+                    && type(tokens, SourceParser.previousCode(tokens, previousIndex)) == AxolotlLexer.CLASS
                     ? "write the parameters right after the class name: `class " + text(tokens, previousIndex)
                     + source(tokens, SourceParser.nextCode(tokens, i), matching(tokens, SourceParser.nextCode(tokens, i), 1)) + "`"
                     : null;

@@ -72,6 +72,7 @@ import org.axl.compiler.parse.AxolotlParser.ClassParamContext
 import org.axl.compiler.parse.AxolotlParser.ComparisonContext
 import org.axl.compiler.parse.AxolotlParser.CompilationUnitContext
 import org.axl.compiler.parse.AxolotlParser.ConjunctionContext
+import org.axl.compiler.parse.AxolotlParser.ConstructorMemberContext
 import org.axl.compiler.parse.AxolotlParser.ContinueStatementContext
 import org.axl.compiler.parse.AxolotlParser.DataClassDeclContext
 import org.axl.compiler.parse.AxolotlParser.DisjunctionContext
@@ -215,8 +216,11 @@ private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
     }
     val properties = ArrayList<Property>()
     val methods = ArrayList<Decl.Function>()
+    val constructors = ArrayList<Decl.Constructor>()
     for (member in ctx.classMember()) {
-        if (member is PropertyMemberContext) {
+        if (member is ConstructorMemberContext) {
+            constructors.add(buildConstructor(member))
+        } else if (member is PropertyMemberContext) {
             properties.add(Property(pos(member.start), pos(member.identifier().start), member.PRIVATE() != null,
                 nameOf(member.identifier()), typeOrNull(member.type()), buildExpr(member.expression()), member.VAR() != null,
                 buildAnnotations(member.annotation())))
@@ -229,7 +233,23 @@ private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {
     val superArgs: List<Expr>? = if (hasSuperArgs(ctx)) buildArguments(ctx.arguments()) else null
     return ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
         parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()),
-        superArgs)
+        superArgs, constructors)
+}
+
+/** `constructor(a: String) = this(a, 0)`: only a call of `this`, which Java makes the first statement of the constructor. */
+private fn buildConstructor(ctx: ConstructorMemberContext) -> Decl.Constructor {
+    val value = ctx.functionBody().expression()
+    if (value == null) {
+        throw Rejected(pos(ctx.functionBody().start), "a constructor has no body: it passes its values on to the class's " +
+            "parameters, as in `constructor(name: String) = this(name, 0)`")
+    }
+    val call = buildExpr(value)
+    if (call !is Expr.Call || call.target() != null || !call.name().equals("this")) {
+        throw Rejected(pos(value.start), "a constructor passes its values on to the class's parameters with `this(...)`, " +
+            "as in `constructor(name: String) = this(name, 0)`")
+    }
+    return Decl.Constructor(pos(ctx.start), pos(ctx.IDENTIFIER().getSymbol()), ctx.PRIVATE() != null, buildParams(ctx.param()),
+        call.args(), call.pos(), buildAnnotations(ctx.annotation()))
 }
 
 /** `: Thread(name)` or `: Thread()`: a `(` after the colon, as the class parameters' `(` comes before it. */

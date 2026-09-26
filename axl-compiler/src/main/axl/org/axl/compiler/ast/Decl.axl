@@ -93,8 +93,23 @@ data class ClassDecl(
     val annotations: List<Annotation>,
     val typeParams: List<TypeParam>,
     /** `: Thread(name)`: the first supertype is a Java class to extend, with these constructor arguments; null when none. */
-    val superArgs: List<Expr>?
+    val superArgs: List<Expr>?,
+    val constructors: List<Constructor>
 ) : Decl
+
+/**
+ * `constructor(opt: String?) = this(opt, null)` in a class: another Java constructor, which passes its arguments to
+ * the class's parameters. namePos is where `constructor` is, thisPos where the call of `this` is.
+ */
+data class Constructor(
+    val pos: Pos,
+    val namePos: Pos,
+    val isPrivate: Boolean,
+    val params: List<Expr.Param>,
+    val args: List<Expr>,
+    val thisPos: Pos,
+    val annotations: List<Annotation>
+)
 
 /** An enumeration of constants without members. */
 data class EnumDecl(

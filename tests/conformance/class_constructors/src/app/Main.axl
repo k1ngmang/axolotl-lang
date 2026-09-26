@@ -1,0 +1,37 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+// Without parameters of its own, the class still gets the constructor that takes none.
+class Counter {
+    var count = 0
+
+    constructor(start: Int) = this()
+}
+
+class Stack<T>(val items: List<T>, val limit: Int) {
+    constructor(limit: Int) = this(ArrayList<T>(), limit)
+
+    constructor() = this(ArrayList<T>(), Integer.MAX_VALUE)
+}
+
+class Failure(val code: Int, val reason: String) : RuntimeException(reason) {
+    constructor(reason: String) = this(500, reason)
+
+    constructor(code: Long) = this(Math.toIntExact(code), if (code > 0L) "code " + code else "none")
+}
+
+fn main() {
+    println(Opt("a", "first").describe())
+    println(Opt("b", true, "second").describe())
+    println(Opt("c", "long", true, "third").describe())
+    println(Opt("d").describe())
+    println(Opt("e", "x").blank().describe())
+    println(Counter(3).count + Counter().count)
+    println(Stack<String>(4).limit)
+    println(Stack<String>().items.size())
+    println(Failure("broken").code)
+    println(Failure(7L).getMessage())
+    println(JavaCaller.describeAll())
+}

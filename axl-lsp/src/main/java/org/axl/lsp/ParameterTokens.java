@@ -53,19 +53,30 @@ final class ParameterTokens {
                 if (parameters.type(open) == AxolotlLexer.LPAREN) {
                     parameters.function(open);
                 }
+            } else if (parameters.startsConstructor(k)) {
+                parameters.function(k + 1);
             } else if (parameters.type(k) == AxolotlLexer.LBRACE) {
                 parameters.lambda(k);
-            } else if (parameters.type(k) == AxolotlLexer.ELSE && parameters.type(k + 1) == AxolotlLexer.IDENTIFIER
-                    && parameters.type(k + 2) == AxolotlLexer.ARROW) {
-                parameters.handler(k + 1);
+            } else if (parameters.type(k) == AxolotlLexer.ELSE && parameters.type(k + 1) == AxolotlLexer.IDENTIFIER) {
+                // `else e ->` or `else e: IOException ->`.
+                int arrow = parameters.type(k + 2) == AxolotlLexer.COLON ? parameters.afterType(k + 3) : k + 2;
+                if (parameters.type(arrow) == AxolotlLexer.ARROW) {
+                    parameters.handler(k + 1, arrow);
+                }
             }
         }
         return parameters.result;
     }
 
     /** The error name of `else e -> handler`, used up to the end of the handler, an expression. */
-    private void handler(int name) {
-        mark(List.of(text(name)), name, expressionEnd(name + 2));
+    private void handler(int name, int arrow) {
+        mark(List.of(text(name)), name, expressionEnd(arrow));
+    }
+
+    /** `constructor(` at the start of a member of a class, which a function's keyword would start. */
+    private boolean startsConstructor(int k) {
+        return type(k) == AxolotlLexer.IDENTIFIER && text(k).equals("constructor") && type(k + 1) == AxolotlLexer.LPAREN
+                && (k == 0 || line(k - 1) < line(k) || type(k - 1) == AxolotlLexer.PRIVATE);
     }
 
     /**
@@ -230,7 +241,7 @@ final class ParameterTokens {
         int depth = 0;
         for (k++; k < code.size(); k++) {
             int type = type(k);
-            if (depth == 0 && (DECLARATIONS.contains(type) || type == AxolotlLexer.RBRACE)) {
+            if (depth == 0 && (DECLARATIONS.contains(type) || type == AxolotlLexer.RBRACE || startsConstructor(k))) {
                 return k - 1;
             }
             depth += type == AxolotlLexer.LBRACE || type == AxolotlLexer.LPAREN ? 1

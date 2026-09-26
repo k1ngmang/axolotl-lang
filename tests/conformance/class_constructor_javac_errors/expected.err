@@ -1,0 +1,4 @@
+AXL100 app/Main.axl:4:32: error: type mismatch: expected `String?`, found `Int`
+AXL100 app/Main.axl:6:47: error: `this(...)` runs before the object has its fields, so it cannot use `longOpt`; pass the constructor's parameters or other values
+AXL100 app/Main.axl:13:20: error: this constructor is private to `Opt`; only the code of `Opt` can use it
+AXL100 app/Other.axl:5:21: error: `Opt(Double)` is private to `Opt`; outside the class it takes (Int)

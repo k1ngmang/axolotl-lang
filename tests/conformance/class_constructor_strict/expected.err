@@ -1,0 +1,1 @@
+AXL104 app/Main.axl:5:51: error: the result of `getenv()` comes from Java code without nullness annotations and may be null, but the parameter `longOpt` does not accept null; use `?.`, `?:`, a null check or `!!`

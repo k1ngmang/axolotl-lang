@@ -1,0 +1,9 @@
+package app
+
+class Opt(val opt: String?, val longOpt: String, val hasArg: Boolean) {
+    constructor(flag: Boolean) = this(null, null, flag)
+
+    constructor(a: String?, b: Long) = this(a, a, b > 0L)
+
+    constructor(a: String?, b: Int) = this(a, a ?: "none", b > 0)
+}

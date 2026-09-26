@@ -368,7 +368,9 @@ class Generator(
         // properties whose value needs statements before it.
         val lifting = classDecl.properties() |> anyMatch { p -> Lifts.needed(propertyInit(p)) }
         val superArgs = classDecl.superArgs()
-        val inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty())
+        // Java gives a class without constructors one without parameters, which another constructor would take away.
+        val inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
+            !classDecl.constructors().isEmpty()
         for (p in classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";")
         }
@@ -432,6 +434,21 @@ class Generator(
         }
         em.dedent()
         em.line(line, "}")
+        for (k in classDecl.constructors()) {
+            val start = k.pos().line()
+            val visibility = if (k.isPrivate()) "private " else "public "
+            em.line(start, annotations(k.annotations()) + visibility + classDecl.name() + "(" + parameters(k.params(), start) + ") {")
+            em.indent()
+            resetCounters()
+            localTypes.clear()
+            for (p in k.params()) {
+                localTypes.put(p.name(), p.type())
+            }
+            val args = k.args() |> map { a -> expr(a) }
+            em.line(k.thisPos().line(), "this(" + String.join(", ", args) + ");")
+            em.dedent()
+            em.line(start, "}")
+        }
     }
 
     private fn propertyCode(code: Supplier<String>) -> String {

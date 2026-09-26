@@ -126,7 +126,8 @@ final class Hovers {
                     + classDecl.parameters().stream()
                     .map(p -> (p.isPrivate() ? "private " : "") + (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type()))
                     .collect(Collectors.joining(", ", "(", ")"))
-                    + supertypes(classDecl.supertypes(), classDecl.superArgs() != null);
+                    + supertypes(classDecl.supertypes(), classDecl.superArgs() != null)
+                    + body(classDecl.constructors().stream().map(Hovers::constructor).toList());
             case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name()
                     + (enumeration.fields().isEmpty() ? "" : fields(enumeration.fields()));
             case Decl.Function fn -> signature(fn);
@@ -161,10 +162,19 @@ final class Hovers {
         return names.isEmpty() ? "" : " : " + String.join(", ", names);
     }
 
+    /** `constructor(opt: String?, description: String?)`, the other ways to create a class. */
+    static String constructor(Decl.Constructor constructor) {
+        return (constructor.isPrivate() ? "private " : "") + "constructor" + parameters(constructor.params());
+    }
+
+    /** `(a: String, b: Int)`: the parameters of a function or a constructor. */
+    static String parameters(List<Expr.Param> params) {
+        return params.stream().map(p -> p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"));
+    }
+
     static String signature(Decl.Function fn) {
-        String params = fn.params().stream().map(p -> p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", "));
         String result = fn.returnType() == null ? "" : " -> " + typeText(fn.returnType());
-        return (fn.isPrivate() ? "private " : "") + "fn " + fn.name() + TypeParameters.text(fn.typeParams()) + "(" + params + ")" + result;
+        return (fn.isPrivate() ? "private " : "") + "fn " + fn.name() + TypeParameters.text(fn.typeParams()) + parameters(fn.params()) + result;
     }
 
     static String typeText(TypeRef type) {

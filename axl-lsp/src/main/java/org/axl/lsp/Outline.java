@@ -127,7 +127,13 @@ final class Outline {
         }
         List<Pos> starts = new ArrayList<>(classDecl.properties().stream().map(Decl.Property::pos).toList());
         classDecl.methods().forEach(m -> starts.add(m.pos()));
+        classDecl.constructors().forEach(k -> starts.add(k.pos()));
         starts.sort((a, b) -> a.equals(b) ? 0 : Symbols.before(a, b) ? -1 : 1);
+        for (Decl.Constructor k : classDecl.constructors()) {
+            DocumentSymbol symbol = symbol(document, k.namePos(), "constructor", SymbolKind.Constructor, List.of());
+            symbol.setDetail(Hovers.parameters(k.params()));
+            result.add(withBody(document, symbol, k.pos(), starts));
+        }
         for (Decl.Property p : classDecl.properties()) {
             result.add(withBody(document, symbol(document, p.namePos(), p.name(), SymbolKind.Field, List.of()), p.pos(), starts));
         }

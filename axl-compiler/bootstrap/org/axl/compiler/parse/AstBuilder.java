@@ -73,6 +73,7 @@ import org.axl.compiler.parse.AxolotlParser.ClassParamContext;
 import org.axl.compiler.parse.AxolotlParser.ComparisonContext;
 import org.axl.compiler.parse.AxolotlParser.CompilationUnitContext;
 import org.axl.compiler.parse.AxolotlParser.ConjunctionContext;
+import org.axl.compiler.parse.AxolotlParser.ConstructorMemberContext;
 import org.axl.compiler.parse.AxolotlParser.ContinueStatementContext;
 import org.axl.compiler.parse.AxolotlParser.DataClassDeclContext;
 import org.axl.compiler.parse.AxolotlParser.DisjunctionContext;
@@ -213,13 +214,16 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         }
         final var properties = new ArrayList<Property>();
         final var methods = new ArrayList<Decl.Function>();
+        final var constructors = new ArrayList<Decl.Constructor>();
         for (final var member : ctx.classMember()) {
-            if (member instanceof PropertyMemberContext member$1) {
-                properties.add(new Property(pos(member$1.start), pos(member$1.identifier().start), member$1.PRIVATE() != null,
-                        nameOf(member$1.identifier()), typeOrNull(member$1.type()), buildExpr(member$1.expression()), member$1.VAR() != null,
-                        buildAnnotations(member$1.annotation())));
-            } else if (member instanceof MethodMemberContext member$2) {
-                methods.add(buildFunction(member$2.functionDecl()));
+            if (member instanceof ConstructorMemberContext member$1) {
+                constructors.add(buildConstructor(member$1));
+            } else if (member instanceof PropertyMemberContext member$2) {
+                properties.add(new Property(pos(member$2.start), pos(member$2.identifier().start), member$2.PRIVATE() != null,
+                        nameOf(member$2.identifier()), typeOrNull(member$2.type()), buildExpr(member$2.expression()), member$2.VAR() != null,
+                        buildAnnotations(member$2.annotation())));
+            } else if (member instanceof MethodMemberContext member$3) {
+                methods.add(buildFunction(member$3.functionDecl()));
             } else {
                 throw new IllegalStateException("unknown member " + member.getClass());
             }
@@ -227,7 +231,21 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final @Nullable List<Expr> superArgs = (hasSuperArgs(ctx) ? buildArguments(ctx.arguments()) : null);
         return new ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
                 parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()),
-                superArgs);
+                superArgs, constructors);
+    }
+    private static Decl.Constructor buildConstructor(ConstructorMemberContext ctx) {
+        final var value = ctx.functionBody().expression();
+        if (value == null) {
+            throw new Rejected(pos(ctx.functionBody().start), "a constructor has no body: it passes its values on to the class's " +
+                    "parameters, as in `constructor(name: String) = this(name, 0)`");
+        }
+        final var call = buildExpr(value);
+        if (!(call instanceof Expr.Call call$1) || call$1.target() != null || !call$1.name().equals("this")) {
+            throw new Rejected(pos(value.start), "a constructor passes its values on to the class's parameters with `this(...)`, " +
+                    "as in `constructor(name: String) = this(name, 0)`");
+        }
+        return new Decl.Constructor(pos(ctx.start), pos(ctx.IDENTIFIER().getSymbol()), ctx.PRIVATE() != null, buildParams(ctx.param()),
+                call$1.args(), call$1.pos(), buildAnnotations(ctx.annotation()));
     }
     private static boolean hasSuperArgs(ClassDeclContext ctx) {
         final var colon = ctx.COLON();

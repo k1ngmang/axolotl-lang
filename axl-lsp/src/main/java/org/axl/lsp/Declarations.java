@@ -167,10 +167,19 @@ final class Declarations {
                 : new Found(document, positions.get(index), name + ": " + enumeration.name());
     }
 
-    /** A field of a data class or an interface, or a constant of an enum, whose name is the token; null for other tokens. */
+    /**
+     * A field of a data class or an interface, a constant of an enum, or the `constructor` of a class, whose name is the
+     * token; null for other tokens.
+     */
     static Found declaredAt(Document document, Token token) {
         Pos pos = Document.start(token);
         for (Decl decl : document.ast.decls()) {
+            List<Decl.Constructor> constructors = decl instanceof Decl.ClassDecl classDecl ? classDecl.constructors() : List.of();
+            for (Decl.Constructor constructor : constructors) {
+                if (constructor.namePos().equals(pos)) {
+                    return new Found(document, pos, Hovers.constructor(constructor));
+                }
+            }
             Found found = inType(document, decl, token.getText(), () -> null);
             if (found != null && found.pos().equals(pos)) {
                 return found;

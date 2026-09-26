@@ -327,7 +327,8 @@ import org.axl.compiler.check.Whens;
         currentMethods = classDecl.methods();
         final var lifting = Nulls.stream(classDecl.properties()).anyMatch(p -> Lifts.needed(propertyInit(p)));
         final var superArgs = classDecl.superArgs();
-        final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty());
+        final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
+                !classDecl.constructors().isEmpty();
         for (final var p : classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";");
         }
@@ -386,6 +387,21 @@ import org.axl.compiler.check.Whens;
         }
         em.dedent();
         em.line(line, "}");
+        for (final var k : classDecl.constructors()) {
+            final var start = k.pos().line();
+            final var visibility = (k.isPrivate() ? "private " : "public ");
+            em.line(start, annotations(k.annotations()) + visibility + classDecl.name() + "(" + parameters(k.params(), start) + ") {");
+            em.indent();
+            resetCounters();
+            localTypes.clear();
+            for (final var p : k.params()) {
+                localTypes.put(p.name(), p.type());
+            }
+            final var args = Nulls.stream(k.args()).map(Nulls.nonNull(a -> expr(a))).toList();
+            em.line(k.thisPos().line(), "this(" + String.join(", ", args) + ");");
+            em.dedent();
+            em.line(start, "}");
+        }
     }
     private String propertyCode(Supplier<String> code) {
         inPropertyInit = true;

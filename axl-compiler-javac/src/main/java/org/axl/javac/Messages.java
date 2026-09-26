@@ -91,6 +91,11 @@ final class Messages {
     private static final Pattern BAD_OPERANDS = Pattern.compile("^bad operand types for binary operator '(.+?)'; first type: (.+?); second type: (.+)$");
     private static final Pattern BIG_OPERANDS = Pattern.compile("^(\\w+)\\s*([-+*/%]|[<>]=?)\\s*(\\w+)");
     private static final Pattern DUPLICATE_METHOD = Pattern.compile("^method (\\w+)\\(.*\\) is already defined in class .+$");
+    private static final Pattern DUPLICATE_CONSTRUCTOR = Pattern.compile("^constructor (\\w+)\\(.*\\) is already defined in class .+$");
+    // `this(...)` of a constructor runs before the fields are set, so it cannot read them.
+    private static final Pattern BEFORE_CONSTRUCTOR = Pattern.compile("^cannot reference (\\w+)(?:\\(\\))? before supertype constructor has been called$");
+    // The reason javac gives for a constructor that the code cannot reach.
+    private static final Pattern PRIVATE_CANDIDATE = Pattern.compile("\\((\\w+)\\(([^)]*)\\) has private access in [\\w.$]+\\)");
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
     private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
@@ -845,6 +850,11 @@ final class Messages {
             return new Translated(ErrorCode.DUPLICATE_NAME, "`" + duplicate.group(1)
                     + "` is already declared with the same parameter types");
         }
+        Matcher duplicateConstructor = DUPLICATE_CONSTRUCTOR.matcher(message);
+        if (duplicateConstructor.find()) {
+            return new Translated(ErrorCode.DUPLICATE_NAME, "`" + duplicateConstructor.group(1)
+                    + "` already has a constructor with the same parameter types");
+        }
         Matcher clash = NAME_CLASH.matcher(message);
         if (clash.find()) {
             return new Translated(ErrorCode.DUPLICATE_NAME, "`" + clash.group(1) + "(" + argumentList(clash.group(2)) + ")` and `"
@@ -1239,6 +1249,11 @@ final class Messages {
             return "wrong arguments for `" + notApplicable.group(1) + "`: expected (" + argumentList(notApplicable.group(2))
                     + "), got (" + argumentList(notApplicable.group(3)) + ")";
         }
+        Matcher beforeConstructor = BEFORE_CONSTRUCTOR.matcher(message);
+        if (beforeConstructor.find() && text.strip().startsWith("this(")) {
+            return "`this(...)` runs before the object has its fields, so it cannot use `" + beforeConstructor.group(1)
+                    + "`; pass the constructor's parameters or other values";
+        }
         Matcher privateAccess = PRIVATE_ACCESS.matcher(message);
         if (privateAccess.find()) {
             String name = privateAccess.group(1);
@@ -1260,15 +1275,24 @@ final class Messages {
             return pipeSubject(noSuitable.group(2), axlText);
         }
         if (noSuitable.find(0)) {
+            Set<String> hidden = new HashSet<>();
+            Matcher privateCandidate = PRIVATE_CANDIDATE.matcher(message);
+            while (privateCandidate.find()) {
+                hidden.add(privateCandidate.group(2));
+            }
             List<String> candidates = new ArrayList<>();
             Matcher candidate = CANDIDATE.matcher(message);
             while (candidate.find()) {
                 String parameters = candidate.group(3);
-                if (!isPrivate(candidate.group(1), candidate.group(2), parameters)) {
+                if (!hidden.contains(parameters) && !isPrivate(candidate.group(1), candidate.group(2), parameters)) {
                     candidates.add("(" + argumentList(parameters.isEmpty() ? "no arguments" : parameters) + ")");
                 }
             }
             String got = noSuitable.group(2).isEmpty() ? "" : argumentList(noSuitable.group(2));
+            if (hidden.contains(noSuitable.group(2))) {
+                return "`" + noSuitable.group(1) + "(" + got + ")` is private to `" + noSuitable.group(1) + "`; outside the class it takes "
+                        + String.join(", ", candidates);
+            }
             String takes = candidates.size() > 4
                     ? String.join(", ", candidates.subList(0, 4)) + " and " + (candidates.size() - 4) + " more"
                     : String.join(", ", candidates);

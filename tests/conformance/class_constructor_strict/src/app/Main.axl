@@ -1,0 +1,8 @@
+package app
+
+// In strict null mode a value from Java code without nullness annotations may be null, also in `this(...)`.
+class Opt(val opt: String?, val longOpt: String) {
+    constructor(name: String) = this(null, System.getenv(name))
+
+    constructor(name: String, fallback: Int) = this(null, System.getenv(name) ?: "" + fallback)
+}

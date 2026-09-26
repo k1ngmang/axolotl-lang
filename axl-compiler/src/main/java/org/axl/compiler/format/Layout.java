@@ -444,6 +444,7 @@ final class Layout {
     private static boolean tightParen(ParserRuleContext parent) {
         return parent instanceof AxolotlParser.CallSuffixContext || parent instanceof AxolotlParser.FunctionDeclContext
                 || parent instanceof AxolotlParser.InterfaceMethodContext || parent instanceof AxolotlParser.ClassDeclContext
+                || parent instanceof AxolotlParser.ConstructorMemberContext
                 || parent instanceof AxolotlParser.DataClassDeclContext || parent instanceof AxolotlParser.EnumDeclContext
                 || parent instanceof AxolotlParser.EnumConstantContext || parent instanceof AxolotlParser.AnnotationContext
                 || parent instanceof AxolotlParser.GenericConstructorContext || parent instanceof AxolotlParser.PipeStageContext;

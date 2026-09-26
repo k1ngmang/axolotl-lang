@@ -696,6 +696,9 @@ class WorkspaceTest {
         List<Location> found = new Definitions(workspace).definition(uri, 2, use);
         assertEquals(List.of(new Position(2, line.indexOf("e: java"))), found.stream().map(l -> l.getRange().getStart()).toList());
         assertTrue(memberNames(uri, 2, use + 2).contains("getMessage"), memberNames(uri, 2, use + 2).toString());
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("2:" + line.indexOf("e: java") + ":1:parameter", "2:" + use + ":1:parameter")),
+                tokens.toString());
     }
 
     @Test

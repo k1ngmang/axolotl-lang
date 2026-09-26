@@ -40,6 +40,15 @@ final class Symbols {
     static List<Symbol> visibleAt(SourceFile file, Pos pos) {
         List<Symbol> result = topLevelSymbols(file);
         Decl enclosing = enclosingDecl(file, pos);
+        Decl.Constructor constructor = enclosing instanceof Decl.ClassDecl classDecl ? enclosingConstructor(classDecl, pos) : null;
+        if (constructor != null) {
+            // `this(...)` runs before the object has fields: the constructor sees its own parameters only.
+            for (Expr.Param p : constructor.params()) {
+                result.add(new Symbol(p.name(), Kind.PARAMETER, p.pos(), p.type(), null, null));
+            }
+            constructor.args().forEach(a -> expr(a, pos, null, result));
+            return result;
+        }
         if (enclosing instanceof Decl.ClassDecl classDecl) {
             classScope(classDecl, result);
             enclosing = enclosingMethod(classDecl.methods(), pos);
@@ -127,6 +136,23 @@ final class Symbols {
         for (Decl.Function method : data.methods()) {
             out.add(new Symbol(method.name(), Kind.FUNCTION, method.namePos(), method.returnType(), method, null));
         }
+    }
+
+    /** The constructor whose text holds a position: the last to start before it, with no other member between. */
+    private static Decl.Constructor enclosingConstructor(Decl.ClassDecl classDecl, Pos pos) {
+        Decl.Constructor found = null;
+        for (Decl.Constructor constructor : classDecl.constructors()) {
+            if (before(constructor.pos(), pos) && (found == null || before(found.pos(), constructor.pos()))) {
+                found = constructor;
+            }
+        }
+        if (found == null) {
+            return null;
+        }
+        Pos start = found.pos();
+        boolean later = classDecl.methods().stream().anyMatch(m -> before(start, m.pos()) && before(m.pos(), pos))
+                || classDecl.properties().stream().anyMatch(p -> before(start, p.pos()) && before(p.pos(), pos));
+        return later ? null : found;
     }
 
     /** A method covers its text up to the next one; the last also covers the rest of the type. */

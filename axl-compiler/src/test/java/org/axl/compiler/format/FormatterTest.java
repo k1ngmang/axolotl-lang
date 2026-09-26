@@ -227,6 +227,31 @@ class FormatterTest {
     }
 
     @Test
+    void writesConstructorsAsFunctions() {
+        formats("""
+                package app
+
+                class Opt(val name:String?,private val count:Int){
+                    constructor (name:String?)=this(name,0)
+
+                    @Deprecated
+                    private   constructor ( ) = this ( null , 1 )
+                    fn twice() -> Int = count * 2
+                }
+                """, """
+                package app
+
+                class Opt(val name: String?, private val count: Int) {
+                    constructor(name: String?) = this(name, 0)
+
+                    @Deprecated
+                    private constructor() = this(null, 1)
+                    fn twice() -> Int = count * 2
+                }
+                """);
+    }
+
+    @Test
     void spacesTheClassOfAHandler() {
         formats("""
                 package app

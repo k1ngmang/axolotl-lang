@@ -241,10 +241,43 @@ public final class AxlParser implements PsiParser {
         } else if (b.lookAhead(word) == AxlTokenTypes.of(VAL) || b.lookAhead(word) == AxlTokenTypes.of(VAR)) {
             variable(m, true);
             consume(SEMI);
+        } else if (atConstructor(word)) {
+            constructor(m);
         } else {
             m.drop();
-            skip("`val`, `var` or `fn` expected");
+            skip("`val`, `var`, `fn` or `constructor` expected");
         }
+    }
+
+    /** `constructor(` after `private` when word is 1: `constructor` is a word only at the start of a member of a class. */
+    private boolean atConstructor(int word) {
+        PsiBuilder.Marker probe = b.mark();
+        for (int i = 0; i < word; i++) {
+            b.advanceLexer();
+        }
+        boolean found = at(IDENTIFIER) && "constructor".equals(b.getTokenText()) && b.lookAhead(1) == AxlTokenTypes.LPAREN;
+        probe.rollbackTo();
+        return found;
+    }
+
+    /** `constructor(opt: String?) = this(opt, null)`: its parameters, and the call that passes them on. */
+    private void constructor(PsiBuilder.Marker m) {
+        consume(PRIVATE);
+        // Reading the token first moves past the space after `private`, which a remap would hit otherwise.
+        if (at(IDENTIFIER)) {
+            b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+        }
+        b.advanceLexer();
+        parameters();
+        if (consume(ASSIGN)) {
+            expression();
+            consume(SEMI);
+        } else if (at(LBRACE)) {
+            block();
+        } else {
+            b.error("`=` expected");
+        }
+        m.done(AxlElementTypes.CONSTRUCTOR);
     }
 
     /**

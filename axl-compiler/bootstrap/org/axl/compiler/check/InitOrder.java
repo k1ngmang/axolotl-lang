@@ -325,6 +325,12 @@ import org.axl.compiler.ast.TypeRef;
                 names(init, Set.of(), out);
             }
         }
+        for (final var k : c.constructors()) {
+            final var params = new HashSet<String>(Nulls.stream(k.params()).map(Nulls.nonNull(p -> p.name())).toList());
+            for (final var a : k.args()) {
+                names(a, params, out);
+            }
+        }
         owner = outer;
     }
     private void method(Decl.ClassDecl c, String name, Set<String> out) {

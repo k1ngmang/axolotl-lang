@@ -1,0 +1,6 @@
+package app
+
+interface Named {
+    val name: String
+    constructor() = this("x")
+}

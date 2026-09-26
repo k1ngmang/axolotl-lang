@@ -43,6 +43,7 @@ import com.intellij.psi.impl.source.resolve.FileContextUtil;
 import com.intellij.psi.util.CachedValueProvider;
 import com.intellij.psi.util.CachedValuesManager;
 import com.intellij.psi.util.PsiModificationTracker;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.TypeConversionUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,6 +57,7 @@ import org.axl.compiler.ErrorCode;
 import org.axl.compiler.GeneratedUnit;
 import org.axl.compiler.Options;
 import org.axl.compiler.Translator;
+import org.axl.intellij.parser.AxlElementTypes;
 import org.axl.intellij.psi.AxlFile;
 import org.axl.intellij.psi.AxlFunction;
 import org.axl.intellij.psi.AxlResolver;
@@ -235,7 +237,7 @@ public final class AxlLightClasses {
                 builder.addParameter(new LightParameter(parameter.getName(), type(parameter.getType()), builder, JavaLanguage.INSTANCE,
                         modifiers(parameter), parameter.isVarArgs()));
             }
-            PsiElement source = method.isConstructor() ? declaration : methodSource(method, declaration, fileLevel);
+            PsiElement source = method.isConstructor() ? constructorSource(method, declaration) : methodSource(method, declaration, fileLevel);
             builder.setNavigationElement(source != null ? source : declaration != null ? declaration : file);
             return builder;
         }
@@ -269,6 +271,28 @@ public final class AxlLightClasses {
             AxlLightModifierList modifiers = new AxlLightModifierList(manager, annotations);
             copyModifiers(generated, modifiers::addModifier);
             return modifiers;
+        }
+
+        /** The `constructor(...)` of the class whose parameters have the names of a generated one, else the class itself. */
+        private @Nullable PsiElement constructorSource(PsiMethod method, @Nullable AxlTypeDeclaration declaration) {
+            List<String> names = Arrays.stream(method.getParameterList().getParameters()).map(PsiParameter::getName).toList();
+            for (PsiElement member : declaration == null ? PsiElement.EMPTY_ARRAY : declaration.getChildren()) {
+                if (member.getNode().getElementType() == AxlElementTypes.CONSTRUCTOR && parameterNames(member).equals(names)) {
+                    return member;
+                }
+            }
+            return declaration;
+        }
+
+        /** The names of the parameters of a `constructor(...)`. */
+        private static List<String> parameterNames(PsiElement constructor) {
+            List<String> names = new ArrayList<>();
+            for (PsiElement part : constructor.getChildren()) {
+                if (part.getNode().getElementType() == AxlElementTypes.PARAMETER_LIST) {
+                    PsiTreeUtil.getChildrenOfTypeAsList(part, AxlVariable.class).forEach(p -> names.add(p.getName()));
+                }
+            }
+            return names;
         }
 
         /** A method of the type, the accessor of a field, or a function of the file for its own class. */

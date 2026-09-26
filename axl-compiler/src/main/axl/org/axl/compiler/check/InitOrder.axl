@@ -341,6 +341,13 @@ class InitOrder(val file: SourceFile) {
                 names(init, Set.of(), out)
             }
         }
+        // Any of its other constructors may be the one called.
+        for (k in c.constructors()) {
+            val params = HashSet<String>(k.params() |> map { p -> p.name() })
+            for (a in k.args()) {
+                names(a, params, out)
+            }
+        }
         owner = outer
     }
 

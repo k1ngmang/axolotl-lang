@@ -1,0 +1,5 @@
+package app
+
+class Pair(val a: Int, val b: Int) {
+    constructor(a: Int) = Pair(a, 0)
+}

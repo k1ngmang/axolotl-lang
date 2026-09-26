@@ -408,6 +408,43 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void outlinesHoversColorsAndCompletesConstructors() throws Exception {
+        String text = """
+                package app
+
+                class Opt(val opt: String?, val hasArg: Boolean) {
+                    constructor(opt: String?) = this(opt, false)
+
+                    @Deprecated
+                    private constructor() = this(null, true)
+
+                    fn describe() -> String = opt + hasArg
+                }
+
+                fn main() {
+                    println(Opt("a").describe())
+                }
+                """;
+        String uri = open("Main.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        List<DocumentSymbol> members = new Outline(workspace).symbols(uri).getFirst().getChildren();
+        assertEquals(List.of("opt", "hasArg", "constructor", "constructor", "describe"), members.stream().map(DocumentSymbol::getName).toList());
+        assertEquals(SymbolKind.Constructor, members.get(2).getKind());
+        assertEquals("(opt: String?)", members.get(2).getDetail());
+        assertEquals(new Position(6, 12), members.get(3).getSelectionRange().getStart());
+        assertContains(hoverAt(uri, text, "    |constructor(opt"), "constructor(opt: String?)");
+        assertContains(hoverAt(uri, text, "private |constructor()"), "private constructor()");
+        assertContains(hoverAt(uri, text, "this(|opt, false)"), "opt: String?");
+        assertEquals(List.of("Main.axl:3:16"), definitionsAt(uri, text, "this(|opt, false)"));
+        assertContains(hoverAt(uri, text, "println(|Opt(\"a\")"), "class Opt(val opt: String?, val hasArg: Boolean) {\n"
+                + "    constructor(opt: String?)\n    private constructor()\n}");
+        assertTrue(labelsAt(uri, text, "|    fn describe").contains("constructor"));
+        List<String> tokens = WorkspaceTest.semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("3:4:11:keyword", "6:12:11:keyword", "3:16:3:parameter", "3:37:3:parameter")),
+                tokens.toString());
+    }
+
+    @Test
     void outlinesFieldsNamedLikeLettersOfVal() throws Exception {
         String uri = open("P.axl", "package app\n\ndata class P(val a: Int, val l: Int, val v: String)\n\ninterface I { val a: Int }\n");
         List<DocumentSymbol> symbols = new Outline(workspace).symbols(uri);

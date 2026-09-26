@@ -1,0 +1,13 @@
+package app
+
+class Opt(val opt: String?, val longOpt: String, val hasArg: Boolean) {
+    constructor(n: Int) = this(n, "x", false)
+
+    constructor(a: String?, b: Int) = this(a, longOpt, false)
+
+    private constructor(a: Double) = this(null, "p", false)
+
+    fn copy() -> Opt = Opt(1.5)
+}
+
+fn make() -> Opt = Opt(1.0)

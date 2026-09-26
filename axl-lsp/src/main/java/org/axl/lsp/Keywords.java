@@ -12,7 +12,8 @@ final class Keywords {
 
     private static final List<String> TOP_LEVEL = List.of("package", "import", "fn", "val", "private", "data", "class",
             "enum", "interface", "sealed");
-    private static final List<String> IN_CLASS = List.of("val", "var", "fn", "private");
+    private static final List<String> IN_CLASS = List.of("val", "var", "fn", "private", "constructor");
+    private static final List<String> IN_DATA_CLASS = List.of("fn", "private");
     private static final List<String> IN_INTERFACE = List.of("val");
     private static final List<String> STATEMENT = List.of("val", "var", "return", "if", "while", "for", "use", "break",
             "continue", "when", "throw", "try", "attempt", "true", "false", "null");
@@ -50,7 +51,7 @@ final class Keywords {
             return TOP_LEVEL;
         }
         return switch (head(before, brace)) {
-            case AxolotlLexer.CLASS -> IN_CLASS;
+            case AxolotlLexer.CLASS -> dataClass(before, brace) ? IN_DATA_CLASS : IN_CLASS;
             case AxolotlLexer.INTERFACE -> IN_INTERFACE;
             case AxolotlLexer.ENUM -> List.of();
             case AxolotlLexer.WHEN -> ARM;
@@ -156,6 +157,16 @@ final class Keywords {
             }
         }
         return open.isEmpty() ? -1 : open.getLast();
+    }
+
+    /** Whether the brace at an index opens the body of a data class: `data` comes before its `class`. */
+    private static boolean dataClass(List<Token> tokens, int brace) {
+        for (int i = brace - 1; i > 0; i--) {
+            if (tokens.get(i).getType() == AxolotlLexer.CLASS && tokens.get(i - 1).getType() != AxolotlLexer.DOT) {
+                return tokens.get(i - 1).getText().equals("data");
+            }
+        }
+        return false;
     }
 
     /** The last keyword outside parentheses between the previous brace and this one, such as `when` in `val k = when (x) {`. */

@@ -159,8 +159,12 @@ classParam
     : annotation* PRIVATE? (VAL | VAR) identifier COLON type
     ;
 
+// `constructor(opt: String?) = this(opt, null)`: another constructor, which passes its values on to the parameters;
+// `constructor` is a word only here.
 classMember
     : annotation* PRIVATE? (VAL | VAR) identifier (COLON type)? ASSIGN expression SEMI?   # propertyMember
+    | annotation* PRIVATE? {_input.LT(1).getText().equals("constructor")}? IDENTIFIER
+      LPAREN (param (COMMA param)*)? RPAREN functionBody                      # constructorMember
     | functionDecl                                                            # methodMember
     ;
 

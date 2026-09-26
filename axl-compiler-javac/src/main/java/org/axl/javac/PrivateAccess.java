@@ -5,6 +5,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.CompoundAssignmentTree;
 import com.sun.source.tree.MemberSelectTree;
+import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.JavacTask;
 import com.sun.source.util.TaskEvent;
@@ -17,23 +18,26 @@ import java.util.List;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
+import javax.lang.model.util.Elements;
 import javax.tools.Diagnostic;
 
 /**
  * The classes of a file are nested in its Java class, where Java lets any of them reach the private
- * members of the others. Axolotl keeps `p.x` on a data class and a private method of a class closed in
- * the same file too, as other files see them.
+ * members of the others. Axolotl keeps `p.x` on a data class and the private members and constructors
+ * of a class closed in the same file too, as other files see them.
  */
 final class PrivateAccess implements TaskListener {
 
     static final String PREFIX = "private access: ";
 
     private final Trees trees;
+    private final Elements elements;
     // Printed once every class is analyzed, as RawTypes does.
     private final List<Runnable> found = new ArrayList<>();
 
     PrivateAccess(JavacTask task) {
         this.trees = Trees.instance(task);
+        this.elements = task.getElements();
     }
 
     @Override
@@ -76,6 +80,22 @@ final class PrivateAccess implements TaskListener {
                 found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, select, unit));
             }
             return super.visitMemberSelect(select, unused);
+        }
+
+        /** `Opt(1.0)` for a `private constructor(a: Double)` of a class the call is not in. */
+        @Override
+        public Void visitNewClass(NewClassTree creation, Void unused) {
+            Element constructor = trees.getElement(getCurrentPath());
+            // A private class's own constructor is private too, without a `private` written for it.
+            boolean hidden = constructor != null && constructor.getKind() == ElementKind.CONSTRUCTOR
+                    && constructor.getModifiers().contains(Modifier.PRIVATE)
+                    && elements.getOrigin(constructor) != Elements.Origin.MANDATED;
+            if (hidden && sameFile(constructor) && !inside(constructor.getEnclosingElement())) {
+                String owner = constructor.getEnclosingElement().getSimpleName().toString();
+                String message = PREFIX + "this constructor is private to `" + owner + "`; only the code of `" + owner + "` can use it";
+                found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, creation, unit));
+            }
+            return super.visitNewClass(creation, unused);
         }
 
         /** javac itself reports members of other files, and an assignment to a `val` as one to a final field. */

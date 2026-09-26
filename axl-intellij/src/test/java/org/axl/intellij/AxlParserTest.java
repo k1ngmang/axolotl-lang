@@ -165,7 +165,7 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "attempt_in_lambda/src/app/Main", "property_inference/src/app/Main", "result_else_narrowing/src/app/Main",
                 "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main", "when_arm_statements/src/app/Main",
                 "attempt_exits/src/app/Main", "private_class_parameters/src/app/Main",
-                "attempt_typed_handler/src/app/Main")) {
+                "attempt_typed_handler/src/app/Main", "class_constructors/src/app/Main", "class_constructors/src/app/Opt")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));

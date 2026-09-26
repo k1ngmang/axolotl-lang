@@ -1,0 +1,2 @@
+AXL102 app/Main.axl:4:45: error: `null` is passed where null is not accepted; make the type nullable with `?`
+AXL102 app/Main.axl:6:48: error: `a` may be null, but the parameter does not accept null: use `?:` or check `if (a != null)`

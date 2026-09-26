@@ -18,7 +18,8 @@ final class AxlKeywords {
 
     private static final List<String> TOP_LEVEL = List.of("package", "import", "fn", "val", "private", "data", "class",
             "enum", "interface", "sealed");
-    private static final List<String> IN_CLASS = List.of("val", "var", "fn", "private");
+    private static final List<String> IN_CLASS = List.of("val", "var", "fn", "private", "constructor");
+    private static final List<String> IN_DATA_CLASS = List.of("fn", "private");
     private static final List<String> IN_INTERFACE = List.of("val", "fn");
     private static final List<String> STATEMENT = List.of("val", "var", "return", "if", "while", "for", "use", "break",
             "continue", "when", "throw", "try", "attempt", "true", "false", "null");
@@ -50,7 +51,8 @@ final class AxlKeywords {
                 return previous != null && previous.getNode().getElementType() == AxlTokenTypes.RBRACE ? withElse() : STATEMENT;
             }
             if (parent instanceof AxlTypeDeclaration declaration) {
-                return declaration.isEnum() ? List.of() : declaration.isInterface() ? IN_INTERFACE : IN_CLASS;
+                return declaration.isEnum() ? List.of() : declaration.isInterface() ? IN_INTERFACE
+                        : type == AxlElementTypes.DATA_CLASS ? IN_DATA_CLASS : IN_CLASS;
             }
         }
         return TOP_LEVEL;

@@ -63,7 +63,16 @@ import java.util.List;
             List<TypeRef> supertypes,
             List<Annotation> annotations,
             List<TypeParam> typeParams,
-            @Nullable List<Expr> superArgs) implements Decl {}
+            @Nullable List<Expr> superArgs,
+            List<Constructor> constructors) implements Decl {}
+    public record Constructor(
+            Pos pos,
+            Pos namePos,
+            boolean isPrivate,
+            List<Expr.Param> params,
+            List<Expr> args,
+            Pos thisPos,
+            List<Annotation> annotations) {}
     public record EnumDecl(
             Pos pos,
             Pos namePos,

@@ -1,0 +1,17 @@
+package app
+
+// commons-cli Option: three public constructors, one of them deprecated, and one private.
+class Opt(val opt: String?, val longOpt: String?, val hasArg: Boolean, private val description: String?) {
+    constructor(opt: String?, description: String?) = this(opt, null, false, description)
+
+    constructor(opt: String?, hasArg: Boolean, description: String?) = this(opt, null, hasArg, description)
+
+    @Deprecated
+    constructor(opt: String?) = this(opt, null, false, "deprecated: " + opt)
+
+    private constructor() = this("?", null, false, null)
+
+    fn describe() -> String = opt + "/" + longOpt + "/" + hasArg + "/" + (description ?: "-")
+
+    fn blank() -> Opt = Opt()
+}

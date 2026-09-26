@@ -1,0 +1,5 @@
+AXL001 app/Body.axl:4:28: error: a constructor has no body: it passes its values on to the class's parameters, as in `constructor(name: String) = this(name, 0)`
+AXL001 app/Named.axl:5:5: error: an interface has no constructors; the classes that implement it have them
+AXL001 app/NotThis.axl:4:27: error: a constructor passes its values on to the class's parameters with `this(...)`, as in `constructor(name: String) = this(name, 0)`
+AXL001 app/Planet.axl:5:5: error: an enum has one constructor, which takes its fields; each constant gives them all
+AXL001 app/Point.axl:4:5: error: a data class has one constructor, which takes all its fields; to create one from other values, write a function of the file that calls it

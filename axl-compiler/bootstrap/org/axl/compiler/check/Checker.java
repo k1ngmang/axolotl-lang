@@ -352,6 +352,7 @@ import org.axl.compiler.ast.TypeRef;
         currentMethods = c.methods();
         final var outerOpen = openTypeParams;
         openTypeParams = openTypeParams(c.typeParams());
+        constructors(c);
         scope = new Scope(scope, false);
         for (final var p : c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type());
@@ -393,6 +394,63 @@ import org.axl.compiler.ast.TypeRef;
         openTypeParams = outerOpen;
         currentClass = null;
         currentMethods = List.of();
+    }
+    private void constructors(Decl.ClassDecl c) {
+        final var taken = new HashMap<String, Integer>();
+        final var primary = new ArrayList<@Nullable TypeRef>();
+        for (final var p : c.parameters()) {
+            primary.add(p.type());
+        }
+        taken.put(erasure(primary, c), 0);
+        for (final var k : c.constructors()) {
+            annotations(k.annotations());
+            scope = new Scope(scope, false);
+            for (final var p : k.params()) {
+                declare(p.pos(), p.name(), Kind.PARAM, p.type());
+                annotations(p.annotations());
+            }
+            if (k.args().size() != c.parameters().size()) {
+                final var names = Nulls.stream(c.parameters()).map(Nulls.nonNull(p -> "`" + p.name() + "`")).toList();
+                final var listed = (names.isEmpty() ? "none" : String.join(", ", names));
+                error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` passes a value to each parameter of `" + c.name() + "` (" +
+                        listed +
+                        "): " +
+                        c.parameters().size() +
+                        " values, not " +
+                        k.args().size());
+            }
+            exprs(k.args());
+            pop();
+            final var types = new ArrayList<@Nullable TypeRef>();
+            for (final var p : k.params()) {
+                types.add(p.type());
+            }
+            final var earlier = taken.putIfAbsent(erasure(types, c), k.namePos().line());
+            if (earlier != null) {
+                final var other = (earlier == 0 ? "the one the class's parameters make" : "the one at line " + earlier);
+                error(k.namePos(), ErrorCode.DUPLICATE_NAME, "Java cannot tell this constructor from " + other + ": the " +
+                        "parameter types are the same once `?` and type arguments are left out; give it other parameters, or " +
+                        "create the object in a function of the file");
+            }
+        }
+    }
+    private String erasure(List<@Nullable TypeRef> types, Decl.ClassDecl c) {
+        final var erased = new ArrayList<String>();
+        for (final var type : types) {
+            erased.add((type == null ? "?" : erasedName(type, c)));
+        }
+        return String.join(",", erased);
+    }
+    private String erasedName(TypeRef type, Decl.ClassDecl c) {
+        for (final var p : c.typeParams()) {
+            final var bound = p.bound();
+            if (p.name().equals(type.name())) {
+                return (bound == null ? "Object" : erasedName(bound, c));
+            }
+        }
+        final var simple = type.name().substring(type.name().lastIndexOf(".") + 1);
+        final var boxed = BOXES.get(simple);
+        return (boxed != null && type.nullable() ? boxed : simple);
     }
     private Set<String> openTypeParams(List<Decl.TypeParam> params) {
         final var result = new HashSet<String>(openTypeParams);
@@ -1748,6 +1806,8 @@ import org.axl.compiler.ast.TypeRef;
             "notify/0", "notifyAll/0", "wait/0", "wait/1", "wait/2", "clone/0", "finalize/0");
     private static final Set<String> OBJECT_METHOD_NAMES = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
             "notify", "notifyAll", "wait");
+    private static final Map<String, String> BOXES = Map.of("Int", "Integer", "Long", "java.lang.Long", "Double", "java.lang.Double",
+            "Boolean", "java.lang.Boolean");
     private static final Map<String, String> JAVA_PRIMITIVES = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
             "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float");
     private static final Set<String> NULLNESS_ANNOTATIONS = Set.of("Nullable", "NonNull", "NotNull", "Nonnull", "NullMarked", "NullUnmarked");

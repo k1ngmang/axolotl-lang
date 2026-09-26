@@ -62,6 +62,10 @@ private val OBJECT_METHODS: Set<String> = Set.of("toString/0", "hashCode/0", "eq
 private val OBJECT_METHOD_NAMES: Set<String> = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
     "notify", "notifyAll", "wait")
 
+// The Java class of a nullable `Int`, `Long`, `Double` or `Boolean`, told apart from the primitive the plain one is.
+private val BOXES: Map<String, String> = Map.of("Int", "Integer", "Long", "java.lang.Long", "Double", "java.lang.Double",
+    "Boolean", "java.lang.Boolean")
+
 // Java's names for primitive types, which Axolotl writes as classes.
 private val JAVA_PRIMITIVES: Map<String, String> = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
     "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float")
@@ -409,6 +413,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         currentMethods = c.methods()
         val outerOpen = openTypeParams
         openTypeParams = openTypeParams(c.typeParams())
+        constructors(c)
         scope = Scope(scope, false)
         for (p in c.parameters()) {
             declare(p.namePos(), p.name(), fieldKind(p), p.type())
@@ -452,6 +457,68 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         openTypeParams = outerOpen
         currentClass = null
         currentMethods = List.of()
+    }
+
+    /**
+     * `constructor(a: String) = this(a, 0)`: `this(...)` sees the constructor's own parameters only, since Java runs it
+     * before the fields are set. Java tells constructors apart by the erased types of their parameters.
+     */
+    private fn constructors(c: Decl.ClassDecl) {
+        val taken = HashMap<String, Int>()
+        val primary = ArrayList<TypeRef?>()
+        for (p in c.parameters()) {
+            primary.add(p.type())
+        }
+        // 0 stands for the class's own parameters.
+        taken.put(erasure(primary, c), 0)
+        for (k in c.constructors()) {
+            annotations(k.annotations())
+            scope = Scope(scope, false)
+            for (p in k.params()) {
+                declare(p.pos(), p.name(), Kind.PARAM, p.type())
+                annotations(p.annotations())
+            }
+            if (k.args().size() != c.parameters().size()) {
+                val names = c.parameters() |> map { p -> "`" + p.name() + "`" }
+                val listed = if (names.isEmpty()) "none" else String.join(", ", names)
+                error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` passes a value to each parameter of `" + c.name() + "` (" +
+                    listed + "): " + c.parameters().size() + " values, not " + k.args().size())
+            }
+            exprs(k.args())
+            pop()
+            val types = ArrayList<TypeRef?>()
+            for (p in k.params()) {
+                types.add(p.type())
+            }
+            val earlier = taken.putIfAbsent(erasure(types, c), k.namePos().line())
+            if (earlier != null) {
+                val other = if (earlier == 0) "the one the class's parameters make" else "the one at line " + earlier
+                error(k.namePos(), ErrorCode.DUPLICATE_NAME, "Java cannot tell this constructor from " + other + ": the " +
+                    "parameter types are the same once `?` and type arguments are left out; give it other parameters, or " +
+                    "create the object in a function of the file")
+            }
+        }
+    }
+
+    /** The parameter types as Java tells methods apart: `Int` is `int` and `Int?` `Integer`, a type parameter its bound. */
+    private fn erasure(types: List<TypeRef?>, c: Decl.ClassDecl) -> String {
+        val erased = ArrayList<String>()
+        for (type in types) {
+            erased.add(if (type == null) "?" else erasedName(type, c))
+        }
+        return String.join(",", erased)
+    }
+
+    private fn erasedName(type: TypeRef, c: Decl.ClassDecl) -> String {
+        for (p in c.typeParams()) {
+            val bound = p.bound()
+            if (p.name().equals(type.name())) {
+                return if (bound == null) "Object" else erasedName(bound, c)
+            }
+        }
+        val simple = type.name().substring(type.name().lastIndexOf(".") + 1)
+        val boxed = BOXES.get(simple)
+        return if (boxed != null && type.nullable()) boxed else simple
     }
 
     /** The open type parameters inside a declaration with these parameters; `T : Object` closes a `T` of the class. */

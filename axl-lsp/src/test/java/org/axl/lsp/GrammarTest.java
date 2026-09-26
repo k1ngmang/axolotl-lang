@@ -54,6 +54,13 @@ class GrammarTest {
     }
 
     @Test
+    void highlightsConstructorAtTheStartOfAMember() {
+        assertEquals("keyword.declaration.function.axl", scope("keywords", "constructor(a: Int) = this(a, 0)", 0));
+        assertEquals("keyword.declaration.function.axl", scope("keywords", "private constructor() = this(0)", 8));
+        assertNull(scope("keywords", "val c = constructor(1)", 8));
+    }
+
+    @Test
     void readsTheFieldsOfAnEnumWithItsHeader() {
         for (JsonElement element : REPOSITORY.getAsJsonObject("declarations").getAsJsonArray("patterns")) {
             JsonObject pattern = element.getAsJsonObject();

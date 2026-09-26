@@ -250,11 +250,18 @@ final class SemanticTokensProvider {
         return type(tokens, previousIndex(tokens, first)) == AxolotlLexer.AT;
     }
 
-    /** `data` before `class`, `in` in `for (x in xs)` and `use` before `(val`; all are ordinary names elsewhere. */
+    /**
+     * `data` before `class`, `in` in `for (x in xs)`, `use` before `(val` and `constructor(` starting a member of a
+     * class; all are ordinary names elsewhere.
+     */
     private static boolean isContextualKeyword(List<? extends Token> tokens, int index, Token next, Token previous) {
         String text = tokens.get(index).getText();
         if (text.equals("data")) {
             return next != null && next.getType() == AxolotlLexer.CLASS;
+        }
+        if (text.equals("constructor")) {
+            return next != null && next.getType() == AxolotlLexer.LPAREN && (previous == null
+                    || previous.getLine() < tokens.get(index).getLine() || previous.getType() == AxolotlLexer.PRIVATE);
         }
         if (text.equals("use")) {
             int open = nextIndex(tokens, index);

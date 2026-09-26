@@ -1,0 +1,6 @@
+package app
+
+enum Planet(val mass: Double) {
+    EARTH(5.97e24)
+    constructor() = this(0.0)
+}

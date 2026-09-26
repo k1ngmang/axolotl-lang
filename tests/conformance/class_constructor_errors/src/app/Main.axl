@@ -1,0 +1,20 @@
+package app
+
+import java.util.List
+
+class Opt(val opt: String?, val longOpt: String?, val names: List<String>) {
+    constructor(opt: String?) = this(opt, null)
+
+    // The same Java types as the class's own parameters.
+    constructor(a: String, b: String, c: List<Int>) = this(a, b, List.of())
+
+    constructor(a: String?, n: Int) = this(a, null, List.of())
+
+    constructor(b: String, m: Int) = this(b, null, List.of())
+
+    constructor(a: String?, n: Int?) = this(a, null, List.of())
+
+    constructor(flag: Boolean) = this(try parse(flag), null, List.of())
+}
+
+fn parse(flag: Boolean) -> Result<String, String> = if (flag) Ok("yes") else Err("no")
