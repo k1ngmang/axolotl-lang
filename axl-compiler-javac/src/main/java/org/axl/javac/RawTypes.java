@@ -18,6 +18,7 @@ import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
 import com.sun.source.util.Trees;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -74,9 +75,14 @@ final class RawTypes implements TaskListener {
                 && ((TypeElement) declared.asElement()).getQualifiedName().contentEquals("java.lang.Object");
     }
 
-    static String uncheckedMessage(String raw, String target) {
+    /** star: the tested type with `*` for each type argument, `Map<*, *>` for `is Map`. */
+    static String uncheckedMessage(String raw, String star, String target) {
         return "`is " + raw + "` cannot check type arguments, so nothing checks that the value holds what `" + target
-                + "` promises; use it as a `" + raw + "` and test its elements with `is`";
+                + "` promises; use it as a `" + star + "` and test its elements with `is`";
+    }
+
+    static String stars(String raw, int arity) {
+        return raw + "<" + String.join(", ", Collections.nCopies(arity, "*")) + ">";
     }
 
     private final class Scanner extends TreePathScanner<Void, Void> {
@@ -116,7 +122,7 @@ final class RawTypes implements TaskListener {
 
         @Override
         public Void visitVariable(VariableTree variable, Void unused) {
-            // `x instanceof List o` is tested raw on purpose: Java keeps no type arguments to test.
+            // `x instanceof List o` is left raw where the translator does not know the class: Java keeps no type arguments to test.
             boolean binding = getCurrentPath().getParentPath().getLeaf() instanceof BindingPatternTree;
             if (variable.getType() != null && !binding) {
                 check(variable.getType(), false);
@@ -163,7 +169,9 @@ final class RawTypes implements TaskListener {
             TypeMirror source = type(value);
             if (isRaw(source) && target instanceof DeclaredType declared && !declared.getTypeArguments().isEmpty()
                     && !declared.getTypeArguments().stream().allMatch(NullChecker::anything) && testedName(value)) {
-                String message = PREFIX + uncheckedMessage(simpleName(source), simpleName(target));
+                String raw = simpleName(source);
+                int arity = ((TypeElement) ((DeclaredType) source).asElement()).getTypeParameters().size();
+                String message = PREFIX + uncheckedMessage(raw, stars(raw, arity), simpleName(target));
                 found.add(() -> trees.printMessage(Diagnostic.Kind.ERROR, message, value, unit));
             }
         }

@@ -8,31 +8,31 @@ import java.util.function.Function;
     private Main() {}
     public record Box<T extends @Nullable Object>(T item) {}
     public static @Nullable Class<?> asClass(Object o) {
-        if (o instanceof Class o$1) {
+        if (o instanceof Class<?> o$1) {
             return o$1;
         }
         return null;
     }
     public static @Nullable Class<?> asStarClass(Object o) {
-        if (o instanceof Class o$1) {
+        if (o instanceof Class<?> o$1) {
             return o$1;
         }
         return null;
     }
     public static String describe(Object o) {
-        if (o instanceof Box o$1) {
+        if (o instanceof Box<?> o$1) {
             final Box<?> box = o$1;
             return "box of " + box.item();
         }
-        if (o instanceof Map.Entry o$2) {
+        if (o instanceof Map.Entry<?, ?> o$2) {
             final Map.Entry<?, ?> entry = o$2;
             return "entry " + entry.getKey();
         }
-        if (o instanceof java.util.Map o$3) {
+        if (o instanceof java.util.Map<?, ?> o$3) {
             final Map<?, ?> map = o$3;
             return "map of " + map.size();
         }
-        if (o instanceof Function o$4) {
+        if (o instanceof Function<?, ?> o$4) {
             final Function<?, ?> f = o$4;
             return "function " + f.equals(o$4);
         }

@@ -1227,7 +1227,7 @@ class Generator(
                 } else {
                     val variable = patternVariable(narrowedName)
                     val narrowing = nameBinding(narrowedName, variable)
-                    emitBranch(arm, "case " + testedType(type, subjectTypeOf) + " " + variable, narrowing, form)
+                    emitBranch(arm, "case " + patternType(type, testedType(type, subjectTypeOf)) + " " + variable, narrowing, form)
                 }
             }
         }
@@ -2420,7 +2420,7 @@ class Generator(
         }
         val variable = patternVariable(target.name())
         patternVariables.put(check, variable)
-        val test = testedSubject(target, inLambda) + " instanceof " + type + " " + variable
+        val test = testedSubject(target, inLambda) + " instanceof " + patternType(check.type(), type) + " " + variable
         return if (check.negated()) "!(" + test + ")" else test
     }
 
@@ -2610,6 +2610,28 @@ class Generator(
             }
         }
         return boxedType(tested)
+    }
+
+    /**
+     * The type of a pattern variable: `is Class` that the subject tells no type arguments for binds a
+     * `Class<?>`, since a raw one would make every call it is passed to an unchecked one.
+     */
+    private fn patternType(tested: TypeRef, type: String) -> String {
+        if (!tested.args().isEmpty() || type.contains("<")) {
+            return type
+        }
+        val arity = typeParameterCount(tested.name())
+        return if (arity == 0) type else type + "<" + String.join(", ", Collections.nCopies(arity, "?")) + ">"
+    }
+
+    /** The type parameters of a class of the build or the classpath; 0 for one this translator does not know. */
+    private fn typeParameterCount(name: String) -> Int {
+        val decl = declaredType(name)
+        if (decl != null) {
+            return typeParamsOf(decl).size()
+        }
+        val library = Libraries.classNamed(file, options.classes(), name)
+        return if (library == null) 0 else library.shape().typeParameters().size()
     }
 
     /**

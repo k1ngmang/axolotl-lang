@@ -1109,7 +1109,7 @@ import org.axl.compiler.check.Whens;
                 } else {
                     final var variable = patternVariable(narrowedName);
                     final var narrowing = nameBinding(narrowedName, variable);
-                    emitBranch(arm, "case " + testedType(type, subjectTypeOf) + " " + variable, narrowing, form);
+                    emitBranch(arm, "case " + patternType(type, testedType(type, subjectTypeOf)) + " " + variable, narrowing, form);
                 }
             }
         }
@@ -2114,7 +2114,7 @@ import org.axl.compiler.check.Whens;
         }
         final var variable = patternVariable(target$1.name());
         patternVariables.put(check, variable);
-        final var test = testedSubject(target$1, inLambda) + " instanceof " + type + " " + variable;
+        final var test = testedSubject(target$1, inLambda) + " instanceof " + patternType(check.type(), type) + " " + variable;
         return (check.negated() ? "!(" + test + ")" : test);
     }
     private @Nullable String resultAccessor(TypeRef type) {
@@ -2262,6 +2262,21 @@ import org.axl.compiler.check.Whens;
             }
         }
         return boxedType(tested);
+    }
+    private String patternType(TypeRef tested, String type) {
+        if (!tested.args().isEmpty() || type.contains("<")) {
+            return type;
+        }
+        final var arity = typeParameterCount(tested.name());
+        return (arity == 0 ? type : type + "<" + String.join(", ", Collections.nCopies(arity, "?")) + ">");
+    }
+    private int typeParameterCount(String name) {
+        final var decl = declaredType(name);
+        if (decl != null) {
+            return typeParamsOf(decl).size();
+        }
+        final var library = Libraries.classNamed(file, options.classes(), name);
+        return (library == null ? Integer.valueOf(0) : library.shape().typeParameters().size());
     }
     private @Nullable List<String> argumentsOf(TypeRef tested, TypeRef subject) {
         final var decl = declaredType(tested.name());

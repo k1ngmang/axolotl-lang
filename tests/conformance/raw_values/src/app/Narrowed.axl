@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+fn count(xs: List<String>) -> Int = xs.size()
+
+fn returned(o: Object) -> Map<String, Int>? {
+    if (o is Map) {
+        return o
+    }
+    return null
+}
+
+fn passed(o: Object) -> Int {
+    if (o is List) {
+        return count(o)
+    }
+    return 0
+}
+
+fn cased(o: Object) -> Int = when (o) {
+    is List -> count(o)
+    else -> 0
+}

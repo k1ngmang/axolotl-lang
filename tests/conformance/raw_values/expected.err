@@ -1,1 +1,4 @@
-AXL100 app/Main.axl:8:9: error: `is List` cannot check type arguments, so nothing checks that the value holds what `List<String>` promises; use it as a `List` and test its elements with `is`
+AXL100 app/Main.axl:8:9: error: `is List` cannot check type arguments, so nothing checks that the value holds what `List<String>` promises; use it as a `List<*>` and test its elements with `is`
+AXL100 app/Narrowed.axl:10:9: error: `is Map` cannot check type arguments, so nothing checks that the value holds what `Map<String, Int>` promises; use it as a `Map<*, *>` and test its elements with `is`
+AXL100 app/Narrowed.axl:17:9: error: `is List` cannot check type arguments, so nothing checks that the value holds what `List<String>` promises; use it as a `List<*>` and test its elements with `is`
+AXL100 app/Narrowed.axl:23:5: error: `is List` cannot check type arguments, so nothing checks that the value holds what `List<String>` promises; use it as a `List<*>` and test its elements with `is`

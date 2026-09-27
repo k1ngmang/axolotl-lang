@@ -85,6 +85,7 @@ final class Messages {
     // Kotlin's `n.toLong()` and the methods of Java's boxed numbers, `n.longValue()`.
     private static final Pattern CONVERSION = Pattern.compile("\\.(?:to(Double|Int|Long)|(double|int|long)Value)\\(\\)");
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d[\\d_]*(?![\\w.])");
+    private static final Pattern PATTERN_VARIABLE = Pattern.compile("[A-Za-z]\\w*\\$\\d+(?![\\w.(])");
     private static final Pattern NUMBERS_FACTORY = Pattern.compile(
             "\\b((?:List|Set|Stream)\\.of|Arrays\\.asList)\\((\\s*\\d[\\d_]*\\s*(?:,\\s*\\d[\\d_]*\\s*)*)\\)");
     private static final Pattern TO_TEXT = Pattern.compile("\\.toString\\(\\)");
@@ -2361,6 +2362,11 @@ final class Messages {
             String local = named ? name.group() : "xs";
             return "type mismatch: expected `" + axlType(expected) + "`, but the elements" + (named ? " of `" + local + "`" : "")
                     + " have no common type for Java; write it: `val " + local + ": " + simpleNames(axlType(expected)) + " = ...`";
+        }
+        // `o is List` binds `o$1` as a `List<?>`: Java keeps no type arguments to test.
+        if (found.contains("capture#") && PATTERN_VARIABLE.matcher(rest).lookingAt()) {
+            String star = axlType(found.replaceAll("capture#\\d+ of \\?", "*"));
+            return RawTypes.uncheckedMessage(star.substring(0, star.indexOf('<')), star, axlType(expected).replaceFirst("\\?$", ""));
         }
         String message = mismatch(expected, found);
         if (!message.equals("type mismatch: expected `Long`, found `Int`") || rest.isEmpty()) {

@@ -8,10 +8,10 @@ import java.util.Map;
     private Main() {}
     public static int size(@Nullable Object v) {
         switch (v) {
-            case List v$1 -> {
+            case List<?> v$1 -> {
                 return v$1.size();
             }
-            case Map v$2 -> {
+            case Map<?, ?> v$2 -> {
                 return v$2.size();
             }
             case null, default -> {
@@ -21,10 +21,10 @@ import java.util.Map;
     }
     public static void main(String[] args) {
         final Object o = List.of(1, 2);
-        if (o instanceof List o$1) {
+        if (o instanceof List<?> o$1) {
             System.out.println(o$1.size());
         }
-        System.out.println(!(o instanceof Map o$2));
+        System.out.println(!(o instanceof Map<?, ?> o$2));
         System.out.println(size(Map.of("a", 1)));
     }
 }

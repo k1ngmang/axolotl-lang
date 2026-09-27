@@ -1,0 +1,25 @@
+package app
+
+import java.util.List
+
+// `is Class` binds a `Class<?>`, which the generic function takes without an unchecked conversion.
+fn create<T : Object>(s: String, clazz: Class<T>) -> T = clazz.cast(s)
+
+fn create(s: String, obj: Object) -> Object {
+    if (obj !is Class) {
+        throw ClassCastException("not a class")
+    }
+    return create(s, obj)
+}
+
+fn firstOf<T>(xs: List<T>) -> T = xs.get(0)
+
+fn first(o: Object) -> Object? = when (o) {
+    is List -> firstOf(o)
+    else -> null
+}
+
+fn main() {
+    println(create("x", String.class))
+    println(first(List.of("y", "z")))
+}
