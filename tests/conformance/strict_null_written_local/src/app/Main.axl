@@ -1,0 +1,7 @@
+package app
+
+// A local written with `?` may be null because of its type, strict or not.
+fn userLength() -> Int {
+    val user: String? = System.getenv("USER")
+    return user.length()
+}

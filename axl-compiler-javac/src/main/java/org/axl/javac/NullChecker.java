@@ -539,14 +539,18 @@ final class NullChecker implements TaskListener {
                     describe(value) + ", but `" + local.getSimpleName() + "` is not nullable; " + FIX)) {
                 state.put(local, Origin.NONE);
             } else {
-                state.put(local, nullable ? storedOrigin(value) : Origin.NONE);
+                state.put(local, nullable ? storedOrigin(value, local) : Origin.NONE);
             }
         }
 
-        /** NullAway takes a value from Java code without nullness annotations as not null, also in a local written with `?`. */
-        private Origin storedOrigin(ExpressionTree value) {
+        /**
+         * NullAway takes a value from Java code without nullness annotations as not null, also in a local written with `?`.
+         * Such a local may be null because of its type, so strict mode has nothing to add there.
+         */
+        private Origin storedOrigin(ExpressionTree value, Element local) {
             Origin origin = origin(value);
-            return origin == Origin.NONE && fromUnannotated(value) ? Origin.UNANNOTATED : origin;
+            boolean written = nullableLocals.contains(local) || PlatformValues.isNullable(local, local.asType());
+            return origin == Origin.NONE && fromUnannotated(value) || origin == Origin.PLATFORM && written ? Origin.UNANNOTATED : origin;
         }
 
         /** Whether the value may come from Java code without nullness annotations, also through `?:`, `if` or `when`. */
@@ -595,7 +599,12 @@ final class NullChecker implements TaskListener {
             boolean isTypeOrPackage = targetElement != null
                     && (targetElement.getKind().isClass() || targetElement.getKind().isInterface()
                     || targetElement.getKind() == ElementKind.PACKAGE);
-            if (!isTypeOrPackage) {
+            if (!isTypeOrPackage && origin(target) == Origin.UNANNOTATED && writtenNullable(unwrap(target))) {
+                // The words NullAway's report gets for a local written with `?`.
+                String name = name(unwrap(target));
+                report(select, Origin.UNANNOTATED, false, "value `" + name + "` may be null: use `?.`, `?:` or check `if ("
+                        + name + " != null)`");
+            } else if (!isTypeOrPackage) {
                 reportValue(select, target, true, "");
             }
             return super.visitMemberSelect(select, unused);
@@ -2271,7 +2280,8 @@ final class NullChecker implements TaskListener {
                 String plain = identifier.getName().toString().replaceAll("\\$e?\\d+$", "");
                 String name = plain.isEmpty() ? "the subject of this `when` may be null" : "`" + plain + "` may be null";
                 return switch (origin) {
-                    case PLATFORM, UNANNOTATED -> name + ": it holds a value from Java code without nullness annotations";
+                    case PLATFORM -> name + ": it holds a value from Java code without nullness annotations";
+                    case UNANNOTATED -> writtenNullable(e) ? name : name + ": it holds a value from Java code without nullness annotations";
                     case HIDDEN -> name + ": it holds a value of a type argument written with `?`";
                     case OPEN -> name + ": `" + typeOf(e) + "` stands for any type, nullable ones too";
                     case ABSENT -> name + ": it holds the result of a JDK method that returns null when there is no value";
@@ -2309,6 +2319,16 @@ final class NullChecker implements TaskListener {
                 };
             }
             return "the value may be null";
+        }
+
+        /**
+         * A local or parameter written with `?`: it may be null because of its type, whatever value it holds, and
+         * NullAway would say so if it did not take a value from Java code without nullness annotations as not null.
+         */
+        private boolean writtenNullable(ExpressionTree e) {
+            Element element = element(e);
+            return e instanceof IdentifierTree && element != null
+                    && (nullableLocals.contains(element) || PlatformValues.isNullable(element, element.asType()));
         }
 
         /** Reports a value that may be null where a use needs one that is not; see `report`. */

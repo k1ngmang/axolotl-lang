@@ -1,10 +1,10 @@
-AXL102 app/Main.axl:11:15: error: `a` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:12:18: error: `a` may be null: it holds a value from Java code without nullness annotations, but the parameter `s` does not accept null; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:14:13: error: `n` may be null: it holds a value from Java code without nullness annotations, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:18:15: error: `b` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:20:35: error: `c` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:22:12: error: `a` may be null: it holds a value from Java code without nullness annotations, but the function does not return null; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:37:15: error: `a` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:39:15: error: `b` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:44:15: error: `d` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
-AXL102 app/Main.axl:48:15: error: `e` may be null: it holds a value from Java code without nullness annotations; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:11:15: error: value `a` may be null: use `?.`, `?:` or check `if (a != null)`
+AXL102 app/Main.axl:12:18: error: `a` may be null, but the parameter `s` does not accept null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:14:13: error: `n` may be null, but is used as a number or boolean here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:18:15: error: value `b` may be null: use `?.`, `?:` or check `if (b != null)`
+AXL102 app/Main.axl:20:35: error: value `c` may be null: use `?.`, `?:` or check `if (c != null)`
+AXL102 app/Main.axl:22:12: error: `a` may be null, but the function does not return null; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:37:15: error: value `a` may be null: use `?.`, `?:` or check `if (a != null)`
+AXL102 app/Main.axl:39:15: error: value `b` may be null: use `?.`, `?:` or check `if (b != null)`
+AXL102 app/Main.axl:44:15: error: value `d` may be null: use `?.`, `?:` or check `if (d != null)`
+AXL102 app/Main.axl:48:15: error: value `e` may be null: use `?.`, `?:` or check `if (e != null)`

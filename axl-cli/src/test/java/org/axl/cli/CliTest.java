@@ -251,13 +251,13 @@ class CliTest {
                 + "        int it = 5;\n        return x;\n    }\n\n    static String name() {\n        return \"j\";\n    }\n}\n");
         assertEquals(1, axl("check", tmp.toString()), err.toString());
         String printed = out.toString(StandardCharsets.UTF_8) + err;
-        assertTrue(printed.contains("Main.axl:5:19: error: `s` may be null"), printed);
+        assertTrue(printed.contains("Main.axl:5:19: error: value `s` may be null"), printed);
         assertFalse(printed.contains("J.java"), printed);
 
         out.reset();
         assertEquals(1, axl("check", "--check-java", tmp.toString()), err.toString());
         printed = out.toString(StandardCharsets.UTF_8) + err;
-        assertTrue(printed.contains("Main.axl:5:19: error: `s` may be null"), printed);
+        assertTrue(printed.contains("Main.axl:5:19: error: value `s` may be null"), printed);
         assertTrue(printed.contains("J.java:5:13: warning: [UnusedVariable]"), printed);
 
         out.reset();
