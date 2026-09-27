@@ -14,6 +14,8 @@ AXL100 app/ExtendsClass.axl:4:31: error: this supertype is a class, not an inter
 AXL100 app/ExtendsClass.axl:5:33: error: `Animal` is written in Axolotl and cannot be extended; keep one in a property and give both an interface
 AXL100 app/ForOverNumber.axl:4:15: error: `for` needs a list or another collection, found `Int`
 AXL100 app/ForOverNumber.axl:7:15: error: `for` needs a list or another collection, found `String`; for the characters of a string, use `s.toCharArray()`
+AXL100 app/ImpossibleGenericIs.axl:7:8: error: a value of type `String` can never be `List`; remove the `is` test
+AXL100 app/ImpossibleGenericIs.axl:12:9: error: a value of type `String` can never be `Map`; remove the `is` test
 AXL100 app/ImpossibleIs.axl:4:5: error: a value of type `String` can never be `Int`; remove the `is` test
 AXL100 app/InterfaceArgument.axl:8:26: error: `Callable` is an interface and cannot be created; pass the lambda where a `Callable<Int>` is expected, or keep it in a value: `val v: Callable<Int> = { -> ... }`
 AXL100 app/InterfaceWithLambda.axl:7:13: error: `Runnable` is an interface and cannot be created; pass the lambda where a `Runnable` is expected, such as `Thread({ -> ... })`, or keep it in a value: `val r: Runnable = { -> ... }`

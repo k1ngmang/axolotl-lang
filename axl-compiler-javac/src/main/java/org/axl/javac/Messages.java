@@ -117,7 +117,7 @@ final class Messages {
             "\\$(?:t|n|c|p|ex)\\d+|\\bNulls\\.|\\bResult\\.(?:unwrap|propagate|attempt)\\b|^(?:unwrap|propagate)\\(\\)$|requireNonNull");
     private static final Pattern SUGGESTION = Pattern.compile(";? ?(?:Did you mean |\\(Note: ).*$");
     // `is` becomes a type pattern in a switch or after instanceof.
-    private static final Pattern TYPE_PATTERN = Pattern.compile("\\bcase [\\w.<>]+ \\w+(?:\\$\\d+)? ->|\\binstanceof\\b");
+    private static final Pattern TYPE_PATTERN = Pattern.compile("\\bcase [\\w.<>]+(?:<[?, ]+>)? \\w+(?:\\$\\d+)? ->|\\binstanceof\\b");
     // A chain of names and calls that ends in a call, such as `first$1.value()` or `m.get("k")`.
     private static final String CALL_CHAIN = "(?:[\\w$]+(?:\\([^()]*\\))?\\.)*[\\w$]+\\([^()]*\\)";
     // `first$1` of a type test or record pattern, which stands for what the author tested.
@@ -594,7 +594,7 @@ final class Messages {
             return TYPE_PATTERN.matcher(javaText).find();
         }
         String rest = javaText.substring((int) javaColumn - 1);
-        return rest.matches("^(?:[\\w.$]+|\\([^()]*\\)) instanceof\\b.*") || rest.matches("^(?:case )?[\\w.<>]+ \\w+(?:\\$\\d+)? ->.*");
+        return rest.matches("^(?:[\\w.$]+|\\([^()]*\\)) instanceof\\b.*") || rest.matches("^(?:case )?[\\w.<>]+(?:<[?, ]+>)? \\w+(?:\\$\\d+)? ->.*");
     }
 
     /**
@@ -1194,8 +1194,9 @@ final class Messages {
         }
         Matcher incompatible = INCOMPATIBLE.matcher(message);
         if (incompatible.find() && pointsAtTypeTest(text, javaColumn)) {
-            return "a value of type `" + axlType(incompatible.group(1)) + "` can never be `" + axlType(incompatible.group(2))
-                    + "`; remove the `is` test";
+            // `is List` tests a `List<?>`.
+            return "a value of type `" + axlType(incompatible.group(1)) + "` can never be `"
+                    + axlType(incompatible.group(2).replaceFirst("<[?, ]+>$", "")) + "`; remove the `is` test";
         }
         if (incompatible.find(0) && incompatible.group(1).equals("void")) {
             return "this gives no value: the call returns nothing, but `" + axlType(incompatible.group(2)) + "` is expected";
