@@ -1,0 +1,38 @@
+package app
+
+import java.util.Arrays
+import java.util.List
+import java.util.function.Function
+import java.util.function.Supplier
+
+fn find<T>(clazz: Class<T>) -> Conv<T> = { s -> clazz.cast(s) }
+
+fn convert<T>(s: String, clazz: Class<T>) -> Result<T, String> =
+    attempt find(clazz).apply(s) else e -> "bad: " + e.getMessage()
+
+fn first<T>(xs: List<T>) -> Supplier<T> = { -> xs.get(0) }
+
+fn kept<T>(x: T) -> Supplier<T> {
+    val s: Supplier<T> = { -> x }
+    return s
+}
+
+fn second<T, U>(x: T, u: U) -> Function<T, U> = { t -> u }
+
+fn wrapped<T>(x: T) -> Result<T, String> = Ok(x)
+
+fn failed<T>(x: T) -> Result<String, T> = Err(x)
+
+fn shown<T>(x: T) -> String = x?.toString() ?: "null"
+
+fn main() {
+    println(convert("a", String.class))
+    println(convert("b", Integer.class) is Err)
+    val maybe: String? = null
+    println(shown(first(Arrays.asList(maybe)).get()))
+    println(first(List.of("c")).get())
+    println(shown(kept(maybe).get()))
+    println(second(1, "d").apply(2))
+    println(wrapped(maybe))
+    println(failed("e"))
+}

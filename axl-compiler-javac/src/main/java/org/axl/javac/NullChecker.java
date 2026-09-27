@@ -691,9 +691,9 @@ final class NullChecker implements TaskListener {
             }
             String owner = created.getQualifiedName().toString();
             if ((owner.equals("axl.lang.Ok") || owner.equals("axl.lang.Err")) && newClass.getArguments().size() == 1) {
-                Boolean nullable = targetTypeArgNullable(getCurrentPath(), owner.equals("axl.lang.Ok") ? 0 : 1);
+                TypeMirror target = targetTypeArg(getCurrentPath(), owner.equals("axl.lang.Ok") ? 0 : 1);
                 ExpressionTree value = newClass.getArguments().getFirst();
-                if (Boolean.FALSE.equals(nullable)) {
+                if (target != null && !nullableAnnotated(target) && !passesOn(value, target)) {
                     reportValue(value, value, !resultOfLambda(getCurrentPath()), ", but the result type has no `?` there");
                 }
             }
@@ -1237,7 +1237,7 @@ final class NullChecker implements TaskListener {
                 checkTypeArguments(result, written, Map.of(), "the result type of the lambda");
             }
             Origin origin = origin(result);
-            if (origin == Origin.NONE || resultMayBeNull(lambda, iface, method, returned)) {
+            if (origin == Origin.NONE || passesOn(result, returned) || resultMayBeNull(lambda, iface, method, returned)) {
                 return;
             }
             TreePath parent = lambda.getParentPath();
@@ -1351,6 +1351,11 @@ final class NullChecker implements TaskListener {
          * result type of the function it is returned from, or the written type of a local. Null when unknown.
          */
         private Boolean targetTypeArgNullable(TreePath expression, int index) {
+            TypeMirror argument = targetTypeArg(expression, index);
+            return argument == null ? null : nullableAnnotated(argument);
+        }
+
+        private TypeMirror targetTypeArg(TreePath expression, int index) {
             TreePath child = expression;
             TreePath parent = expression.getParentPath();
             // A branch of an `if` value goes where the whole value goes.
@@ -1378,9 +1383,18 @@ final class NullChecker implements TaskListener {
                 target = element == null ? null : element.asType();
             }
             if (target instanceof DeclaredType declared && index < declared.getTypeArguments().size()) {
-                return nullableAnnotated(declared.getTypeArguments().get(index));
+                return declared.getTypeArguments().get(index);
             }
             return null;
+        }
+
+        /**
+         * A value of `T` where `T` itself is expected: whatever `T` stands for, nullable or not, the value is one.
+         * A null or a value of another type still needs to be ruled out.
+         */
+        private boolean passesOn(ExpressionTree value, TypeMirror target) {
+            return target != null && openTypeVariable(target) && origin(value) == Origin.OPEN
+                    && types.isSameType(typeOf(value), target);
         }
 
         /** NullAway checks `Ok(x)` against the result type of a function, but not of a lambda. */

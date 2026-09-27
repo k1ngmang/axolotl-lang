@@ -4,3 +4,8 @@ AXL102 app/Main.axl:16:33: error: `x` may be null: `T` stands for any type, null
 AXL102 app/Main.axl:19:33: error: `item` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
 AXL102 app/OpenLoop.axl:10:25: error: `x` may be null, but the parameter does not accept null: use `?:` or check `if (x != null)`, or `T : Object` on the declaration to rule null out
 AXL102 app/OpenLoop.axl:18:26: error: `n` may be null, but the parameter does not accept null: use `?:` or check `if (n != null)`
+AXL102 app/Widened.axl:5:36: error: the value is `null`, but the lambda must not return null: `Supplier.get` returns `T` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Widened.axl:8:17: error: `x` may be null: `T` stands for any type, nullable ones too, but the lambda must not return null: `Supplier.get` returns `Object` here; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Widened.axl:12:15: error: `x` may be null: `T` stands for any type, nullable ones too, but the result type has no `?` there; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Widened.axl:16:17: error: `x` may be null, but the lambda must not return null: `Supplier.get` returns `T` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Widened.axl:19:71: error: the result of `get()` may be null: its type `T` stands for any type, nullable ones too, but the lambda must not return null: `ThrowingSupplier.get` returns `Object` here; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out

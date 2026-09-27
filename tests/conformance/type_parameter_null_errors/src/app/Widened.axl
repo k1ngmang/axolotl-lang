@@ -1,0 +1,19 @@
+package app
+
+import java.util.function.Supplier
+
+fn none<T>() -> Supplier<T> = { -> null }
+
+fn widened<T>(x: T) -> Supplier<Object> {
+    return { -> x }
+}
+
+fn okWidened<T>(x: T) -> Result<Object, String> {
+    return Ok(x)
+}
+
+fn maybe<T>(x: T?) -> Supplier<T> {
+    return { -> x }
+}
+
+fn attempted<T>(s: Supplier<T>) -> Result<Object, String> = attempt s.get() else e -> "bad"
