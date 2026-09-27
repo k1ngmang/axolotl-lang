@@ -22,6 +22,8 @@ final class Columns {
     private static final Pattern COMMENT = Pattern.compile("//.*|/\\*.*?(\\*/|$)");
     private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:public|private) (?:static )?(.+?) ([\\w$]+)\\((.*)\\) \\{$");
     private static final Pattern AXL_SIGNATURE = Pattern.compile("^\\s*(?:private\\s+)?fn\\s+[\\w$]+\\s*\\(");
+    // A `catch (Exception e)` of `else e ->` sets the interrupt flag again: a line the .axl line has no part of.
+    private static final Pattern KEPT_INTERRUPT = Pattern.compile("^\\s*if \\(\\w+ instanceof InterruptedException\\) Thread\\.currentThread\\(\\)\\.interrupt\\(\\);$");
 
     private Columns() {}
 
@@ -165,13 +167,18 @@ final class Columns {
         int axl = lineMap.nearestAxlLine(javaLine);
         int before = 0;
         for (int line = 1; line < javaLine; line++) {
-            if (lineMap.axlLine(line) == axl && !JAVA_SIGNATURE.matcher(javaLines[line - 1]).matches()) {
+            if (lineMap.axlLine(line) == axl && counted(javaLines[line - 1])) {
                 before += index(javaLines[line - 1], null, null, word);
             }
         }
         String javaText = javaLines[javaLine - 1];
         int occurrence = before + index(javaText, null, javaName, word);
         return nth(axlLine, new Region(bodyStart(axlLine), axlLine.length()), word, occurrence);
+    }
+
+    /** Whether the names of a Java line count towards the occurrences of the .axl line it was made from. */
+    private static boolean counted(String javaText) {
+        return !JAVA_SIGNATURE.matcher(javaText).matches() && !KEPT_INTERRUPT.matcher(javaText).matches();
     }
 
     /** An operator alone, not the start or end of a longer one such as `<=` or `->`. */
@@ -188,7 +195,7 @@ final class Columns {
         int axl = lineMap.nearestAxlLine(javaLine);
         int occurrence = 0;
         for (int line = 1; line < javaLine; line++) {
-            if (lineMap.axlLine(line) == axl && !JAVA_SIGNATURE.matcher(javaLines[line - 1]).matches()) {
+            if (lineMap.axlLine(line) == axl && counted(javaLines[line - 1])) {
                 occurrence += starts(token, inCode, javaLines[line - 1], Integer.MAX_VALUE).size();
             }
         }

@@ -1,0 +1,18 @@
+package app
+
+import java.io.StringReader
+import java.io.UncheckedIOException
+
+fn put(appendable: Appendable, text: String) {
+    attempt appendable.append(text) else e -> throw UncheckedIOException(e)
+}
+
+fn first(text: String) -> Int {
+    use (val reader = StringReader(text)) {
+        return reader.read()
+    } else problem -> throw UncheckedIOException(problem)
+}
+
+fn wrapped(appendable: Appendable, text: String) {
+    attempt appendable.append(text) else e -> throw IllegalStateException(e.getMessage(), UncheckedIOException(e))
+}

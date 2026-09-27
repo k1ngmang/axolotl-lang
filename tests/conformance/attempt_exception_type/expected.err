@@ -1,1 +1,4 @@
 AXL100 app/Main.axl:8:86: error: type mismatch: expected `IOException`, found `Exception`; `failure` of `attempt` is any `Exception`; catch only an `IOException` with `else failure: IOException ->`
+AXL100 app/Statements.axl:7:74: error: type mismatch: expected `IOException`, found `Exception`; `e` of `attempt` is any `Exception`; catch only an `IOException` with `else e: IOException ->`
+AXL100 app/Statements.axl:13:50: error: type mismatch: expected `IOException`, found `Exception`; `problem` of `use` is any `Exception`; catch only an `IOException` with `else problem: IOException ->`
+AXL100 app/Statements.axl:17:112: error: type mismatch: expected `IOException`, found `Exception`; `e` of `attempt` is any `Exception`; catch only an `IOException` with `else e: IOException ->`

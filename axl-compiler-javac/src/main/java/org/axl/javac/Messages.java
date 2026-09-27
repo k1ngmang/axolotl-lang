@@ -197,6 +197,7 @@ final class Messages {
             "int", "IntBuffer", "long", "LongBuffer", "float", "FloatBuffer", "double", "DoubleBuffer");
     private static final Pattern SIMPLE_NAME = Pattern.compile("^[a-z_]\\w*$");
     private static final Pattern ATTEMPT_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*->");
+    private static final Pattern USE_HANDLER = Pattern.compile("\\s*}\\s*else\\b");
     // `else e: IOException ->`: the name and the class a handler catches.
     private static final Pattern TYPED_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*:\\s*([\\w.]+)\\s*->");
     private static final Pattern TYPED_CATCH = Pattern.compile("^\\s*\\} catch \\((?!Exception )([\\w.]+) (\\w+)\\) \\{$");
@@ -595,6 +596,12 @@ final class Messages {
         }
         String rest = javaText.substring((int) javaColumn - 1);
         return rest.matches("^(?:[\\w.$]+|\\([^()]*\\)) instanceof\\b.*") || rest.matches("^(?:case )?[\\w.<>]+(?:<[?, ]+>)? \\w+(?:\\$\\d+)? ->.*");
+    }
+
+    /** Whether javac points at the name itself, as at `e` of `new UncheckedIOException(e)`. */
+    private static boolean pointsAtName(String javaText, long javaColumn, String name) {
+        return javaColumn > 0 && javaColumn <= javaText.length() && Pattern.compile(Pattern.quote(name) + "\\b").matcher(javaText)
+                .region((int) javaColumn - 1, javaText.length()).lookingAt();
     }
 
     /**
@@ -1201,14 +1208,17 @@ final class Messages {
         if (incompatible.find(0) && incompatible.group(1).equals("void")) {
             return "this gives no value: the call returns nothing, but `" + axlType(incompatible.group(2)) + "` is expected";
         }
-        if (incompatible.find(0) && incompatible.group(1).equals("java.lang.Exception") && attempt != null && javaColumn > attempt.comma()) {
-            Matcher handler = ATTEMPT_HANDLER.matcher(axlText);
-            String e = handler.find() ? handler.group(1) : "e";
+        Matcher handler = ATTEMPT_HANDLER.matcher(axlText);
+        boolean inHandler = attempt != null ? javaColumn > attempt.comma() : handler.find() && pointsAtName(text, javaColumn, handler.group(1));
+        if (incompatible.find(0) && incompatible.group(1).equals("java.lang.Exception") && inHandler) {
+            String e = handler.find(0) ? handler.group(1) : "e";
             String expected = axlType(incompatible.group(2));
             String fix = expected.matches("\\w*(?:Exception|Error)") ? "catch only an `" + expected + "` with `else " + e + ": "
                     + expected + " ->`" : "wrap it in `IllegalStateException(" + e + ")`";
+            // The statement forms are a `catch` in Java; `} else e ->` closes the block of a `use`.
+            String keyword = attempt == null && USE_HANDLER.matcher(axlText).lookingAt() ? "use" : "attempt";
             return mismatch(incompatible.group(2), incompatible.group(1), text, javaColumn) + "; `" + e
-                    + "` of `attempt` is any `Exception`; " + fix;
+                    + "` of `" + keyword + "` is any `Exception`; " + fix;
         }
         if (incompatible.find(0) && incompatible.group(2).equals("java.lang.Throwable") && TYPED_HANDLER.matcher(axlText).find()) {
             return notException(incompatible.group(1));
