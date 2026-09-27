@@ -1,0 +1,5 @@
+package app
+
+enum Planet private constructor(val mass: Double) {
+    EARTH(5.97e24)
+}

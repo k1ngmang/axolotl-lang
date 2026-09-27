@@ -79,6 +79,34 @@ tokens { BLOCK_START }
         }
     }
 
+    // `class Parser private constructor(...)`: annotations or `private`, then `constructor(`. After a class without
+    // parameters, an annotation or `private` may start the next declaration instead, so this looks past them.
+    private boolean primaryConstructorAhead() {
+        int i = 1;
+        while (_input.LT(i).getType() == AT) {
+            i++;
+            while (_input.LT(i + 1).getType() == DOT) {
+                i += 2;
+            }
+            i++;
+            if (_input.LT(i).getType() == LPAREN) {
+                int depth = 0;
+                do {
+                    int type = _input.LT(i).getType();
+                    if (type == Token.EOF) {
+                        return false;
+                    }
+                    depth += type == LPAREN ? 1 : type == RPAREN ? -1 : 0;
+                    i++;
+                } while (depth > 0);
+            }
+        }
+        if (_input.LT(i).getType() == PRIVATE) {
+            i++;
+        }
+        return i > 1 && _input.LT(i).getText().equals("constructor") && _input.LT(i + 1).getType() == LPAREN;
+    }
+
     private static boolean startsUpper(Token t) {
         return t.getType() == IDENTIFIER && Character.isUpperCase(t.getText().charAt(0));
     }
@@ -149,9 +177,15 @@ enumConstant
 // A class with state: constructor parameters and properties are fields, functions are methods.
 // `: Thread()` extends the Java class Thread, passing the arguments to its constructor; `: Runnable` implements.
 classDecl
-    : annotation* PRIVATE? CLASS identifier typeParams? (LPAREN (classParam (COMMA classParam)*)? RPAREN)?
+    : annotation* PRIVATE? CLASS identifier typeParams? (primaryConstructor? LPAREN (classParam (COMMA classParam)*)? RPAREN)?
       (COLON type (LPAREN arguments? RPAREN)? (COMMA type)*)?
       (LBRACE classMember* RBRACE)?
+    ;
+
+// `class Parser private constructor(...)` or `class Builder @Deprecated constructor()`: the constructor the parameters
+// make is private or annotated. Without either, the keyword is left out.
+primaryConstructor
+    : {primaryConstructorAhead()}? annotation* PRIVATE? IDENTIFIER
     ;
 
 // `private val` keeps the value inside the class: Java's private field, without the public accessor.

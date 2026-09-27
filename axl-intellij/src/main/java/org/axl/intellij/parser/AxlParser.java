@@ -214,6 +214,17 @@ public final class AxlParser implements PsiParser {
         b.advanceLexer();
         expect(IDENTIFIER, "class name expected");
         typeParameters();
+        if (atPrimaryConstructor()) {
+            PsiBuilder.Marker primary = b.mark();
+            annotations();
+            consume(PRIVATE);
+            // Reading the token first moves past the space before it, as in constructor().
+            if (at(IDENTIFIER)) {
+                b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+            }
+            b.advanceLexer();
+            primary.done(AxlElementTypes.PRIMARY_CONSTRUCTOR);
+        }
         if (consume(LPAREN)) {
             if (!at(RPAREN)) {
                 do {
@@ -230,6 +241,22 @@ public final class AxlParser implements PsiParser {
             expect(RBRACE, "`}` expected");
         }
         m.done(AxlElementTypes.CLASS);
+    }
+
+    /**
+     * `private constructor(` or `@Deprecated constructor(` after the name of a class: the modifiers of the constructor its
+     * parameters make. Without them `constructor` is not a word there.
+     */
+    private boolean atPrimaryConstructor() {
+        if (!at(AT) && !at(PRIVATE)) {
+            return false;
+        }
+        PsiBuilder.Marker probe = b.mark();
+        annotations();
+        consume(PRIVATE);
+        boolean found = at(IDENTIFIER) && "constructor".equals(b.getTokenText()) && b.lookAhead(1) == AxlTokenTypes.LPAREN;
+        probe.rollbackTo();
+        return found;
     }
 
     private void classMember() {

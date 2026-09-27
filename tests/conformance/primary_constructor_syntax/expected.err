@@ -1,0 +1,5 @@
+AXL001 app/Line.axl:3:20: error: a data class has one public constructor, which takes all its fields, as a Java record has; leave out `@Deprecated constructor`, or make it a class
+AXL001 app/Named.axl:3:17: error: an interface has no constructors; the classes that implement it have them
+AXL001 app/Plain.axl:4:13: error: write the parameters right after the class name: `class Plain(val a: Int)`
+AXL001 app/Planet.axl:3:13: error: an enum's constructor is private already and takes the fields each constant gives; leave out `private constructor`
+AXL001 app/Point.axl:3:18: error: a data class has one public constructor, which takes all its fields, as a Java record has; leave out `private constructor`, or make it a class

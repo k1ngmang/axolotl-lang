@@ -1,0 +1,4 @@
+package app
+
+// Without `private` or an annotation, the keyword is left out.
+class Plain constructor(val a: Int)

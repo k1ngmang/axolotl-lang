@@ -1,0 +1,5 @@
+package app
+
+interface Named @Deprecated constructor() {
+    val name: String
+}

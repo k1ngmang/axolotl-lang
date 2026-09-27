@@ -14,6 +14,8 @@ public final class AxlElementTypes {
     public static final IElementType QUALIFIED_NAME = type("QUALIFIED_NAME");
     public static final IElementType FUNCTION = type("FUNCTION");
     public static final IElementType CONSTRUCTOR = type("CONSTRUCTOR");
+    /** `private constructor` or `@Deprecated constructor` between a class's name and its parameters. */
+    public static final IElementType PRIMARY_CONSTRUCTOR = type("PRIMARY_CONSTRUCTOR");
     public static final IElementType PARAMETER_LIST = type("PARAMETER_LIST");
     public static final IElementType PARAMETER = type("PARAMETER");
     public static final IElementType TYPE_PARAMETER = type("TYPE_PARAMETER");

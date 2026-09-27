@@ -328,7 +328,9 @@ import org.axl.compiler.check.Whens;
         final var lifting = Nulls.stream(classDecl.properties()).anyMatch(p -> Lifts.needed(propertyInit(p)));
         final var superArgs = classDecl.superArgs();
         final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
-                !classDecl.constructors().isEmpty();
+                !classDecl.constructors().isEmpty() ||
+                classDecl.privateConstructor() ||
+                !classDecl.constructorAnnotations().isEmpty();
         for (final var p : classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";");
         }
@@ -370,7 +372,10 @@ import org.axl.compiler.check.Whens;
     private void emitConstructor(Decl.ClassDecl classDecl) {
         final var line = classDecl.pos().line();
         final var params = Nulls.stream(classDecl.parameters()).map(Nulls.nonNull(p -> javaType(propertyTypeOf(p)) + " " + p.name())).toList();
-        em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {");
+        final var access = (classDecl.privateConstructor() ? "private " : "public ");
+        em.line(line, annotations(classDecl.constructorAnnotations()) + access + classDecl.name() + "(" +
+                String.join(", ", params) +
+                ") {");
         em.indent();
         final var superArgs = classDecl.superArgs();
         if (superArgs != null && !superArgs.isEmpty()) {

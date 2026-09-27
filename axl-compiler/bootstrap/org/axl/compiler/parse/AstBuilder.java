@@ -229,9 +229,12 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
             }
         }
         final @Nullable List<Expr> superArgs = (hasSuperArgs(ctx) ? buildArguments(ctx.arguments()) : null);
+        final var primary = ctx.primaryConstructor();
         return new ClassDecl(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
                 parameters, properties, methods, buildTypes(ctx.type()), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()),
-                superArgs, constructors);
+                superArgs, constructors, (primary == null ? null : pos(primary.IDENTIFIER().getSymbol())),
+                primary != null && primary.PRIVATE() != null,
+                (primary == null ? List.of() : buildAnnotations(primary.annotation())));
     }
     private static Decl.Constructor buildConstructor(ConstructorMemberContext ctx) {
         final var value = ctx.functionBody().expression();

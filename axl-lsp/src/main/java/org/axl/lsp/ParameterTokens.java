@@ -73,10 +73,15 @@ final class ParameterTokens {
         mark(List.of(text(name)), name, expressionEnd(arrow));
     }
 
-    /** `constructor(` at the start of a member of a class, which a function's keyword would start. */
+    /**
+     * `constructor(` at the start of a member of a class, which a function's keyword would start. In
+     * `class Parser private constructor(...)` the parameters are the class's, which are not parameters here.
+     */
     private boolean startsConstructor(int k) {
+        boolean member = type(k - 1) == AxolotlLexer.PRIVATE && (k == 1 || line(k - 2) < line(k - 1)
+                || Set.of(AxolotlLexer.LBRACE, AxolotlLexer.RBRACE, AxolotlLexer.SEMI).contains(type(k - 2)));
         return type(k) == AxolotlLexer.IDENTIFIER && text(k).equals("constructor") && type(k + 1) == AxolotlLexer.LPAREN
-                && (k == 0 || line(k - 1) < line(k) || type(k - 1) == AxolotlLexer.PRIVATE);
+                && (k == 0 || line(k - 1) < line(k) || member);
     }
 
     /**

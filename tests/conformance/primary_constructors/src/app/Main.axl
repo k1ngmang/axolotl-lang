@@ -1,0 +1,48 @@
+package app
+
+import java.util.List
+
+// commons-cli DefaultParser: public constructors for callers, and the one that sets every field only for the class.
+class Parser private constructor(val partial: Boolean, private val quotes: Boolean?) {
+    constructor() = this(true, null)
+
+    constructor(partial: Boolean) = this(partial, null)
+
+    fn describe() -> String = "partial=" + partial + " quotes=" + quotes
+
+    fn quoting(q: Boolean) -> Parser = Parser(partial, q)
+}
+
+// commons-cli CommandLine.Builder: callers should use a function of the file instead.
+class Builder @Deprecated constructor() {
+    var count = 0
+
+    fn add() -> Builder {
+        count += 1
+        return this
+    }
+}
+
+class Window<T> @Deprecated(since = "2") private constructor(val items: List<T>, val size: Int) {
+    constructor(size: Int) = this(List.of(), size)
+
+    fn grown() -> Window<T> = Window<T>(items, size * 2)
+}
+
+class Counter private constructor() {
+    var count = 0
+
+    constructor(start: Int) = this()
+}
+
+@SuppressWarnings("deprecation")
+fn builder() -> Builder = Builder()
+
+fn main() {
+    println(Parser().describe())
+    println(Parser(false).quoting(true).describe())
+    println(builder().add().add().count)
+    println(Window<String>(3).grown().size)
+    println(Counter(5).count)
+    println(JavaCaller.describe())
+}

@@ -174,6 +174,9 @@ final class Declarations {
     static Found declaredAt(Document document, Token token) {
         Pos pos = Document.start(token);
         for (Decl decl : document.ast.decls()) {
+            if (decl instanceof Decl.ClassDecl classDecl && pos.equals(classDecl.constructorPos())) {
+                return new Found(document, pos, Hovers.primaryConstructor(classDecl));
+            }
             List<Decl.Constructor> constructors = decl instanceof Decl.ClassDecl classDecl ? classDecl.constructors() : List.of();
             for (Decl.Constructor constructor : constructors) {
                 if (constructor.namePos().equals(pos)) {

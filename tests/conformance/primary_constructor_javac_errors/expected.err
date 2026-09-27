@@ -1,0 +1,6 @@
+AXL100 app/Caller.java:6:16: error: constructor Parser in class app.Main.Parser cannot be applied to given types; required: boolean, Boolean?; found: boolean, Boolean; reason: Parser(boolean, Boolean?) has private access in app.Main.Parser
+AXL100 app/Main.axl:15:28: error: this constructor is private to `Parser`; only the code of `Parser` can use it
+AXL100 app/Main.axl:18:25: error: this constructor is private to `Parser`; only the code of `Parser` can use it
+AXL100 app/Main.axl:20:25: error: this constructor is private to `Hidden`; only the code of `Hidden` can use it
+AXL100 app/Other.axl:6:24: error: `Parser(Boolean, Boolean?)` is private to `Parser`; only the code of `Parser` can use it
+AXL100 app/Other.axl:8:30: error: `Hidden` cannot be created here: its constructor is private

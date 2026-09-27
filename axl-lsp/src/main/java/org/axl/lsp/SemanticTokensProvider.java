@@ -250,9 +250,25 @@ final class SemanticTokensProvider {
         return type(tokens, previousIndex(tokens, first)) == AxolotlLexer.AT;
     }
 
+    /** The last token of an annotation, as `Deprecated` in `@Deprecated` or `)` in `@Deprecated(since = "2")`. */
+    private static boolean endsAnnotation(List<? extends Token> tokens, int index) {
+        int name = index;
+        if (type(tokens, index) == AxolotlLexer.RPAREN) {
+            int depth = 0;
+            for (name = index; name >= 0; name = previousIndex(tokens, name)) {
+                depth += type(tokens, name) == AxolotlLexer.RPAREN ? 1 : type(tokens, name) == AxolotlLexer.LPAREN ? -1 : 0;
+                if (depth == 0) {
+                    break;
+                }
+            }
+            name = name < 0 ? name : previousIndex(tokens, name);
+        }
+        return name >= 0 && type(tokens, name) == AxolotlLexer.IDENTIFIER && isAnnotationName(tokens, name);
+    }
+
     /**
      * `data` before `class`, `in` in `for (x in xs)`, `use` before `(val` and `constructor(` starting a member of a
-     * class; all are ordinary names elsewhere.
+     * class or after the annotations or `private` of a class's own constructor; all are ordinary names elsewhere.
      */
     private static boolean isContextualKeyword(List<? extends Token> tokens, int index, Token next, Token previous) {
         String text = tokens.get(index).getText();
@@ -261,7 +277,8 @@ final class SemanticTokensProvider {
         }
         if (text.equals("constructor")) {
             return next != null && next.getType() == AxolotlLexer.LPAREN && (previous == null
-                    || previous.getLine() < tokens.get(index).getLine() || previous.getType() == AxolotlLexer.PRIVATE);
+                    || previous.getLine() < tokens.get(index).getLine() || previous.getType() == AxolotlLexer.PRIVATE
+                    || endsAnnotation(tokens, previousIndex(tokens, index)));
         }
         if (text.equals("use")) {
             int open = nextIndex(tokens, index);

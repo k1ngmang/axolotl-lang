@@ -123,6 +123,7 @@ final class Hovers {
             case Decl.Interface iface -> visibility + (iface.isSealed() ? "sealed " : "") + "interface " + iface.name()
                     + TypeParameters.text(iface.typeParams()) + supertypes(iface.supertypes(), false) + interfaceBody(iface);
             case Decl.ClassDecl classDecl -> visibility + "class " + classDecl.name() + TypeParameters.text(classDecl.typeParams())
+                    + (classDecl.constructorPos() == null ? "" : " " + primaryModifiers(classDecl) + "constructor")
                     + classDecl.parameters().stream()
                     .map(p -> (p.isPrivate() ? "private " : "") + (p.mutable() ? "var " : "val ") + p.name() + ": " + typeText(p.type()))
                     .collect(Collectors.joining(", ", "(", ")"))
@@ -165,6 +166,22 @@ final class Hovers {
     /** `constructor(opt: String?, description: String?)`, the other ways to create a class. */
     static String constructor(Decl.Constructor constructor) {
         return (constructor.isPrivate() ? "private " : "") + "constructor" + parameters(constructor.params());
+    }
+
+    /** `private constructor(partial: Boolean)`: the constructor that the parameters of a class make, as its header writes it. */
+    static String primaryConstructor(Decl.ClassDecl classDecl) {
+        return primaryModifiers(classDecl) + "constructor" + primaryParameters(classDecl);
+    }
+
+    /** `(partial: Boolean)`: the class's parameters, as the constructor they make takes them. */
+    static String primaryParameters(Decl.ClassDecl classDecl) {
+        return classDecl.parameters().stream().map(p -> p.name() + ": " + typeText(p.type())).collect(Collectors.joining(", ", "(", ")"));
+    }
+
+    /** `@Deprecated private `: the annotations and visibility of the constructor of a class's header. */
+    private static String primaryModifiers(Decl.ClassDecl classDecl) {
+        return classDecl.constructorAnnotations().stream().map(a -> "@" + a.name() + (a.args().isEmpty() ? " " : "(...) "))
+                .collect(Collectors.joining()) + (classDecl.privateConstructor() ? "private " : "");
     }
 
     /** `(a: String, b: Int)`: the parameters of a function or a constructor. */

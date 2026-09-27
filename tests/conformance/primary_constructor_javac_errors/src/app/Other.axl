@@ -1,0 +1,8 @@
+package app
+
+import app.Main.Hidden
+import app.Main.Parser
+
+fn other() -> Parser = Parser(true, null)
+
+fn otherHidden() -> Hidden = Hidden()

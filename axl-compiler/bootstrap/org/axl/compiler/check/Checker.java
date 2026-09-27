@@ -402,6 +402,7 @@ import org.axl.compiler.ast.TypeRef;
             primary.add(p.type());
         }
         taken.put(erasure(primary, c), 0);
+        annotations(c.constructorAnnotations());
         for (final var k : c.constructors()) {
             annotations(k.annotations());
             scope = new Scope(scope, false);
@@ -426,13 +427,27 @@ import org.axl.compiler.ast.TypeRef;
                 types.add(p.type());
             }
             final var earlier = taken.putIfAbsent(erasure(types, c), k.namePos().line());
-            if (earlier != null) {
+            if (earlier != null && earlier == 0 && types.isEmpty()) {
+                error(k.namePos(), ErrorCode.DUPLICATE_NAME, "`" + c.name() + "` already has a constructor without " +
+                        "parameters; to make it private or annotate it, write it after the class name: `class " +
+                        c.name() +
+                        " " +
+                        headerText(k) +
+                        "constructor()`");
+            } else if (earlier != null) {
                 final var other = (earlier == 0 ? "the one the class's parameters make" : "the one at line " + earlier);
                 error(k.namePos(), ErrorCode.DUPLICATE_NAME, "Java cannot tell this constructor from " + other + ": the " +
                         "parameter types are the same once `?` and type arguments are left out; give it other parameters, or " +
                         "create the object in a function of the file");
             }
         }
+    }
+    private String headerText(Decl.Constructor k) {
+        final var sb = new StringBuilder();
+        for (final var a : k.annotations()) {
+            sb.append("@").append(a.name()).append((a.args().isEmpty() ? " " : "(...) "));
+        }
+        return sb.toString() + ((k.isPrivate() ? "private " : ""));
     }
     private String erasure(List<@Nullable TypeRef> types, Decl.ClassDecl c) {
         final var erased = new ArrayList<String>();

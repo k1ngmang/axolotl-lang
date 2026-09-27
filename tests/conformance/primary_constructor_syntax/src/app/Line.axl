@@ -1,0 +1,3 @@
+package app
+
+data class Line<T> @Deprecated constructor(val a: T)

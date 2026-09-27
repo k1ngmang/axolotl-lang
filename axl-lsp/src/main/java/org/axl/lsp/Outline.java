@@ -122,6 +122,12 @@ final class Outline {
 
     private static List<DocumentSymbol> members(Document document, Decl.ClassDecl classDecl) {
         List<DocumentSymbol> result = new ArrayList<>();
+        // `class Parser private constructor(...)`: the constructor the parameters make, where its keyword is written.
+        if (classDecl.constructorPos() != null) {
+            DocumentSymbol symbol = symbol(document, classDecl.constructorPos(), "constructor", SymbolKind.Constructor, List.of());
+            symbol.setDetail(Hovers.primaryParameters(classDecl));
+            result.add(symbol);
+        }
         for (Decl.Property p : classDecl.parameters()) {
             result.add(symbol(document, p.namePos(), p.name(), SymbolKind.Field, List.of()));
         }

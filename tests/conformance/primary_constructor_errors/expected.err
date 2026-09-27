@@ -1,0 +1,3 @@
+AXL010 app/Main.axl:8:5: error: `Builder` already has a constructor without parameters; to make it private or annotate it, write it after the class name: `class Builder @Deprecated constructor()`
+AXL010 app/Main.axl:15:5: error: Java cannot tell this constructor from the one the class's parameters make: the parameter types are the same once `?` and type arguments are left out; give it other parameters, or create the object in a function of the file
+AXL001 app/Main.axl:18:40: error: an annotation takes constants: a literal, a name such as `Color.RED`, `String.class`, or `{ a, b }` for several

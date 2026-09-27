@@ -1,0 +1,3 @@
+package app
+
+data class Point private constructor(val x: Int, val y: Int)

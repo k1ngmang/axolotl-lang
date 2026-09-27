@@ -64,7 +64,10 @@ import java.util.List;
             List<Annotation> annotations,
             List<TypeParam> typeParams,
             @Nullable List<Expr> superArgs,
-            List<Constructor> constructors) implements Decl {}
+            List<Constructor> constructors,
+            @Nullable Pos constructorPos,
+            boolean privateConstructor,
+            List<Annotation> constructorAnnotations) implements Decl {}
     public record Constructor(
             Pos pos,
             Pos namePos,

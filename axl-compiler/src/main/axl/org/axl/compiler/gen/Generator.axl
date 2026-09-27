@@ -370,7 +370,7 @@ class Generator(
         val superArgs = classDecl.superArgs()
         // Java gives a class without constructors one without parameters, which another constructor would take away.
         val inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
-            !classDecl.constructors().isEmpty()
+            !classDecl.constructors().isEmpty() || classDecl.privateConstructor() || !classDecl.constructorAnnotations().isEmpty()
         for (p in classDecl.parameters()) {
             em.line(p.pos().line(), field(p) + ";")
         }
@@ -416,7 +416,9 @@ class Generator(
     private fn emitConstructor(classDecl: Decl.ClassDecl) {
         val line = classDecl.pos().line()
         val params = classDecl.parameters() |> map { p -> javaType(propertyTypeOf(p)) + " " + p.name() }
-        em.line(line, "public " + classDecl.name() + "(" + String.join(", ", params) + ") {")
+        val access = if (classDecl.privateConstructor()) "private " else "public "
+        em.line(line, annotations(classDecl.constructorAnnotations()) + access + classDecl.name() + "(" +
+            String.join(", ", params) + ") {")
         em.indent()
         val superArgs = classDecl.superArgs()
         if (superArgs != null && !superArgs.isEmpty()) {

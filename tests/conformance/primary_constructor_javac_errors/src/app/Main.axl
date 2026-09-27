@@ -1,0 +1,20 @@
+package app
+
+// commons-cli DefaultParser: only the class's own constructors and methods create it with every field.
+class Parser private constructor(val partial: Boolean, val quotes: Boolean?) {
+    constructor() = this(true, null)
+
+    fn quoting() -> Parser = Parser(partial, true)
+}
+
+class Hidden private constructor() {
+    var uses = 0
+}
+
+class ParserBuilder {
+    fn build() -> Parser = Parser(false, true)
+}
+
+fn parser() -> Parser = Parser(true, false)
+
+fn hidden() -> Hidden = Hidden()

@@ -94,7 +94,13 @@ data class ClassDecl(
     val typeParams: List<TypeParam>,
     /** `: Thread(name)`: the first supertype is a Java class to extend, with these constructor arguments; null when none. */
     val superArgs: List<Expr>?,
-    val constructors: List<Constructor>
+    val constructors: List<Constructor>,
+    /** Where `constructor` is written before the parameters, as in `class Parser private constructor(...)`; null when not. */
+    val constructorPos: Pos?,
+    /** `class Parser private constructor(...)`: the constructor the parameters make is private. */
+    val privateConstructor: Boolean,
+    /** `class Builder @Deprecated constructor()`: the annotations of the constructor the parameters make. */
+    val constructorAnnotations: List<Annotation>
 ) : Decl
 
 /**

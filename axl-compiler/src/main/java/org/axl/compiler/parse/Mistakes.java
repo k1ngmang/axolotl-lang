@@ -50,6 +50,10 @@ final class Mistakes {
         if (constructor != null) {
             return new Placed(at, constructor);
         }
+        Placed primary = primaryConstructorOutsideClass(tokens, at);
+        if (primary != null) {
+            return primary;
+        }
         Token withoutBraces = withoutBraces(tokens, at);
         if (withoutBraces != null) {
             return new Placed(withoutBraces, SourceParser.needsBraces(withoutBraces));
@@ -420,6 +424,56 @@ final class Mistakes {
         }
         return lineHas(tokens, brace.getLine(), AxolotlLexer.INTERFACE)
                 ? "an interface has no constructors; the classes that implement it have them" : null;
+    }
+
+    /**
+     * `data class Point private constructor(...)`: a data class, an enum or an interface whose header makes its own
+     * constructor private or annotated, as a class's can.
+     */
+    private static Placed primaryConstructorOutsideClass(CommonTokenStream tokens, Token at) {
+        if (at.getType() == Token.EOF || braceDepth(tokens, at) != 0) {
+            return null;
+        }
+        Token keyword = null;
+        for (int i = at.getTokenIndex() - 1; i >= 0 && tokens.get(i).getLine() == at.getLine(); i--) {
+            int type = tokens.get(i).getType();
+            if (type == AxolotlLexer.CLASS || type == AxolotlLexer.ENUM || type == AxolotlLexer.INTERFACE) {
+                keyword = tokens.get(i);
+                break;
+            }
+        }
+        if (keyword == null) {
+            return null;
+        }
+        Token start = SourceParser.nextToken(tokens, SourceParser.nextToken(tokens, keyword));
+        if (start.getType() == AxolotlLexer.LT) {
+            int depth = 0;
+            do {
+                depth += start.getType() == AxolotlLexer.LT ? 1 : start.getType() == AxolotlLexer.GT ? -1 : 0;
+                start = SourceParser.nextToken(tokens, start);
+            } while (depth > 0 && start.getType() != Token.EOF);
+        }
+        Token constructor = start;
+        while (!constructor.getText().equals("constructor") || type(SourceParser.nextToken(tokens, constructor)) != AxolotlLexer.LPAREN) {
+            if (constructor.getLine() != at.getLine() || Set.of(Token.EOF, AxolotlLexer.LBRACE, AxolotlLexer.RBRACE,
+                    AxolotlLexer.ASSIGN, AxolotlLexer.COLON).contains(constructor.getType())) {
+                return null;
+            }
+            constructor = SourceParser.nextToken(tokens, constructor);
+        }
+        if (at.getTokenIndex() < start.getTokenIndex() || at.getTokenIndex() > constructor.getTokenIndex()) {
+            return null;
+        }
+        String written = "`" + tokens.getText(start, constructor) + "`";
+        String message = switch (keyword.getType()) {
+            case AxolotlLexer.ENUM -> "an enum's constructor is private already and takes the fields each constant gives; "
+                    + "leave out " + written;
+            case AxolotlLexer.INTERFACE -> "an interface has no constructors; the classes that implement it have them";
+            default -> text(before(tokens, keyword)).equals("data")
+                    ? "a data class has one public constructor, which takes all its fields, as a Java record has; leave out "
+                    + written + ", or make it a class" : null;
+        };
+        return message == null ? null : new Placed(start, message, true);
     }
 
     /** `val message: String = reason` in the body of a data class, as the method it can be. */

@@ -252,6 +252,32 @@ class FormatterTest {
     }
 
     @Test
+    void writesTheConstructorOfAClassHeaderAfterTheName() {
+        formats("""
+                package app
+
+                class Parser  private   constructor ( private val partial:Boolean ) {
+                    constructor()=this(true)
+                }
+
+                class Builder @Deprecated( since = "2" )constructor()
+                class Next @Deprecated
+                private constructor(val a: Int)
+                """, """
+                package app
+
+                class Parser private constructor(private val partial: Boolean) {
+                    constructor() = this(true)
+                }
+
+                class Builder @Deprecated(since = "2") constructor()
+
+                class Next @Deprecated
+                    private constructor(val a: Int)
+                """);
+    }
+
+    @Test
     void spacesTheClassOfAHandler() {
         formats("""
                 package app

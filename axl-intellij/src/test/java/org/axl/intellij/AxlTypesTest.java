@@ -6,6 +6,7 @@ import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiClass;
 import com.intellij.psi.PsiElement;
+import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiField;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiMethod;
@@ -14,6 +15,7 @@ import com.intellij.psi.PsiReference;
 import com.intellij.psi.PsiType;
 import com.intellij.psi.PsiTypeParameter;
 import com.intellij.psi.search.GlobalSearchScope;
+import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.psi.util.PsiUtil;
 import com.intellij.testFramework.LightProjectDescriptor;
 import com.intellij.testFramework.fixtures.LightJavaCodeInsightFixtureTestCase;
@@ -587,6 +589,37 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(constructors[2].hasModifierProperty(PsiModifier.PRIVATE));
     }
 
+    public void testReadsThePrivateAndAnnotatedConstructorOfAClassHeader() {
+        myFixture.configureByText("Main.axl", """
+                package app
+
+                class Parser private constructor(private val partial: Boolean, val quotes: Boolean?) {
+                    constructor() = this(true, null)
+
+                    fn describe() -> String = "p" + partial + quotes
+                }
+
+                class Builder @Deprecated(since = "2") constructor() {
+                    var count = 0
+                }
+
+                fn main() {
+                    println(Parser().describe())
+                }
+                """);
+        String text = myFixture.getFile().getText();
+        assertNull(PsiTreeUtil.findChildOfType(myFixture.getFile(), PsiErrorElement.class));
+        assertEquals(List.of("constructor", "constructor", "constructor"), highlighted(text, AxlSyntaxHighlighter.KEYWORD));
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+        assertTrue(complete(text.replace("\"p\" + partial", "\"p\" + <caret>partial")).contains("partial"));
+        PsiClass parser = findClass("app.Main.Parser");
+        assertFalse(parser.hasModifierProperty(PsiModifier.PRIVATE));
+        assertTrue(parser.getConstructors()[0].hasModifierProperty(PsiModifier.PRIVATE));
+        assertFalse(parser.getConstructors()[1].hasModifierProperty(PsiModifier.PRIVATE));
+        assertTrue(findClass("app.Main.Builder").getConstructors()[0].isDeprecated());
+    }
+
     public void testShowsTheErrorsOfTheExitsOfAnAttemptStatement() {
         myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "attempt_exit_errors", "src", "app", "Main.axl")));
         List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)
@@ -827,7 +860,7 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
     public void testShowsNoErrorsForTheConformanceCasesOfTheNewStatementsAndMembers() {
         for (String name : List.of("loop_jumps", "use_resources", "enum_fields", "java_superclass", "data_class_methods",
                 "attempt_in_lambda", "property_inference", "result_else_narrowing", "pipe_sorted_comparator", "console_io",
-                "when_arm_statements", "attempt_exits", "attempt_typed_handler", "class_constructors")) {
+                "when_arm_statements", "attempt_exits", "attempt_typed_handler", "class_constructors", "primary_constructors")) {
             myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", name, "src", "app", "Main.axl")));
             assertEquals(name, List.of(), myFixture.doHighlighting().stream()
                     .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());

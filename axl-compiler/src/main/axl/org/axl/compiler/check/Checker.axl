@@ -471,6 +471,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         }
         // 0 stands for the class's own parameters.
         taken.put(erasure(primary, c), 0)
+        annotations(c.constructorAnnotations())
         for (k in c.constructors()) {
             annotations(k.annotations())
             scope = Scope(scope, false)
@@ -491,13 +492,26 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                 types.add(p.type())
             }
             val earlier = taken.putIfAbsent(erasure(types, c), k.namePos().line())
-            if (earlier != null) {
+            if (earlier != null && earlier == 0 && types.isEmpty()) {
+                error(k.namePos(), ErrorCode.DUPLICATE_NAME, "`" + c.name() + "` already has a constructor without " +
+                    "parameters; to make it private or annotate it, write it after the class name: `class " + c.name() +
+                    " " + headerText(k) + "constructor()`")
+            } else if (earlier != null) {
                 val other = if (earlier == 0) "the one the class's parameters make" else "the one at line " + earlier
                 error(k.namePos(), ErrorCode.DUPLICATE_NAME, "Java cannot tell this constructor from " + other + ": the " +
                     "parameter types are the same once `?` and type arguments are left out; give it other parameters, or " +
                     "create the object in a function of the file")
             }
         }
+    }
+
+    /** `@Deprecated private `: what a constructor carries before its keyword. */
+    private fn headerText(k: Decl.Constructor) -> String {
+        val sb = StringBuilder()
+        for (a in k.annotations()) {
+            sb.append("@").append(a.name()).append(if (a.args().isEmpty()) " " else "(...) ")
+        }
+        return sb.toString() + (if (k.isPrivate()) "private " else "")
     }
 
     /** The parameter types as Java tells methods apart: `Int` is `int` and `Int?` `Integer`, a type parameter its bound. */

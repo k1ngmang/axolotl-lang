@@ -1,0 +1,18 @@
+package app
+
+// commons-cli CommandLine.Builder: a second constructor without parameters is the one the class already has.
+class Builder {
+    var count = 0
+
+    @Deprecated
+    constructor() = this()
+}
+
+class Parser private constructor(val partial: Boolean) {
+    private constructor() = this(true)
+
+    // The same Java types as the class's own parameters, private or not.
+    constructor(strict: Boolean) = this(!strict)
+}
+
+class Named @Deprecated(since = String.valueOf(2)) constructor(val name: String)

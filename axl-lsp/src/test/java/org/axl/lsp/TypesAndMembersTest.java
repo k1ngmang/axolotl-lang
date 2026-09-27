@@ -408,6 +408,42 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void outlinesHoversAndColorsTheConstructorOfAClassHeader() throws Exception {
+        String text = """
+                package app
+
+                class Parser private constructor(private val partial: Boolean, val quotes: Boolean?) {
+                    constructor() = this(true, null)
+
+                    fn describe() -> String = "p" + partial + quotes
+                }
+
+                class Builder @Deprecated(since = "2") constructor() {
+                    var count = 0
+                }
+
+                fn main() {
+                    println(Parser().describe())
+                }
+                """;
+        String uri = open("Main.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        List<DocumentSymbol> members = new Outline(workspace).symbols(uri).getFirst().getChildren();
+        assertEquals(List.of("constructor", "partial", "quotes", "constructor", "describe"),
+                members.stream().map(DocumentSymbol::getName).toList());
+        assertEquals(SymbolKind.Constructor, members.getFirst().getKind());
+        assertEquals("(partial: Boolean, quotes: Boolean?)", members.getFirst().getDetail());
+        assertEquals(new Position(2, 21), members.getFirst().getSelectionRange().getStart());
+        assertContains(hoverAt(uri, text, "private |constructor(private"), "private constructor(partial: Boolean, quotes: Boolean?)");
+        assertContains(hoverAt(uri, text, "println(|Parser()"), "class Parser private constructor(private val partial: Boolean, "
+                + "val quotes: Boolean?) {\n    constructor()\n}");
+        assertContains(hoverAt(uri, text, "\") |constructor()"), "@Deprecated(...) constructor()");
+        List<String> tokens = WorkspaceTest.semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("2:21:11:keyword", "8:39:11:keyword")), tokens.toString());
+        assertFalse(tokens.contains("2:45:7:parameter"), tokens.toString());
+    }
+
+    @Test
     void outlinesHoversColorsAndCompletesConstructors() throws Exception {
         String text = """
                 package app

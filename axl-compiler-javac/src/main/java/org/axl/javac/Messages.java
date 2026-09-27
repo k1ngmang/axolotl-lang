@@ -97,6 +97,7 @@ final class Messages {
     private static final Pattern BEFORE_CONSTRUCTOR = Pattern.compile("^cannot reference (\\w+)(?:\\(\\))? before supertype constructor has been called$");
     // The reason javac gives for a constructor that the code cannot reach.
     private static final Pattern PRIVATE_CANDIDATE = Pattern.compile("\\((\\w+)\\(([^)]*)\\) has private access in [\\w.$]+\\)");
+    private static final Pattern PRIVATE_REASON = Pattern.compile("; reason: \\w+\\([^)]*\\) has private access in [\\w.$]+$");
     private static final Pattern NAME_CLASH = Pattern.compile("^name clash: (\\w+)\\((.*?)\\) and (\\w+)\\((.*)\\) have the same erasure$");
     private static final Pattern VAR_INITIALIZER = Pattern.compile("^cannot infer type for local variable (\\w+); \\(variable initializer is '(void|null)'\\)$");
     private static final Pattern WRONG_TRY_ARGUMENT = Pattern.compile("^wrong arguments for `(?:propagate|unwrap)`: expected \\(.*\\), got \\((.+)\\)$");
@@ -1258,6 +1259,11 @@ final class Messages {
         }
         Matcher notApplicable = NOT_APPLICABLE.matcher(message);
         if (notApplicable.find()) {
+            // The only constructor that takes that many values is private, as `class Parser private constructor(...)` makes it.
+            if (message.startsWith("constructor ") && PRIVATE_REASON.matcher(message).find()) {
+                return "`" + notApplicable.group(1) + "(" + argumentList(notApplicable.group(2)) + ")` is private to `"
+                        + notApplicable.group(1) + "`; only the code of `" + notApplicable.group(1) + "` can use it";
+            }
             return "wrong arguments for `" + notApplicable.group(1) + "`: expected (" + argumentList(notApplicable.group(2))
                     + "), got (" + argumentList(notApplicable.group(3)) + ")";
         }

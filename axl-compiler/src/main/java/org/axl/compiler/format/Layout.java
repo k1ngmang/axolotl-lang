@@ -102,8 +102,10 @@ final class Layout {
             case AxolotlParser.AnnotationValueContext value -> value.annotationValue().forEach(this::item);
             default -> { }
         }
-        // `@Test` on a line of its own: the declaration after it starts a line like the annotation.
-        if (ctx.getChildCount() > 1 && ctx.getChild(0) instanceof AxolotlParser.AnnotationContext) {
+        // `@Test` on a line of its own: the declaration after it starts a line like the annotation. The annotations of
+        // `class Next @Deprecated constructor(...)` continue the class's header instead.
+        if (ctx.getChildCount() > 1 && ctx.getChild(0) instanceof AxolotlParser.AnnotationContext
+                && !(ctx instanceof AxolotlParser.PrimaryConstructorContext)) {
             for (int i = 0; i < ctx.getChildCount(); i++) {
                 ParseTree child = ctx.getChild(i);
                 if (child instanceof AxolotlParser.AnnotationContext annotation) {
