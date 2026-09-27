@@ -1,0 +1,63 @@
+package app
+
+import java.util.Map
+import java.util.Objects
+import java.util.function.Supplier
+
+interface Named {
+    val name: String
+}
+
+// commons-cli Option: the constructor checks `option` and derives the count from `hasArg`; neither raw value is kept.
+class Opt(private val option: String?, private val hasArg: Boolean) {
+    private val key: String? = if (option == null) null else Objects.requireNonNull(option.trim())
+    private val argCount = if (hasArg) 1 else -1
+    // Read after `argCount`, which is set first.
+    private val many = argCount > 1
+
+    constructor(option: String) = this(option, false)
+
+    fn describe() -> String = key + "/" + argCount + "/" + many
+}
+
+// commons-cli TypeHandler: the map is checked and kept under another name.
+class Handler(private val converterMap: Map<String, String>) {
+    private val converters: Map<String, String> = Objects.requireNonNull(converterMap, "converterMap")
+
+    fn get(k: String) -> String? = converters.get(k)
+}
+
+// The superclass and a `?:` read the parameters; a `?:` becomes a lambda that captures the constructor's own value.
+class Failure(private val code: Int, private val reason: String?, private val fallback: String) : RuntimeException(reason) {
+    private val status = "E" + code
+    private val shown: String = reason ?: fallback
+    private val kind = if (code == 404) "missing" else "other"
+
+    fn describe() -> String = status + " " + shown + " " + kind
+}
+
+// Fields stay for what a method, a written lambda, an interface or a `var` reads.
+class Kept(private val label: String, private val prefix: String, private var uses: Int, private val name: String) : Named {
+    private val first = label + uses
+    private val shout: Supplier<String> = { -> prefix.toUpperCase() }
+
+    fn describe() -> String {
+        uses += 1
+        return first + " " + label.length() + " " + shout.get() + " " + uses
+    }
+
+    fn same(other: Kept) -> Boolean = first.equals(other.first)
+}
+
+fn main() {
+    println(Opt("  v ", true).describe())
+    println(Opt("x").describe())
+    println(Handler(Map.of("a", "b")).get("a"))
+    println(Failure(404, null, "not found").describe())
+    println(Failure(500, "broken", "-").getMessage())
+    val kept = Kept("l", "p", 0, "n")
+    println(kept.describe())
+    println(kept.same(Kept("l", "q", 0, "m")))
+    val named: Named = kept
+    println(named.name())
+}

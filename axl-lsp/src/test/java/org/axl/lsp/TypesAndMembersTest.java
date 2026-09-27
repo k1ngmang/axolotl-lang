@@ -408,6 +408,31 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void hoversAndCompletesPrivateParametersThatOnlyPropertiesRead() throws Exception {
+        String text = """
+                package app
+
+                class Opt(private val option: String?, private val hasArg: Boolean) {
+                    private val key: String? = option
+                    private val argCount = if (hasArg) 1 else -1
+
+                    fn describe() -> String = key + "/" + argCount
+                }
+
+                fn main() {
+                    println(Opt("a", true).describe())
+                }
+                """;
+        String uri = open("Main.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        assertContains(hoverAt(uri, text, "= |option"), "val option: String?");
+        assertContains(hoverAt(uri, text, "if (|hasArg)"), "val hasArg: Boolean");
+        assertEquals(List.of("Main.axl:2:22"), definitionsAt(uri, text, "= |option"));
+        assertTrue(labelsAt(uri, text, "= |option").contains("option"));
+        assertTrue(labelsAt(uri, text, "= |key + ").containsAll(List.of("option", "hasArg", "key")));
+    }
+
+    @Test
     void outlinesHoversAndColorsTheConstructorOfAClassHeader() throws Exception {
         String text = """
                 package app

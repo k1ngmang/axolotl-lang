@@ -620,6 +620,29 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(findClass("app.Main.Builder").getConstructors()[0].isDeprecated());
     }
 
+    public void testResolvesAndCompletesPrivateParametersThatOnlyPropertiesRead() {
+        myFixture.configureByText("Main.axl", """
+                package app
+
+                class Opt(private val option: String?, private val hasArg: Boolean) {
+                    private val key: String? = option
+                    private val argCount = if (hasArg) 1 else -1
+
+                    fn describe() -> String = key + "/" + argCount
+                }
+                """);
+        String text = myFixture.getFile().getText();
+        PsiElement option = resolveAt("= |option");
+        assertTrue(option.toString(), option instanceof AxlVariable variable && variable.getName().equals("option"));
+        assertEquals(text.indexOf("option: String?"), option.getTextOffset());
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+        assertTrue(complete(text.replace("= option", "= <caret>option")).containsAll(List.of("option", "hasArg")));
+        PsiClass opt = findClass("app.Main.Opt");
+        assertNull(opt.findFieldByName("option", false));
+        assertNotNull(opt.findFieldByName("key", false));
+    }
+
     public void testShowsTheErrorsOfTheExitsOfAnAttemptStatement() {
         myFixture.configureByText("Main.axl", read(Path.of("..", "tests", "conformance", "attempt_exit_errors", "src", "app", "Main.axl")));
         List<String> errors = myFixture.doHighlighting().stream().filter(h -> h.getSeverity() == HighlightSeverity.ERROR)

@@ -68,6 +68,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
+    public Set<String> constructorOnly;
     public String elseLabel;
     public boolean inPropertyInit;
     public int lambdaDepth;
@@ -112,6 +113,7 @@ import org.axl.compiler.check.Whens;
         this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
         this.currentMethods = List.of();
+        this.constructorOnly = Set.of();
         this.elseLabel = "default";
         this.inPropertyInit = false;
         this.lambdaDepth = 0;
@@ -329,10 +331,15 @@ import org.axl.compiler.check.Whens;
         final var superArgs = classDecl.superArgs();
         final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
                 !classDecl.constructors().isEmpty() ||
-                classDecl.privateConstructor() ||
-                !classDecl.constructorAnnotations().isEmpty();
+                classDecl.constructorPos() != null;
+        final var outerConstructorOnly = constructorOnly;
+        final var required = new HashSet<String>(Nulls.stream(Implementations.requiredValues(file, options.siblings(), classDecl.supertypes()))
+                .map(Nulls.nonNull(v -> v.name())).toList());
+        constructorOnly = Reads.constructorOnly(classDecl, file, options.siblings(), required);
         for (final var p : classDecl.parameters()) {
-            em.line(p.pos().line(), field(p) + ";");
+            if (!constructorOnly.contains(p.name())) {
+                em.line(p.pos().line(), field(p) + ";");
+            }
         }
         for (final var p : classDecl.properties()) {
             resetCounters();
@@ -353,6 +360,7 @@ import org.axl.compiler.check.Whens;
         overridden = outerOverridden;
         requiredMethods = outerRequired;
         emitAccessors(classDecl);
+        constructorOnly = outerConstructorOnly;
         currentClass = outerClass;
         currentMethods = outerMethods;
         em.dedent();
@@ -383,7 +391,9 @@ import org.axl.compiler.check.Whens;
             em.line(line, "super(" + String.join(", ", args) + ");");
         }
         for (final var p : classDecl.parameters()) {
-            em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";");
+            if (!constructorOnly.contains(p.name())) {
+                em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";");
+            }
         }
         resetCounters();
         for (final var p : classDecl.properties()) {

@@ -1,0 +1,273 @@
+package org.axl.compiler.gen
+
+import java.util.ArrayList
+import java.util.HashSet
+import java.util.List
+import java.util.Set
+import org.axl.compiler.ast.Decl
+import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.ast.Stmt
+
+/**
+ * The names some code reads: as a name, as a name inside a lambda it writes, and as the member of a value. Whether a
+ * private class parameter needs a field depends on where it is read.
+ */
+class Reads {
+
+    val names: Set<String> = HashSet<String>()
+    val inLambdas: Set<String> = HashSet<String>()
+    val members: Set<String> = HashSet<String>()
+
+    // Depth of the lambdas being looked into.
+    var lambdas: Int = 0
+
+    fn expr(e: Expr) {
+        when (e) {
+            is Expr.Literal -> { }
+            is Expr.Name -> {
+                if (lambdas > 0) {
+                    inLambdas.add(e.name())
+                } else {
+                    names.add(e.name())
+                }
+            }
+            is Expr.Member -> {
+                members.add(e.name())
+                expr(e.target())
+            }
+            is Expr.Call -> {
+                val target = e.target()
+                if (target != null) {
+                    expr(target)
+                }
+                exprs(e.args())
+            }
+            is Expr.GenericNew -> exprs(e.args())
+            is Expr.MethodRef -> expr(e.target())
+            is Expr.ClassLiteral -> { }
+            is Expr.NotNull -> expr(e.target())
+            is Expr.Unary -> expr(e.operand())
+            is Expr.Binary -> {
+                expr(e.left())
+                expr(e.right())
+            }
+            is Expr.Elvis -> {
+                expr(e.left())
+                expr(e.right())
+            }
+            is Expr.Is -> expr(e.target())
+            is Expr.Conditional -> {
+                expr(e.condition())
+                expr(e.then())
+                expr(e.otherwise())
+            }
+            is Expr.Throw -> expr(e.value())
+            is Expr.When -> {
+                expr(e.subject())
+                for (arm in e.arms()) {
+                    statements(arm.body())
+                }
+            }
+            is Expr.Paren -> expr(e.inner())
+            is Expr.Try -> expr(e.inner())
+            is Expr.Attempt -> {
+                expr(e.body())
+                expr(e.handler())
+            }
+            is Expr.Lambda -> {
+                lambdas += 1
+                statements(e.body())
+                lambdas -= 1
+            }
+            is Expr.Pipe -> {
+                expr(e.source())
+                for (stage in e.stages()) {
+                    exprs(stage.args())
+                    val lambda = stage.lambda()
+                    if (lambda != null) {
+                        expr(lambda)
+                    }
+                }
+            }
+        }
+    }
+
+    fn exprs(list: List<Expr>) {
+        for (e in list) {
+            expr(e)
+        }
+    }
+
+    fn statements(list: List<Stmt>) {
+        for (s in list) {
+            statement(s)
+        }
+    }
+
+    fn statement(s: Stmt) {
+        when (s) {
+            is Stmt.Local -> expr(s.init())
+            is Stmt.Assign -> {
+                expr(s.target())
+                expr(s.value())
+            }
+            is Stmt.Return -> {
+                val value = s.value()
+                if (value != null) {
+                    expr(value)
+                }
+            }
+            is Stmt.Jump -> { }
+            is Stmt.AttemptExit -> {
+                expr(s.body())
+                statement(s.exit())
+            }
+            is Stmt.Use -> {
+                expr(s.resource())
+                statement(s.body())
+                val handler = s.handler()
+                if (handler != null) {
+                    expr(handler)
+                }
+            }
+            is Stmt.If -> {
+                expr(s.condition())
+                statement(s.then())
+                val otherwise = s.elseBranch()
+                if (otherwise != null) {
+                    statement(otherwise)
+                }
+            }
+            is Stmt.While -> {
+                expr(s.condition())
+                statement(s.body())
+            }
+            is Stmt.For -> {
+                expr(s.iterable())
+                statement(s.body())
+            }
+            is Stmt.ExprStmt -> expr(s.expr())
+            is Stmt.Block -> statements(s.statements())
+        }
+    }
+
+    fn function(f: Decl.Function) {
+        val exprBody = f.exprBody()
+        if (exprBody != null) {
+            expr(exprBody)
+        }
+        val body = f.body()
+        if (body != null) {
+            statement(body)
+        }
+    }
+
+    fn decl(d: Decl) {
+        when (d) {
+            is Decl.Function -> function(d)
+            is Decl.Value -> expr(d.init())
+            is Decl.DataClass -> {
+                for (m in d.methods()) {
+                    function(m)
+                }
+            }
+            is Decl.Interface -> {
+                for (m in d.methods()) {
+                    function(m)
+                }
+            }
+            is Decl.EnumDecl -> {
+                for (args in d.arguments()) {
+                    exprs(args)
+                }
+            }
+            is Decl.ClassDecl -> {
+                val superArgs = d.superArgs()
+                if (superArgs != null) {
+                    exprs(superArgs)
+                }
+                for (p in d.properties()) {
+                    val init = p.init()
+                    if (init != null) {
+                        expr(init)
+                    }
+                }
+                for (k in d.constructors()) {
+                    exprs(k.args())
+                }
+                for (m in d.methods()) {
+                    function(m)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The private `val` parameters of a class that only its constructor reads, in the values of properties and of the
+ * superclass: they need no field, which Error Prone would report as never read. A parameter keeps its field when a
+ * method, a lambda written in a property or another constructor reads its name, when a file of the build reads a
+ * member of that name (javac then reports a read from outside the class as private), when an interface requires a value
+ * of that name, when it carries annotations, which Java puts on the field, and when nothing reads it, which Error Prone
+ * reports.
+ */
+fn constructorOnly(c: Decl.ClassDecl, file: SourceFile, siblings: List<SourceFile>, required: Set<String>) -> Set<String> {
+    val result = HashSet<String>()
+    for (p in c.parameters()) {
+        if (p.isPrivate() && !p.mutable() && p.annotations().isEmpty() && !required.contains(p.name())) {
+            result.add(p.name())
+        }
+    }
+    if (result.isEmpty()) {
+        return result
+    }
+    val inMethods = Reads()
+    for (m in c.methods()) {
+        inMethods.function(m)
+    }
+    result.removeAll(inMethods.names)
+    result.removeAll(inMethods.inLambdas)
+    // `this(...)` sees its constructor's parameters; another name there is a field, which javac reports.
+    for (k in c.constructors()) {
+        val inConstructor = Reads()
+        inConstructor.exprs(k.args())
+        for (p in k.params()) {
+            inConstructor.names.remove(p.name())
+            inConstructor.inLambdas.remove(p.name())
+        }
+        result.removeAll(inConstructor.names)
+        result.removeAll(inConstructor.inLambdas)
+    }
+    val inProperties = Reads()
+    for (p in c.properties()) {
+        val init = p.init()
+        if (init != null) {
+            inProperties.expr(init)
+        }
+    }
+    val superArgs = c.superArgs()
+    if (superArgs != null) {
+        inProperties.exprs(superArgs)
+    }
+    result.removeAll(inProperties.inLambdas)
+    // A parameter that nothing reads keeps its field, which Error Prone reports as never read.
+    result.retainAll(inProperties.names)
+    if (result.isEmpty()) {
+        return result
+    }
+    val inBuild = Reads()
+    for (f in with(file, siblings)) {
+        for (d in f.decls()) {
+            inBuild.decl(d)
+        }
+    }
+    result.removeAll(inBuild.members)
+    return result
+}
+
+private fn with(file: SourceFile, siblings: List<SourceFile>) -> List<SourceFile> {
+    val files = ArrayList<SourceFile>(siblings)
+    files.add(file)
+    return files
+}

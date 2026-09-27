@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:17:38: error: `this(...)` runs before the object has its fields, so it cannot use `low`; pass the constructor's parameters or other values
+AXL100 app/Main.axl:20:39: error: `description` is private to `Opt`; only the code of `Opt` can use it
+AXL100 app/Other.axl:5:31: error: `start` is private to `Tally` and can only be used in app/Main.axl

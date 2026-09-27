@@ -1,0 +1,20 @@
+package app
+
+// Parameters that only property values read have no field, but a read from outside still hears that they are private.
+class Opt(val name: String, private val description: String?) {
+    private val shown = name + ": " + description
+
+    fn show() -> String = shown
+}
+
+class Tally(private val start: Int) {
+    val first = start + 1
+}
+
+class Span(private val low: Int, private val high: Int) {
+    val size = high - low
+
+    constructor(high: Int) = this(0, low)
+}
+
+fn description(o: Opt) -> String? = o.description

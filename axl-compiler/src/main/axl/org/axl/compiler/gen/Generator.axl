@@ -124,6 +124,8 @@ class Generator(
     var currentClass: Decl.ClassDecl? = null
     /** The methods of the class or data class being emitted, which a call by a bare name may mean. */
     var currentMethods: List<Decl.Function> = List.of()
+    // The private parameters of that class that only its constructor reads, which get no field.
+    var constructorOnly: Set<String> = Set.of()
 
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
@@ -370,9 +372,15 @@ class Generator(
         val superArgs = classDecl.superArgs()
         // Java gives a class without constructors one without parameters, which another constructor would take away.
         val inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
-            !classDecl.constructors().isEmpty() || classDecl.privateConstructor() || !classDecl.constructorAnnotations().isEmpty()
+            !classDecl.constructors().isEmpty() || classDecl.constructorPos() != null
+        val outerConstructorOnly = constructorOnly
+        val required = HashSet<String>(Implementations.requiredValues(file, options.siblings(), classDecl.supertypes()) |>
+            map { v -> v.name() })
+        constructorOnly = Reads.constructorOnly(classDecl, file, options.siblings(), required)
         for (p in classDecl.parameters()) {
-            em.line(p.pos().line(), field(p) + ";")
+            if (!constructorOnly.contains(p.name())) {
+                em.line(p.pos().line(), field(p) + ";")
+            }
         }
         for (p in classDecl.properties()) {
             resetCounters()
@@ -393,6 +401,7 @@ class Generator(
         overridden = outerOverridden
         requiredMethods = outerRequired
         emitAccessors(classDecl)
+        constructorOnly = outerConstructorOnly
         currentClass = outerClass
         currentMethods = outerMethods
         em.dedent()
@@ -426,7 +435,9 @@ class Generator(
             em.line(line, "super(" + String.join(", ", args) + ");")
         }
         for (p in classDecl.parameters()) {
-            em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";")
+            if (!constructorOnly.contains(p.name())) {
+                em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";")
+            }
         }
         // One method body: the temporaries of the properties must not clash.
         resetCounters()

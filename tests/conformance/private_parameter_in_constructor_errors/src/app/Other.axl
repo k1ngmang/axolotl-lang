@@ -1,0 +1,5 @@
+package app
+
+import app.Main.Tally
+
+fn start(t: Tally) -> Int = t.start
