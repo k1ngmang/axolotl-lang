@@ -56,7 +56,9 @@ fn largest<T : Comparable<T>>(xs: List<T>) -> T? { ... }
 
 `T` on its own stands for any type, nullable ones included, so `Pair<String, Int?>` is allowed and a
 `T` value may be null inside the declaration: it is used like a `String?`, with `?.`, `?:` or a null
-check, and `x.toString()` on it is an error. `T : Object` takes every type without null, and
+check, and `x.toString()` on it is an error. A value of `T` can always be passed on where `T` itself is expected,
+such as returned from a `Supplier<T>` lambda or wrapped in `Ok(x)` for a `Result<T, E>`; only uses that need a value
+that is not null, such as a call on it or a parameter of type `Object`, need a check or `T : Object`. `T : Object` takes every type without null, and
 `T : Comparable<T>` the types with an order; a type argument outside the bound, `Sorted<Object>`, is an error
 that names the bound and the types that fit it. An object of a generic class is created with its
 arguments, `Pair<String, Int>("age", 41)`, or with `Pair<>(...)` where the type it is stored as tells
@@ -269,7 +271,8 @@ fn describe(shape: Shape) -> String {
 ```
 
 A type test checks the class only: `is List<*>` is the same as `is List`; other type arguments are an error. The
-narrowed value fits `Class<*>` after `is Class`, since `*` promises nothing about the argument, but not `Class<String>`.
+narrowed value is a `Class<*>` after `is Class` (a `List<*>` after `is List`), since the type arguments are not checked at run
+time; it fits `Class<*>` but not `Class<String>`, so store it as `List<*>` and test its elements with `is`.
 
 A `var` can be tested but is not narrowed, since it may change. Neither is the result of a call, such as
 `first.value() is Punct`: copy it to a `val` first (`val value = first.value()`) and test that, or name the
