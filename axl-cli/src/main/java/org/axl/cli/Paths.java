@@ -119,6 +119,11 @@ final class Paths {
         return Path.of("").toAbsolutePath();
     }
 
+    /** As the command line wrote it: absolute when it was written absolute, else as {@link #display(Path, Path)}. */
+    static String display(Path workingDirectory, Path path, boolean writtenAbsolute) {
+        return writtenAbsolute ? workingDirectory.resolve(path).normalize().toString() : display(workingDirectory, path);
+    }
+
     /** Paths under the working directory are shown relative to it, like javac does. */
     static String display(Path workingDirectory, Path path) {
         Path absolute = workingDirectory.resolve(path).normalize();

@@ -50,7 +50,7 @@ final class FmtCommand implements Callable<Integer> {
         boolean unformatted = false;
         for (Path file : files) {
             boolean stdin = file.toString().equals("-");
-            String shown = stdin ? "<stdin>" : Paths.display(workingDirectory, file);
+            String shown = stdin ? "<stdin>" : Paths.display(workingDirectory, file, file.isAbsolute());
             String source;
             try {
                 source = stdin ? StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(System.in.readAllBytes())).toString()

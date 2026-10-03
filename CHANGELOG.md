@@ -235,7 +235,7 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
   - `is List<*>` and `is Map<*, *>` are accepted and mean `is List` and `is Map`.
   - New warning AXL018: the `Result` of a call of the build used as a statement is dropped; keep it with `val unused = ...` if that is meant.
   - `break` or `continue` outside a loop says that a loop is needed around it, and in a lambda that a lambda ends with `return`.
-  - `axl check`, `axl build` and `axl run` show paths in the form the command line gives them: absolute for absolute arguments, else relative to the working directory. Before, `check` always showed absolute paths and `build` and `run` relative ones.
+  - `axl check`, `axl build` and `axl run` show paths in the form the command line gives them: absolute for absolute arguments, else relative to the working directory. Before, `check` always showed absolute paths and `build` and `run` relative ones. `axl fmt` and the note of `axl run` about files of another source tree follow the same rule.
 - Thirteenth audit, three more programs (a Markdown to HTML converter, a grid game with A*, a Maven money library with JUnit tests in Axolotl):
   - The `try` error-type message reads the result type of the method it is in; a `try` in a method of a class used to get javac's own words.
   - `row[2] = '#'` on a `CharArray` or `ByteArray` suggests `CharBuffer.wrap(row).put(2, '#')` or `ByteBuffer.wrap(buf).get(i)`, and `s.toCharArray()[i]` suggests `s.charAt(i)`.

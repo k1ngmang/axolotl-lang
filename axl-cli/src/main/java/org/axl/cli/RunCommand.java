@@ -88,9 +88,10 @@ final class RunCommand implements Callable<Integer> {
         Path absolute = cwd.resolve(file).normalize();
         String declared = Paths.declaredPackage(absolute);
         Path root = sourceRoot(absolute, declared == null ? "" : declared);
-        String shownRoot = Paths.display(cwd, root).isEmpty() ? "." : Paths.display(cwd, root);
+        boolean writtenAbsolute = file.isAbsolute();
+        String shownRoot = Paths.display(cwd, root, writtenAbsolute).isEmpty() ? "." : Paths.display(cwd, root, writtenAbsolute);
         for (Path other : Paths.otherSourceTrees(root, absolute)) {
-            System.err.println("axl: not compiled: " + Paths.display(cwd, other) + " is in package `" + Paths.declaredPackage(other)
+            System.err.println("axl: not compiled: " + Paths.display(cwd, other, writtenAbsolute) + " is in package `" + Paths.declaredPackage(other)
                     + "`, which is not its directory under " + shownRoot + ", so it belongs to another source tree");
         }
     }
