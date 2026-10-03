@@ -503,6 +503,10 @@ InputStream, buffer: ByteArray)`. Pass them to Java (`read`, `write`, `String(bu
 `CharBuffer.wrap(row).put(2, '#')` writes an element through to the array, `CharBuffer.wrap(row).get(2)` reads one
 (`ByteBuffer` for a `ByteArray`).
 
+An algorithm that needs a fixed-size table of numbers, Java's `int[]` or `long[]`, uses `java.nio.IntBuffer` or `LongBuffer`:
+`val v = IntBuffer.allocate(2 * max + 1)`, then `v.get(k)` and `v.put(k, x)`. A table of objects is a list of the size it needs:
+`ArrayList<PathNode?>(Collections.nCopies(size, null))`, read with `get(i)` and written with `set(i, node)`.
+
 ## Pipes
 
 `|>` feeds a collection through Java stream operations; it also takes a `Stream` whose type the code tells (`Stream.of`,
