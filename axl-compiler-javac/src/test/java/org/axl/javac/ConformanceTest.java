@@ -16,6 +16,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Properties;
 import java.util.jar.JarEntry;
@@ -49,8 +50,26 @@ class ConformanceTest {
     }
 
     private void runCase(Path dir) throws Exception {
-        Path src = dir.resolve("src");
         Path work = Files.createTempDirectory("axl-conformance");
+        try {
+            runCase(dir, work);
+        } finally {
+            deleteQuietly(work);
+        }
+    }
+
+    private static void deleteQuietly(Path dir) {
+        try (Stream<Path> files = Files.walk(dir)) {
+            for (Path file : files.sorted(Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(file);
+            }
+        } catch (IOException e) {
+            // A jar still open on Windows stays until the build directory is cleaned.
+        }
+    }
+
+    private void runCase(Path dir, Path work) throws Exception {
+        Path src = dir.resolve("src");
         Path generated = work.resolve("generated");
         Path classes = work.resolve("classes");
         Properties props = caseProperties(dir);

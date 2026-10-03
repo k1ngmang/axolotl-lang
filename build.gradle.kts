@@ -35,6 +35,11 @@ subprojects {
         }
         tasks.withType<Test>().configureEach {
             useJUnitPlatform()
+            // Temporary files of the tests stay in the build directory, where clean removes what a test leaves,
+            // and builds of other checkouts on the machine do not see them.
+            val tmp = layout.buildDirectory.dir("tmp/$name-files")
+            doFirst { tmp.get().asFile.mkdirs() }
+            systemProperty("java.io.tmpdir", tmp.get().asFile.absolutePath)
         }
         // Read back by `axl --version` and the language server.
         val implementationVersion = project.version.toString()
