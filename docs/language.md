@@ -184,6 +184,8 @@ Every parameter of a class is a property and is written with `val` or `var`: `cl
 Random(seed) }` is rejected, write `class Dice(val seed: Long)`. `private` before a parameter keeps it inside the class:
 `class Opt(val name: String?, private val description: String?)` makes `description` a private field that the class's
 properties and methods read and other code cannot see; `private var` likewise. The fields of a data class stay public.
+A private `val` parameter that only the values of properties and the superclass's arguments read is a parameter of the
+constructor and not a field; a method, a lambda written in a property or another class reading it makes it a field again.
 
 A class may have more constructors, each passing values on to the class's parameters:
 
@@ -200,6 +202,12 @@ value to each parameter of the class and sees only the constructor's own paramet
 fields. It may carry annotations and `private`. Java tells constructors apart by their parameter types without `?` and type
 arguments, so two constructors that differ only there are an error. Data classes, enums and interfaces have only their own
 constructor.
+
+The constructor the class's parameters make may itself be private or carry annotations, written between the class name
+and the parameters: `class Parser private constructor(val partial: Boolean, private val quotes: Boolean?) { constructor() =
+this(true, null) }`, `class Builder @Deprecated constructor()`. Only the class's own code can call a private constructor.
+Without a modifier or annotation the keyword is left out. Data classes and enums cannot do this: their constructors are a
+record's and an enum's.
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
