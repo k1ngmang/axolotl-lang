@@ -9,6 +9,7 @@ import java.util.Set
 import org.axl.compiler.JavaClasses
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
+import org.axl.compiler.ast.Import
 import org.axl.compiler.ast.Pos
 import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.TypeRef
@@ -65,6 +66,57 @@ private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl,
             }
         }
     }
+}
+
+/**
+ * A type that implements a sealed interface of another package of the build: Java lets only the types of the
+ * interface's package implement it.
+ */
+fn foreignSealed(file: SourceFile, siblings: List<SourceFile>) -> List<Mismatch> {
+    val problems = ArrayList<Mismatch>()
+    for (decl in file.decls()) {
+        for (type in supertypesOf(decl)) {
+            val qualified = qualifiedName(file, type.name())
+            for (sibling in siblings) {
+                for (other in sibling.decls()) {
+                    if (qualified != null && other is Decl.Interface && other.isSealed() && !samePackage(file, sibling) &&
+                        qualified.equals(javaName(sibling, other))) {
+                        problems.add(Mismatch(type.pos(), "`" + other.name() + "` is sealed, so only the types of its package `" +
+                            sibling.packageName() + "` can implement it; move `" + decl.name() + "` there, or implement an interface " +
+                            "that is not sealed"))
+                    }
+                }
+            }
+        }
+    }
+    return problems
+}
+
+private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
+    is Decl.DataClass -> decl.supertypes()
+    is Decl.ClassDecl -> decl.supertypes()
+    is Decl.Interface -> decl.supertypes()
+    else -> List.of()
+}
+
+/** The name with its package, as written or as an import gives it; null for a name of the file's own package. */
+private fn qualifiedName(file: SourceFile, name: String) -> String? {
+    if (name.contains(".")) {
+        return name
+    }
+    for (imp in file.imports()) {
+        if (imp.kind() == Import.Kind.TYPE && imp.simpleName().equals(name)) {
+            return imp.name()
+        }
+    }
+    return null
+}
+
+/** `app.Shape` for the type of the file `Shape.axl`, `app.Shapes.Shape` for one nested in the class of `Shapes.axl`. */
+private fn javaName(file: SourceFile, decl: Decl) -> String {
+    val pkg = file.packageName()
+    val prefix = if (pkg == null) "" else pkg + "."
+    return if (decl.name().equals(file.className())) prefix + decl.name() else prefix + file.className() + "." + decl.name()
 }
 
 private fn methodsOf(decl: Decl) -> List<Decl.Function> = when (decl) {

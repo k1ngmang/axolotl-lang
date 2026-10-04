@@ -1,0 +1,8 @@
+package other
+
+import app.Shape
+
+// Only the types of the package `app` may implement its sealed interface.
+data class Triangle(val side: Double) : Shape
+
+data class Hexagon(val side: Double) : app.Shape

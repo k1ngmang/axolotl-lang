@@ -1,0 +1,19 @@
+package app
+
+import app.Deltas.EqualDelta
+import java.util.List
+
+// The implementations live in other files of the package, as Java's `permits` allows; one stays nested here.
+sealed interface Delta {
+    val lines: List<String>
+}
+
+data class ChangeDelta(val lines: List<String>, val replaced: List<String>) : Delta
+
+fn size(d: Delta) -> Int = when (d) {
+    is InsertDelta -> d.lines().size()
+    is DeleteDelta -> -d.lines().size()
+    is ChangeDelta -> d.lines().size() - d.replaced().size()
+    is EqualDelta -> 0
+    is Conflict -> 100
+}

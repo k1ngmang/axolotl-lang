@@ -1,0 +1,3 @@
+package app
+
+sealed interface Shape

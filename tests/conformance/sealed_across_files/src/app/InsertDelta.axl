@@ -1,0 +1,5 @@
+package app
+
+import java.util.List
+
+data class InsertDelta(val lines: List<String>) : Delta

@@ -1,0 +1,3 @@
+package app
+
+data class Circle(val radius: Double) : Shape

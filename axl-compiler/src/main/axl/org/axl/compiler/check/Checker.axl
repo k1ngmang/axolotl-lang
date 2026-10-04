@@ -196,6 +196,9 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         for (mismatch in Implementations.check(file, siblings)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message())
         }
+        for (mismatch in Implementations.foreignSealed(file, siblings)) {
+            error(mismatch.pos(), ErrorCode.SYNTAX, mismatch.message())
+        }
     }
 
     /** `main-file` and `2d shapes` as `MainFile` and `Shapes2d`, or null when nothing usable is left. */

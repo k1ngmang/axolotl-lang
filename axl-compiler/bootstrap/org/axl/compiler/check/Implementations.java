@@ -10,6 +10,7 @@ import java.util.Set;
 import org.axl.compiler.JavaClasses;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
+import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.TypeRef;
@@ -56,6 +57,60 @@ import org.axl.compiler.ast.TypeRef;
                 }
             }
         }
+    }
+    public static List<Mismatch> foreignSealed(SourceFile file, List<SourceFile> siblings) {
+        final var problems = new ArrayList<Mismatch>();
+        for (final var decl : file.decls()) {
+            for (final var type : supertypesOf(decl)) {
+                final var qualified = qualifiedName(file, type.name());
+                for (final var sibling : siblings) {
+                    for (final var other : sibling.decls()) {
+                        if (qualified != null && other instanceof Decl.Interface other$1 && other$1.isSealed() && !samePackage(file, sibling) &&
+                                qualified.equals(javaName(sibling, other$1))) {
+                            problems.add(new Mismatch(type.pos(), "`" + other$1.name() + "` is sealed, so only the types of its package `" +
+                                    sibling.packageName() +
+                                    "` can implement it; move `" +
+                                    decl.name() +
+                                    "` there, or implement an interface " +
+                                    "that is not sealed"));
+                        }
+                    }
+                }
+            }
+        }
+        return problems;
+    }
+    private static List<TypeRef> supertypesOf(Decl decl) {
+        switch (decl) {
+            case Decl.DataClass decl$1 -> {
+                return decl$1.supertypes();
+            }
+            case Decl.ClassDecl decl$2 -> {
+                return decl$2.supertypes();
+            }
+            case Decl.Interface decl$3 -> {
+                return decl$3.supertypes();
+            }
+            default -> {
+                return List.of();
+            }
+        }
+    }
+    private static @Nullable String qualifiedName(SourceFile file, String name) {
+        if (name.contains(".")) {
+            return name;
+        }
+        for (final var imp : file.imports()) {
+            if (imp.kind() == Import.Kind.TYPE && imp.simpleName().equals(name)) {
+                return imp.name();
+            }
+        }
+        return null;
+    }
+    private static String javaName(SourceFile file, Decl decl) {
+        final var pkg = file.packageName();
+        final var prefix = (pkg == null ? "" : pkg + ".");
+        return (decl.name().equals(file.className()) ? prefix + decl.name() : prefix + file.className() + "." + decl.name());
     }
     private static List<Decl.Function> methodsOf(Decl decl) {
         switch (decl) {

@@ -10,6 +10,7 @@ import java.util.LinkedHashSet
 import java.util.List
 import java.util.Locale
 import java.util.Map
+import java.util.Objects
 import java.util.Set
 import java.util.function.Function
 import java.util.function.Supplier
@@ -280,7 +281,7 @@ class Generator(
             em.dedent()
         } else if (fileType is Decl.Interface) {
             em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() + typeParamList(fileType.typeParams()) +
-                typeList(" extends ", fileType.supertypes()) + " {")
+                typeList(" extends ", fileType.supertypes()) + permits(fileType) + " {")
             emitRequiredValues(fileType)
         } else if (fileType is Decl.ClassDecl) {
             em.line(line, marked + "public final class " + fileType.name() + typeParamList(fileType.typeParams()) +
@@ -541,7 +542,7 @@ class Generator(
     private fn emitInterface(iface: Decl.Interface) {
         val line = iface.pos().line()
         val head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
-            typeParamList(iface.typeParams()) + typeList(" extends ", iface.supertypes())
+            typeParamList(iface.typeParams()) + typeList(" extends ", iface.supertypes()) + permits(iface)
         if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}")
             return
@@ -570,12 +571,49 @@ class Generator(
         if (iface.isSealed()) {
             return " sealed"
         }
-        val underSealed = file.decls() |> anyMatch { d -> d is Decl.Interface && d.isSealed() && extendsInterface(iface, d.name()) }
+        val underSealed = Exhaustiveness.declsOf(file, options.siblings())
+            |> anyMatch { d -> d is Decl.Interface && d.isSealed() && extendsInterface(iface, d.name()) }
         return if (underSealed) " non-sealed" else ""
     }
 
-    private fn extendsInterface(iface: Decl.Interface, parentName: String) -> Boolean =
-        iface.supertypes() |> anyMatch { t -> t.name().equals(parentName) }
+    /**
+     * A sealed interface that types of other files of its package implement names all its implementations, since Java
+     * finds only those of its own file: a type its file is named after by its name, any other by its file's class.
+     */
+    private fn permits(iface: Decl.Interface) -> String {
+        if (!iface.isSealed()) {
+            return ""
+        }
+        val others = ArrayList<String>()
+        for (sibling in options.siblings()) {
+            if (Objects.equals(sibling.packageName(), file.packageName())) {
+                for (d in sibling.decls()) {
+                    if (isTypeDecl(d) && extendsInterface(supertypesOf(d), iface.name())) {
+                        others.add(if (d.name().equals(sibling.className())) d.name() else sibling.className() + "." + d.name())
+                    }
+                }
+            }
+        }
+        if (others.isEmpty()) {
+            return ""
+        }
+        Collections.sort(others)
+        val own = ArrayList<String>()
+        for (d in file.decls()) {
+            if (isTypeDecl(d) && extendsInterface(supertypesOf(d), iface.name())) {
+                // Nested in the interface, a type is named through it there.
+                val nestedInInterface = iface.name().equals(file.className()) && !d.name().equals(file.className())
+                own.add(if (nestedInInterface) iface.name() + "." + d.name() else d.name())
+            }
+        }
+        own.addAll(others)
+        return " permits " + String.join(", ", own)
+    }
+
+    private fn extendsInterface(iface: Decl.Interface, parentName: String) -> Boolean = extendsInterface(iface.supertypes(), parentName)
+
+    private fn extendsInterface(supertypes: List<TypeRef>, parentName: String) -> Boolean =
+        supertypes |> anyMatch { t -> t.name().equals(parentName) }
 
     private fn emitValue(value: Decl.Value) {
         val declared = value.type()

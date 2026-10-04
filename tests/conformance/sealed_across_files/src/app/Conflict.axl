@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+// An interface under the sealed one is open to other implementations.
+interface Conflict : Delta {
+    val reason: String
+}
+
+data class Clash(val lines: List<String>, val reason: String) : Conflict

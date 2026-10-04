@@ -1,0 +1,17 @@
+package app
+
+import app.Conflict.Clash
+import app.Deltas.EqualDelta
+import fn app.Delta.size
+import fn app.Deltas.equal
+import java.util.List
+
+fn main() {
+    val deltas: List<Delta> = List.of(InsertDelta(List.of("a")), DeleteDelta(List.of("b", "c")),
+        Delta.ChangeDelta(List.of("d"), List.of("e", "f")), equal(List.of("g")), Clash(List.of(), "both"))
+    for (d in deltas) {
+        println(d.lines() + " " + size(d))
+    }
+    println(UseFromJava.sizes())
+    println(Delta.class.isSealed())
+}

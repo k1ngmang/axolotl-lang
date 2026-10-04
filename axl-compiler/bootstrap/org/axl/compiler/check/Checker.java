@@ -129,6 +129,9 @@ import org.axl.compiler.ast.TypeRef;
         for (final var mismatch : Implementations.check(file, siblings)) {
             error(mismatch.pos(), ErrorCode.INTERFACE_MEMBER, mismatch.message());
         }
+        for (final var mismatch : Implementations.foreignSealed(file, siblings)) {
+            error(mismatch.pos(), ErrorCode.SYNTAX, mismatch.message());
+        }
     }
     private @Nullable String classNameLike(String name) {
         final var sb = new StringBuilder();

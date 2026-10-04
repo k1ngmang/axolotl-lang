@@ -1203,6 +1203,19 @@ class WorkspaceTest {
     }
 
     @Test
+    void checksAWhenOverASealedInterfaceImplementedInOtherFiles() throws Exception {
+        open("Shape.axl", "package app\n\nsealed interface Shape\n");
+        open("Circle.axl", "package app\n\ndata class Circle(val radius: Double) : Shape\n");
+        open("Square.axl", "package app\n\ndata class Square(val side: Double) : Shape\n");
+        String text = "package app\n\nfn area(s: Shape) -> Double = when (s) {\n    is Circle -> s.radius()\n}\n";
+        String uri = open("Main.axl", text);
+        assertEquals(List.of("this `when` does not test `is Square`; add a branch for each, or an `else ->` branch"),
+                published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        open("Main.axl", text.replace("radius()\n", "radius()\n    is Square -> s.side()\n"));
+        assertEquals(List.of(), published.get(uri));
+    }
+
+    @Test
     void classifiesTheWordsOfCountingLoopsOnlyInTheirHeader() throws Exception {
         String uri = open("Main.axl", """
                 package app

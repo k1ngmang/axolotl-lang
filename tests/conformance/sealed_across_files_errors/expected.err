@@ -1,0 +1,3 @@
+AXL001 app/Main.axl:4:31: error: this `when` does not test `is Square`; add a branch for each, or an `else ->` branch
+AXL001 other/Shapes.axl:6:41: error: `Shape` is sealed, so only the types of its package `app` can implement it; move `Triangle` there, or implement an interface that is not sealed
+AXL001 other/Shapes.axl:8:40: error: `Shape` is sealed, so only the types of its package `app` can implement it; move `Hexagon` there, or implement an interface that is not sealed

@@ -1,0 +1,6 @@
+package app
+
+// Square is declared in a file of its own and still counts.
+fn area(s: Shape) -> Double = when (s) {
+    is Circle -> 3.14 * s.radius() * s.radius()
+}

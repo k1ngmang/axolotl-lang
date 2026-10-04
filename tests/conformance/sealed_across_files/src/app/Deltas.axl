@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+
+// A file without a type of its name nests its types in its class: `app.Deltas.EqualDelta`.
+data class EqualDelta(val lines: List<String>) : Delta
+
+fn equal(lines: List<String>) -> Delta = EqualDelta(lines)

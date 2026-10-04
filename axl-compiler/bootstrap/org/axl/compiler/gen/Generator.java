@@ -11,6 +11,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -249,6 +250,7 @@ import org.axl.compiler.check.Whens;
         } else if (fileType instanceof Decl.Interface fileType$2) {
             em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() + typeParamList(fileType$2.typeParams()) +
                     typeList(" extends ", fileType$2.supertypes()) +
+                    permits(fileType$2) +
                     " {");
             emitRequiredValues(fileType$2);
         } else if (fileType instanceof Decl.ClassDecl fileType$3) {
@@ -494,7 +496,8 @@ import org.axl.compiler.check.Whens;
         final var line = iface.pos().line();
         final var head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
                 typeParamList(iface.typeParams()) +
-                typeList(" extends ", iface.supertypes());
+                typeList(" extends ", iface.supertypes()) +
+                permits(iface);
         if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}");
             return;
@@ -523,11 +526,43 @@ import org.axl.compiler.check.Whens;
         if (iface.isSealed()) {
             return " sealed";
         }
-        final var underSealed = Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.isSealed() && extendsInterface(iface, d$1.name()));
+        final var underSealed = Nulls.stream(Exhaustiveness.declsOf(file, options.siblings()))
+                .anyMatch(d -> d instanceof Decl.Interface d$1 && d$1.isSealed() && extendsInterface(iface, d$1.name()));
         return (underSealed ? " non-sealed" : "");
     }
+    private String permits(Decl.Interface iface) {
+        if (!iface.isSealed()) {
+            return "";
+        }
+        final var others = new ArrayList<String>();
+        for (final var sibling : options.siblings()) {
+            if (Objects.equals(sibling.packageName(), file.packageName())) {
+                for (final var d : sibling.decls()) {
+                    if (isTypeDecl(d) && extendsInterface(supertypesOf(d), iface.name())) {
+                        others.add((d.name().equals(sibling.className()) ? d.name() : sibling.className() + "." + d.name()));
+                    }
+                }
+            }
+        }
+        if (others.isEmpty()) {
+            return "";
+        }
+        Collections.sort(others);
+        final var own = new ArrayList<String>();
+        for (final var d : file.decls()) {
+            if (isTypeDecl(d) && extendsInterface(supertypesOf(d), iface.name())) {
+                final var nestedInInterface = iface.name().equals(file.className()) && !d.name().equals(file.className());
+                own.add((nestedInInterface ? iface.name() + "." + d.name() : d.name()));
+            }
+        }
+        own.addAll(others);
+        return " permits " + String.join(", ", own);
+    }
     private boolean extendsInterface(Decl.Interface iface, String parentName) {
-        return Nulls.stream(iface.supertypes()).anyMatch(t -> t.name().equals(parentName));
+        return extendsInterface(iface.supertypes(), parentName);
+    }
+    private boolean extendsInterface(List<TypeRef> supertypes, String parentName) {
+        return supertypes.stream().anyMatch(t -> t.name().equals(parentName));
     }
     private void emitValue(Decl.Value value) {
         final var declared = value.type();

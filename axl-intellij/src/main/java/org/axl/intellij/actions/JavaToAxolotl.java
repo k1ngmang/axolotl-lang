@@ -83,6 +83,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.axl.compiler.AxlDiagnostic;
@@ -387,8 +388,8 @@ final class JavaToAxolotl {
         boolean sealed = type.hasModifierProperty(PsiModifier.SEALED);
         for (PsiClassType permitted : type.getPermitsListTypes()) {
             PsiClass cls = permitted.resolve();
-            if (cls == null || cls.getContainingFile() != source) {
-                throw new Unsupported("a sealed interface is implemented in its own file in Axolotl");
+            if (cls == null || !Objects.equals(PsiUtil.getPackageName(cls), PsiUtil.getPackageName(type))) {
+                throw new Unsupported("a sealed interface is implemented in its own package in Axolotl");
             }
         }
         out.append(sealed ? "sealed " : "").append("interface ").append(name(type.getName())).append(typeParameters(type))

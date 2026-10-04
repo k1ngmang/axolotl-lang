@@ -1,0 +1,7 @@
+package app
+
+import java.util.List
+
+class DeleteDelta(val lines: List<String>) : Delta {
+    fn describe() -> String = "delete " + lines.size()
+}

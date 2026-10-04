@@ -76,7 +76,7 @@ import org.jetbrains.annotations.Nullable;
 public final class AxlLightClasses {
 
     private static final List<String> MODIFIERS = List.of(PsiModifier.PUBLIC, PsiModifier.PROTECTED, PsiModifier.PRIVATE,
-            PsiModifier.STATIC, PsiModifier.ABSTRACT, PsiModifier.FINAL);
+            PsiModifier.STATIC, PsiModifier.ABSTRACT, PsiModifier.FINAL, PsiModifier.SEALED, PsiModifier.NON_SEALED);
 
     private static final Key<GeneratedUnit> LAST_UNIT = Key.create("axl.lastGeneratedUnit");
 
@@ -193,6 +193,12 @@ public final class AxlLightClasses {
             bounds(generated);
             references(generated.getExtendsList(), light.getExtendsList()::addReference);
             references(generated.getImplementsList(), light.getImplementsList()::addReference);
+            // Kept as written: resolving them would build the classes of the files that implement this one, which need it.
+            if (generated.getPermitsList() != null) {
+                for (PsiClassType type : generated.getPermitsList().getReferencedTypes()) {
+                    light.getPermitsList().addReference(type);
+                }
+            }
             boolean fileLevel = light.getContainingClass() == null;
             for (PsiMethod method : generated.getMethods()) {
                 light.addMethod(method(method, light, declaration, fileLevel));
@@ -592,6 +598,7 @@ public final class AxlLightClasses {
         private final AxlLightModifierList modifiers;
         private final AxlLightReferenceList extendsList;
         private final AxlLightReferenceList implementsList;
+        private final AxlLightReferenceList permitsList;
         private final List<PsiField> fields = new ArrayList<>();
         private final List<AxlLightClass> inner = new ArrayList<>();
 
@@ -606,6 +613,7 @@ public final class AxlLightClasses {
             this.modifiers = modifiers;
             this.extendsList = new AxlLightReferenceList(getManager(), PsiReferenceList.Role.EXTENDS_LIST);
             this.implementsList = new AxlLightReferenceList(getManager(), PsiReferenceList.Role.IMPLEMENTS_LIST);
+            this.permitsList = new AxlLightReferenceList(getManager(), PsiReferenceList.Role.PERMITS_LIST);
         }
 
         @Override
@@ -626,6 +634,12 @@ public final class AxlLightClasses {
         @Override
         public AxlLightReferenceList getImplementsList() {
             return implementsList;
+        }
+
+        /** The implementations a sealed interface names when other files of its package declare some. */
+        @Override
+        public AxlLightReferenceList getPermitsList() {
+            return permitsList;
         }
 
         @Override

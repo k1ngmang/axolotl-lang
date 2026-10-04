@@ -5,6 +5,7 @@ import com.intellij.openapi.editor.colors.TextAttributesKey;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiAnnotation;
 import com.intellij.psi.PsiClass;
+import com.intellij.psi.PsiClassType;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiErrorElement;
 import com.intellij.psi.PsiField;
@@ -894,6 +895,18 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
             assertEquals(name, List.of(), myFixture.doHighlighting().stream()
                     .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
         }
+    }
+
+    public void testJavaSeesASealedInterfaceThatOtherFilesImplement() {
+        myFixture.addFileToProject("app/Shape.axl", "package app\n\nsealed interface Shape\n\ndata class Dot(val x: Int) : Shape\n");
+        myFixture.addFileToProject("app/Circle.axl", "package app\n\ndata class Circle(val radius: Double) : Shape\n");
+        myFixture.addFileToProject("app/Shapes.axl", "package app\n\ndata class Square(val side: Double) : Shape\n");
+        PsiClass shape = findClass("app.Shape");
+        assertTrue(shape.hasModifierProperty(PsiModifier.SEALED));
+        assertEquals(List.of("app.Shape.Dot", "app.Circle", "app.Shapes.Square"),
+                Arrays.stream(shape.getPermitsListTypes()).map(PsiClassType::getCanonicalText).toList());
+        assertTrue(findClass("app.Circle").isInheritor(shape, false));
+        assertTrue(findClass("app.Shapes.Square").isInheritor(shape, false));
     }
 
     public void testJavaSeesEnumFieldsJavaSuperclassesAndDataClassMethods() {
