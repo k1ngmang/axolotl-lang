@@ -56,7 +56,7 @@ them from Axolotl:
 Framework entry points work in Axolotl: a `class` with annotated methods is a JUnit test class, a
 Spring controller or a JAX-RS resource, and an annotated `data class` is a Jackson or JPA record.
 
-Most loops over collections become pipes; a `while` loop covers the rest, counting loops included.
+Most loops over collections become pipes; a counting `for (i in 0 until n)` or a `while` loop covers the rest.
 
 ## Exceptions and `Result`
 

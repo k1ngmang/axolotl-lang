@@ -79,6 +79,11 @@ Axolotl has no bounded wildcards (`? extends T`, `? super T`). A parameter that 
   `close()` throws, a call or a `throw`; it is needed when `close()` declares a checked exception. Without it, the error names the resource whose `close()` throws: `close()` of `BufferedReader` can
   throw `IOException`.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
+- `for (i in 0 until n) { ... }` counts from 0 to n - 1, `for (i in 1..n)` from 1 to n and `for (i in n downTo 0)` down to 0,
+  each with an optional `step k`, such as `for (k in -d..d step 2)`. Bounds and step are `Int` or `Long`, and the variable
+  is a `val` of their type, a `Long` if one of them is. They are read once, before the loop. A step that is not positive
+  throws `IllegalArgumentException`, and an end at the limit of the type stops there. These forms exist only in the header
+  of a `for`: Axolotl has no range values, and `until`, `downTo` and `step` are names elsewhere.
   `break` leaves the loop around it and `continue` goes on with its next round, also from inside a
   `when` in the loop; they have no labels.
   A `while` or `for` body always has braces, like an `if` statement.
@@ -130,7 +135,9 @@ data class Square(val name: String, val side: Double, val label: String?) : Shap
 
 A `data class` is an immutable Java record: its fields are read with `circle.radius()` and it has
 `equals`, `hashCode` and `toString`. An `interface` lists the values its implementations provide;
-`sealed` limits the implementations to the file, so that a `when` can cover them all. Type names start
+`sealed` limits the implementations to the package, the file and the other files of its package, so that a `when` can
+cover them all. A type declared in a file of its own name, such as `data class InsertDelta(...) : Delta` in `InsertDelta.axl`,
+keeps the Java name `app.InsertDelta`, and the interface names it with Java's `permits`. Type names start
 with a capital letter, and `Circle("c", 2.0)` creates one. They are nested in the class of their file
 (`Shapes.axl` makes `Shapes.Circle`), so other files import them as `import app.Shapes.Circle`.
 Functions over a record are plain functions that take it: `fn area(c: Circle) -> Double = ...`;
