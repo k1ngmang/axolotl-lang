@@ -2571,13 +2571,13 @@ import org.axl.compiler.check.Whens;
         return "new " + g.type() + "<" + String.join(", ", typeArgs) + ">(" + args + ")";
     }
     private String callCode(Expr.Call c, String args) {
-        if (c.name().equals("println") && !declaredFunctions.contains("println")) {
+        if (c.name().equals("println") && !functionInScope("println")) {
             return "System.out.println(" + args + ")";
         }
-        if (c.name().equals("print") && !declaredFunctions.contains("print")) {
+        if (c.name().equals("print") && !functionInScope("print")) {
             return "System.out.print(" + args + ")";
         }
-        if (c.name().equals("readLine") && c.args().isEmpty() && !declaredFunctions.contains("readLine")) {
+        if (c.name().equals("readLine") && c.args().isEmpty() && !functionInScope("readLine")) {
             return "Console.readLine()";
         }
         if (c.name().equals("Ok") || c.name().equals("Err")) {
@@ -2594,6 +2594,17 @@ import org.axl.compiler.check.Whens;
             return file.className() + "." + c.name() + "(" + args + ")";
         }
         return c.name() + "(" + args + ")";
+    }
+    private boolean functionInScope(String name) {
+        if (declaredFunctions.contains(name) || (Nulls.stream(currentMethods).anyMatch(m -> m.name().equals(name)))) {
+            return true;
+        }
+        final var owner = currentClass;
+        return owner != null && (Nulls.stream(owner.supertypes()).anyMatch(t -> inheritsMethod(t, name)));
+    }
+    private boolean inheritsMethod(TypeRef supertype, String name) {
+        final var library = Libraries.classNamed(file, options.classes(), supertype.name());
+        return library != null && !options.classes().signatures(library.name(), name).isEmpty();
     }
     private boolean callsHiddenFunction(Expr.Call c) {
         final var owner = currentClass;

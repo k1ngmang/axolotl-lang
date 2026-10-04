@@ -2950,13 +2950,13 @@ class Generator(
     }
 
     private fn callCode(c: Expr.Call, args: String) -> String {
-        if (c.name().equals("println") && !declaredFunctions.contains("println")) {
+        if (c.name().equals("println") && !functionInScope("println")) {
             return "System.out.println(" + args + ")"
         }
-        if (c.name().equals("print") && !declaredFunctions.contains("print")) {
+        if (c.name().equals("print") && !functionInScope("print")) {
             return "System.out.print(" + args + ")"
         }
-        if (c.name().equals("readLine") && c.args().isEmpty() && !declaredFunctions.contains("readLine")) {
+        if (c.name().equals("readLine") && c.args().isEmpty() && !functionInScope("readLine")) {
             return "Console.readLine()"
         }
         if (c.name().equals("Ok") || c.name().equals("Err")) {
@@ -2973,6 +2973,23 @@ class Generator(
             return file.className() + "." + c.name() + "(" + args + ")"
         }
         return c.name() + "(" + args + ")"
+    }
+
+    /**
+     * `println`, `print` and `readLine` are the builtins only where no method of the class, also one it inherits from
+     * a Java class, and no function of the file has that name, since Java finds those first.
+     */
+    private fn functionInScope(name: String) -> Boolean {
+        if (declaredFunctions.contains(name) || (currentMethods |> anyMatch { m -> m.name().equals(name) })) {
+            return true
+        }
+        val owner = currentClass
+        return owner != null && (owner.supertypes() |> anyMatch { t -> inheritsMethod(t, name) })
+    }
+
+    private fn inheritsMethod(supertype: TypeRef, name: String) -> Boolean {
+        val library = Libraries.classNamed(file, options.classes(), supertype.name())
+        return library != null && !options.classes().signatures(library.name(), name).isEmpty()
     }
 
     /**

@@ -1,0 +1,5 @@
+package app
+
+fn print(text: String) {
+    System.out.println("[" + text + "]")
+}

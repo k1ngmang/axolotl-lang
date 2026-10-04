@@ -1,0 +1,50 @@
+package app
+
+import fn app.Texts.print
+import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.PrintStream
+import java.io.StringReader
+import java.io.UncheckedIOException
+import java.nio.charset.StandardCharsets
+import java.util.ArrayList
+import java.util.List
+
+// `readLine()`, `println(...)` and `print(...)` call the method or function of that name where there is one.
+class Lines(private val reader: BufferedReader) {
+    private fn readLine() -> String? = attempt reader.readLine() else e: IOException -> throw UncheckedIOException(e)
+
+    fn first() -> String? = readLine()
+}
+
+class Log {
+    val lines: List<String> = ArrayList<String>()
+
+    private fn println(text: String) {
+        lines.add(text)
+    }
+
+    fn info(text: String) -> Int {
+        println("info " + text)
+        val each: java.util.function.Consumer<String> = { t -> println(t) }
+        each.accept("more " + text)
+        return lines.size()
+    }
+}
+
+// The methods inherited from a Java class count as the class's own.
+class Capture(val bytes: ByteArrayOutputStream) : PrintStream(bytes) {
+    fn hello() -> String {
+        println("captured")
+        flush()
+        return bytes.toString(StandardCharsets.UTF_8).trim()
+    }
+}
+
+fn main() {
+    println(Lines(BufferedReader(StringReader("a\nb"))).first())
+    println(Log().info("x"))
+    println(Capture(ByteArrayOutputStream()).hello())
+    print("done")
+}
