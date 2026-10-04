@@ -74,6 +74,7 @@ import org.axl.compiler.parse.AxolotlParser.CompilationUnitContext
 import org.axl.compiler.parse.AxolotlParser.ConjunctionContext
 import org.axl.compiler.parse.AxolotlParser.ConstructorMemberContext
 import org.axl.compiler.parse.AxolotlParser.ContinueStatementContext
+import org.axl.compiler.parse.AxolotlParser.CountStatementContext
 import org.axl.compiler.parse.AxolotlParser.DataClassDeclContext
 import org.axl.compiler.parse.AxolotlParser.DisjunctionContext
 import org.axl.compiler.parse.AxolotlParser.ElvisContext
@@ -344,11 +345,24 @@ private fn buildStatement(ctx: StatementContext) -> Stmt? = when (ctx) {
     is WhileStatementContext -> While(pos(ctx.start), buildExpr(ctx.expression()), buildBlock(ctx.block()))
     is ForStatementContext -> For(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()),
         buildExpr(ctx.expression()), buildBlock(ctx.block()))
+    is CountStatementContext -> buildCount(ctx)
     is AttemptExitStatementContext -> buildAttemptExit(ctx)
     is AssignStatementContext -> buildAssign(ctx)
     is ExpressionStatementContext -> ExprStmt(pos(ctx.start), buildExpr(ctx.expression()))
     is EmptyStatementContext -> null
     else -> throw IllegalStateException("unknown statement " + ctx.getClass())
+}
+
+private fn buildCount(ctx: CountStatementContext) -> Stmt.Count {
+    val kind = ctx.countKind()
+    val dots = kind.DOT()
+    if (!dots.isEmpty() && dots.get(1).getSymbol().getStartIndex() != dots.get(0).getSymbol().getStopIndex() + 1) {
+        throw Rejected(pos(kind.start), "write `..` without a space between the dots")
+    }
+    val countStep = ctx.countStep()
+    val step: Expr? = if (countStep == null) null else buildExpr(countStep.expression())
+    return Stmt.Count(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()), buildExpr(ctx.expression(0)),
+        kind.getText(), buildExpr(ctx.expression(1)), step, buildBlock(ctx.block()))
 }
 
 private fn buildVal(ctx: ValStatementContext) -> Stmt.Local {

@@ -1,0 +1,27 @@
+package app
+
+val half: Double = 0.5
+
+fn main() {
+    for (x in 0..half) {
+        println(x)
+    }
+    for (c in 'a'..'z') {
+        println(c)
+    }
+    val n = 10
+    for (i in 0 until n step 0) {
+        println(i)
+    }
+    for (i in n downTo 0 step -2) {
+        i = 3
+    }
+    for (i in 0 until n) {
+        val i = 2
+        println(i)
+    }
+    for (i in 1..n) {
+        println(i)
+    }
+    break
+}

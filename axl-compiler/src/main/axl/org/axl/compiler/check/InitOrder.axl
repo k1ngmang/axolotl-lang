@@ -607,6 +607,16 @@ class InitOrder(val file: SourceFile) {
                 track(stmt.name(), elementOf(stmt.iterable(), hidden), null)
                 statement(stmt.body(), with(hidden, Set.of(stmt.name())), out)
             }
+            is Stmt.Count -> {
+                names(stmt.from(), hidden, out)
+                names(stmt.to(), hidden, out)
+                val step = stmt.step()
+                if (step != null) {
+                    names(step, hidden, out)
+                }
+                track(stmt.name(), null, null)
+                statement(stmt.body(), with(hidden, Set.of(stmt.name())), out)
+            }
             is Stmt.ExprStmt -> names(stmt.expr(), hidden, out)
             is Stmt.Block -> statements(stmt.statements(), hidden, out)
         }

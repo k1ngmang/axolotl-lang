@@ -1,0 +1,9 @@
+AXL001 app/Main.axl:6:18: error: a counting `for` counts with `Int` or `Long` values; this is a `Double`
+AXL001 app/Main.axl:9:15: error: a counting `for` counts with `Int` or `Long` values; this is a `Char`
+AXL001 app/Main.axl:9:20: error: a counting `for` counts with `Int` or `Long` values; this is a `Char`
+AXL001 app/Main.axl:13:30: error: the step of a counting `for` is a positive number; to count down, write `downTo`: `for (i in 10 downTo 0 step 2)`
+AXL001 app/Main.axl:16:31: error: the step of a counting `for` is a positive number, also with `downTo`: `for (i in 10 downTo 0 step 2)`
+AXL008 app/Main.axl:17:9: error: cannot assign to the loop variable `i`; copy it into a `var` first: `var current = i`
+AXL004 app/Main.axl:20:13: error: `i` shadows the `i` declared at line 19; choose another name
+AXL001 app/Main.axl:26:5: error: `break` works only inside a `while` or `for` loop, and there is none around it
+AXL001 app/Spaced.axl:4:17: error: write `..` without a space between the dots

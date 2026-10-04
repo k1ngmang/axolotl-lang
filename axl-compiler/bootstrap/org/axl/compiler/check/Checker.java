@@ -746,13 +746,69 @@ import org.axl.compiler.ast.TypeRef;
                 loopDepth = loopDepth - 1;
                 pop();
             }
-            case Stmt.ExprStmt stmt$10 -> {
-                expressionStatement(stmt$10);
+            case Stmt.Count stmt$10 -> {
+                countLoop(stmt$10);
             }
-            case Stmt.Block stmt$11 -> {
-                statements(stmt$11.statements());
+            case Stmt.ExprStmt stmt$11 -> {
+                expressionStatement(stmt$11);
+            }
+            case Stmt.Block stmt$12 -> {
+                statements(stmt$12.statements());
             }
         }
+    }
+    private void countLoop(Stmt.Count stmt) {
+        final var parts = new ArrayList<Expr>(List.of(stmt.from(), stmt.to()));
+        final var step = stmt.step();
+        if (step != null) {
+            parts.add(step);
+        }
+        @Nullable String type = null;
+        var allKnown = true;
+        for (final var part : parts) {
+            expr(part);
+            final var partType = countPartType(part);
+            if (partType == null) {
+                allKnown = false;
+            } else if (!partType.equals("Int") && !partType.equals("Long")) {
+                error(part.pos(), ErrorCode.SYNTAX, "a counting `for` counts with `Int` or `Long` values; this is a `" + partType + "`");
+                allKnown = false;
+            } else if (type == null || partType.equals("Long")) {
+                type = partType;
+            }
+        }
+        final var stepValue = (step == null ? null : Expr.integerValue(step));
+        if (step != null && stepValue != null && stepValue.signum() <= 0) {
+            final var fix = (stmt.kind().equals("downTo") ? ", also with `downTo`: " : "; to count down, write `downTo`: ");
+            error(step.pos(), ErrorCode.SYNTAX, "the step of a counting `for` is a positive number" + fix + "`for (i in 10 downTo 0 step 2)`");
+        }
+        final var loopType = (type != null && (allKnown || type.equals("Long")) ? new TypeRef(stmt.namePos(), type, List.of(), false) : null);
+        scope = new Scope(scope, false);
+        if (!stmt.name().equals("_")) {
+            declare(stmt.namePos(), stmt.name(), Kind.LOOP_VARIABLE, loopType);
+        }
+        loopDepth = loopDepth + 1;
+        statements(stmt.body().statements());
+        loopDepth = loopDepth - 1;
+        pop();
+    }
+    private @Nullable String countPartType(Expr e) {
+        final var inner = unparenthesized(e);
+        if (inner instanceof Expr.Literal inner$1 && inner$1.text().startsWith("'")) {
+            return "Char";
+        }
+        final var known = new HashMap<String, TypeRef>();
+        @Nullable Scope s = scope;
+        while (s != null) {
+            for (final var entry : s.names.entrySet()) {
+                final var written = entry.getValue().type();
+                if (written != null) {
+                    known.putIfAbsent(entry.getKey(), written);
+                }
+            }
+            s = s.parent;
+        }
+        return Nulls.map(new TypeInference(file, known, siblings).of(inner), $n1 -> $n1.name());
     }
     private void local(Stmt.Local stmt) {
         final var init = unparenthesized(stmt.init());
@@ -1722,7 +1778,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var symbol = scope.lookup(target$1.name());
         final var written = declaredNotNull(symbol);
-        if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
+        if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target$1.pos().line(), target$1.pos().column(), ErrorCode.UNNEEDED,
                     "`" + target$1.name() + "` has the type `" + written.name() + "`, which is never null; " + fix));
         }

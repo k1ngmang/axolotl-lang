@@ -1,0 +1,10 @@
+package app
+
+fn main() {
+    val first = 1
+    val last = 3
+    val all = first..last
+    println(all)
+    val down = last downTo first
+    println(down)
+}

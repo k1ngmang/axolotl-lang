@@ -13,7 +13,7 @@ AXL001 app/CastInBody.axl:3:32: error: Axolotl has no casts; test the type with 
 AXL001 app/ChainedAssignment.axl:6:11: error: an assignment is a statement, not a value: write `b = 3`, then `a = b`
 AXL001 app/CharsIndex.axl:5:31: error: Axolotl has no `[]` indexing; read a character of the string with `charAt`: `word.charAt(1)`
 AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
-AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection: `for (x in xs) { ... }`; count with a `while` loop
+AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection, `for (x in xs) { ... }`, or counts: `for (i in 0 until n) { ... }`
 AXL001 app/DoWhile.axl:5:5: error: Axolotl has no `do`-`while`; write a `while` loop
 AXL001 app/EmptyArrow.axl:6:13: error: `->` needs a value or a block after it
 AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?

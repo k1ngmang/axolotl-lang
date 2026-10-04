@@ -683,10 +683,29 @@ public final class AxlParser implements PsiParser {
                 b.error("`in` expected");
             }
             expression();
+            if (atWord("until") || atWord("downTo")) {
+                b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+                b.advanceLexer();
+                expression();
+            } else if (at(DOT) && b.lookAhead(1) == AxlTokenTypes.of(DOT)) {
+                b.advanceLexer();
+                b.advanceLexer();
+                expression();
+            }
+            if (atWord("step")) {
+                b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
+                b.advanceLexer();
+                expression();
+            }
             expect(RPAREN, "`)` expected");
         }
         block(LBRACE);
         m.done(AxlElementTypes.FOR);
+    }
+
+    /** `until`, `downTo` and `step` are words only in the header of a counting `for`. */
+    private boolean atWord(String word) {
+        return at(IDENTIFIER) && word.equals(b.getTokenText());
     }
 
     /** The grammar assigns only to a primary expression with postfix operators. */
@@ -901,7 +920,7 @@ public final class AxlParser implements PsiParser {
                 b.advanceLexer();
                 b.advanceLexer();
                 expr.done(AxlElementTypes.CLASS_LITERAL);
-            } else if (at(DOT) || at(SAFE_DOT)) {
+            } else if (at(DOT) && b.lookAhead(1) != AxlTokenTypes.of(DOT) || at(SAFE_DOT)) {
                 expr = expr.precede();
                 b.advanceLexer();
                 expect(IDENTIFIER, "name expected");

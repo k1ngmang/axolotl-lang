@@ -300,6 +300,31 @@ public class AxlParserTest extends BasePlatformTestCase {
                 e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD).length);
     }
 
+    public void testReadsCountingLoopsAndKeepsTheirWordsAsNamesElsewhere() {
+        PsiFile file = myFixture.configureByText("Count.axl", """
+                package app
+
+                fn f(d: Int, n: Int) {
+                    for (k in -d..d step 2) {
+                        println(k)
+                    }
+                    for (i in n - 1 downTo 0) {
+                        println(i)
+                    }
+                    val until = n
+                    for (j in 0 until until) {
+                        println(j.toString().length())
+                    }
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        assertEquals(3, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.FOR).length);
+        assertEquals(List.of("in", "step", "in", "downTo", "in", "until"), Arrays.stream(PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD)).map(PsiElement::getText).toList());
+        assertEquals(List.of("k", "i", "j"), Arrays.stream(PsiTreeUtil.collectElements(file,
+                e -> e.getNode().getElementType() == AxlElementTypes.LOOP_VARIABLE)).map(PsiElement::getText).toList());
+    }
+
     public void testReadsUseBreakAndContinueStatements() {
         PsiFile file = myFixture.configureByText("Use.axl", """
                 package app

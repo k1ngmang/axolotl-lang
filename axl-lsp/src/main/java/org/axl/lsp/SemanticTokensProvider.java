@@ -285,13 +285,67 @@ final class SemanticTokensProvider {
             return type(tokens, open) == AxolotlLexer.LPAREN && type(tokens, nextIndex(tokens, open)) == AxolotlLexer.VAL;
         }
         if (text.equals("in")) {
-            int loopVariable = previousIndex(tokens, index);
-            return previous != null && previous.getType() == AxolotlLexer.IDENTIFIER
-                    && type(tokens, previousIndex(tokens, loopVariable)) == AxolotlLexer.LPAREN
-                    && type(tokens, previousIndex(tokens, previousIndex(tokens, loopVariable))) == AxolotlLexer.FOR;
+            return isLoopIn(tokens, index);
+        }
+        if (COUNT_WORDS.contains(text)) {
+            return isCountWord(tokens, index);
         }
         return false;
     }
+
+    private static final Set<String> COUNT_WORDS = Set.of("until", "downTo", "step");
+
+    /** The `in` of `for (x in ...)`. */
+    private static boolean isLoopIn(List<? extends Token> tokens, int index) {
+        int loopVariable = previousIndex(tokens, index);
+        return type(tokens, loopVariable) == AxolotlLexer.IDENTIFIER && tokens.get(index).getText().equals("in")
+                && type(tokens, previousIndex(tokens, loopVariable)) == AxolotlLexer.LPAREN
+                && type(tokens, previousIndex(tokens, previousIndex(tokens, loopVariable))) == AxolotlLexer.FOR;
+    }
+
+    /**
+     * `until`, `downTo` and `step` after a value in the header of `for (i in 0 until n step 2)`: read from the `in`
+     * on, a word that follows a value is one of them, and a value starts after it.
+     */
+    private static boolean isCountWord(List<? extends Token> tokens, int index) {
+        int depth = 0;
+        int in = -1;
+        for (int i = previousIndex(tokens, index); i >= 0; i = previousIndex(tokens, i)) {
+            int kind = tokens.get(i).getType();
+            if (kind == AxolotlLexer.RPAREN) {
+                depth++;
+            } else if (kind == AxolotlLexer.LPAREN && depth-- == 0) {
+                break;
+            } else if (kind == AxolotlLexer.LBRACE || kind == AxolotlLexer.RBRACE || kind == AxolotlLexer.SEMI) {
+                return false;
+            } else if (depth == 0 && isLoopIn(tokens, i)) {
+                in = i;
+            }
+        }
+        if (in < 0) {
+            return false;
+        }
+        boolean afterValue = false;
+        depth = 0;
+        for (int i = nextIndex(tokens, in); i >= 0 && i < index; i = nextIndex(tokens, i)) {
+            Token t = tokens.get(i);
+            if (t.getType() == AxolotlLexer.LPAREN) {
+                depth++;
+                afterValue = false;
+            } else if (t.getType() == AxolotlLexer.RPAREN) {
+                depth--;
+                afterValue = true;
+            } else if (depth == 0) {
+                boolean word = t.getType() == AxolotlLexer.IDENTIFIER && COUNT_WORDS.contains(t.getText()) && afterValue;
+                afterValue = !word && VALUE_ENDS.contains(t.getType());
+            }
+        }
+        return afterValue;
+    }
+
+    private static final Set<Integer> VALUE_ENDS = Set.of(AxolotlLexer.IDENTIFIER, AxolotlLexer.INT_LITERAL,
+            AxolotlLexer.FLOAT_LITERAL, AxolotlLexer.STRING_LITERAL, AxolotlLexer.CHAR_LITERAL, AxolotlLexer.BANGBANG,
+            AxolotlLexer.TRUE, AxolotlLexer.FALSE, AxolotlLexer.NULL);
 
     /**
      * The kind of a segment of the qualified name in a package or import declaration or a written

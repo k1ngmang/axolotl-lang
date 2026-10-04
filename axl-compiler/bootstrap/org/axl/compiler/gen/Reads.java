@@ -14,7 +14,9 @@ import org.axl.compiler.ast.Stmt;
     public final Set<String> names = new HashSet<String>();
     public final Set<String> inLambdas = new HashSet<String>();
     public final Set<String> members = new HashSet<String>();
+    public final Set<String> assigned = new HashSet<String>();
     public int lambdas = 0;
+    public boolean expansions = false;
     public void expr(Expr e) {
         switch (e) {
             case Expr.Literal e$1 -> {
@@ -28,14 +30,16 @@ import org.axl.compiler.ast.Stmt;
             }
             case Expr.Member e$3 -> {
                 members.add(e$3.name());
-                expr(e$3.target());
+                expanded(e$3.safe(), () -> expr(e$3.target()));
             }
             case Expr.Call e$4 -> {
-                final var target = e$4.target();
-                if (target != null) {
-                    expr(target);
-                }
-                exprs(e$4.args());
+                expanded(e$4.safe(), () -> {
+                    final var target = e$4.target();
+                    if (target != null) {
+                        expr(target);
+                    }
+                    exprs(e$4.args());
+                });
             }
             case Expr.GenericNew e$5 -> {
                 exprs(e$5.args());
@@ -56,8 +60,10 @@ import org.axl.compiler.ast.Stmt;
                 expr(e$10.right());
             }
             case Expr.Elvis e$11 -> {
-                expr(e$11.left());
-                expr(e$11.right());
+                expanded(true, () -> {
+                    expr(e$11.left());
+                    expr(e$11.right());
+                });
             }
             case Expr.Is e$12 -> {
                 expr(e$12.target());
@@ -83,8 +89,10 @@ import org.axl.compiler.ast.Stmt;
                 expr(e$17.inner());
             }
             case Expr.Attempt e$18 -> {
-                expr(e$18.body());
-                expr(e$18.handler());
+                expanded(true, () -> {
+                    expr(e$18.body());
+                    expr(e$18.handler());
+                });
             }
             case Expr.Lambda e$19 -> {
                 lambdas += 1;
@@ -103,6 +111,16 @@ import org.axl.compiler.ast.Stmt;
             }
         }
     }
+    private void expanded(boolean lambda, Runnable visit) {
+        final var counts = lambda && expansions;
+        if (counts) {
+            lambdas += 1;
+        }
+        visit.run();
+        if (counts) {
+            lambdas -= 1;
+        }
+    }
     public void exprs(List<Expr> list) {
         for (final var e : list) {
             expr(e);
@@ -119,50 +137,63 @@ import org.axl.compiler.ast.Stmt;
                 expr(s$1.init());
             }
             case Stmt.Assign s$2 -> {
-                expr(s$2.target());
+                final var target = s$2.target();
+                if (target instanceof Expr.Name target$3) {
+                    assigned.add(target$3.name());
+                }
+                expr(target);
                 expr(s$2.value());
             }
-            case Stmt.Return s$3 -> {
-                final var value = s$3.value();
+            case Stmt.Return s$4 -> {
+                final var value = s$4.value();
                 if (value != null) {
                     expr(value);
                 }
             }
-            case Stmt.Jump s$4 -> {
+            case Stmt.Jump s$5 -> {
             }
-            case Stmt.AttemptExit s$5 -> {
-                expr(s$5.body());
-                statement(s$5.exit());
+            case Stmt.AttemptExit s$6 -> {
+                expanded(true, () -> expr(s$6.body()));
+                statement(s$6.exit());
             }
-            case Stmt.Use s$6 -> {
-                expr(s$6.resource());
-                statement(s$6.body());
-                final var handler = s$6.handler();
+            case Stmt.Use s$7 -> {
+                expr(s$7.resource());
+                statement(s$7.body());
+                final var handler = s$7.handler();
                 if (handler != null) {
                     expr(handler);
                 }
             }
-            case Stmt.If s$7 -> {
-                expr(s$7.condition());
-                statement(s$7.then());
-                final var otherwise = s$7.elseBranch();
+            case Stmt.If s$8 -> {
+                expr(s$8.condition());
+                statement(s$8.then());
+                final var otherwise = s$8.elseBranch();
                 if (otherwise != null) {
                     statement(otherwise);
                 }
             }
-            case Stmt.While s$8 -> {
-                expr(s$8.condition());
-                statement(s$8.body());
-            }
-            case Stmt.For s$9 -> {
-                expr(s$9.iterable());
+            case Stmt.While s$9 -> {
+                expr(s$9.condition());
                 statement(s$9.body());
             }
-            case Stmt.ExprStmt s$10 -> {
-                expr(s$10.expr());
+            case Stmt.For s$10 -> {
+                expr(s$10.iterable());
+                statement(s$10.body());
             }
-            case Stmt.Block s$11 -> {
-                statements(s$11.statements());
+            case Stmt.Count s$11 -> {
+                expr(s$11.from());
+                expr(s$11.to());
+                final var step = s$11.step();
+                if (step != null) {
+                    expr(step);
+                }
+                statement(s$11.body());
+            }
+            case Stmt.ExprStmt s$12 -> {
+                expr(s$12.expr());
+            }
+            case Stmt.Block s$13 -> {
+                statements(s$13.statements());
             }
         }
     }

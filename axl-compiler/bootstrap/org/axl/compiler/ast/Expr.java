@@ -1,6 +1,7 @@
 package org.axl.compiler.ast;
 import axl.lang.*;
 import org.jspecify.annotations.*;
+import java.math.BigInteger;
 import java.util.List;
 
 @NullMarked public sealed interface Expr {
@@ -18,6 +19,22 @@ import java.util.List;
             return (target == null ? null : target + "." + e$2.name());
         }
         return null;
+    }
+    public static @Nullable BigInteger integerValue(Expr e) {
+        if (e instanceof Paren e$1) {
+            return integerValue(e$1.inner());
+        }
+        if (e instanceof Unary e$2 && e$2.op().equals("-")) {
+            return Nulls.map(integerValue(e$2.operand()), $n1 -> $n1.negate());
+        }
+        if (!(e instanceof Literal e$3)) {
+            return null;
+        }
+        final var text = e$3.text().replace("_", "").replaceFirst("[lL]$", "");
+        if (text.matches("0[xX][0-9a-fA-F]+")) {
+            return new BigInteger(text.substring(2), 16);
+        }
+        return (text.matches("[0-9]+") ? new BigInteger(text) : null);
     }
     public record Call(Pos pos, @Nullable Expr target, String name, List<Expr> args, boolean safe) implements Expr {}
     public record GenericNew(Pos pos, String type, List<TypeRef> typeArgs, List<Expr> args) implements Expr {}

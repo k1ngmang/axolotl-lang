@@ -36,6 +36,15 @@ import java.util.List;
     public record If(Pos pos, Expr condition, Block then, @Nullable Stmt elseBranch) implements Stmt {}
     public record While(Pos pos, Expr condition, Block body) implements Stmt {}
     public record For(Pos pos, Pos namePos, String name, Expr iterable, Block body) implements Stmt {}
+    public record Count(
+            Pos pos,
+            Pos namePos,
+            String name,
+            Expr from,
+            String kind,
+            Expr to,
+            @Nullable Expr step,
+            Block body) implements Stmt {}
     public record ExprStmt(Pos pos, Expr expr) implements Stmt {}
     public record Block(Pos pos, List<Stmt> statements, Pos end) implements Stmt {}
 }

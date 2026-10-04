@@ -569,11 +569,21 @@ import org.axl.compiler.ast.TypeRef;
                 track(stmt$11.name(), elementOf(stmt$11.iterable(), hidden), null);
                 statement(stmt$11.body(), with(hidden, Set.of(stmt$11.name())), out);
             }
-            case Stmt.ExprStmt stmt$12 -> {
-                names(stmt$12.expr(), hidden, out);
+            case Stmt.Count stmt$12 -> {
+                names(stmt$12.from(), hidden, out);
+                names(stmt$12.to(), hidden, out);
+                final var step = stmt$12.step();
+                if (step != null) {
+                    names(step, hidden, out);
+                }
+                track(stmt$12.name(), null, null);
+                statement(stmt$12.body(), with(hidden, Set.of(stmt$12.name())), out);
             }
-            case Stmt.Block stmt$13 -> {
-                statements(stmt$13.statements(), hidden, out);
+            case Stmt.ExprStmt stmt$13 -> {
+                names(stmt$13.expr(), hidden, out);
+            }
+            case Stmt.Block stmt$14 -> {
+                statements(stmt$14.statements(), hidden, out);
             }
         }
     }

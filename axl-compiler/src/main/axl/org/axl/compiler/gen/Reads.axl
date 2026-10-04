@@ -18,9 +18,13 @@ class Reads {
     val names: Set<String> = HashSet<String>()
     val inLambdas: Set<String> = HashSet<String>()
     val members: Set<String> = HashSet<String>()
+    val assigned: Set<String> = HashSet<String>()
 
     // Depth of the lambdas being looked into.
     var lambdas: Int = 0
+
+    /** Whether the lambdas Java gets for `?:`, `?.` and `attempt` count as lambdas too. */
+    var expansions: Boolean = false
 
     fn expr(e: Expr) {
         when (e) {
@@ -34,15 +38,15 @@ class Reads {
             }
             is Expr.Member -> {
                 members.add(e.name())
-                expr(e.target())
+                expanded(e.safe(), { -> expr(e.target()) })
             }
-            is Expr.Call -> {
+            is Expr.Call -> expanded(e.safe(), { ->
                 val target = e.target()
                 if (target != null) {
                     expr(target)
                 }
                 exprs(e.args())
-            }
+            })
             is Expr.GenericNew -> exprs(e.args())
             is Expr.MethodRef -> expr(e.target())
             is Expr.ClassLiteral -> { }
@@ -52,10 +56,10 @@ class Reads {
                 expr(e.left())
                 expr(e.right())
             }
-            is Expr.Elvis -> {
+            is Expr.Elvis -> expanded(true, { ->
                 expr(e.left())
                 expr(e.right())
-            }
+            })
             is Expr.Is -> expr(e.target())
             is Expr.Conditional -> {
                 expr(e.condition())
@@ -71,10 +75,10 @@ class Reads {
             }
             is Expr.Paren -> expr(e.inner())
             is Expr.Try -> expr(e.inner())
-            is Expr.Attempt -> {
+            is Expr.Attempt -> expanded(true, { ->
                 expr(e.body())
                 expr(e.handler())
-            }
+            })
             is Expr.Lambda -> {
                 lambdas += 1
                 statements(e.body())
@@ -90,6 +94,17 @@ class Reads {
                     }
                 }
             }
+        }
+    }
+
+    private fn expanded(lambda: Boolean, visit: Runnable) {
+        val counts = lambda && expansions
+        if (counts) {
+            lambdas += 1
+        }
+        visit.run()
+        if (counts) {
+            lambdas -= 1
         }
     }
 
@@ -109,7 +124,11 @@ class Reads {
         when (s) {
             is Stmt.Local -> expr(s.init())
             is Stmt.Assign -> {
-                expr(s.target())
+                val target = s.target()
+                if (target is Expr.Name) {
+                    assigned.add(target.name())
+                }
+                expr(target)
                 expr(s.value())
             }
             is Stmt.Return -> {
@@ -120,7 +139,7 @@ class Reads {
             }
             is Stmt.Jump -> { }
             is Stmt.AttemptExit -> {
-                expr(s.body())
+                expanded(true, { -> expr(s.body()) })
                 statement(s.exit())
             }
             is Stmt.Use -> {
@@ -145,6 +164,15 @@ class Reads {
             }
             is Stmt.For -> {
                 expr(s.iterable())
+                statement(s.body())
+            }
+            is Stmt.Count -> {
+                expr(s.from())
+                expr(s.to())
+                val step = s.step()
+                if (step != null) {
+                    expr(step)
+                }
                 statement(s.body())
             }
             is Stmt.ExprStmt -> expr(s.expr())

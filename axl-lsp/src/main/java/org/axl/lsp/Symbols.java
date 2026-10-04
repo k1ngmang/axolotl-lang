@@ -284,6 +284,17 @@ final class Symbols {
                     }
                     block(loop.body(), pos, fn, out);
                 }
+                case Stmt.Count loop -> {
+                    expr(loop.from(), pos, fn, out);
+                    expr(loop.to(), pos, fn, out);
+                    if (loop.step() != null) {
+                        expr(loop.step(), pos, fn, out);
+                    }
+                    if (loop.namePos().equals(pos) || before(loop.body().pos(), pos) && before(pos, loop.body().end())) {
+                        out.add(new Symbol(loop.name(), Kind.LOCAL, loop.namePos(), null, fn, null));
+                    }
+                    block(loop.body(), pos, fn, out);
+                }
                 case Stmt.Block block -> block(block, pos, fn, out);
                 case Stmt.Assign assign -> expr(assign.value(), pos, fn, out);
                 case Stmt.Jump jump -> { }

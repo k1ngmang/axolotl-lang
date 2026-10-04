@@ -75,6 +75,7 @@ import org.axl.compiler.parse.AxolotlParser.CompilationUnitContext;
 import org.axl.compiler.parse.AxolotlParser.ConjunctionContext;
 import org.axl.compiler.parse.AxolotlParser.ConstructorMemberContext;
 import org.axl.compiler.parse.AxolotlParser.ContinueStatementContext;
+import org.axl.compiler.parse.AxolotlParser.CountStatementContext;
 import org.axl.compiler.parse.AxolotlParser.DataClassDeclContext;
 import org.axl.compiler.parse.AxolotlParser.DisjunctionContext;
 import org.axl.compiler.parse.AxolotlParser.ElvisContext;
@@ -349,22 +350,36 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
                 return new For(pos(ctx$9.start), pos(ctx$9.identifier().start), nameOf(ctx$9.identifier()),
                         buildExpr(ctx$9.expression()), buildBlock(ctx$9.block()));
             }
-            case AttemptExitStatementContext ctx$10 -> {
-                return buildAttemptExit(ctx$10);
+            case CountStatementContext ctx$10 -> {
+                return buildCount(ctx$10);
             }
-            case AssignStatementContext ctx$11 -> {
-                return buildAssign(ctx$11);
+            case AttemptExitStatementContext ctx$11 -> {
+                return buildAttemptExit(ctx$11);
             }
-            case ExpressionStatementContext ctx$12 -> {
-                return new ExprStmt(pos(ctx$12.start), buildExpr(ctx$12.expression()));
+            case AssignStatementContext ctx$12 -> {
+                return buildAssign(ctx$12);
             }
-            case EmptyStatementContext ctx$13 -> {
+            case ExpressionStatementContext ctx$13 -> {
+                return new ExprStmt(pos(ctx$13.start), buildExpr(ctx$13.expression()));
+            }
+            case EmptyStatementContext ctx$14 -> {
                 return null;
             }
             default -> {
                 throw new IllegalStateException("unknown statement " + ctx.getClass());
             }
         }
+    }
+    private static Stmt.Count buildCount(CountStatementContext ctx) {
+        final var kind = ctx.countKind();
+        final var dots = kind.DOT();
+        if (!dots.isEmpty() && dots.get(1).getSymbol().getStartIndex() != dots.get(0).getSymbol().getStopIndex() + 1) {
+            throw new Rejected(pos(kind.start), "write `..` without a space between the dots");
+        }
+        final var countStep = ctx.countStep();
+        final @Nullable Expr step = (countStep == null ? null : buildExpr(countStep.expression()));
+        return new Stmt.Count(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()), buildExpr(ctx.expression(0)),
+                kind.getText(), buildExpr(ctx.expression(1)), step, buildBlock(ctx.block()));
     }
     private static Stmt.Local buildVal(ValStatementContext ctx) {
         final var decl = ctx.valDecl();

@@ -247,11 +247,22 @@ statement
     | CONTINUE SEMI?                                        # continueStatement
     | ifStatement                                           # ifStatementAlt
     | WHILE LPAREN expression RPAREN block                  # whileStatement
+    | FOR LPAREN identifier {_input.LT(1).getText().equals("in")}? IDENTIFIER expression countKind expression countStep? RPAREN block   # countStatement
     | FOR LPAREN identifier {_input.LT(1).getText().equals("in")}? IDENTIFIER expression RPAREN block   # forStatement
     | ATTEMPT expression ELSE handlerParam? attemptExit SEMI?   # attemptExitStatement
     | postfixExpression assignOp expression SEMI?           # assignStatement
     | expression SEMI?                                      # expressionStatement
     | SEMI                                                  # emptyStatement
+    ;
+
+// `for (i in 0 until n)`, `for (i in 1..n)` and `for (i in n downTo 0)` count without a range object; `until`, `downTo`
+// and `step` are words only here.
+countKind
+    : {_input.LT(1).getText().equals("until") || _input.LT(1).getText().equals("downTo")}? IDENTIFIER
+    | DOT DOT
+    ;
+countStep
+    : {_input.LT(1).getText().equals("step")}? IDENTIFIER expression
     ;
 
 // `e ->` or `e: IOException ->` before the handler of `attempt` and `use`: the exception, any `Exception` or one of

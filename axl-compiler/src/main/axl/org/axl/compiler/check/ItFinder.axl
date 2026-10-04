@@ -18,6 +18,7 @@ fn usesIt(stmt: Stmt) -> Boolean = when (stmt) {
     is Stmt.If -> usesIt(stmt.condition()) || usesIt(stmt.then()) || (stmt.elseBranch() != null && usesIt(stmt.elseBranch()!!))
     is Stmt.While -> usesIt(stmt.condition()) || usesIt(stmt.body())
     is Stmt.For -> usesIt(stmt.iterable()) || usesIt(stmt.body())
+    is Stmt.Count -> usesIt(stmt.from()) || usesIt(stmt.to()) || (stmt.step() != null && usesIt(stmt.step()!!)) || usesIt(stmt.body())
     is Stmt.ExprStmt -> usesIt(stmt.expr())
     is Stmt.Block -> stmt.statements().stream().anyMatch({ usesIt(it) })
 }

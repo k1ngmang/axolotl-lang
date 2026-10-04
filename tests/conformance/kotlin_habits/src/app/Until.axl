@@ -1,7 +1,7 @@
 package app
 
 fn main() {
-    for (i in 0 until 10) {
-        println(i)
-    }
+    val n = 10
+    val evens = 0 until n step 2
+    println(evens)
 }

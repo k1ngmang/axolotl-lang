@@ -1,6 +1,7 @@
 package org.axl.compiler.gen;
 import axl.lang.*;
 import org.jspecify.annotations.*;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -638,15 +639,18 @@ import org.axl.compiler.check.Whens;
             case Stmt.For stmt$9 -> {
                 emitFor(stmt$9);
             }
-            case Stmt.ExprStmt stmt$10 -> {
-                exprStatement(stmt$10);
+            case Stmt.Count stmt$10 -> {
+                emitCount(stmt$10);
             }
-            case Stmt.Block stmt$11 -> {
-                em.line(stmt$11.pos().line(), "{");
+            case Stmt.ExprStmt stmt$11 -> {
+                exprStatement(stmt$11);
+            }
+            case Stmt.Block stmt$12 -> {
+                em.line(stmt$12.pos().line(), "{");
                 em.indent();
-                emitStatements(stmt$11.statements());
+                emitStatements(stmt$12.statements());
                 em.dedent();
-                em.line(stmt$11.end().line(), "}");
+                em.line(stmt$12.end().line(), "}");
             }
         }
     }
@@ -1177,6 +1181,145 @@ import org.axl.compiler.check.Whens;
         });
         inLoop(label, () -> emitBlock(loop.body()));
         em.line(loop.body().end().line(), "}");
+    }
+    private void emitCount(Stmt.Count loop) {
+        final var line = loop.pos().line();
+        final var label = newLoopLabel(loop.body());
+        markLastContinue(loop.body());
+        final var type = countType(loop);
+        final var declared = Nulls.or(type, () -> "var");
+        final var kind = loop.kind();
+        final var step = loop.step();
+        final var stepValue = (step == null ? BigInteger.ONE : Expr.integerValue(step));
+        final var plainUntil = kind.equals("until") && step == null;
+        final var plain = type != null && (plainUntil || reachesEnd(loop, type, stepValue));
+        final var captured = new ArrayList<String>(Captures.capturedIn(loop.from(), analysis));
+        captured.addAll(Captures.capturedIn(loop.to(), analysis));
+        if (step != null) {
+            captured.addAll(Captures.capturedIn(step, analysis));
+        }
+        final var bodyReads = new Reads();
+        bodyReads.expansions = true;
+        bodyReads.statement(loop.body());
+        final var name = (loop.name().equals("_") ? "$unused" + newPattern() : loop.name());
+        final var counter = (bodyReads.inLambdas.contains(loop.name()) ? name + "$" + newPattern() : name);
+        withCopiesOf(line, new ArrayList<String>(new LinkedHashSet<String>(captured)), () -> {
+            final var toInInit = plain && !Lifts.needed(loop.to());
+            final var fromEarly = !toInInit && !steadyBound(loop.from(), bodyReads);
+            final var from = countBound(line, loop.from(), fromEarly, declared, bodyReads);
+            final var to = countBound(line, loop.to(), !toInInit, declared, bodyReads);
+            final var by = (step == null ? null : countBound(line, step, true, declared, bodyReads));
+            if (by != null && stepValue == null) {
+                em.line(line, "if (" + by + " <= 0) throw new IllegalArgumentException(\"Step must be positive, was: \" + " + by + " + \".\");");
+            }
+            final var stepCode = (by == null ? ((kind.equals("downTo") ? counter + "--" : counter + "++")) :
+                    counter + ((kind.equals("downTo") ? " -= " : " += ")) + by);
+            final var compare = (kind.equals("downTo") ? " >= " : (kind.equals("until") ? " < " : " <= "));
+            if (plain) {
+                var end = to;
+                var init = declared + " " + counter + " = " + from;
+                if (toInInit && !steadyBound(loop.to(), bodyReads)) {
+                    end = newTemp();
+                    init += ", " + end + " = " + to;
+                }
+                em.line(line, loopHead(label) + "for (" + init + "; " + counter + compare + end + "; " + stepCode + ") {");
+            } else if (plainUntil) {
+                em.line(line, loopHead(label) + "for (var " + counter + " = Math.min(" + from + ", " + to + "); " + counter + " < " +
+                        to +
+                        "; " +
+                        stepCode +
+                        ") {");
+            } else {
+                var last = to;
+                if (by != null) {
+                    last = newTemp();
+                    em.line(line, "final " + declared + " " + last + " = " + lastCode(kind, from, to, by) + ";");
+                }
+                final var more = newTemp();
+                em.line(line, "boolean " + more + " = " + startsCounting(loop, from + compare + to) + ";");
+                final var start = (type != null ? from : ((kind.equals("downTo") ? "Math.max(" : "Math.min(")) + from + ", " + last + ")");
+                em.line(line, loopHead(label) + "for (" + declared + " " + counter + " = " + start + "; " + more + "; " + more + " = " +
+                        counter +
+                        " != " +
+                        last +
+                        ", " +
+                        stepCode +
+                        ") {");
+            }
+        });
+        localTypes.put(loop.name(), (type == null ? null : new TypeRef(loop.namePos(), (type.equals("long") ? "Long" : "Int"), List.of(), false)));
+        inLoop(label, () -> {
+            if (!counter.equals(name)) {
+                em.indent();
+                em.line(line, "final " + declared + " " + name + " = " + counter + ";");
+                em.dedent();
+            }
+            emitBlock(loop.body());
+        });
+        em.line(loop.body().end().line(), "}");
+    }
+    private String startsCounting(Stmt.Count loop, String comparison) {
+        final var from = Expr.integerValue(loop.from());
+        final var to = Expr.integerValue(loop.to());
+        if (from == null || to == null) {
+            return comparison;
+        }
+        final var order = from.compareTo(to);
+        final var runs = (loop.kind().equals("downTo") ? order >= 0 : (loop.kind().equals("until") ? order < 0 : order <= 0));
+        return (runs ? "true" : "false");
+    }
+    private @Nullable String countType(Stmt.Count loop) {
+        final var parts = new ArrayList<Expr>(List.of(loop.from(), loop.to()));
+        final var step = loop.step();
+        if (step != null) {
+            parts.add(step);
+        }
+        @Nullable String result = "int";
+        for (final var part : parts) {
+            final var name = Nulls.map(typeOf(part), $n1 -> $n1.name());
+            if ("Long".equals(name)) {
+                return "long";
+            }
+            if (!"Int".equals(name)) {
+                result = null;
+            }
+        }
+        return result;
+    }
+    private boolean reachesEnd(Stmt.Count loop, String type, @Nullable BigInteger step) {
+        final var end = Expr.integerValue(loop.to());
+        if (end == null || step == null) {
+            return false;
+        }
+        final var max = BigInteger.valueOf((type.equals("long") ? Long.MAX_VALUE : Integer.MAX_VALUE));
+        final var min = BigInteger.valueOf((type.equals("long") ? Long.MIN_VALUE : Integer.MIN_VALUE));
+        switch (loop.kind()) {
+            case "downTo" -> {
+                return end.subtract(step).compareTo(min) >= 0;
+            }
+            case "until" -> {
+                return end.subtract(BigInteger.ONE).add(step).compareTo(max) <= 0;
+            }
+            case null, default -> {
+                return end.add(step).compareTo(max) <= 0;
+            }
+        }
+    }
+    private boolean steadyBound(Expr e, Reads body) {
+        final var inner = withoutParens(e);
+        if (Expr.integerValue(inner) != null) {
+            return true;
+        }
+        return inner instanceof Expr.Name inner$1 && (neverChanges(inner$1) || (isLocal(inner$1) && !body.assigned.contains(inner$1.name())));
+    }
+    private String countBound(int line, Expr e, boolean early, String declared, Reads body) {
+        final var code = lifted(line, e).code();
+        if (!early || steadyBound(e, body)) {
+            return code;
+        }
+        final var temp = newTemp();
+        em.line(line, "final " + declared + " " + temp + " = " + code + ";");
+        return temp;
     }
     private @Nullable String newLoopLabel(Stmt.Block body) {
         if (!leavesThroughJava(body.statements())) {
@@ -3564,6 +3707,13 @@ import org.axl.compiler.check.Whens;
         final var simpleAnd = ifStmt.elseBranch() == null && split.op().equals("&&");
         final var leaves = ifStmt.elseBranch() == null && split.op().equals("||") && exits(ifStmt.then());
         return !simpleAnd && !leaves;
+    }
+    private static String lastCode(String kind, String from, String to, String step) {
+        if (kind.equals("downTo")) {
+            return to + " + Math.floorMod(Math.floorMod(" + from + ", " + step + ") - Math.floorMod(" + to + ", " + step + "), " + step + ")";
+        }
+        final var end = (kind.equals("until") ? to + " - 1" : to);
+        return end + " - Math.floorMod(Math.floorMod(" + end + ", " + step + ") - Math.floorMod(" + from + ", " + step + "), " + step + ")";
     }
     private static boolean loopsForever(Stmt.While loop) {
         final var condition = loop.condition();

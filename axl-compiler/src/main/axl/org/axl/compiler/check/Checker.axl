@@ -806,9 +806,67 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                 loopDepth = loopDepth - 1
                 pop()
             }
+            is Stmt.Count -> countLoop(stmt)
             is Stmt.ExprStmt -> expressionStatement(stmt)
             is Stmt.Block -> statements(stmt.statements())
         }
+    }
+
+    /** `for (i in 0 until n step 2)`: the variable is the `Int` or `Long` of the bounds and the step, which the body cannot assign. */
+    private fn countLoop(stmt: Stmt.Count) {
+        val parts = ArrayList<Expr>(List.of(stmt.from(), stmt.to()))
+        val step = stmt.step()
+        if (step != null) {
+            parts.add(step)
+        }
+        var type: String? = null
+        var allKnown = true
+        for (part in parts) {
+            expr(part)
+            val partType = countPartType(part)
+            if (partType == null) {
+                allKnown = false
+            } else if (!partType.equals("Int") && !partType.equals("Long")) {
+                error(part.pos(), ErrorCode.SYNTAX, "a counting `for` counts with `Int` or `Long` values; this is a `" + partType + "`")
+                allKnown = false
+            } else if (type == null || partType.equals("Long")) {
+                type = partType
+            }
+        }
+        val stepValue = if (step == null) null else Expr.integerValue(step)
+        if (step != null && stepValue != null && stepValue.signum() <= 0) {
+            val fix = if (stmt.kind().equals("downTo")) ", also with `downTo`: " else "; to count down, write `downTo`: "
+            error(step.pos(), ErrorCode.SYNTAX, "the step of a counting `for` is a positive number" + fix + "`for (i in 10 downTo 0 step 2)`")
+        }
+        val loopType = if (type != null && (allKnown || type.equals("Long"))) TypeRef(stmt.namePos(), type, List.of(), false) else null
+        scope = Scope(scope, false)
+        if (!stmt.name().equals("_")) {
+            declare(stmt.namePos(), stmt.name(), Kind.LOOP_VARIABLE, loopType)
+        }
+        loopDepth = loopDepth + 1
+        statements(stmt.body().statements())
+        loopDepth = loopDepth - 1
+        pop()
+    }
+
+    /** The type of a bound or step as far as the code tells: literals, typed locals and parameters, values and functions. */
+    private fn countPartType(e: Expr) -> String? {
+        val inner = unparenthesized(e)
+        if (inner is Expr.Literal && inner.text().startsWith("'")) {
+            return "Char"
+        }
+        val known = HashMap<String, TypeRef>()
+        var s: Scope? = scope
+        while (s != null) {
+            for (entry in s.names.entrySet()) {
+                val written = entry.getValue().type()
+                if (written != null) {
+                    known.putIfAbsent(entry.getKey(), written)
+                }
+            }
+            s = s.parent
+        }
+        return TypeInference(file, known, siblings).of(inner)?.name()
     }
 
     private fn local(stmt: Stmt.Local) {
@@ -1826,7 +1884,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         }
         val symbol = scope.lookup(target.name())
         val written = declaredNotNull(symbol)
-        if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED && symbol.kind() != Kind.LOOP_VARIABLE) {
+        if (symbol != null && written != null && symbol.kind() != Kind.IMPORTED) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), target.pos().line(), target.pos().column(), ErrorCode.UNNEEDED,
                 "`" + target.name() + "` has the type `" + written.name() + "`, which is never null; " + fix))
         }

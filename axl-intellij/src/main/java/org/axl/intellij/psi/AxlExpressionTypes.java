@@ -193,6 +193,9 @@ final class AxlExpressionTypes {
         if (narrowed != null || variable.type() != null) {
             return of(narrowed != null ? narrowed : variable.type());
         }
+        if (kind == AxlElementTypes.LOOP_VARIABLE && counts(variable.getParent())) {
+            return countType(variable.getParent());
+        }
         if (kind == AxlElementTypes.LOOP_VARIABLE) {
             AxlPsiElement iterable = PsiTreeUtil.getNextSiblingOfType(variable, AxlPsiElement.class);
             return iterable == null ? null : elementType(typeOf(iterable));
@@ -202,6 +205,32 @@ final class AxlExpressionTypes {
         }
         AxlPsiElement initializer = variable.initializer();
         return initializer == null ? null : RecursionManager.doPreventingRecursion(variable, false, () -> typeOf(initializer));
+    }
+
+    /** `for (i in 0 until n)`, `for (i in 1..n)` and `for (i in n downTo 0)` count. */
+    private static boolean counts(PsiElement loop) {
+        for (PsiElement child = loop.getFirstChild(); child != null; child = child.getNextSibling()) {
+            IElementType type = child.getNode().getElementType();
+            boolean word = type == AxlTokenTypes.CONTEXTUAL_KEYWORD && !child.getText().equals("in");
+            if (word || type == AxlTokenTypes.of(AxolotlLexer.DOT)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A `long` when a bound or the step is one, otherwise an `int`. */
+    private static PsiType countType(PsiElement loop) {
+        for (AxlPsiElement part : PsiTreeUtil.getChildrenOfTypeAsList(loop, AxlPsiElement.class)) {
+            IElementType kind = part.getNode().getElementType();
+            if (kind != AxlElementTypes.BLOCK && kind != AxlElementTypes.LOOP_VARIABLE) {
+                PsiType type = typeOf(part);
+                if (type != null && PsiTypes.longType().equals(PsiPrimitiveType.getOptionallyUnboxedType(type))) {
+                    return PsiTypes.longType();
+                }
+            }
+        }
+        return PsiTypes.intType();
     }
 
     /** The error of `attempt ... else e ->` and of `use (...) { } else e ->` is an exception; a lambda parameter has the type the lambda is given. */

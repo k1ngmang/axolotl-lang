@@ -35,11 +35,14 @@ import org.axl.compiler.ast.Stmt;
             case Stmt.For stmt$9 -> {
                 return usesIt(stmt$9.iterable()) || usesIt(stmt$9.body());
             }
-            case Stmt.ExprStmt stmt$10 -> {
-                return usesIt(stmt$10.expr());
+            case Stmt.Count stmt$10 -> {
+                return usesIt(stmt$10.from()) || usesIt(stmt$10.to()) || (stmt$10.step() != null && usesIt(Nulls.sure(stmt$10.step()))) || usesIt(stmt$10.body());
             }
-            case Stmt.Block stmt$11 -> {
-                return stmt$11.statements().stream().anyMatch(it -> usesIt(it));
+            case Stmt.ExprStmt stmt$11 -> {
+                return usesIt(stmt$11.expr());
+            }
+            case Stmt.Block stmt$12 -> {
+                return stmt$12.statements().stream().anyMatch(it -> usesIt(it));
             }
         }
     }

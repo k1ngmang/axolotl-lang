@@ -140,6 +140,39 @@ class FormatterTest {
     }
 
     @Test
+    void writesCountingLoopsAsTheDocumentationDoes() {
+        formats("""
+                package app
+
+                fn f(d: Int, n: Int) {
+                    for(k in -d .. d  step  2){
+                        println(k)
+                    }
+                    for (i in n-1   downTo 0) {
+                        println(i)
+                    }
+                    for (i in 0  until n) {
+                        println(i)
+                    }
+                }
+                """, """
+                package app
+
+                fn f(d: Int, n: Int) {
+                    for (k in -d..d step 2) {
+                        println(k)
+                    }
+                    for (i in n - 1 downTo 0) {
+                        println(i)
+                    }
+                    for (i in 0 until n) {
+                        println(i)
+                    }
+                }
+                """);
+    }
+
+    @Test
     void spacesCommasAndColonsOfTypes() {
         formats("""
                 package app

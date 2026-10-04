@@ -24,12 +24,13 @@ AXL001 app/Lateinit.axl:4:5: error: Axolotl has no `lateinit`; give the `var` a 
 AXL001 app/LoopLabel.axl:6:10: error: Axolotl has no labels such as `outer@`; `break` and `continue` work on the loop around them, and to leave an outer loop, move the loops into a function and `return` from it
 AXL001 app/LoopLabel.axl:9:25: error: Axolotl has no labels; `continue` works on the loop around it, so remove `@outer`; to leave an outer loop, move the loops into a function and `return` from it
 AXL001 app/NamedArguments.axl:6:24: error: Axolotl has no named arguments; pass the values in the order of the parameters
+AXL001 app/NamedRange.axl:6:20: error: Axolotl has no ranges (`until`, `..`) outside the header of a `for`; count with `for (i in 0 until n) { ... }`, or use `java.util.stream.IntStream.range(from, to)`
 AXL001 app/NotInKotlin.axl:5:44: error: Axolotl has no `!in`; write `!xs.contains(x)`
 AXL001 app/NumberAs.axl:5:15: error: Axolotl has no casts; a `Double` becomes an `Int` with `Double.valueOf(x).intValue()`, which drops the fraction as a cast does, or `Math.toIntExact(Math.round(x))`, which rounds; a `Long` with `Math.toIntExact(x)`
 AXL001 app/ObjectDeclaration.axl:3:1: error: Axolotl has no `object`; functions and values at the top of a file are already shared by the whole program
 AXL001 app/Override.axl:4:5: error: Axolotl has no `override`; remove it
 AXL001 app/PairTo.axl:4:15: error: Axolotl has no `to` or `Pair`; use a data class, or `Map.entry(1, 2)`
-AXL001 app/Ranges.axl:4:15: error: Axolotl has no ranges (`..`); count with a `while` loop, or use `java.util.stream.IntStream.range(from, to)`
+AXL001 app/Ranges.axl:4:18: error: Axolotl has no ranges (`until`, `..`) outside the header of a `for`; count with `for (i in 0 until n) { ... }`, or use `java.util.stream.IntStream.range(from, to)`
 AXL001 app/ReturnLabel.axl:6:32: error: Axolotl has no labels; a `return` in a lambda ends only the lambda, so remove `@forEach`
 AXL001 app/SafeAsCast.axl:3:32: error: Axolotl has no casts; test the type with `is`: `if (o is String) { ... }`
 AXL001 app/SafeLet.axl:5:12: error: Axolotl has no `let`; check for null instead: `if (s != null) { ... }`
@@ -43,5 +44,5 @@ AXL001 app/TrailingLambdaCall.axl:4:12: error: a lambda argument goes inside the
 AXL001 app/Typealias.axl:3:1: error: Axolotl has no `typealias`; write the type itself
 AXL001 app/UnderscoreParameter.axl:9:35: error: Axolotl has no `_` for a parameter that is not used; name it: `{ k -> ... }`
 AXL001 app/UnderscoreParameter.axl:10:22: error: Axolotl has no `_` for a parameter that is not used; name it: `{ k, v -> ... }`
-AXL001 app/Until.axl:4:17: error: Axolotl has no ranges (`until`, `..`); count with a `while` loop, or use `java.util.stream.IntStream.range(from, to)`
+AXL001 app/Until.axl:5:19: error: Axolotl has no ranges (`until`, `..`) outside the header of a `for`; count with `for (i in 0 until n) { ... }`, or use `java.util.stream.IntStream.range(from, to)`
 AXL001 app/Vararg.axl:3:8: error: Axolotl has no `vararg`; take a `List` parameter

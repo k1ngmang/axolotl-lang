@@ -160,11 +160,20 @@ import org.axl.compiler.check.Analysis;
                 visit(stmt$9.iterable(), inLambda);
                 statement(stmt$9.body(), inLambda);
             }
-            case Stmt.ExprStmt stmt$10 -> {
-                visit(stmt$10.expr(), inLambda);
+            case Stmt.Count stmt$10 -> {
+                visit(stmt$10.from(), inLambda);
+                visit(stmt$10.to(), inLambda);
+                final var step = stmt$10.step();
+                if (step != null) {
+                    visit(step, inLambda);
+                }
+                statement(stmt$10.body(), inLambda);
             }
-            case Stmt.Block stmt$11 -> {
-                statements(stmt$11.statements(), inLambda);
+            case Stmt.ExprStmt stmt$11 -> {
+                visit(stmt$11.expr(), inLambda);
+            }
+            case Stmt.Block stmt$12 -> {
+                statements(stmt$12.statements(), inLambda);
             }
         }
     }

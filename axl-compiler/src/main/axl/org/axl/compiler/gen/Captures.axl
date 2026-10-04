@@ -143,6 +143,15 @@ class Captures(val analysis: Analysis) {
                 visit(stmt.iterable(), inLambda)
                 statement(stmt.body(), inLambda)
             }
+            is Stmt.Count -> {
+                visit(stmt.from(), inLambda)
+                visit(stmt.to(), inLambda)
+                val step = stmt.step()
+                if (step != null) {
+                    visit(step, inLambda)
+                }
+                statement(stmt.body(), inLambda)
+            }
             is Stmt.ExprStmt -> visit(stmt.expr(), inLambda)
             is Stmt.Block -> statements(stmt.statements(), inLambda)
         }

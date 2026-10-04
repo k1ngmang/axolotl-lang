@@ -1,5 +1,6 @@
 package org.axl.compiler.gen
 
+import java.math.BigInteger
 import java.util.ArrayList
 import java.util.Collections
 import java.util.HashMap
@@ -672,6 +673,7 @@ class Generator(
             is Stmt.If -> ifStatement(stmt)
             is Stmt.While -> emitWhile(stmt)
             is Stmt.For -> emitFor(stmt)
+            is Stmt.Count -> emitCount(stmt)
             is Stmt.ExprStmt -> exprStatement(stmt)
             is Stmt.Block -> {
                 em.line(stmt.pos().line(), "{")
@@ -1296,6 +1298,150 @@ class Generator(
         })
         inLoop(label, { -> emitBlock(loop.body()) })
         em.line(loop.body().end().line(), "}")
+    }
+
+    /**
+     * `for (i in a until b step s)` as a plain Java `for`. The bounds and the step are evaluated once, into
+     * temporaries unless they are constants or locals the body cannot change, and a step is checked once. When
+     * the variable could step past the end of its type, as in `0..Int.MAX_VALUE`, the loop stops at the last value
+     * it reaches, as Kotlin's translation does: a flag set after each step ends it, so `continue` needs nothing
+     * else. Without known types javac decides between `int` and `long`, through `Math.min` or `Math.max`.
+     */
+    private fn emitCount(loop: Stmt.Count) {
+        val line = loop.pos().line()
+        val label = newLoopLabel(loop.body())
+        markLastContinue(loop.body())
+        val type = countType(loop)
+        val declared = type ?: "var"
+        val kind = loop.kind()
+        val step = loop.step()
+        val stepValue = if (step == null) BigInteger.ONE else Expr.integerValue(step)
+        val plainUntil = kind.equals("until") && step == null
+        val plain = type != null && (plainUntil || reachesEnd(loop, type, stepValue))
+        val captured = ArrayList<String>(Captures.capturedIn(loop.from(), analysis))
+        captured.addAll(Captures.capturedIn(loop.to(), analysis))
+        if (step != null) {
+            captured.addAll(Captures.capturedIn(step, analysis))
+        }
+        val bodyReads = Reads()
+        bodyReads.expansions = true
+        bodyReads.statement(loop.body())
+        val name = if (loop.name().equals("_")) "$unused" + newPattern() else loop.name()
+        // A lambda captures only a final variable: one for each step, copied from the counter.
+        val counter = if (bodyReads.inLambdas.contains(loop.name())) name + "$" + newPattern() else name
+        withCopiesOf(line, ArrayList<String>(LinkedHashSet<String>(captured)), { ->
+            val toInInit = plain && !Lifts.needed(loop.to())
+            val fromEarly = !toInInit && !steadyBound(loop.from(), bodyReads)
+            val from = countBound(line, loop.from(), fromEarly, declared, bodyReads)
+            val to = countBound(line, loop.to(), !toInInit, declared, bodyReads)
+            val by = if (step == null) null else countBound(line, step, true, declared, bodyReads)
+            if (by != null && stepValue == null) {
+                em.line(line, "if (" + by + " <= 0) throw new IllegalArgumentException(\"Step must be positive, was: \" + " + by + " + \".\");")
+            }
+            val stepCode = if (by == null) (if (kind.equals("downTo")) counter + "--" else counter + "++")
+                else counter + (if (kind.equals("downTo")) " -= " else " += ") + by
+            val compare = if (kind.equals("downTo")) " >= " else if (kind.equals("until")) " < " else " <= "
+            if (plain) {
+                var end = to
+                var init = declared + " " + counter + " = " + from
+                if (toInInit && !steadyBound(loop.to(), bodyReads)) {
+                    end = newTemp()
+                    init += ", " + end + " = " + to
+                }
+                em.line(line, loopHead(label) + "for (" + init + "; " + counter + compare + end + "; " + stepCode + ") {")
+            } else if (plainUntil) {
+                em.line(line, loopHead(label) + "for (var " + counter + " = Math.min(" + from + ", " + to + "); " + counter + " < " +
+                    to + "; " + stepCode + ") {")
+            } else {
+                var last = to
+                if (by != null) {
+                    last = newTemp()
+                    em.line(line, "final " + declared + " " + last + " = " + lastCode(kind, from, to, by) + ";")
+                }
+                val more = newTemp()
+                em.line(line, "boolean " + more + " = " + startsCounting(loop, from + compare + to) + ";")
+                val start = if (type != null) from else (if (kind.equals("downTo")) "Math.max(" else "Math.min(") + from + ", " + last + ")"
+                em.line(line, loopHead(label) + "for (" + declared + " " + counter + " = " + start + "; " + more + "; " + more + " = " +
+                    counter + " != " + last + ", " + stepCode + ") {")
+            }
+        })
+        localTypes.put(loop.name(), if (type == null) null else TypeRef(loop.namePos(), if (type.equals("long")) "Long" else "Int", List.of(), false))
+        inLoop(label, { ->
+            if (!counter.equals(name)) {
+                em.indent()
+                em.line(line, "final " + declared + " " + name + " = " + counter + ";")
+                em.dedent()
+            }
+            emitBlock(loop.body())
+        })
+        em.line(loop.body().end().line(), "}")
+    }
+
+    /** Whether the loop runs at all: for constant bounds `true` or `false`, which Error Prone wants in place of the comparison. */
+    private fn startsCounting(loop: Stmt.Count, comparison: String) -> String {
+        val from = Expr.integerValue(loop.from())
+        val to = Expr.integerValue(loop.to())
+        if (from == null || to == null) {
+            return comparison
+        }
+        val order = from.compareTo(to)
+        val runs = if (loop.kind().equals("downTo")) order >= 0 else if (loop.kind().equals("until")) order < 0 else order <= 0
+        return if (runs) "true" else "false"
+    }
+
+    /** `long` when a bound or the step is a `Long`, `int` when all are `Int`s, null when the code does not tell. */
+    private fn countType(loop: Stmt.Count) -> String? {
+        val parts = ArrayList<Expr>(List.of(loop.from(), loop.to()))
+        val step = loop.step()
+        if (step != null) {
+            parts.add(step)
+        }
+        var result: String? = "int"
+        for (part in parts) {
+            val name = typeOf(part)?.name()
+            if ("Long".equals(name)) {
+                return "long"
+            }
+            if (!"Int".equals(name)) {
+                result = null
+            }
+        }
+        return result
+    }
+
+    /** Whether a constant end and step let the variable step past the end without leaving its type. */
+    private fn reachesEnd(loop: Stmt.Count, type: String, step: BigInteger?) -> Boolean {
+        val end = Expr.integerValue(loop.to())
+        if (end == null || step == null) {
+            return false
+        }
+        val max = BigInteger.valueOf(if (type.equals("long")) Long.MAX_VALUE else Integer.MAX_VALUE)
+        val min = BigInteger.valueOf(if (type.equals("long")) Long.MIN_VALUE else Integer.MIN_VALUE)
+        return when (loop.kind()) {
+            "downTo" -> end.subtract(step).compareTo(min) >= 0
+            "until" -> end.subtract(BigInteger.ONE).add(step).compareTo(max) <= 0
+            else -> end.add(step).compareTo(max) <= 0
+        }
+    }
+
+    /** A constant, or a local or parameter that the loop's body does not assign. */
+    private fn steadyBound(e: Expr, body: Reads) -> Boolean {
+        val inner = withoutParens(e)
+        if (Expr.integerValue(inner) != null) {
+            return true
+        }
+        return inner is Expr.Name && (neverChanges(inner) || (isLocal(inner) && !body.assigned.contains(inner.name())))
+    }
+
+    /** The code of a bound or the step; early, one that may change is first stored in a temporary. */
+    private fn countBound(line: Int, e: Expr, early: Boolean, declared: String, body: Reads) -> String {
+        val code = lifted(line, e).code()
+        if (!early || steadyBound(e, body)) {
+            return code
+        }
+        val temp = newTemp()
+        em.line(line, "final " + declared + " " + temp + " = " + code + ";")
+        return temp
     }
 
     /** `loop$1`, for a loop that a `break` inside one of its `when`s leaves: Java's `break` names the loop to leave a switch. */
@@ -3940,6 +4086,18 @@ private fn becomesWrapper(ifStmt: Stmt.If) -> Boolean {
     val simpleAnd = ifStmt.elseBranch() == null && split.op().equals("&&")
     val leaves = ifStmt.elseBranch() == null && split.op().equals("||") && exits(ifStmt.then())
     return !simpleAnd && !leaves
+}
+
+/**
+ * The last value a counting loop reaches, as Kotlin computes it: the end moved back to a value the steps from the
+ * start reach, with remainders that cannot overflow.
+ */
+private fn lastCode(kind: String, from: String, to: String, step: String) -> String {
+    if (kind.equals("downTo")) {
+        return to + " + Math.floorMod(Math.floorMod(" + from + ", " + step + ") - Math.floorMod(" + to + ", " + step + "), " + step + ")"
+    }
+    val end = if (kind.equals("until")) to + " - 1" else to
+    return end + " - Math.floorMod(Math.floorMod(" + end + ", " + step + ") - Math.floorMod(" + from + ", " + step + "), " + step + ")"
 }
 
 private fn loopsForever(loop: Stmt.While) -> Boolean {

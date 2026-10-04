@@ -44,7 +44,7 @@ AXL001 app/PlusStartsLine.axl:5:9: error: a line that starts with `+` starts a n
 AXL001 app/PrimitiveTypeArgument.axl:6:14: error: a type argument cannot be `int`; write `Int`, as in `ArrayList<Int>()`
 AXL001 app/PrivateClassParameter.axl:3:14: error: the fields of a data class are public, as those of a Java record; remove `private`, or make `P` a `class` to keep the value inside it
 AXL001 app/PropertyWithoutValue.axl:4:9: error: a property needs a value: `var count: Int = ...`
-AXL001 app/Repeat.axl:4:15: error: Axolotl has no `repeat`; count with a `while` loop
+AXL001 app/Repeat.axl:4:15: error: Axolotl has no `repeat`; count with `for (_ in 0 until n) { ... }`
 AXL001 app/ReturnInBody.axl:3:23: error: a body after `=` is the value itself; remove `return`
 AXL001 app/SemicolonAfterHeader.axl:3:14: error: a function needs a body after its header: `= value` or `{ ... }`
 AXL001 app/SignatureAtEnd.axl:3:14: error: the declaration is not finished at the end of this line

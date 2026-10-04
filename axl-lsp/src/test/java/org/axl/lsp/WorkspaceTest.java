@@ -1203,6 +1203,29 @@ class WorkspaceTest {
     }
 
     @Test
+    void classifiesTheWordsOfCountingLoopsOnlyInTheirHeader() throws Exception {
+        String uri = open("Main.axl", """
+                package app
+
+                fn f(n: Int, big: Long) {
+                    for (i in 0 until n) {
+                        println(i)
+                    }
+                    for (k in -2..big step 2) {
+                        println(k)
+                    }
+                    val until = 1
+                    for (j in until downTo 0) {
+                        println(j)
+                    }
+                }
+                """);
+        List<String> tokens = semanticTokens(workspace.document(uri));
+        assertTrue(tokens.containsAll(List.of("3:11:2:keyword", "3:16:5:keyword", "6:22:4:keyword", "9:8:5:variable",
+                "10:14:5:variable", "10:20:6:keyword")), tokens.toString());
+    }
+
+    @Test
     void classifiesUseBreakContinueAndTheErrorNamesOfHandlers() throws Exception {
         String uri = open("Main.axl", """
                 package app

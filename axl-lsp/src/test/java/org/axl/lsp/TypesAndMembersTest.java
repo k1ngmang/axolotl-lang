@@ -293,6 +293,32 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void typesTheVariablesOfCountingLoops() throws Exception {
+        String text = """
+                package app
+
+                fn main() {
+                    val big = 3000000000L
+                    for (i in 0 until 3) {
+                        println(i)
+                    }
+                    for (k in -2..big step 2) {
+                        println(k)
+                    }
+                    for (d in 1..java.time.LocalDate.now().getDayOfMonth()) {
+                        println({ -> d })
+                    }
+                }
+                """;
+        String uri = open("Count.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        assertContains(hoverAt(uri, text, "println(|i)"), "val i: Int");
+        assertContains(hoverAt(uri, text, "for (|k in"), "val k: Long");
+        assertContains(hoverAt(uri, text, "{ -> |d }"), "val d: Int");
+        assertEquals(List.of("Count.axl:4:9"), definitionsAt(uri, text, "println(|i)"));
+    }
+
+    @Test
     void completesMembersOfTheFileClassInItsOwnFile() throws Exception {
         assertMembers("Counter.axl", COUNTER.replace("println(d.count)", "println(d.co)"), "println(d.co|)", "count");
         assertMembers("Counter.axl", COUNTER.replace("println(d.count)", "println(Counter.st)"), "Counter.st|", "start");

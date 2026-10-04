@@ -62,6 +62,21 @@ data class While(val pos: Pos, val condition: Expr, val body: Block) : Stmt
 /** `for (name in iterable) { ... }`. */
 data class For(val pos: Pos, val namePos: Pos, val name: String, val iterable: Expr, val body: Block) : Stmt
 
+/**
+ * `for (name in from until to step by) { ... }`: kind is `until`, `..` or `downTo`, and step is null without
+ * `step`. Java counts with a plain `for`, without a range object.
+ */
+data class Count(
+    val pos: Pos,
+    val namePos: Pos,
+    val name: String,
+    val from: Expr,
+    val kind: String,
+    val to: Expr,
+    val step: Expr?,
+    val body: Block
+) : Stmt
+
 data class ExprStmt(val pos: Pos, val expr: Expr) : Stmt
 
 data class Block(val pos: Pos, val statements: List<Stmt>, val end: Pos) : Stmt

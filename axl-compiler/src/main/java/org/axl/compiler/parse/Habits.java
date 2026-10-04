@@ -30,8 +30,8 @@ final class Habits {
             + "for flags, use a `Set` or `java.util.BitSet`, and for other bit arithmetic write a small Java class in "
             + "the project and call it";
 
-    private static final String RANGES = "Axolotl has no ranges (`until`, `..`); count with a `while` loop, or use "
-            + "`java.util.stream.IntStream.range(from, to)`";
+    static final String RANGES = "Axolotl has no ranges (`until`, `..`) outside the header of a `for`; count with "
+            + "`for (i in 0 until n) { ... }`, or use `java.util.stream.IntStream.range(from, to)`";
 
     private static final String NO_TRY_CATCH = "Axolotl has no `try`-`catch`; turn the exception into a `Result` "
             + "with `attempt f() else e -> ...`";
@@ -84,6 +84,10 @@ final class Habits {
                     ? "compare with `==` to test for null: `s == null`" : null;
             case AxolotlLexer.ELVIS -> next == AxolotlLexer.RETURN || next == AxolotlLexer.BREAK
                     || next == AxolotlLexer.CONTINUE ? elvisJump(tokens, i) : null;
+            // `a..b`; after a number the dots are a problem of the number.
+            case AxolotlLexer.DOT -> followedBy(tokens, i, AxolotlLexer.DOT) && i > 0
+                    && (type(tokens, i - 1) == AxolotlLexer.IDENTIFIER || type(tokens, i - 1) == AxolotlLexer.RPAREN)
+                    && !inForHeader(tokens, i) ? RANGES : null;
             case AxolotlLexer.STRING_LITERAL -> tokens.get(i).getText().equals("\"\"")
                     && followedBy(tokens, i, AxolotlLexer.STRING_LITERAL) ? TEXT_BLOCKS : null;
             default -> null;
@@ -372,7 +376,7 @@ final class Habits {
             case "in" -> inOperator(tokens, i, nextIndex);
             case "_" -> unnamedParameter(tokens, i);
             case "until", "downTo", "step" -> VALUE_ENDS.contains(type(tokens, SourceParser.previousCode(tokens, i)))
-                    && VALUE_STARTS.contains(next) ? RANGES : null;
+                    && VALUE_STARTS.contains(next) && !inForHeader(tokens, i) ? RANGES : null;
             case "elif" -> next == AxolotlLexer.LPAREN && (startsLine(tokens, i)
                     || type(tokens, SourceParser.previousCode(tokens, i)) == AxolotlLexer.RBRACE) ? "write `else if`" : null;
             case "f" -> followedBy(tokens, i, AxolotlLexer.STRING_LITERAL)
@@ -729,6 +733,29 @@ final class Habits {
         return startsLine(tokens, i) || MODIFIERS.contains(text(tokens, previous));
     }
 
+    /** Whether the token at i stands in the header of `for (x in ...)`, where `until`, `..`, `downTo` and `step` count. */
+    static boolean inForHeader(List<Token> tokens, int i) {
+        int depth = 0;
+        for (int j = i - 1; j >= 0; j--) {
+            switch (type(tokens, j)) {
+                case AxolotlLexer.RPAREN -> depth++;
+                case AxolotlLexer.LPAREN -> {
+                    if (depth-- == 0) {
+                        int name = SourceParser.nextCode(tokens, j);
+                        return type(tokens, SourceParser.previousCode(tokens, j)) == AxolotlLexer.FOR
+                                && type(tokens, name) == AxolotlLexer.IDENTIFIER
+                                && text(tokens, SourceParser.nextCode(tokens, name)).equals("in");
+                    }
+                }
+                case AxolotlLexer.LBRACE, AxolotlLexer.RBRACE, AxolotlLexer.SEMI -> {
+                    return false;
+                }
+                default -> { }
+            }
+        }
+        return false;
+    }
+
     /** Java's `for (int i = 0; i < n; i++)` and `for (String s : xs)`. */
     private static String javaFor(List<Token> tokens, int i) {
         int open = SourceParser.nextCode(tokens, i);
@@ -749,7 +776,7 @@ final class Habits {
                     }
                 }
                 case AxolotlLexer.SEMI -> {
-                    return "Axolotl's `for` goes over a collection: `for (x in xs) { ... }`; count with a `while` loop";
+                    return "Axolotl's `for` goes over a collection, `for (x in xs) { ... }`, or counts: `for (i in 0 until n) { ... }`";
                 }
                 case AxolotlLexer.COLON -> colon |= depth == 1;
                 case AxolotlLexer.LBRACE, Token.EOF -> {

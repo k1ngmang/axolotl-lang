@@ -1,5 +1,6 @@
 package org.axl.compiler.ast
 
+import java.math.BigInteger
 import java.util.List
 
 sealed interface Expr {
@@ -26,6 +27,24 @@ fn pathName(e: Expr) -> String? {
         return if (target == null) null else target + "." + e.name()
     }
     return null
+}
+
+/** The value of an integer literal, also negated or in parentheses: `2`, `-1`, `0xff`, `10L`; null for anything else. */
+fn integerValue(e: Expr) -> BigInteger? {
+    if (e is Paren) {
+        return integerValue(e.inner())
+    }
+    if (e is Unary && e.op().equals("-")) {
+        return integerValue(e.operand())?.negate()
+    }
+    if (e !is Literal) {
+        return null
+    }
+    val text = e.text().replace("_", "").replaceFirst("[lL]$", "")
+    if (text.matches("0[xX][0-9a-fA-F]+")) {
+        return BigInteger(text.substring(2), 16)
+    }
+    return if (text.matches("[0-9]+")) BigInteger(text) else null
 }
 
 /** `name(args)` when target is null, otherwise `target.name(args)` or `target?.name(args)`. */

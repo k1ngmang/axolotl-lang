@@ -46,6 +46,30 @@ class TranslatorTest {
     }
 
     @Test
+    void lineMapPointsCountingLoopAtItsLine() {
+        GeneratedUnit unit = Translator.translate("app/Walk.axl", "Walk.axl", """
+                package app
+
+                fn stride() -> Int = 2
+
+                fn walk(d: Int) {
+                    for (k in -d..d step stride()) {
+                        println({ -> k })
+                    }
+                }
+                """).unit();
+        List<String> java = unit.javaSource().lines().toList();
+        int first = java.indexOf("        final int $t1 = -d;") + 1;
+        int loop = java.indexOf("        for (int k$1 = $t1; $t4; $t4 = k$1 != $t3, k$1 += $t2) {") + 1;
+        assertTrue(first > 0 && loop == first + 5, unit.javaSource());
+        for (int line = first; line <= loop + 1; line++) {
+            assertEquals(6, unit.lineMap().axlLine(line));
+        }
+        assertEquals(7, unit.lineMap().axlLine(loop + 2));
+        assertEquals(8, unit.lineMap().axlLine(loop + 3));
+    }
+
+    @Test
     void lineMapSurvivesJson() {
         LineMap map = new LineMap("a/B \"x\".axl", new int[] {1, 0, 3});
         LineMap read = LineMap.fromJson(map.toJson());

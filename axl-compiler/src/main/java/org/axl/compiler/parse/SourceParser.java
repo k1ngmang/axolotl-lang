@@ -127,7 +127,11 @@ public final class SourceParser {
             return "Axolotl has no `" + t.getText() + t.getText() + "`; write `" + t.getText() + "= 1`";
         }
         if (t.getType() == AxolotlLexer.INT_LITERAL && adjacent(all, i) && all.get(i + 1).getType() == AxolotlLexer.DOT) {
-            return numberWithDot(t, adjacent(all, i + 1) ? all.get(i + 2) : null);
+            Token after = adjacent(all, i + 1) ? all.get(i + 2) : null;
+            if (after != null && after.getType() == AxolotlLexer.DOT) {
+                return Habits.inForHeader(all, i) ? null : Habits.RANGES;
+            }
+            return numberWithDot(t, after);
         }
         if (t.getType() == AxolotlLexer.INT_LITERAL || t.getType() == AxolotlLexer.FLOAT_LITERAL) {
             return numberProblem(t, afterUnaryMinus(all, i), i + 1 < all.size() ? all.get(i + 1) : null);
@@ -150,13 +154,9 @@ public final class SourceParser {
         return false;
     }
 
-    /** `3.`, `3.f`, `3.toString()` and Kotlin's range `0..10`; after is the token after the dot, or null. */
+    /** `3.`, `3.f` and `3.toString()`; after is the token after the dot, or null. */
     private static String numberWithDot(Token number, Token after) {
         String text = number.getText();
-        if (after != null && after.getType() == AxolotlLexer.DOT) {
-            return "Axolotl has no ranges (`..`); count with a `while` loop, or use "
-                    + "`java.util.stream.IntStream.range(from, to)`";
-        }
         if (after == null || after.getType() != AxolotlLexer.IDENTIFIER) {
             return "`" + text + ".` is not a valid number; write `" + text + ".0`";
         }
@@ -341,7 +341,7 @@ public final class SourceParser {
     }
 
     private static final Map<String, String> KOTLIN_SCOPE = Map.of(
-            "repeat", "count with a `while` loop",
+            "repeat", "count with `for (_ in 0 until n) { ... }`",
             "apply", "keep the object in a `val` and call its methods one by one",
             "also", "keep the object in a `val` and use it in the statements after",
             "takeIf", "test the value with `if`");
