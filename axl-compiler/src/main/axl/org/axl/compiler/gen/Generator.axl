@@ -300,7 +300,7 @@ class Generator(
     }
 
     private fn emitClass(classDecl: Decl.ClassDecl) {
-        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
+        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeVisibility(classDecl, classDecl.annotations()) + " static final class " + classDecl.name() +
             typeParamList(classDecl.typeParams()) + supertypeList(classDecl) + " {")
         emitClassMembers(classDecl)
         em.line(classDecl.pos().line(), "}")
@@ -317,7 +317,7 @@ class Generator(
 
     private fn emitEnum(e: Decl.EnumDecl) {
         val line = e.pos().line()
-        val head = annotations(e.annotations()) + visibility(e) + " enum " + e.name()
+        val head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name()
         if (e.fields().isEmpty()) {
             em.line(line, head + " { " + constantList(e) + " }")
             return
@@ -508,7 +508,7 @@ class Generator(
 
     private fn emitDataClass(dataClass: Decl.DataClass) {
         val line = dataClass.pos().line()
-        val head = annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
+        val head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
             typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line) + ")" +
             typeList(" implements ", dataClass.supertypes())
         if (dataClass.methods().isEmpty()) {
@@ -541,7 +541,7 @@ class Generator(
 
     private fn emitInterface(iface: Decl.Interface) {
         val line = iface.pos().line()
-        val head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
+        val head = annotations(iface.annotations()) + typeVisibility(iface, iface.annotations()) + interfaceModifier(iface) + " interface " + iface.name() +
             typeParamList(iface.typeParams()) + typeList(" extends ", iface.supertypes()) + permits(iface)
         if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}")
@@ -4065,6 +4065,19 @@ private fn isMain(f: Decl.Function) -> Boolean =
     f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate()
 
 private fn visibility(decl: Decl) -> String = if (decl.isPrivate()) "private" else "public"
+
+/**
+ * The members of a private type are public for the rest of its file, which Error Prone's EffectivelyPrivate
+ * reports for each; the author cannot write them otherwise.
+ */
+private fn typeVisibility(decl: Decl, annotations: List<Decl.Annotation>) -> String {
+    if (!decl.isPrivate()) {
+        return "public"
+    }
+    // Java takes one `@SuppressWarnings` per declaration.
+    val suppresses = annotations |> anyMatch { a -> a.name().equals("SuppressWarnings") || a.name().equals("java.lang.SuppressWarnings") }
+    return if (suppresses) "private" else "@SuppressWarnings(\"EffectivelyPrivate\") private"
+}
 
 /** The name that reads as the variable, or nothing when there is no name. */
 private fn nameBinding(name: String?, variable: String) -> Map<String, String> {

@@ -1,0 +1,39 @@
+package app
+
+import java.util.List
+
+// The members of a private type are public for the rest of the file; Error Prone is told not to report them.
+class Patch {
+    fn apply(target: List<String>) -> Int {
+        val ctx = Context(target)
+        ctx.fuzz += 1
+        val step: Step = Twice()
+        return ctx.fuzz + ctx.result.size() + Pair(1, 2).sum() + Size.LARGE.weight + step.apply(3)
+    }
+}
+
+private class Context(val result: List<String>) {
+    var fuzz: Int = 0
+}
+
+private data class Pair(val a: Int, val b: Int) {
+    fn sum() -> Int = a + b
+}
+
+private enum Size(val weight: Int) {
+    SMALL(1), LARGE(2)
+}
+
+private interface Step {
+    fn apply(n: Int) -> Int
+}
+
+// A type that names `@SuppressWarnings` itself keeps only its own.
+@SuppressWarnings("unused")
+private class Twice : Step {
+    fn apply(n: Int) -> Int = n * 2
+}
+
+fn main() {
+    println(Patch().apply(List.of("a", "b")))
+}

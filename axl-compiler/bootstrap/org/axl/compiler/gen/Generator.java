@@ -269,7 +269,7 @@ import org.axl.compiler.check.Whens;
         em.indent();
     }
     private void emitClass(Decl.ClassDecl classDecl) {
-        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + visibility(classDecl) + " static final class " + classDecl.name() +
+        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeVisibility(classDecl, classDecl.annotations()) + " static final class " + classDecl.name() +
                 typeParamList(classDecl.typeParams()) +
                 supertypeList(classDecl) +
                 " {");
@@ -285,7 +285,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitEnum(Decl.EnumDecl e) {
         final var line = e.pos().line();
-        final var head = annotations(e.annotations()) + visibility(e) + " enum " + e.name();
+        final var head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name();
         if (e.fields().isEmpty()) {
             em.line(line, head + " { " + constantList(e) + " }");
             return;
@@ -461,7 +461,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
-        final var head = annotations(dataClass.annotations()) + visibility(dataClass) + " record " + dataClass.name() +
+        final var head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
                 typeParamList(dataClass.typeParams()) +
                 "(" +
                 parameters(dataClass.fields(), line) +
@@ -494,7 +494,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
-        final var head = annotations(iface.annotations()) + visibility(iface) + interfaceModifier(iface) + " interface " + iface.name() +
+        final var head = annotations(iface.annotations()) + typeVisibility(iface, iface.annotations()) + interfaceModifier(iface) + " interface " + iface.name() +
                 typeParamList(iface.typeParams()) +
                 typeList(" extends ", iface.supertypes()) +
                 permits(iface);
@@ -3665,6 +3665,13 @@ import org.axl.compiler.check.Whens;
     }
     private static String visibility(Decl decl) {
         return (decl.isPrivate() ? "private" : "public");
+    }
+    private static String typeVisibility(Decl decl, List<Decl.Annotation> annotations) {
+        if (!decl.isPrivate()) {
+            return "public";
+        }
+        final var suppresses = annotations.stream().anyMatch(a -> a.name().equals("SuppressWarnings") || a.name().equals("java.lang.SuppressWarnings"));
+        return (suppresses ? "private" : "@SuppressWarnings(\"EffectivelyPrivate\") private");
     }
     private static Map<String, String> nameBinding(@Nullable String name, String variable) {
         if (name == null) {

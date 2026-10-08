@@ -5,7 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public enum Color { RED, GREEN, BLUE }
-    private enum Mode { ON, OFF }
+    @SuppressWarnings("EffectivelyPrivate") private enum Mode { ON, OFF }
     public static String describe(Color color) {
         if (color == Color.RED) {
             return "warm";

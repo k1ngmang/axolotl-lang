@@ -132,6 +132,54 @@ class AxlBuildTest {
     }
 
     @Test
+    void doesNotReportTheMembersOfPrivateTypes(@TempDir Path tmp) throws Exception {
+        // Java would write them private; in Axolotl the rest of the file reads them, so they are public.
+        Path src = tmp.resolve("src");
+        Files.createDirectories(src.resolve("app"));
+        Files.writeString(src.resolve("app/Main.axl"), """
+                package app
+
+                import java.util.List
+
+                class Patch {
+                    fn apply(target: List<String>) -> Int {
+                        val ctx = Context(target)
+                        ctx.fuzz += 1
+                        val step: Step = Twice()
+                        return ctx.fuzz + ctx.result.size() + Pair(1, 2).sum() + Size.SMALL.weight + step.apply(3)
+                    }
+                }
+
+                private class Context(val result: List<String>) {
+                    var fuzz: Int = 0
+                }
+
+                private data class Pair(val a: Int, val b: Int) {
+                    fn sum() -> Int = a + b
+                }
+
+                private enum Size(val weight: Int) {
+                    SMALL(1), LARGE(2)
+                }
+
+                private interface Step {
+                    fn apply(n: Int) -> Int
+                }
+
+                private class Twice : Step {
+                    fn apply(n: Int) -> Int = n * 2
+                }
+
+                fn main() {
+                    println(Patch().apply(List.of("a")))
+                }
+                """);
+        AxlBuild.Result result = new AxlBuild(src, tmp.resolve("generated"), tmp.resolve("classes")).run();
+        assertTrue(result.success(), result.diagnostics().toString());
+        assertEquals(List.of(), result.diagnostics());
+    }
+
+    @Test
     void warnsAboutCodeWithoutEffect(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

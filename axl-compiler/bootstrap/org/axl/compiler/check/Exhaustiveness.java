@@ -62,7 +62,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         return null;
     }
-    private record LibraryEnum(String name, List<String> constants, Set<String> named) {}
+    @SuppressWarnings("EffectivelyPrivate") private record LibraryEnum(String name, List<String> constants, Set<String> named) {}
     private static @Nullable LibraryEnum libraryEnum(Expr.When w, SourceFile file, JavaClasses classes) {
         @Nullable String prefix = null;
         final var named = new HashSet<String>();
