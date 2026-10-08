@@ -1,0 +1,20 @@
+package app
+
+import java.util.List
+
+interface Delta {
+    fn lines() -> List<String>
+    fn note() -> String
+    fn reset()
+}
+
+// A field gives the method only with a type that fits its result, as a method would.
+data class Insert(val lines: List<Int>, val note: String?, val reset: Boolean) : Delta
+
+// The field of a class gives no method.
+class Change(val lines: List<String>) : Delta {
+    fn note() -> String = ""
+
+    fn reset() {
+    }
+}

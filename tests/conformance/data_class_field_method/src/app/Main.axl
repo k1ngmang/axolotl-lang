@@ -1,0 +1,35 @@
+package app
+
+import java.util.List
+
+// The accessor of a data class field is the method an interface requires under that name.
+sealed interface Delta {
+    fn lines() -> List<String>
+    fn position() -> Int
+}
+
+data class Insert(val position: Int, val lines: List<String>) : Delta
+
+data class Delete(val position: Int, val lines: List<String>) : Delta
+
+interface Keyed<K> {
+    fn key() -> K
+    fn label() -> String?
+}
+
+data class Entry(val key: String, val label: String) : Keyed<String>
+
+fn size(d: Delta) -> Int = when (d) {
+    is Insert -> d.lines().size()
+    is Delete -> -d.lines().size()
+}
+
+fn describe(k: Keyed<String>) -> String = k.key().toUpperCase() + " " + k.label()
+
+fn main() {
+    val deltas: List<Delta> = List.of(Insert(0, List.of("a", "b")), Delete(3, List.of("c")))
+    for (d in deltas) {
+        println("" + d.position() + ": " + size(d))
+    }
+    println(describe(Entry("key", "answer")))
+}

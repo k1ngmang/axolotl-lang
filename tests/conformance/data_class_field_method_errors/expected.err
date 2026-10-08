@@ -1,0 +1,4 @@
+AXL017 app/Main.axl:12:19: error: `lines` is `List<Int>` here, but the interface `Delta` requires `fn lines() -> List<String>`
+AXL017 app/Main.axl:12:41: error: `note` is `String?` here, but the interface `Delta` requires `fn note() -> String`
+AXL017 app/Main.axl:12:60: error: `reset` is `Boolean` here, but the interface `Delta` requires `fn reset()`
+AXL017 app/Main.axl:15:7: error: `Change` does not give `fn lines() -> List<String>`, which the interface `Delta` requires; its property `lines` is a field, which gives no method; write the interface's member as `val lines: List<String>`, which the property gives

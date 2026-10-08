@@ -130,8 +130,22 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
                           problems: List<Mismatch>) {
     val iface = implemented.iface()
     val own = methods |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
+    val declaredReturn = method.returnType()
+    val required: TypeRef? = if (declaredReturn == null) null else substitute(declaredReturn, iface.typeParams(), implemented.args())
+    val property = if (own == null && method.params().isEmpty()) propertyNamed(c, method.name()) else null
+    if (own == null && property != null && c is Decl.DataClass) {
+        // The accessor Java gives the field of a record is that method.
+        val type = property.type()
+        if (required == null || (type != null && !fits(type, required))) {
+            problems.add(Mismatch(property.pos(), "`" + property.name() + "` is `" + returnText(type) + "` here, but the interface `" +
+                iface.name() + "` requires `" + signature(method) + "`"))
+        }
+        return
+    }
     if (own == null) {
         val where = if (c is Decl.DataClass) "add it in a body after the fields: `data class " + c.name() + "(...) : " + iface.name() + " { fn ... }`"
+            else if (property != null && required != null) "its property `" + property.name() + "` is a field, which gives no method; " +
+                "write the interface's member as `val " + property.name() + ": " + text(required) + "`, which the property gives"
             else "add the method"
         problems.add(Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
             iface.name() + "` requires; " + where))
@@ -141,8 +155,6 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
         problems.add(Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
             "`, so it cannot be private"))
     }
-    val declaredReturn = method.returnType()
-    val required: TypeRef? = if (declaredReturn == null) null else substitute(declaredReturn, iface.typeParams(), implemented.args())
     val givenReturn = own.returnType()
     if ((required == null && givenReturn != null) || (required != null && (givenReturn == null || !fits(givenReturn, required)))) {
         problems.add(Mismatch(own.namePos(), "`" + own.name() + "` returns `" + returnText(givenReturn) + "` here, but the interface `" +
@@ -160,6 +172,18 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
         }
         i += 1
     }
+}
+
+/** The field of a data class, or the parameter or property of a class, of that name. */
+private fn propertyNamed(c: Decl, name: String) -> Expr.Param? = when (c) {
+    is Decl.DataClass -> c.fields() |> filter { f -> f.name().equals(name) } |> first
+    is Decl.ClassDecl -> {
+        val all = ArrayList<Decl.Property>(c.parameters())
+        all.addAll(c.properties())
+        val found = all |> filter { p -> p.name().equals(name) } |> first
+        if (found == null) null else Expr.Param(found.namePos(), found.name(), found.type(), List.of())
+    }
+    else -> null
 }
 
 private fn signature(method: Decl.Function) -> String {

@@ -129,9 +129,29 @@ import org.axl.compiler.ast.TypeRef;
             List<Mismatch> problems) {
         final var iface = implemented.iface();
         final var own = Nulls.first(methods.stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).iterator());
+        final var declaredReturn = method.returnType();
+        final @Nullable TypeRef required = (declaredReturn == null ? null : substitute(declaredReturn, iface.typeParams(), implemented.args()));
+        final var property = (own == null && method.params().isEmpty() ? propertyNamed(c, method.name()) : null);
+        if (own == null && property != null && c instanceof Decl.DataClass c$1) {
+            final var type = property.type();
+            if (required == null || (type != null && !fits(type, required))) {
+                problems.add(new Mismatch(property.pos(), "`" + property.name() + "` is `" + returnText(type) + "` here, but the interface `" +
+                        iface.name() +
+                        "` requires `" +
+                        signature(method) +
+                        "`"));
+            }
+            return;
+        }
         if (own == null) {
-            final var where = (c instanceof Decl.DataClass c$1 ? "add it in a body after the fields: `data class " + c$1.name() + "(...) : " + iface.name() + " { fn ... }`" :
-                    "add the method");
+            final var where = (c instanceof Decl.DataClass c$2 ? "add it in a body after the fields: `data class " + c$2.name() + "(...) : " + iface.name() + " { fn ... }`" :
+                    (property != null && required != null ? "its property `" + property.name() + "` is a field, which gives no method; " +
+                    "write the interface's member as `val " +
+                    property.name() +
+                    ": " +
+                    text(required) +
+                    "`, which the property gives" :
+                    "add the method"));
             problems.add(new Mismatch(c.namePos(), "`" + c.name() + "` does not give `" + signature(method) + "`, which the interface `" +
                     iface.name() +
                     "` requires; " +
@@ -142,8 +162,6 @@ import org.axl.compiler.ast.TypeRef;
             problems.add(new Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
                     "`, so it cannot be private"));
         }
-        final var declaredReturn = method.returnType();
-        final @Nullable TypeRef required = (declaredReturn == null ? null : substitute(declaredReturn, iface.typeParams(), implemented.args()));
         final var givenReturn = own.returnType();
         if ((required == null && givenReturn != null) || (required != null && (givenReturn == null || !fits(givenReturn, required)))) {
             problems.add(new Mismatch(own.namePos(), "`" + own.name() + "` returns `" + returnText(givenReturn) + "` here, but the interface `" +
@@ -167,6 +185,22 @@ import org.axl.compiler.ast.TypeRef;
                         "`"));
             }
             i += 1;
+        }
+    }
+    private static Expr.@Nullable Param propertyNamed(Decl c, String name) {
+        switch (c) {
+            case Decl.DataClass c$1 -> {
+                return Nulls.first(Nulls.stream(c$1.fields()).filter(f -> f.name().equals(name)).iterator());
+            }
+            case Decl.ClassDecl c$2 -> {
+                final var all = new ArrayList<Decl.Property>(c$2.parameters());
+                all.addAll(c$2.properties());
+                final var found = Nulls.first(all.stream().filter(p -> p.name().equals(name)).iterator());
+                return (found == null ? null : new Expr.Param(found.namePos(), found.name(), found.type(), List.of()));
+            }
+            default -> {
+                return null;
+            }
         }
     }
     private static String signature(Decl.Function method) {
