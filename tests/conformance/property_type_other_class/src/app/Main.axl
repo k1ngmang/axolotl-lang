@@ -1,0 +1,35 @@
+package app
+
+import java.util.List
+
+class Fixed : Source {
+    fn name() -> String = "fixed"
+}
+
+// A property takes its type from a field, a property or a method of a class of the build, as a local does.
+class Generator(
+    private val options: Options,
+    private val box: Box<Long>,
+    private val holder: Box.Holder<String>,
+    private val source: Source,
+    private val spare: Options?
+) {
+    private val columnWidth = options.columnWidth
+    private val tags = options.tags
+    private val separator = options.separator(true)
+    private val boxed = box.value()
+    private val held = holder.get()
+    private val label = box.label()
+    private val sourceName = source.name()
+    private val spareWidth = spare?.columnWidth
+
+    fn describe() -> String = "" + columnWidth + separator + tags.size() + separator + (boxed + 1L) +
+        separator + label.length() + held.length() + separator + sourceName.length() + separator + (spareWidth ?: -1)
+}
+
+fn main() {
+    val options = Options()
+    options.columnWidth = 100
+    println(Generator(options, Box<Long>(41L, "box"), Box.Holder<String>("held"), Fixed(), null).describe())
+    println(Generator(options, Box<Long>(1L, ""), Box.Holder<String>(""), Fixed(), options).describe())
+}

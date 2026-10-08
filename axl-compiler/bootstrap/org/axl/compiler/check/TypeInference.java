@@ -67,23 +67,26 @@ import org.axl.compiler.ast.TypeRef;
             case Expr.Call expr$8 -> {
                 return (expr$8.target() == null ? call(expr$8) : Nulls.or(siblingCall(expr$8), () -> member(expr$8)));
             }
-            case Expr.GenericNew expr$9 -> {
-                return (expr$9.typeArgs().isEmpty() ? null : new TypeRef(expr$9.pos(), expr$9.type(), expr$9.typeArgs(), false));
+            case Expr.Member expr$9 -> {
+                return field(expr$9);
             }
-            case Expr.NotNull expr$10 -> {
-                return nonNull(of(expr$10.target()));
+            case Expr.GenericNew expr$10 -> {
+                return (expr$10.typeArgs().isEmpty() ? null : new TypeRef(expr$10.pos(), expr$10.type(), expr$10.typeArgs(), false));
             }
-            case Expr.Conditional expr$11 -> {
-                return common(of(expr$11.then()), of(expr$11.otherwise()));
+            case Expr.NotNull expr$11 -> {
+                return nonNull(of(expr$11.target()));
             }
-            case Expr.Try expr$12 -> {
-                return okType(of(expr$12.inner()));
+            case Expr.Conditional expr$12 -> {
+                return common(of(expr$12.then()), of(expr$12.otherwise()));
             }
-            case Expr.ClassLiteral expr$13 -> {
-                return classOf(expr$13);
+            case Expr.Try expr$13 -> {
+                return okType(of(expr$13.inner()));
             }
-            case Expr.Attempt expr$14 -> {
-                return (throwsInstead(expr$14) ? Nulls.box(of(expr$14.body())) : resultOf(of(expr$14.body()), of(expr$14.handler()), expr$14.pos()));
+            case Expr.ClassLiteral expr$14 -> {
+                return classOf(expr$14);
+            }
+            case Expr.Attempt expr$15 -> {
+                return (throwsInstead(expr$15) ? Nulls.box(of(expr$15.body())) : resultOf(of(expr$15.body()), of(expr$15.handler()), expr$15.pos()));
             }
             default -> {
                 return null;
@@ -206,8 +209,36 @@ import org.axl.compiler.ast.TypeRef;
         if (receiver == null) {
             return null;
         }
-        final var type = (c.args().isEmpty() ? Nulls.or(fieldOf(receiver, c.name()), () -> jdkMethod(receiver, c)) : jdkMethod(receiver, c));
+        final var own = (c.args().isEmpty() ? fieldOf(receiver, c.name()) : null);
+        final var type = Nulls.or(own, () -> Nulls.or(methodOf(receiver, c), () -> jdkMethod(receiver, c)));
         return (type == null || !c.safe() ? type : new TypeRef(type.pos(), type.name(), type.args(), true));
+    }
+    private @Nullable TypeRef field(Expr.Member m) {
+        final var receiver = of(m.target());
+        final var type = (receiver == null ? null : fieldOf(receiver, m.name()));
+        return (type == null || !m.safe() ? type : new TypeRef(type.pos(), type.name(), type.args(), true));
+    }
+    private @Nullable TypeRef methodOf(TypeRef receiver, Expr.Call c) {
+        final var decl = typeNamed(receiver.name());
+        if (decl == null) {
+            return null;
+        }
+        final var params = typeParamsOf(decl);
+        if (!params.isEmpty() && params.size() != receiver.args().size()) {
+            return null;
+        }
+        final List<Decl.Function> methods = switch (decl) {
+            case Decl.DataClass decl$1 -> decl$1.methods();
+            case Decl.ClassDecl decl$2 -> decl$2.methods();
+            case Decl.Interface decl$3 -> decl$3.methods();
+            case null, default -> List.of();
+        };
+        final var named = methods.stream().filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();
+        if (named.size() != 1 || !named.getFirst().typeParams().isEmpty()) {
+            return null;
+        }
+        final var type = named.getFirst().returnType();
+        return (type == null ? null : Implementations.substitute(type, params, receiver.args()));
     }
     private @Nullable TypeRef fieldOf(TypeRef receiver, String name) {
         final var decl = typeNamed(receiver.name());
@@ -225,14 +256,14 @@ import org.axl.compiler.ast.TypeRef;
     private @Nullable Decl typeNamed(String name) {
         final var simple = simpleName(name);
         for (final var decl : file.decls()) {
-            if ((decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.ClassDecl decl$2) && decl.name().equals(simple)) {
+            if ((decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.ClassDecl decl$2 || decl instanceof Decl.Interface decl$3) && decl.name().equals(simple)) {
                 return decl;
             }
         }
         for (final var sibling : siblings) {
             if (samePackage(sibling)) {
                 for (final var decl : sibling.decls()) {
-                    if ((decl instanceof Decl.DataClass decl$3 || decl instanceof Decl.ClassDecl decl$4) && decl.name().equals(simple)) {
+                    if ((decl instanceof Decl.DataClass decl$4 || decl instanceof Decl.ClassDecl decl$5 || decl instanceof Decl.Interface decl$6) && decl.name().equals(simple)) {
                         return decl;
                     }
                 }
@@ -406,6 +437,9 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Decl.ClassDecl decl$2 -> {
                 return decl$2.typeParams();
+            }
+            case Decl.Interface decl$3 -> {
+                return decl$3.typeParams();
             }
             default -> {
                 return List.of();

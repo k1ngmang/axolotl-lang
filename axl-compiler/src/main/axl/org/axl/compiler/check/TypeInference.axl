@@ -49,6 +49,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         is Expr.Is -> simple("Boolean", expr.pos())
         is Expr.Name -> known.get(expr.name()) ?: topLevelValue(expr.name())
         is Expr.Call -> if (expr.target() == null) call(expr) else (siblingCall(expr) ?: member(expr))
+        is Expr.Member -> field(expr)
         is Expr.GenericNew -> if (expr.typeArgs().isEmpty()) null else TypeRef(expr.pos(), expr.type(), expr.typeArgs(), false)
         is Expr.NotNull -> nonNull(of(expr.target()))
         is Expr.Conditional -> common(of(expr.then()), of(expr.otherwise()))
@@ -192,8 +193,41 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         if (receiver == null) {
             return null
         }
-        val type = if (c.args().isEmpty()) (fieldOf(receiver, c.name()) ?: jdkMethod(receiver, c)) else jdkMethod(receiver, c)
+        val own = if (c.args().isEmpty()) fieldOf(receiver, c.name()) else null
+        val type = own ?: (methodOf(receiver, c) ?: jdkMethod(receiver, c))
         return if (type == null || !c.safe()) type else TypeRef(type.pos(), type.name(), type.args(), true)
+    }
+
+    /** `options.columnWidth`: the written type of that field of a data class or class of the build. */
+    private fn field(m: Expr.Member) -> TypeRef? {
+        val receiver = of(m.target())
+        val type = if (receiver == null) null else fieldOf(receiver, m.name())
+        return if (type == null || !m.safe()) type else TypeRef(type.pos(), type.name(), type.args(), true)
+    }
+
+    /** The written result of the one method of that name and arity of a type of the build, with the receiver's type arguments. */
+    private fn methodOf(receiver: TypeRef, c: Expr.Call) -> TypeRef? {
+        val decl = typeNamed(receiver.name())
+        if (decl == null) {
+            return null
+        }
+        val params = typeParamsOf(decl)
+        if (!params.isEmpty() && params.size() != receiver.args().size()) {
+            return null
+        }
+        val methods: List<Decl.Function> = when (decl) {
+            is Decl.DataClass -> decl.methods()
+            is Decl.ClassDecl -> decl.methods()
+            is Decl.Interface -> decl.methods()
+            else -> List.of()
+        }
+        val named = methods |> filter { m -> m.name().equals(c.name()) && m.params().size() == c.args().size() }
+        // A type parameter of the method is not a type the property can have.
+        if (named.size() != 1 || !named.getFirst().typeParams().isEmpty()) {
+            return null
+        }
+        val type = named.getFirst().returnType()
+        return if (type == null) null else Implementations.substitute(type, params, receiver.args())
     }
 
     /** The field a data class or class of the build gives under this name, with the receiver's type arguments. */
@@ -214,14 +248,14 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
     private fn typeNamed(name: String) -> Decl? {
         val simple = simpleName(name)
         for (decl in file.decls()) {
-            if ((decl is Decl.DataClass || decl is Decl.ClassDecl) && decl.name().equals(simple)) {
+            if ((decl is Decl.DataClass || decl is Decl.ClassDecl || decl is Decl.Interface) && decl.name().equals(simple)) {
                 return decl
             }
         }
         for (sibling in siblings) {
             if (samePackage(sibling)) {
                 for (decl in sibling.decls()) {
-                    if ((decl is Decl.DataClass || decl is Decl.ClassDecl) && decl.name().equals(simple)) {
+                    if ((decl is Decl.DataClass || decl is Decl.ClassDecl || decl is Decl.Interface) && decl.name().equals(simple)) {
                         return decl
                     }
                 }
@@ -401,6 +435,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
     private fn typeParamsOf(decl: Decl) -> List<Decl.TypeParam> = when (decl) {
         is Decl.DataClass -> decl.typeParams()
         is Decl.ClassDecl -> decl.typeParams()
+        is Decl.Interface -> decl.typeParams()
         else -> List.of()
     }
 

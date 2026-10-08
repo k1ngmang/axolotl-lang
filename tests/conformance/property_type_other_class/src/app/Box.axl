@@ -1,0 +1,7 @@
+package app
+
+data class Box<T>(val value: T, val label: String)
+
+class Holder<T>(private val item: T) {
+    fn get() -> T = item
+}

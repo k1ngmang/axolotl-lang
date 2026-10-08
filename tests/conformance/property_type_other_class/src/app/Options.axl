@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+class Options {
+    var columnWidth: Int = 80
+    val tags: List<String> = List.of("a", "b")
+
+    fn separator(wide: Boolean) -> String = if (wide) " | " else "|"
+}

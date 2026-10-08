@@ -55,7 +55,7 @@ import java.util.List;
     public static String describe(Notes notes) {
         final var id = notes.add("buy milk");
         final var found = notes.find(id);
-        return notes.name() + ": " + id + " " + Nulls.or(found, () -> "nothing") + " " + Nulls.or(notes.find(99), () -> "nothing");
+        return notes.name() + ": " + id + " " + Nulls.<String>or(found, () -> "nothing") + " " + Nulls.<String>or(notes.find(99), () -> "nothing");
     }
     public static void main(String[] args) {
         final var memory = new MemoryNotes("memory");

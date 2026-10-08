@@ -20,6 +20,6 @@ import java.util.Map;
         return new MemoryStore();
     }
     public static String describe(Store store, String key) {
-        return key + "=" + Nulls.or(store.get(key), () -> "unset");
+        return key + "=" + Nulls.<String>or(store.get(key), () -> "unset");
     }
 }
