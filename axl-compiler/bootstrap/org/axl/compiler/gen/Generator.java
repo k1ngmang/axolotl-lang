@@ -2716,7 +2716,7 @@ import org.axl.compiler.check.Whens;
         final var outerCopies = copies;
         copies = Map.of();
         final var single = lambdaExpression(body);
-        if (single != null && !Checker.isAttemptStatement(single, valueStage)) {
+        if (single != null && !Checker.isAttemptStatement(single, valueStage) && !safeCallWithoutResult(single)) {
             final var bodyLine = startLine(single);
             final var code = expr(single);
             copies = outerCopies;
@@ -2735,6 +2735,35 @@ import org.axl.compiler.check.Whens;
         copies = outerCopies;
         returnType = outerReturnType;
         return params + " -> {" + block + Emitter.continuation(l.end().line(), "}");
+    }
+    private boolean safeCallWithoutResult(Expr e) {
+        final var call = withoutParens(e);
+        if (!(call instanceof Expr.Call call$1) || !Chains.hasSafeStep(call$1)) {
+            return false;
+        }
+        final var target = call$1.target();
+        final var type = (target == null ? null : typeOf(target));
+        if (type == null) {
+            return false;
+        }
+        final var arity = call$1.args().size();
+        final var decl = declaredType(type.name());
+        if (decl != null) {
+            final List<Decl.Function> methods = switch (decl) {
+                case Decl.Interface decl$2 -> decl$2.methods();
+                case Decl.ClassDecl decl$3 -> decl$3.methods();
+                case Decl.DataClass decl$4 -> decl$4.methods();
+                case null, default -> List.of();
+            };
+            final var named = methods.stream().filter(m -> m.name().equals(call$1.name()) && m.params().size() == arity).toList();
+            return !named.isEmpty() && (named.stream().allMatch(m -> m.returnType() == null));
+        }
+        final var library = Libraries.classNamed(file, options.classes(), type.name());
+        if (library == null) {
+            return false;
+        }
+        final var signatures = Nulls.stream(options.classes().signatures(library.name(), call$1.name())).filter(s -> s.parameters().size() == arity).toList();
+        return !signatures.isEmpty() && (Nulls.stream(signatures).allMatch(s -> s.returnsVoid()));
     }
     private String lambdaParams(Expr.Lambda l) {
         if (analysis.implicitIt().contains(l)) {

@@ -1,0 +1,51 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.function.Consumer
+import java.util.function.Function
+
+interface Listener {
+    fn step(value: Int)
+}
+
+class Recorder : Listener {
+    val seen: List<Int> = ArrayList<Int>()
+
+    fn step(value: Int) {
+        seen.add(value)
+    }
+}
+
+fn run(steps: Consumer<Int>) {
+    steps.accept(1)
+    steps.accept(2)
+}
+
+// A lambda whose body is a `?.` call of a method without a result is that call as a statement.
+fn report(progress: Listener?) {
+    progress?.step(0)
+    run({ idx -> progress?.step(idx) })
+}
+
+fn clearAll(items: List<String>?) {
+    run({ idx -> items?.clear() })
+}
+
+// A method with a result keeps its value where one is expected.
+fn appender(sb: StringBuilder?) -> Function<String, StringBuilder?> = { s -> sb?.append(s) }
+
+fn main() {
+    val recorder = Recorder()
+    report(recorder)
+    report(null)
+    println(recorder.seen)
+    val items = ArrayList<String>(List.of("a"))
+    clearAll(items)
+    clearAll(null)
+    println(items.size())
+    val sb = StringBuilder()
+    run({ i -> sb?.append(i) })
+    println(appender(sb).apply("x"))
+    println(appender(null).apply("x"))
+}

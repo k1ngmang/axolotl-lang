@@ -41,9 +41,14 @@ public interface JavaClasses {
      * The parameters of a method or constructor, each as its erased canonical type, `java.lang.String[]`;
      * an array of a type variable is written with the name of the variable, `T[]`.
      *
-     * @param varargs whether the last parameter takes any number of arguments
+     * @param varargs     whether the last parameter takes any number of arguments
+     * @param returnsVoid whether it is a method without a result
      */
-    record Signature(List<String> parameters, boolean varargs) {}
+    record Signature(List<String> parameters, boolean varargs, boolean returnsVoid) {
+        public Signature(List<String> parameters, boolean varargs) {
+            this(parameters, varargs, false);
+        }
+    }
 
     /** The class, or null when it cannot be read. */
     ClassShape shape(String qualifiedName);
@@ -57,7 +62,8 @@ public interface JavaClasses {
 
     /**
      * The public methods of that name, static or not and also inherited, or the public constructors for
-     * `<init>`; empty when the class cannot be read. The translator passes a list where Java takes an array.
+     * `<init>`; empty when the class cannot be read. The translator passes a list where Java takes an array,
+     * and writes a lambda whose body is a `?.` call of a method without a result as a statement.
      */
     default List<Signature> signatures(String qualifiedName, String name) {
         return List.of();

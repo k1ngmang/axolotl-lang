@@ -114,7 +114,8 @@ public final class ReflectedClasses implements JavaClasses {
                 for (Type parameter : executable.getGenericParameterTypes()) {
                     parameters.add(erased(parameter));
                 }
-                signatures.add(new Signature(parameters, executable.isVarArgs()));
+                signatures.add(new Signature(parameters, executable.isVarArgs(),
+                        executable instanceof Method method && method.getReturnType() == void.class));
             }
         } catch (LinkageError | TypeNotPresentException | java.lang.reflect.MalformedParameterizedTypeException e) {
             return new ArrayList<>();

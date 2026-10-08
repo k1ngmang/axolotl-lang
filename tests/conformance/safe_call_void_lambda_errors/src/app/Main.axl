@@ -1,0 +1,10 @@
+package app
+
+import java.util.function.Function
+
+interface Listener {
+    fn step(value: Int)
+}
+
+// `step` gives no value, so neither does the lambda.
+fn values(progress: Listener?) -> Function<Int, Object?> = { idx -> progress?.step(idx) }

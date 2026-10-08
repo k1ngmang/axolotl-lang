@@ -49,7 +49,7 @@ fn inference() -> Result<Int, String> = attempt parse("1") else 42
 
 fn voidSafeCall() {
     val sb: StringBuilder? = StringBuilder("a")
-    val r: Runnable = { -> sb?.setLength(0) }
+    val r: Runnable = { -> java.util.Optional.ofNullable(sb).orElse(null)?.setLength(0) }
     java.util.List.of(1) |> forEach { sb?.setLength(it) }
 }
 

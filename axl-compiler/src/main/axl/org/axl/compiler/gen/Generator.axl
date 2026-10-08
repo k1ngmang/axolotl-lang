@@ -3125,7 +3125,7 @@ class Generator(
         val outerCopies = copies
         copies = Map.of()
         val single = lambdaExpression(body)
-        if (single != null && !Checker.isAttemptStatement(single, valueStage)) {
+        if (single != null && !Checker.isAttemptStatement(single, valueStage) && !safeCallWithoutResult(single)) {
             val bodyLine = startLine(single)
             val code = expr(single)
             copies = outerCopies
@@ -3145,6 +3145,40 @@ class Generator(
         copies = outerCopies
         returnType = outerReturnType
         return params + " -> {" + block + Emitter.continuation(l.end().line(), "}")
+    }
+
+    /**
+     * `{ i -> progress?.step(i) }` for a method `step` without a result: `Nulls.map` needs a value, so the body is
+     * written as the statement, which only a lambda that returns nothing can be.
+     */
+    private fn safeCallWithoutResult(e: Expr) -> Boolean {
+        val call = withoutParens(e)
+        if (call !is Expr.Call || !Chains.hasSafeStep(call)) {
+            return false
+        }
+        val target = call.target()
+        val type = if (target == null) null else typeOf(target)
+        if (type == null) {
+            return false
+        }
+        val arity = call.args().size()
+        val decl = declaredType(type.name())
+        if (decl != null) {
+            val methods: List<Decl.Function> = when (decl) {
+                is Decl.Interface -> decl.methods()
+                is Decl.ClassDecl -> decl.methods()
+                is Decl.DataClass -> decl.methods()
+                else -> List.of()
+            }
+            val named = methods |> filter { m -> m.name().equals(call.name()) && m.params().size() == arity }
+            return !named.isEmpty() && (named |> allMatch { m -> m.returnType() == null })
+        }
+        val library = Libraries.classNamed(file, options.classes(), type.name())
+        if (library == null) {
+            return false
+        }
+        val signatures = options.classes().signatures(library.name(), call.name()) |> filter { s -> s.parameters().size() == arity }
+        return !signatures.isEmpty() && (signatures |> allMatch { s -> s.returnsVoid() })
     }
 
     private fn lambdaParams(l: Expr.Lambda) -> String {

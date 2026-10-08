@@ -173,7 +173,8 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
                         && (constructors ? member.getKind() == ElementKind.CONSTRUCTOR
                                 : member.getKind() == ElementKind.METHOD && member.getSimpleName().contentEquals(name))) {
                     List<String> parameters = executable.getParameters().stream().map(p -> erased(p.asType())).toList();
-                    found.add(new Signature(parameters, executable.isVarArgs()));
+                    found.add(new Signature(parameters, executable.isVarArgs(),
+                            !constructors && executable.getReturnType().getKind() == TypeKind.VOID));
                 }
             }
             return found;

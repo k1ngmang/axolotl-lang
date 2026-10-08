@@ -227,6 +227,7 @@ final class Messages {
     private static final String MISSING_RETURN_VALUE = "bad return type in lambda expression; missing return value";
     private static final String LAMBDA_BLOCK_VALUE = "a lambda with several statements gives its value with `return`";
     private static final Pattern LAMBDA_OPEN = Pattern.compile("(\\{)[\\w\\s,]*->\\s*$");
+    private static final Pattern SAFE_CALL_TEMPORARY = Pattern.compile("final var (\\$n\\d+) = .*;");
     private static final String UNKNOWN_IMPORTED_CLASS = "` in this import; check the spelling";
     private static final Pattern RETURNED_NAME = Pattern.compile("^\\s*return (\\w+);$");
     private static final String GENERATED_VALUE = "the result of `value()` may be null: its type is a type argument written with `?`";
@@ -2290,6 +2291,22 @@ final class Messages {
     private static String blockLambdaValue(String text, String[] javaLines, int javaLine) {
         if (!text.stripTrailing().endsWith("-> {")) {
             return null;
+        }
+        // `{ i -> progress?.step(i) }` for a method `step` without a result is written as the statement it stands for.
+        Matcher safeCall = javaLine + 1 < javaLines.length ? SAFE_CALL_TEMPORARY.matcher(javaLines[javaLine].strip()) : null;
+        if (safeCall != null && safeCall.matches() && javaLines[javaLine + 1].strip().equals("if (" + safeCall.group(1) + " != null) {")) {
+            int depth = 0;
+            int i = javaLine + 1;
+            do {
+                for (char c : STRING_LITERAL.matcher(javaLines[i]).replaceAll("\"\"").toCharArray()) {
+                    depth += c == '{' ? 1 : c == '}' ? -1 : 0;
+                }
+                i++;
+            } while (depth > 0 && i < javaLines.length);
+            if (i < javaLines.length && javaLines[i].strip().startsWith("}")) {
+                return "a lambda whose body is a `?.` call of a method without a result gives no value, but a value is "
+                        + "expected here; add `return` and a value after the call";
+            }
         }
         String last = null;
         int depth = 1;
