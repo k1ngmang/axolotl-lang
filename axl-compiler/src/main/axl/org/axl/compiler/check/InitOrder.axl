@@ -30,6 +30,12 @@ class InitOrder(val file: SourceFile) {
     var classes: Map<String, String> = HashMap<String, String>()
     var elements: Map<String, String> = HashMap<String, String>()
 
+    // The method reference passed to a call that the code being followed runs in, if any, and the names
+    // read only that way: the call may not run the reference at all.
+    var keeping: Kept? = null
+    val keptBy: HashMap<String, Kept> = HashMap<String, Kept>()
+    val direct: HashSet<String> = HashSet<String>()
+
     fn problems() -> List<Problem> {
         val values = ArrayList<Decl.Value>()
         for (decl in file.decls()) {
@@ -70,15 +76,18 @@ class InitOrder(val file: SourceFile) {
             if (init != null) {
                 val read = HashSet<String>()
                 visited.clear()
+                keptBy.clear()
+                direct.clear()
                 owner = c
                 names(init, Set.of(), read)
                 owner = null
                 val later = firstProperty(properties.subList(i, properties.size()), read)
                 if (later != null) {
-                    problems.add(PropertyProblem(properties.get(i), later))
+                    val kept = if (direct.contains(later)) null else keptBy.get(later)
+                    problems.add(PropertyProblem(properties.get(i), later, kept))
                 } else if (read.contains("this") && i + 1 < properties.size()) {
                     // Code given `this` may read any property, and the later ones are not set yet.
-                    problems.add(PropertyProblem(properties.get(i), "this"))
+                    problems.add(PropertyProblem(properties.get(i), "this", null))
                 }
             }
             i += 1
@@ -119,7 +128,7 @@ class InitOrder(val file: SourceFile) {
                     names(expr.target(), hidden, out)
                 }
             }
-            is Expr.GenericNew -> arguments(expr.args(), hidden, out)
+            is Expr.GenericNew -> arguments(expr.type(), expr.args(), hidden, out)
             // Taking a reference runs nothing; storing, passing or calling it is followed where it happens.
             is Expr.MethodRef -> {
                 if (!isThis(expr.target())) {
@@ -185,7 +194,7 @@ class InitOrder(val file: SourceFile) {
                 lambdaBody(returned, Set.of(), out, null)
             }
         }
-        arguments(call.args(), hidden, out)
+        arguments(call.name(), call.args(), hidden, out)
     }
 
     private fn toStringOf(e: Expr, hidden: Set<String>, out: Set<String>) {
@@ -389,7 +398,7 @@ class InitOrder(val file: SourceFile) {
     }
 
     /** A lambda or function reference passed to a call is likely called by it. */
-    private fn arguments(args: List<Expr>, hidden: Set<String>, out: Set<String>) {
+    private fn arguments(callee: String, args: List<Expr>, hidden: Set<String>, out: Set<String>) {
         for (arg in args) {
             val inner = unparenthesized(arg)
             if (inner is Expr.Lambda) {
@@ -397,7 +406,13 @@ class InitOrder(val file: SourceFile) {
             } else {
                 names(arg, hidden, out)
                 if (inner is Expr.MethodRef) {
+                    val outer = keeping
+                    // A constructor usually keeps what it is given; other calls, such as `mapToInt`, run it.
+                    val path = Expr.pathName(inner.target())
+                    val constructor = Character.isUpperCase(simpleName(callee).charAt(0))
+                    keeping = outer ?: (if (path == null || !constructor) null else Kept(path + "::" + inner.name(), simpleName(callee)))
                     calledRef(inner, hidden, out)
+                    keeping = outer
                 }
             }
         }
@@ -420,6 +435,12 @@ class InitOrder(val file: SourceFile) {
             return
         }
         out.add(name)
+        val kept = keeping
+        if (kept == null) {
+            direct.add(name)
+        } else {
+            keptBy.putIfAbsent(name, kept)
+        }
         // Reading a value or a property that holds a lambda is usually done to call it.
         val c = owner
         if (c != null) {
@@ -627,7 +648,10 @@ class InitOrder(val file: SourceFile) {
 data class Problem(val value: Decl.Value, val later: String)
 
 /** A property of a class and a later property it reads while it is initialized. */
-data class PropertyProblem(val property: Decl.Property, val later: String)
+data class PropertyProblem(val property: Decl.Property, val later: String, val kept: Kept?)
+
+/** A method reference, `this::count`, passed to a constructor, `Rule`, which may or may not run it. */
+data class Kept(val ref: String, val callee: String)
 
 fn check(file: SourceFile) -> List<Problem> = InitOrder(file).problems()
 
@@ -650,6 +674,8 @@ private fn lambdaOf(expr: Expr) -> Expr.Lambda? {
 }
 
 private fn isThis(expr: Expr) -> Boolean = expr is Expr.Name && expr.name().equals("this")
+
+private fn simpleName(name: String) -> String = name.substring(name.lastIndexOf('.') + 1)
 
 private fn unparenthesized(expr: Expr) -> Expr = if (expr is Expr.Paren) expr.inner() else expr
 

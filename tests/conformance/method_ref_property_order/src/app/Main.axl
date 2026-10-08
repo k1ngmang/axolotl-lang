@@ -1,0 +1,30 @@
+package app
+
+import java.util.function.Consumer
+
+class Rule(private val command: Consumer<String>) {
+    fn run(line: String) {
+        command.accept(line)
+    }
+}
+
+fn register(command: Consumer<String>) -> Consumer<String> = command
+
+// The constructor of `Rule` may call the reference it keeps, which reads a property not set yet; a function is
+// taken to call it.
+class Reader {
+    private val RULE = Rule(this::count)
+    private val REGISTERED = register(this::count)
+    private val direct: Int = lines + 1
+    private var lines = 0
+
+    private fn count(line: String) {
+        lines += 1
+    }
+
+    fn feed(line: String) -> Int {
+        RULE.run(line)
+        REGISTERED.accept(line)
+        return lines + direct
+    }
+}

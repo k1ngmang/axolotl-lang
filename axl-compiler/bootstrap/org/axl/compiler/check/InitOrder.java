@@ -19,12 +19,18 @@ import org.axl.compiler.ast.TypeRef;
     public Decl.@Nullable ClassDecl owner;
     public Map<String, String> classes;
     public Map<String, String> elements;
+    public @Nullable Kept keeping;
+    public final HashMap<String, Kept> keptBy;
+    public final HashSet<String> direct;
     public InitOrder(SourceFile file) {
         this.file = file;
         this.visited = new HashSet<String>();
         this.owner = null;
         this.classes = new HashMap<String, String>();
         this.elements = new HashMap<String, String>();
+        this.keeping = null;
+        this.keptBy = new HashMap<String, Kept>();
+        this.direct = new HashSet<String>();
     }
     public List<Problem> problems() {
         final var values = new ArrayList<Decl.Value>();
@@ -64,14 +70,17 @@ import org.axl.compiler.ast.TypeRef;
             if (init != null) {
                 final var read = new HashSet<String>();
                 visited.clear();
+                keptBy.clear();
+                direct.clear();
                 owner = c;
                 names(init, Set.of(), read);
                 owner = null;
                 final var later = firstProperty(properties.subList(i, properties.size()), read);
                 if (later != null) {
-                    problems.add(new PropertyProblem(properties.get(i), later));
+                    final var kept = (direct.contains(later) ? null : keptBy.get(later));
+                    problems.add(new PropertyProblem(properties.get(i), later, kept));
                 } else if (read.contains("this") && i + 1 < properties.size()) {
-                    problems.add(new PropertyProblem(properties.get(i), "this"));
+                    problems.add(new PropertyProblem(properties.get(i), "this", null));
                 }
             }
             i += 1;
@@ -109,7 +118,7 @@ import org.axl.compiler.ast.TypeRef;
                 }
             }
             case Expr.GenericNew expr$4 -> {
-                arguments(expr$4.args(), hidden, out);
+                arguments(expr$4.type(), expr$4.args(), hidden, out);
             }
             case Expr.MethodRef expr$5 -> {
                 if (!isThis(expr$5.target())) {
@@ -189,7 +198,7 @@ import org.axl.compiler.ast.TypeRef;
                 lambdaBody(returned, Set.of(), out, null);
             }
         }
-        arguments(call.args(), hidden, out);
+        arguments(call.name(), call.args(), hidden, out);
     }
     private void toStringOf(Expr e, Set<String> hidden, Set<String> out) {
         final var c = classOf(e, hidden);
@@ -367,7 +376,7 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
     }
-    private void arguments(List<Expr> args, Set<String> hidden, Set<String> out) {
+    private void arguments(String callee, List<Expr> args, Set<String> hidden, Set<String> out) {
         for (final var arg : args) {
             final var inner = unparenthesized(arg);
             if (inner instanceof Expr.Lambda inner$1) {
@@ -375,7 +384,12 @@ import org.axl.compiler.ast.TypeRef;
             } else {
                 names(arg, hidden, out);
                 if (inner instanceof Expr.MethodRef inner$2) {
+                    final var outer = keeping;
+                    final var path = Expr.pathName(inner$2.target());
+                    final var constructor = Character.isUpperCase(simpleName(callee).charAt(0));
+                    keeping = Nulls.or(outer, () -> ((path == null || !constructor ? null : new Kept(path + "::" + inner$2.name(), simpleName(callee)))));
                     calledRef(inner$2, hidden, out);
+                    keeping = outer;
                 }
             }
         }
@@ -395,6 +409,12 @@ import org.axl.compiler.ast.TypeRef;
             return;
         }
         out.add(name);
+        final var kept = keeping;
+        if (kept == null) {
+            direct.add(name);
+        } else {
+            keptBy.putIfAbsent(name, kept);
+        }
         final var c = owner;
         if (c != null) {
             for (final var p : c.properties()) {
@@ -588,7 +608,8 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     public record Problem(Decl.Value value, String later) {}
-    public record PropertyProblem(Decl.Property property, String later) {}
+    public record PropertyProblem(Decl.Property property, String later, @Nullable Kept kept) {}
+    public record Kept(String ref, String callee) {}
     public static List<Problem> check(SourceFile file) {
         return new InitOrder(file).problems();
     }
@@ -609,6 +630,9 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static boolean isThis(Expr expr) {
         return expr instanceof Expr.Name expr$1 && expr$1.name().equals("this");
+    }
+    private static String simpleName(String name) {
+        return name.substring(name.lastIndexOf('.') + 1);
     }
     private static Expr unparenthesized(Expr expr) {
         return (expr instanceof Expr.Paren expr$1 ? expr$1.inner() : expr);

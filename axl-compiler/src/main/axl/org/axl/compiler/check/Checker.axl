@@ -390,11 +390,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                 problem.later() + "` first")
         }
         for (problem in InitOrder.checkProperties(file)) {
-            propertyProblem(problem.property(), problem.later())
+            propertyProblem(problem.property(), problem.later(), problem.kept())
         }
     }
 
-    private fn propertyProblem(property: Decl.Property, later: String) {
+    private fn propertyProblem(property: Decl.Property, later: String, kept: InitOrder.Kept?) {
         if (later.equals(property.name()) && hasTopLevelValue(property.name())) {
             error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` reads itself: in a class the " +
                 "name means the property; write `" + file.className() + "." + property.name() + "` for the value of the file")
@@ -404,6 +404,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
             error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` passes `this` on before the " +
                 "properties declared after it are set, so the code it reaches may read them as null; declare `" +
                 property.name() + "` last, or compute it in a function")
+            return
+        }
+        if (kept != null && !later.equals(property.name())) {
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` keeps `" + kept.ref() + "`, which reads `" +
+                later + "`, declared later; declare `" + later + "` first, since `" + kept.callee() + "` may call it while it is created")
             return
         }
         val position = if (later.equals(property.name())) "by itself" else "later"

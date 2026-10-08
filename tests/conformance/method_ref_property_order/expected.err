@@ -1,0 +1,3 @@
+AXL016 app/Main.axl:16:17: error: `RULE` keeps `this::count`, which reads `lines`, declared later; declare `lines` first, since `Rule` may call it while it is created
+AXL016 app/Main.axl:17:17: error: `REGISTERED` is computed from `lines`, which is declared later; properties are set in order, so declare `lines` first
+AXL016 app/Main.axl:18:17: error: `direct` is computed from `lines`, which is declared later; properties are set in order, so declare `lines` first

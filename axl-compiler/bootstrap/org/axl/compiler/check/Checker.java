@@ -322,10 +322,10 @@ import org.axl.compiler.ast.TypeRef;
                     "` first");
         }
         for (final var problem : InitOrder.checkProperties(file)) {
-            propertyProblem(problem.property(), problem.later());
+            propertyProblem(problem.property(), problem.later(), problem.kept());
         }
     }
-    private void propertyProblem(Decl.Property property, String later) {
+    private void propertyProblem(Decl.Property property, String later, InitOrder.@Nullable Kept kept) {
         if (later.equals(property.name()) && hasTopLevelValue(property.name())) {
             error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` reads itself: in a class the " +
                     "name means the property; write `" +
@@ -340,6 +340,16 @@ import org.axl.compiler.ast.TypeRef;
                     "properties declared after it are set, so the code it reaches may read them as null; declare `" +
                     property.name() +
                     "` last, or compute it in a function");
+            return;
+        }
+        if (kept != null && !later.equals(property.name())) {
+            error(property.namePos(), ErrorCode.INIT_ORDER, "`" + property.name() + "` keeps `" + kept.ref() + "`, which reads `" +
+                    later +
+                    "`, declared later; declare `" +
+                    later +
+                    "` first, since `" +
+                    kept.callee() +
+                    "` may call it while it is created");
             return;
         }
         final var position = (later.equals(property.name()) ? "by itself" : "later");
