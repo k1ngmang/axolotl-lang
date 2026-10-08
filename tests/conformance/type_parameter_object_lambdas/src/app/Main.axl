@@ -1,0 +1,40 @@
+package app
+
+import java.util.List
+import java.util.Objects
+import java.util.function.BiPredicate
+import java.util.function.Function
+
+// `T : Object` rules null out, so the parameters of lambdas and the receivers of method references of type `T` are
+// not null; without it they may be, as for a parameter of type `T`.
+class Equalizer<T : Object>(private val eq: BiPredicate<T, T>) {
+    constructor() = this(Object::equals)
+
+    fn same(a: T, b: T) -> Boolean = eq.test(a, b)
+}
+
+class Loose<T>(private val eq: BiPredicate<T, T>) {
+    constructor() = this({ a, b -> Objects.equals(a, b) })
+
+    fn same(a: T, b: T) -> Boolean = eq.test(a, b)
+}
+
+fn viaLambda<T : Object>() -> BiPredicate<T, T> = { a, b -> a.equals(b) }
+
+fn viaFunction<T : Object>() -> Function<T, String> = { a -> a.toString() }
+
+fn viaSafeCall<T>() -> Function<T, String> = { a -> a?.toString() ?: "none" }
+
+fn names<T : Object>(items: List<T>) -> List<String> = items |> map { it.toString() }
+
+fn main() {
+    println(Equalizer<String>().same("a", "a"))
+    println(Loose<String?>().same(null, "x"))
+    val differ: BiPredicate<String, String> = viaLambda()
+    println(differ.test("a", "b"))
+    val show: Function<Int, String> = viaFunction()
+    println(show.apply(4))
+    val maybe: Function<String?, String> = viaSafeCall()
+    println(maybe.apply(null))
+    println(names(List.of(1, 2)))
+}

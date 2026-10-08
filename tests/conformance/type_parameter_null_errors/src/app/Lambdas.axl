@@ -1,0 +1,28 @@
+package app
+
+import java.util.List
+import java.util.Objects
+import java.util.function.BiPredicate
+import java.util.function.Function
+
+// The parameters of a lambda, and the receiver of a method reference, of a type `T` may be null as a parameter `T` may.
+fn viaLambda<T>() -> BiPredicate<T, T> = { a, b -> a.equals(b) }
+
+fn viaFunction<T>() -> Function<T, String> = { a -> a.toString() }
+
+fn viaReference<T>() -> BiPredicate<T, T> = Object::equals
+
+fn viaToString<T>() -> Function<T, String> = Object::toString
+
+fn names<T>(items: List<T>) -> List<String> = items |> map { it.toString() }
+
+class Equalizer<T>(private val eq: BiPredicate<T, T>) {
+    constructor() = this(Object::equals)
+
+    fn same(a: T, b: T) -> Boolean = eq.test(a, b)
+}
+
+// Fine: these take null.
+fn viaObjects<T>() -> BiPredicate<T, T> = { a, b -> Objects.equals(a, b) }
+
+fn viaSafeCall<T>() -> Function<T, String> = { a -> a?.toString() ?: "null" }

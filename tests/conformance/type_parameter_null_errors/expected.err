@@ -1,3 +1,9 @@
+AXL102 app/Lambdas.axl:9:54: error: `a` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Lambdas.axl:11:55: error: `a` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Lambdas.axl:13:45: error: `Object::equals` is called on values of type `T`, which stands for any type, nullable ones too; use a lambda with `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Lambdas.axl:15:46: error: `Object::toString` is called on values of type `T`, which stands for any type, nullable ones too; use a lambda with `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Lambdas.axl:17:65: error: `it` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
+AXL102 app/Lambdas.axl:20:26: error: `Object::equals` is called on values of type `T`, which stands for any type, nullable ones too; use a lambda with `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
 AXL102 app/Main.axl:7:49: error: the result of `value()` may be null: its type `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
 AXL102 app/Main.axl:11:14: error: `x` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out
 AXL102 app/Main.axl:16:33: error: `x` may be null: `T` stands for any type, nullable ones too; use `?.`, `?:`, a null check or `!!`, or `T : Object` on the declaration to rule null out

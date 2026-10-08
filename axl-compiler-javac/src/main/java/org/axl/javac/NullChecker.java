@@ -971,6 +971,7 @@ final class NullChecker implements TaskListener {
                 shapes.put(element, fromCall.or(fromType).nonNull());
                 state.put(element, element.asType().getKind().isPrimitive() ? Origin.NONE
                         : fromType.nullable() ? Origin.DECLARED : fromCall.nullable() ? Origin.HIDDEN
+                        : openTypeVariable(element.asType()) && !afterSafeCall(getCurrentPath()) ? Origin.OPEN
                         : fromJava || fromCall.fromJava() ? Origin.PLATFORM : Origin.NONE);
             }
             super.visitLambdaExpression(lambda, unused);
@@ -1001,12 +1002,13 @@ final class NullChecker implements TaskListener {
                 return;
             }
             ExecutableElement sam = functionalMethod(iface);
-            List<Origin> given = referenceArguments(target, sam);
+            List<Origin> given = referenceArguments(declared, sam);
+            List<? extends TypeMirror> passed = ((ExecutableType) types.asMemberOf(declared, sam)).getParameterTypes();
             boolean unbound = method.getKind() == ElementKind.METHOD && !method.getModifiers().contains(Modifier.STATIC)
                     && isTypeName(reference.getQualifierExpression());
             for (int i = 0; i < given.size(); i++) {
                 int index = unbound ? i - 1 : i;
-                boolean wrong = unbound && i == 0 ? checkReferenceReceiver(reference, given.get(i), isNullMarked(iface))
+                boolean wrong = unbound && i == 0 ? checkReferenceReceiver(reference, given.get(i), passed.get(i), isNullMarked(iface))
                         : index < method.getParameters().size()
                         && checkReferenceParameter(reference, method, index, given.get(i), isNullMarked(iface));
                 if (wrong) {
@@ -1026,23 +1028,29 @@ final class NullChecker implements TaskListener {
         }
 
         /** Why each value a method reference is called with may be null, as for the parameters of a lambda. */
-        private List<Origin> referenceArguments(TypeMirror target, ExecutableElement sam) {
+        private List<Origin> referenceArguments(DeclaredType target, ExecutableElement sam) {
             List<Shape> passed = passedShapes(getCurrentPath());
             List<Shape> written = parameterShapes(target, Map.of());
+            List<? extends TypeMirror> parameterTypes = ((ExecutableType) types.asMemberOf(target, sam)).getParameterTypes();
             boolean fromJava = strict && passedToJava(getCurrentPath());
             List<Origin> origins = new ArrayList<>();
             for (int i = 0; i < sam.getParameters().size(); i++) {
                 Shape fromCall = i < passed.size() ? passed.get(i) : Shape.NONE;
                 Shape fromType = i < written.size() ? written.get(i) : Shape.NONE;
                 origins.add(fromCall.nullable() ? Origin.HIDDEN : fromType.nullable() ? Origin.DECLARED
+                        : openTypeVariable(parameterTypes.get(i)) && !afterSafeCall(getCurrentPath()) ? Origin.OPEN
                         : fromJava || fromCall.fromJava() ? Origin.PLATFORM : Origin.NONE);
             }
             return origins;
         }
 
-        private boolean checkReferenceReceiver(MemberReferenceTree reference, Origin origin, boolean nullAwayChecks) {
+        private boolean checkReferenceReceiver(MemberReferenceTree reference, Origin origin, TypeMirror receiver,
+                                               boolean nullAwayChecks) {
             String problem = origin == Origin.PLATFORM
                     ? "Java code without nullness annotations may call `" + reference + "` on null; pass a lambda that checks for null"
+                    : origin == Origin.OPEN ? "`" + reference + "` is called on values of type `" + receiver + "`, which stands for "
+                    + "any type, nullable ones too; use a lambda with `?.`, `?:`, a null check or `!!`, or `" + receiver
+                    + " : Object` on the declaration to rule null out"
                     : "`" + reference + "` is called on values that may be null; use a lambda with `?.`, or drop the nulls first";
             return report(reference, origin, nullAwayChecks, problem);
         }
@@ -1205,6 +1213,16 @@ final class NullChecker implements TaskListener {
          * A lambda or method reference that Java code without nullness annotations calls: passed to such
          * a method, or kept in a value of a JDK functional interface type.
          */
+        /** `a?.m()` becomes `Nulls.map(a, $n1 -> $n1.m())`, whose function only gets `a` when it is not null. */
+        private boolean afterSafeCall(TreePath function) {
+            TreePath parent = function.getParentPath();
+            while (parent.getLeaf() instanceof ParenthesizedTree) {
+                parent = parent.getParentPath();
+            }
+            return parent.getLeaf() instanceof MethodInvocationTree && trees.getElement(parent) instanceof ExecutableElement callee
+                    && callee.getSimpleName().contentEquals("map") && declaredIn(callee, "axl.lang.Nulls");
+        }
+
         private boolean passedToJava(TreePath function) {
             TreePath parent = function.getParentPath();
             while (parent.getLeaf() instanceof ParenthesizedTree) {
