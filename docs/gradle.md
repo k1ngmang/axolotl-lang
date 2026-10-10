@@ -68,6 +68,7 @@ axl {
     checkJava = false    // Error Prone + NullAway on hand-written Java too; by default only on the Java translated from .axl
     javaRelease = 21     // --release, unless the task sets its own
     inlineElvis = false  // expand statement-level ?: without a lambda
+    paramChecks = true   // check non-null parameters of public functions and constructors on entry; false leaves the checks out
     smap = true          // classes report .axl files and lines (stack traces, debuggers); false keeps the Java lines
     strictNull = false   // treat values from unannotated Java code as nullable
 }

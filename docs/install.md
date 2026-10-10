@@ -136,7 +136,8 @@ repository as above.
 
 Common options: `--no-null-checks` skips Error Prone and NullAway, `--strict-null` turns on
 [strict null mode](language.md#java-code-without-nullness-annotations), `--inline-elvis` expands a
-statement-level `?:` without a lambda. `--check-java` runs Error Prone and NullAway on the hand-written `.java` files of the
+statement-level `?:` without a lambda. `--no-param-checks` leaves out the checks that public functions and constructors
+make on entry against a `null` passed from Java for a non-null parameter. `--check-java` runs Error Prone and NullAway on the hand-written `.java` files of the
 source directories too; by default they check only the code translated from `.axl` files, and javac alone compiles the rest.
 `axl <command> --help` lists the options of each command.
 

@@ -433,6 +433,23 @@ what a lambda kept in such a value returns, `addAll` or `ArrayList<String>(...)`
 sorted or copied with `List.copyOf` until its nulls are dropped with `|> filter { it != null }`. It
 can be stored as `List<String?>`, in either mode.
 
+### Java code calling Axolotl
+
+Java code can pass `null` where Axolotl declares a parameter without `?`. So the code Java can call checks those
+parameters on entry, as Kotlin does: public top-level functions, public methods and constructors of public classes, the
+constructors of public data classes, and secondary constructors. A null from Java fails there and names the parameter:
+
+```
+java.lang.NullPointerException: parameter lines of the Chunk constructor must not be null
+	at app.Chunk.<init>(Chunk.axl:5)
+	at app.Caller.main(Caller.java:7)
+```
+
+Parameters that may be null are not checked: `T?`, a type variable without a bound or with a nullable bound, and
+`Int`, `Long`, `Boolean` and `Double`, which are Java primitives. Private functions, constructors and classes, enum
+constructors and lambdas are not checked, since only Axolotl code calls them and the compiler checks those calls.
+`--no-param-checks`, or `paramChecks = false` in the Gradle and Maven plugins, leaves the checks out.
+
 ## Errors as values
 
 A helper that always throws, such as `Assertions.fail`, is not an exit: after it the compiler still wants a value or

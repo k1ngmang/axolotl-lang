@@ -44,6 +44,7 @@ The `.axlmap` line maps stay next to the generated `.java` files, where the java
 |---------------|-------------------|---------|---------|
 | `javaRelease` | `axl.javaRelease` | `21`    | Sets `maven.compiler.release` unless the project already does. |
 | `inlineElvis` | `axl.inlineElvis` | `false` | Expand statement-level `?:` without a lambda. |
+| `paramChecks` | `axl.paramChecks` | `true`  | Check the non-null parameters of public functions and constructors on entry, so that a null passed from Java fails there and names the parameter; `false` leaves the checks out. |
 | `smap`        | `axl.smap`        | `true`  | `axl:smap` and `axl:smap-test`: rewrite the classes to `.axl` lines and add the SMAP; `false` keeps the Java lines. |
 | `strictNull`  | `axl.strictNull`  | `false` | Treat values from Java code without nullness annotations as nullable (AXL104). |
 | `skip`        | `axl.skip`        | `false` | Skip the goal. |
