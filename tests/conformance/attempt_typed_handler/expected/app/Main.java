@@ -68,13 +68,13 @@ import java.util.List;
     public static void main(String[] args) {
         System.out.println(number("12"));
         System.out.println(number("x"));
-        System.out.println(size(Path.of("/no/such/file")));
+        System.out.println(size(Path.of("no-such-file")));
         final var sb = new StringBuilder();
         put(sb, "abc");
         System.out.println(sb);
         System.out.println(firstChar("z"));
         System.out.println(deleted(List.of(Path.of("/no/such/a"), Path.of("/no/such/b"))));
-        final var unchecked = Result.attempt(() -> read(Path.of("/no/such/file")), e -> e.getClass().getSimpleName(), UncheckedIOException.class);
+        final var unchecked = Result.attempt(() -> read(Path.of("no-such-file")), e -> e.getClass().getSimpleName(), UncheckedIOException.class);
         System.out.println(unchecked);
         System.out.println(Result.attempt(() -> parsedOrState("q"), e -> "passed on: " + e.getMessage(), NumberFormatException.class));
         System.out.println(pause());

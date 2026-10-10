@@ -24,6 +24,7 @@ import org.axl.javac.RuntimeClasspath;
 import org.axl.smap.Smap;
 import org.axl.smap.SmapInjector;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.CleanupMode;
 import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
@@ -647,8 +648,9 @@ class CliTest {
     }
 
     @Test
-    void runFindsClassesOfTheClasspathWhenCompilingAndRunning(@TempDir Path tmp) throws Exception {
-        Path jar = libraryJar(tmp);
+    void runFindsClassesOfTheClasspathWhenCompilingAndRunning(@TempDir Path tmp, @TempDir(cleanup = CleanupMode.NEVER) Path libs) throws Exception {
+        // The program's loader keeps the jar open, which Windows does not let JUnit delete; libs stays under build/.
+        Path jar = libraryJar(libs);
         Path app = Files.createDirectories(tmp.resolve("src/app"));
         Path main = Files.writeString(app.resolve("Main.axl"),
                 "package app\n\nimport lib.Greeter\n\nfn main() {\n    println(Greeter.greet(\"Ann\"))\n}\n");
@@ -661,8 +663,9 @@ class CliTest {
     }
 
     @Test
-    void runLeavesOutTheSourcesOfAnotherTreeUnderItsRoot(@TempDir Path tmp) throws Exception {
-        Path jar = libraryJar(tmp);
+    void runLeavesOutTheSourcesOfAnotherTreeUnderItsRoot(@TempDir Path tmp, @TempDir(cleanup = CleanupMode.NEVER) Path libs) throws Exception {
+        // The program's loader keeps the jar open, which Windows does not let JUnit delete; libs stays under build/.
+        Path jar = libraryJar(libs);
         Path app = Files.createDirectories(tmp.resolve("src/app"));
         Path main = Files.writeString(app.resolve("Main.axl"),
                 "package app\n\nimport lib.Greeter\n\nfn main() {\n    println(Greeter.greet(\"Ann\"))\n}\n");

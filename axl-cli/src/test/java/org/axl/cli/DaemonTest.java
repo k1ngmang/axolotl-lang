@@ -86,8 +86,8 @@ class DaemonTest {
         out.reset();
         assertEquals(0, axl(settings, "daemon", "--status"));
         assertTrue(out.toString().contains("daemon, pid " + pid + ": up "), out.toString());
-        assertTrue(out.toString().contains(", 2 jobs; stops after 10 min without work\n  installation: " + settings.installation()
-                + " (this one)\n"), out.toString());
+        assertTrue(out.toString().replace("\r\n", "\n").contains(", 2 jobs; stops after 10 min without work\n  installation: "
+                + settings.installation() + " (this one)\n"), out.toString());
 
         out.reset();
         assertEquals(0, axl(settings, "daemon", "--stop"));

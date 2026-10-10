@@ -1,6 +1,6 @@
 Ok[value=12]
 Err[error=not a number: x]
-Err[error=cannot read /no/such/file]
+Err[error=cannot read no-such-file]
 abc
 122
 0
