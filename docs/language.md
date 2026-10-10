@@ -31,7 +31,9 @@ reads the command line arguments from `args`. A `main` with parameters is an ord
 an entry point.
 
 Three functions need no import: `println(x)` and `print(x)` write to the standard output, with and
-without a line end, and `readLine()` reads the next line of the standard input, or `null` at its end.
+without a line end, and `readLine()` reads the next line of the standard input, or `null` at its end. A method or
+function of the same name in scope (of the class, inherited from a Java class, of the file or imported with `import fn`)
+takes precedence over them.
 `Ok(v)`, `Err(e)` and the type `Result` need none either.
 
 ## Types
@@ -56,7 +58,8 @@ fn largest<T : Comparable<T>>(xs: List<T>) -> T? { ... }
 
 `T` on its own stands for any type, nullable ones included, so `Pair<String, Int?>` is allowed and a
 `T` value may be null inside the declaration: it is used like a `String?`, with `?.`, `?:` or a null
-check, and `x.toString()` on it is an error. A value of `T` can always be passed on where `T` itself is expected,
+check, and `x.toString()` on it is an error, also as a lambda parameter of type `T` (`{ a, b -> a.equals(b) }` for a
+`BiPredicate<T, T>`) or the receiver of a method reference (`Object::equals`); `Objects.equals(a, b)` takes null. A value of `T` can always be passed on where `T` itself is expected,
 such as returned from a `Supplier<T>` lambda or wrapped in `Ok(x)` for a `Result<T, E>`; only uses that need a value
 that is not null, such as a call on it or a parameter of type `Object`, need a check or `T : Object`. `T : Object` takes every type without null, and
 `T : Comparable<T>` the types with an order; a type argument outside the bound, `Sorted<Object>`, is an error
@@ -157,7 +160,10 @@ Each `class` that implements it writes the methods (`fn add(text: String) -> Int
 same parameter types and a result type that fits: `String` where `String?` is required, never the
 other way. A data class implements such methods in a body after its fields, as it does
 `Comparable`: `data class Money(val cents: Long) : Comparable<Money> { fn compareTo(o: Money) -> Int =
-Long.compare(cents, o.cents()) }`. The body holds methods only; behavior over data classes otherwise
+Long.compare(cents, o.cents()) }`. A method without parameters may also be given by a field of the same name and a
+fitting type, as a record's accessor: `data class Insert(val lines: List<String>) : Delta` gives `fn lines() ->
+List<String>`. A class's property is a field and gives no method; declare it in the interface as `val lines:
+List<String>` instead. The body holds methods only; behavior over data classes otherwise
 stays in functions at the top level, with `when` over the sealed interface.
 
 ## Classes
@@ -186,7 +192,8 @@ and is created like a data class: `Counter("c", 1)`; it may implement interfaces
 `Long`, `Double` or `Boolean` as the type argument and in the methods, as for your own interfaces: `class Doubler :
 Function<Int, Int> { fn apply(x: Int) -> Int = x * 2 }`. The same holds for a generic interface from a library on the
 classpath or from your own Java files, since the compiler reads their signatures. A property
-without a written type may be initialized by a method of its class that has a written result type (`val total = compute()`).
+without a written type may be initialized by a method of its class that has a written result type (`val total = compute()`),
+or by a field, a property or a method with a written result of another class of the build (`val width = options.columnWidth`).
 Every parameter of a class is a property and is written with `val` or `var`: `class Dice(seed: Long) { val random =
 Random(seed) }` is rejected, write `class Dice(val seed: Long)`. `private` before a parameter keeps it inside the class:
 `class Opt(val name: String?, private val description: String?)` makes `description` a private field that the class's
@@ -333,7 +340,8 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
 ```
 
 - `a?.m()` calls `m` only when `a` is not null; otherwise the whole rest of the chain is skipped and
-  the value is `null`. As a statement, `listener?.onEvent(e)` works with void methods.
+  the value is `null`. As a statement, `listener?.onEvent(e)` works with void methods, and so does a lambda that is only
+  such a call, `{ e -> listener?.onEvent(e) }` for a `Consumer`.
 - `a ?: b` is `a` unless it is null, then `b`; `b` is evaluated only when needed.
 - `a!!` is `a` when it is not null and throws `NullPointerException` otherwise, at the `!!`.
 - After `if (x != null)`, an early `return` or inside `&&`/`||`, a local, a parameter or a `val`
