@@ -134,6 +134,9 @@ val bundledRepository = tasks.register<Sync>("bundledRepository") {
 // from source, publishToMavenLocal installs the same artifacts.
 listOf(tasks.distZip, tasks.distTar).forEach { archive ->
     archive.configure {
+        into("axl-${project.version}") {
+            from(rootProject.files("LICENSE", "NOTICE"))
+        }
         into("axl-${project.version}/repository") {
             from(bundledRepository)
         }

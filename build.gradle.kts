@@ -17,6 +17,16 @@ subprojects {
     // Functional tests of the build plugins resolve the artifacts from this repository.
     plugins.withId("maven-publish") {
         extensions.configure<PublishingExtension> {
+            publications.withType<MavenPublication>().configureEach {
+                pom {
+                    licenses {
+                        license {
+                            name = "The Apache License, Version 2.0"
+                            url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
+                        }
+                    }
+                }
+            }
             repositories {
                 maven {
                     name = "testRepo"
@@ -45,6 +55,7 @@ subprojects {
         val implementationVersion = project.version.toString()
         tasks.withType<Jar>().configureEach {
             manifest.attributes("Implementation-Version" to implementationVersion)
+            metaInf { from(rootProject.files("LICENSE", "NOTICE")) }
         }
     }
 }

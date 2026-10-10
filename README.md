@@ -59,3 +59,7 @@ and the archetype are Maven projects, installed with `./mvnw install` as
 | `axl-intellij` | IntelliJ IDEA plugin. |
 | `tests/conformance` | Translation cases with expected Java, errors and output. |
 | `samples` | Gradle and Maven example projects. |
+
+## License
+
+Axolotl is licensed under the [Apache License, Version 2.0](LICENSE), like Kotlin.

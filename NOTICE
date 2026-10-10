@@ -1,0 +1,7 @@
+Axolotl
+Copyright 2026 succubus-uwu and the Axolotl contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The installers of axl bundle a Java runtime built from OpenJDK, which is licensed under the GNU General Public
+License, version 2, with the Classpath Exception; its license files are in the legal directory of that runtime.

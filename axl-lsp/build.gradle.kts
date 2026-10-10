@@ -34,10 +34,16 @@ val vscodeServer = tasks.register<Sync>("vscodeServer") {
     into(vscode.dir("server/lib"))
 }
 
+// vsce asks before packaging an extension without a license file.
+val vscodeLicense = tasks.register<Copy>("vscodeLicense") {
+    from(rootProject.file("LICENSE"))
+    into(vscode)
+}
+
 // Not part of `check`: needs Node.js and npm.
 tasks.register<Exec>("vsix") {
     description = "Packages the VS Code extension as editors/vscode/axolotl-<version>.vsix."
-    dependsOn(vscodeServer)
+    dependsOn(vscodeServer, vscodeLicense)
     workingDir(vscode)
     val npm = "npm install --no-audit --no-fund && npm run package"
     if (System.getProperty("os.name").startsWith("Windows")) {

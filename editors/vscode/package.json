@@ -4,7 +4,7 @@
   "description": "Axolotl language support: highlighting, diagnostics with NullAway, completion, navigation and generated Java.",
   "version": "0.2.0",
   "publisher": "axl",
-  "license": "SEE LICENSE IN README.md",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/succubus-uwu/axolotl"
