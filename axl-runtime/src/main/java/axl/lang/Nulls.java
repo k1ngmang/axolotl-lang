@@ -1,5 +1,6 @@
 package axl.lang;
 import java.lang.reflect.Array;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
@@ -25,6 +26,32 @@ import org.jspecify.annotations.Nullable;
     public static <T extends @Nullable Object> T or(@Nullable T a, T b) { return a != null ? a : b; }
     // `a ?: b!!`: the fallback's `!!`, which NullAway types as not null, unlike requireNonNull there.
     public static <T> T sure(@Nullable T value) { return java.util.Objects.requireNonNull(value); }
+    // A non-null parameter of code Java can call: a Java caller's null fails on entry, naming the
+    // parameter, instead of deep inside code that trusted the type. It gives the value for `this(...)`
+    // and `super(...)` arguments, before which Java 21 allows no statement.
+    public static <T> T param(@Nullable T value, String name) {
+        if (value == null) {
+            throw nullParameter(name);
+        }
+        return value;
+    }
+    // The method is read from the stack only when the check fails, which keeps the call short; the
+    // trace then starts at that method, as if it had thrown.
+    private static NullPointerException nullParameter(String name) {
+        StackTraceElement[] trace = new Throwable().getStackTrace();
+        int first = 0;
+        while (first < trace.length - 1 && trace[first].getClassName().equals(Nulls.class.getName())) {
+            first++;
+        }
+        var e = new NullPointerException("parameter " + name + " of " + methodName(trace[first]) + " must not be null");
+        e.setStackTrace(Arrays.copyOfRange(trace, first, trace.length));
+        return e;
+    }
+    private static String methodName(StackTraceElement frame) {
+        String className = frame.getClassName();
+        String simple = className.substring(Math.max(className.lastIndexOf('.'), className.lastIndexOf('$')) + 1);
+        return frame.getMethodName().equals("<init>") ? "the " + simple + " constructor" : simple + "." + frame.getMethodName();
+    }
     // `(a ?: f()) == (b ?: g())` whose types the translator does not know: both may be boxed, and `==`
     // compares numbers by value, as Axolotl does for Int, and other objects by reference.
     public static boolean same(@Nullable Object a, @Nullable Object b) {

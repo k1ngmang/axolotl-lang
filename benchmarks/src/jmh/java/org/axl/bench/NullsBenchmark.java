@@ -14,7 +14,10 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-/** `?:` and `?.` as generated (Nulls with a lambda) against hand-written null checks. */
+/**
+ * `?:` and `?.` as generated (Nulls with a lambda) against hand-written null checks, and a call with the check
+ * of its parameter against one without.
+ */
 @State(Scope.Thread)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
@@ -56,5 +59,25 @@ public class NullsBenchmark {
     public Integer safeCallManual() {
         String v = value;
         return v == null ? null : v.length();
+    }
+
+    /** A call of a public function, which checks its non-null parameter on entry, against one without the check. */
+    @Benchmark
+    public int callChecked() {
+        return checkedLength(fallback);
+    }
+
+    @Benchmark
+    public int callUnchecked() {
+        return uncheckedLength(fallback);
+    }
+
+    private static int checkedLength(String text) {
+        Nulls.param(text, "text");
+        return text.length();
+    }
+
+    private static int uncheckedLength(String text) {
+        return text.length();
     }
 }
