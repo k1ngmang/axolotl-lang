@@ -19,6 +19,7 @@ import java.util.List;
         public final List<T> items;
         public final int limit;
         public Stack(List<T> items, int limit) {
+            Nulls.param(items, "items");
             this.items = items;
             this.limit = limit;
         }
@@ -33,12 +34,12 @@ import java.util.List;
         public final int code;
         public final String reason;
         public Failure(int code, String reason) {
-            super(reason);
+            super(Nulls.param(reason, "reason"));
             this.code = code;
             this.reason = reason;
         }
         public Failure(String reason) {
-            this(500, reason);
+            this(500, Nulls.param(reason, "reason"));
         }
         public Failure(long code) {
             this(Math.toIntExact(code), (code > 0L ? "code " + code : "none"));

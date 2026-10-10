@@ -13,4 +13,12 @@ import org.axl.compiler.ast.TypeRef;
         Set<Expr.Name> staticNames,
         Set<Expr.Name> fieldNames,
         Map<Expr.Stage, TypeRef> mapResultTypes) {
+    public Analysis {
+        Nulls.param(mutableRefs, "mutableRefs");
+        Nulls.param(implicitIt, "implicitIt");
+        Nulls.param(stableNames, "stableNames");
+        Nulls.param(staticNames, "staticNames");
+        Nulls.param(fieldNames, "fieldNames");
+        Nulls.param(mapResultTypes, "mapResultTypes");
+    }
 }

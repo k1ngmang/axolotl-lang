@@ -7,6 +7,7 @@ import java.awt.Point;
     private Main() {}
     public static final Point p = new Point(1, 2);
     public static Result<String, String> snapshot(StringBuilder sb) {
+        Nulls.param(sb, "sb");
         return new Ok<>(sb.toString());
     }
     public static Result<Integer, String> n() {
@@ -16,6 +17,7 @@ import java.awt.Point;
         return new Ok<>(p);
     }
     public static int pick(Result<Integer, String> a, int b) {
+        Nulls.param(a, "a");
         return b;
     }
     public static Point target() {

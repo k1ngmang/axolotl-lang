@@ -1,0 +1,23 @@
+package app
+
+import java.util.List
+
+data class Chunk(val position: Int, val lines: List<String>, val origin: String?) {
+    fn shifted(by: Int, reason: String) -> Chunk = Chunk(position + by, lines, reason)
+}
+
+data class Box<T>(val value: T, val label: String)
+
+data class Ranked<T : Comparable<T>>(val value: T)
+
+private data class Pair(val left: String, val right: String)
+
+fn last(c: Chunk) -> Int = c.position + c.lines.size() - 1
+
+fn first<T>(items: List<T>, fallback: T) -> T = if (items.isEmpty()) fallback else items.get(0)
+
+fn largest<T : Comparable<T>>(a: T, b: T) -> T = if (a.compareTo(b) >= 0) a else b
+
+fn joined(a: String, b: String?, count: Long, flag: Boolean, ratio: Double) -> String = secret(a) + b + count + flag + ratio
+
+private fn secret(text: String) -> String = Pair(text, text).left()

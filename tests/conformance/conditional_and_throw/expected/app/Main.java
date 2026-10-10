@@ -11,9 +11,11 @@ import org.jspecify.annotations.*;
         return (n < 0 ? "negative" : (n == 0 ? "zero" : "positive"));
     }
     public static String describe(Shape shape) {
+        Nulls.param(shape, "shape");
         return (shape instanceof Circle shape$1 ? "circle " + shape$1.radius() : "other");
     }
     public static double area(Shape shape) {
+        Nulls.param(shape, "shape");
         switch (shape) {
             case Circle shape$1 -> {
                 return 3.0 * shape$1.radius() * shape$1.radius();
@@ -53,6 +55,7 @@ import org.jspecify.annotations.*;
         try0(failing);
     }
     public static void try0(java.util.function.Supplier<String> supplier) {
+        Nulls.param(supplier, "supplier");
         final var result = Result.attempt(() -> supplier.get(), e -> "caught " + e.getMessage());
         System.out.println(result);
     }

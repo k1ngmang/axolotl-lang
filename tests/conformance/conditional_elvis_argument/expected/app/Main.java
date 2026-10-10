@@ -9,6 +9,7 @@ import java.util.Map;
         System.out.println(n);
     }
     public static String shout(String s) {
+        Nulls.param(s, "s");
         return s + "!";
     }
     public static void main(String[] args) {

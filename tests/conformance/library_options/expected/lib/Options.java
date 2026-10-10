@@ -13,6 +13,7 @@ import org.jspecify.annotations.*;
         R map(T x);
     }
     public static Option<String> some(String s) {
+        Nulls.param(s, "s");
         return new Some<String>(true, s);
     }
 }

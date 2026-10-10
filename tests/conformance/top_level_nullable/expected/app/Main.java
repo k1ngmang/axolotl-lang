@@ -14,6 +14,7 @@ import java.util.Map;
         return x + 1;
     }
     public static String f(String x) {
+        Nulls.param(x, "x");
         return x + "!";
     }
     public static final Map<String, String> cfg = Map.of("a", "1");

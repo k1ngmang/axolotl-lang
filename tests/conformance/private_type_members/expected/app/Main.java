@@ -7,6 +7,7 @@ import java.util.List;
     private Main() {}
     public static final class Patch {
         public int apply(List<String> target) {
+            Nulls.param(target, "target");
             final var ctx = new Context(target);
             ctx.fuzz += 1;
             final Step step = new Twice();

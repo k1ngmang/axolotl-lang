@@ -128,6 +128,10 @@ class Generator(
     var currentMethods: List<Decl.Function> = List.of()
     // The private parameters of that class that only its constructor reads, which get no field.
     var constructorOnly: Set<String> = Set.of()
+    // Whether the class or data class whose members are being emitted is private, so that Java code cannot call
+    // them, and its type variables that may stand for a nullable type.
+    var inPrivateType: Boolean = false
+    var nullableVariables: Set<String> = Set.of()
 
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
@@ -366,8 +370,12 @@ class Generator(
         em.indent()
         val outerClass = currentClass
         val outerMethods = currentMethods
+        val outerPrivate = inPrivateType
+        val outerVariables = nullableVariables
         currentClass = classDecl
         currentMethods = classDecl.methods()
+        inPrivateType = classDecl.isPrivate()
+        nullableVariables = nullableVariablesOf(classDecl.typeParams(), Set.of())
         // Properties are set after the parameters, in the constructor, since they may read them; so are
         // properties whose value needs statements before it.
         val lifting = classDecl.properties() |> anyMatch { p -> Lifts.needed(propertyInit(p)) }
@@ -406,6 +414,8 @@ class Generator(
         constructorOnly = outerConstructorOnly
         currentClass = outerClass
         currentMethods = outerMethods
+        inPrivateType = outerPrivate
+        nullableVariables = outerVariables
         em.dedent()
     }
 
@@ -431,11 +441,20 @@ class Generator(
         em.line(line, annotations(classDecl.constructorAnnotations()) + access + classDecl.name() + "(" +
             String.join(", ", params) + ") {")
         em.indent()
+        val unchecked = LinkedHashSet<String>()
+        if (!classDecl.privateConstructor() && !inPrivateType) {
+            for (p in classDecl.parameters()) {
+                if (isChecked(propertyTypeOf(p), false, nullableVariables)) {
+                    unchecked.add(p.name())
+                }
+            }
+        }
         val superArgs = classDecl.superArgs()
         if (superArgs != null && !superArgs.isEmpty()) {
-            val args = superArgs |> map { a -> expr(a) }
+            val args = superArgs |> map { a -> delegatedArgument(a, unchecked) }
             em.line(line, "super(" + String.join(", ", args) + ");")
         }
+        emitParamChecks(line, ArrayList<String>(unchecked))
         for (p in classDecl.parameters()) {
             if (!constructorOnly.contains(p.name())) {
                 em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";")
@@ -456,11 +475,16 @@ class Generator(
             em.indent()
             resetCounters()
             localTypes.clear()
+            val pending = LinkedHashSet<String>()
             for (p in k.params()) {
                 localTypes.put(p.name(), p.type())
+                if (!k.isPrivate() && !inPrivateType && isChecked(memberType(p), false, nullableVariables)) {
+                    pending.add(p.name())
+                }
             }
-            val args = k.args() |> map { a -> expr(a) }
+            val args = k.args() |> map { a -> delegatedArgument(a, pending) }
             em.line(k.thisPos().line(), "this(" + String.join(", ", args) + ");")
+            emitParamChecks(start, ArrayList<String>(pending))
             em.dedent()
             em.line(start, "}")
         }
@@ -511,7 +535,7 @@ class Generator(
         val head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
             typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line) + ")" +
             typeList(" implements ", dataClass.supertypes())
-        if (dataClass.methods().isEmpty()) {
+        if (dataClass.methods().isEmpty() && checkedFields(dataClass).isEmpty()) {
             em.line(line, head + " {}")
             return
         }
@@ -522,14 +546,36 @@ class Generator(
         em.line(line, "}")
     }
 
-    /** The methods of a record body, which read the fields by name as a class's do. */
+    /** The fields a Java caller of a public data class's constructor could pass null for. */
+    private fn checkedFields(dataClass: Decl.DataClass) -> List<String> {
+        if (dataClass.isPrivate()) {
+            return List.of()
+        }
+        val variables = nullableVariablesOf(dataClass.typeParams(), Set.of())
+        return dataClass.fields() |> filter { f -> isChecked(memberType(f), false, variables) } |> map { f -> f.name() }
+    }
+
+    /** The checks of the fields in a compact constructor, then the methods, which read the fields by name as a class's do. */
     private fn emitDataClassMethods(dataClass: Decl.DataClass) {
+        val checked = checkedFields(dataClass)
+        if (!checked.isEmpty()) {
+            val line = dataClass.pos().line()
+            em.line(line, "public " + dataClass.name() + " {")
+            em.indent()
+            emitParamChecks(line, checked)
+            em.dedent()
+            em.line(line, "}")
+        }
         val outerOverridden = overridden
         val outerRequired = requiredMethods
         val outerMethods = currentMethods
+        val outerPrivate = inPrivateType
+        val outerVariables = nullableVariables
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes())
         currentMethods = dataClass.methods()
+        inPrivateType = dataClass.isPrivate()
+        nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of())
         for (method in dataClass.methods()) {
             resetCounters()
             emitFunction(method, false)
@@ -537,6 +583,8 @@ class Generator(
         currentMethods = outerMethods
         overridden = outerOverridden
         requiredMethods = outerRequired
+        inPrivateType = outerPrivate
+        nullableVariables = outerVariables
     }
 
     private fn emitInterface(iface: Decl.Interface) {
@@ -660,6 +708,11 @@ class Generator(
             localTypes.put(p.name(), p.type())
         }
         em.indent()
+        if (!f.isPrivate() && (isStatic || !inPrivateType)) {
+            val variables = nullableVariablesOf(f.typeParams(), nullableVariables)
+            val checked = f.params() |> filter { p -> isChecked(memberType(p), boxed.contains(p.name()), variables) } |> map { p -> p.name() }
+            emitParamChecks(f.pos().line(), checked)
+        }
         val exprBody = f.exprBody()
         val body = f.body()
         if (exprBody != null) {
@@ -692,6 +745,47 @@ class Generator(
             i += 1
         }
         return result
+    }
+
+    /**
+     * Whether a parameter of this type is checked on entry: Java callers can pass null for any reference, while
+     * Axolotl's own calls pass none where the type is not `T?` or a type variable that may stand for one.
+     */
+    private fn isChecked(type: TypeRef, boxed: Boolean, variables: Set<String>) -> Boolean {
+        if (!options.paramChecks() || type.nullable() || (PRIMITIVE_NAMES.containsKey(type.name()) && !boxed)) {
+            return false
+        }
+        return !type.args().isEmpty() || !variables.contains(type.name())
+    }
+
+    /** `T` and `U : T?` may be null; `T : Comparable<T>` is not, as Java's null-marked `T extends Comparable<T>`. */
+    private fn nullableVariablesOf(typeParams: List<Decl.TypeParam>, outer: Set<String>) -> Set<String> {
+        val result = HashSet<String>(outer)
+        for (p in typeParams) {
+            val bound = p.bound()
+            if (bound == null || bound.nullable() || (bound.args().isEmpty() && result.contains(bound.name()))) {
+                result.add(p.name())
+            }
+        }
+        return result
+    }
+
+    /** One check per parameter at the start of the body, on the line of the declaration. */
+    private fn emitParamChecks(line: Int, names: List<String>) {
+        for (name in names) {
+            em.line(line, paramCheck(name) + ";")
+        }
+    }
+
+    private fn paramCheck(name: String) -> String = "Nulls.param(" + name + ", \"" + name + "\")"
+
+    /**
+     * An argument of `this(...)` or `super(...)`, before which Java allows no statement: a parameter that is still
+     * to be checked is checked where it is passed on.
+     */
+    private fn delegatedArgument(a: Expr, unchecked: Set<String>) -> String {
+        val code = expr(a)
+        return if (a is Expr.Name && code.equals(a.name()) && unchecked.remove(a.name())) paramCheck(code) else code
     }
 
     private fn emitStatements(list: List<Stmt>) {

@@ -13,6 +13,7 @@ import org.jspecify.annotations.*;
     public static final class Dog implements Animal {
         public final String name;
         public Dog(String name) {
+            Nulls.param(name, "name");
             this.name = name;
         }
         @Override public int legs() {
@@ -24,6 +25,7 @@ import org.jspecify.annotations.*;
         public final String name;
         public int legs;
         public Bird(String name, int legs) {
+            Nulls.param(name, "name");
             this.name = name;
             this.legs = legs;
         }
@@ -31,6 +33,7 @@ import org.jspecify.annotations.*;
         @Override public String name() { return name; }
     }
     public static String describe(Animal animal) {
+        Nulls.param(animal, "animal");
         return animal.name() + " has " + animal.legs() + " legs";
     }
     public static void main(String[] args) {

@@ -9,14 +9,28 @@ import java.util.List;
         List<String> lines();
         int position();
     }
-    public record Insert(int position, List<String> lines) implements Delta {}
-    public record Delete(int position, List<String> lines) implements Delta {}
+    public record Insert(int position, List<String> lines) implements Delta {
+        public Insert {
+            Nulls.param(lines, "lines");
+        }
+    }
+    public record Delete(int position, List<String> lines) implements Delta {
+        public Delete {
+            Nulls.param(lines, "lines");
+        }
+    }
     public interface Keyed<K extends @Nullable Object> {
         K key();
         @Nullable String label();
     }
-    public record Entry(String key, String label) implements Keyed<String> {}
+    public record Entry(String key, String label) implements Keyed<String> {
+        public Entry {
+            Nulls.param(key, "key");
+            Nulls.param(label, "label");
+        }
+    }
     public static int size(Delta d) {
+        Nulls.param(d, "d");
         switch (d) {
             case Insert d$1 -> {
                 return d$1.lines().size();
@@ -27,6 +41,7 @@ import java.util.List;
         }
     }
     public static String describe(Keyed<String> k) {
+        Nulls.param(k, "k");
         return k.key().toUpperCase() + " " + k.label();
     }
     public static void main(String[] args) {

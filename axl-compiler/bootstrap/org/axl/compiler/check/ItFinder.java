@@ -7,6 +7,7 @@ import org.axl.compiler.ast.Stmt;
 @NullMarked public final class ItFinder {
     private ItFinder() {}
     public static boolean usesIt(Stmt stmt) {
+        Nulls.param(stmt, "stmt");
         switch (stmt) {
             case Stmt.Local stmt$1 -> {
                 return usesIt(stmt$1.init());
@@ -47,6 +48,7 @@ import org.axl.compiler.ast.Stmt;
         }
     }
     public static boolean usesIt(Expr expr) {
+        Nulls.param(expr, "expr");
         switch (expr) {
             case Expr.Literal expr$1 -> {
                 return false;

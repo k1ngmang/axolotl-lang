@@ -9,6 +9,8 @@ import java.util.Map;
 @NullMarked public final class Main {
     private Main() {}
     public static int total(Map<String, List<String>> m, String k) {
+        Nulls.param(m, "m");
+        Nulls.param(k, "k");
         final var xs = Nulls.<List<String>>or(m.get(k), () -> Collections.emptyList());
         var n = 0;
         for (final var x : xs) {
@@ -17,6 +19,8 @@ import java.util.Map;
         return n;
     }
     public static String firstOr(Map<String, List<String>> m, String k) {
+        Nulls.param(m, "m");
+        Nulls.param(k, "k");
         final var xs = Nulls.<List<String>>or(m.get(k), () -> List.of());
         return (xs.isEmpty() ? "none" : xs.get(0));
     }

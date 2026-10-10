@@ -71,6 +71,8 @@ import org.axl.compiler.check.Whens;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
     public Set<String> constructorOnly;
+    public boolean inPrivateType;
+    public Set<String> nullableVariables;
     public String elseLabel;
     public boolean inPropertyInit;
     public int lambdaDepth;
@@ -93,6 +95,11 @@ import org.axl.compiler.check.Whens;
     public int nestedValues;
     public boolean valueStage;
     public Generator(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes, Set<String> probed) {
+        Nulls.param(file, "file");
+        Nulls.param(analysis, "analysis");
+        Nulls.param(options, "options");
+        Nulls.param(valueTypes, "valueTypes");
+        Nulls.param(probed, "probed");
         this.file = file;
         this.analysis = analysis;
         this.options = options;
@@ -116,6 +123,8 @@ import org.axl.compiler.check.Whens;
         this.currentClass = null;
         this.currentMethods = List.of();
         this.constructorOnly = Set.of();
+        this.inPrivateType = false;
+        this.nullableVariables = Set.of();
         this.elseLabel = "default";
         this.inPropertyInit = false;
         this.lambdaDepth = 0;
@@ -328,8 +337,12 @@ import org.axl.compiler.check.Whens;
         em.indent();
         final var outerClass = currentClass;
         final var outerMethods = currentMethods;
+        final var outerPrivate = inPrivateType;
+        final var outerVariables = nullableVariables;
         currentClass = classDecl;
         currentMethods = classDecl.methods();
+        inPrivateType = classDecl.isPrivate();
+        nullableVariables = nullableVariablesOf(classDecl.typeParams(), Set.of());
         final var lifting = Nulls.stream(classDecl.properties()).anyMatch(p -> Lifts.needed(propertyInit(p)));
         final var superArgs = classDecl.superArgs();
         final var inConstructor = !classDecl.parameters().isEmpty() || lifting || (superArgs != null && !superArgs.isEmpty()) ||
@@ -366,6 +379,8 @@ import org.axl.compiler.check.Whens;
         constructorOnly = outerConstructorOnly;
         currentClass = outerClass;
         currentMethods = outerMethods;
+        inPrivateType = outerPrivate;
+        nullableVariables = outerVariables;
         em.dedent();
     }
     private TypeRef propertyTypeOf(Decl.Property p) {
@@ -388,11 +403,20 @@ import org.axl.compiler.check.Whens;
                 String.join(", ", params) +
                 ") {");
         em.indent();
+        final var unchecked = new LinkedHashSet<String>();
+        if (!classDecl.privateConstructor() && !inPrivateType) {
+            for (final var p : classDecl.parameters()) {
+                if (isChecked(propertyTypeOf(p), false, nullableVariables)) {
+                    unchecked.add(p.name());
+                }
+            }
+        }
         final var superArgs = classDecl.superArgs();
         if (superArgs != null && !superArgs.isEmpty()) {
-            final var args = Nulls.stream(superArgs).map(Nulls.nonNull(a -> expr(a))).toList();
+            final var args = Nulls.stream(superArgs).map(Nulls.nonNull(a -> delegatedArgument(a, unchecked))).toList();
             em.line(line, "super(" + String.join(", ", args) + ");");
         }
+        emitParamChecks(line, new ArrayList<String>(unchecked));
         for (final var p : classDecl.parameters()) {
             if (!constructorOnly.contains(p.name())) {
                 em.line(p.pos().line(), "this." + p.name() + " = " + p.name() + ";");
@@ -412,11 +436,16 @@ import org.axl.compiler.check.Whens;
             em.indent();
             resetCounters();
             localTypes.clear();
+            final var pending = new LinkedHashSet<String>();
             for (final var p : k.params()) {
                 localTypes.put(p.name(), p.type());
+                if (!k.isPrivate() && !inPrivateType && isChecked(memberType(p), false, nullableVariables)) {
+                    pending.add(p.name());
+                }
             }
-            final var args = Nulls.stream(k.args()).map(Nulls.nonNull(a -> expr(a))).toList();
+            final var args = Nulls.stream(k.args()).map(Nulls.nonNull(a -> delegatedArgument(a, pending))).toList();
             em.line(k.thisPos().line(), "this(" + String.join(", ", args) + ");");
+            emitParamChecks(start, new ArrayList<String>(pending));
             em.dedent();
             em.line(start, "}");
         }
@@ -467,7 +496,7 @@ import org.axl.compiler.check.Whens;
                 parameters(dataClass.fields(), line) +
                 ")" +
                 typeList(" implements ", dataClass.supertypes());
-        if (dataClass.methods().isEmpty()) {
+        if (dataClass.methods().isEmpty() && checkedFields(dataClass).isEmpty()) {
             em.line(line, head + " {}");
             return;
         }
@@ -477,13 +506,33 @@ import org.axl.compiler.check.Whens;
         em.dedent();
         em.line(line, "}");
     }
+    private List<String> checkedFields(Decl.DataClass dataClass) {
+        if (dataClass.isPrivate()) {
+            return List.of();
+        }
+        final var variables = nullableVariablesOf(dataClass.typeParams(), Set.of());
+        return Nulls.stream(dataClass.fields()).filter(f -> isChecked(memberType(f), false, variables)).map(Nulls.nonNull(f -> f.name())).toList();
+    }
     private void emitDataClassMethods(Decl.DataClass dataClass) {
+        final var checked = checkedFields(dataClass);
+        if (!checked.isEmpty()) {
+            final var line = dataClass.pos().line();
+            em.line(line, "public " + dataClass.name() + " {");
+            em.indent();
+            emitParamChecks(line, checked);
+            em.dedent();
+            em.line(line, "}");
+        }
         final var outerOverridden = overridden;
         final var outerRequired = requiredMethods;
         final var outerMethods = currentMethods;
+        final var outerPrivate = inPrivateType;
+        final var outerVariables = nullableVariables;
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes());
         currentMethods = dataClass.methods();
+        inPrivateType = dataClass.isPrivate();
+        nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of());
         for (final var method : dataClass.methods()) {
             resetCounters();
             emitFunction(method, false);
@@ -491,6 +540,8 @@ import org.axl.compiler.check.Whens;
         currentMethods = outerMethods;
         overridden = outerOverridden;
         requiredMethods = outerRequired;
+        inPrivateType = outerPrivate;
+        nullableVariables = outerVariables;
     }
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
@@ -612,6 +663,11 @@ import org.axl.compiler.check.Whens;
             localTypes.put(p.name(), p.type());
         }
         em.indent();
+        if (!f.isPrivate() && (isStatic || !inPrivateType)) {
+            final var variables = nullableVariablesOf(f.typeParams(), nullableVariables);
+            final var checked = Nulls.stream(f.params()).filter(p -> isChecked(memberType(p), boxed.contains(p.name()), variables)).map(Nulls.nonNull(p -> p.name())).toList();
+            emitParamChecks(f.pos().line(), checked);
+        }
         final var exprBody = f.exprBody();
         final var body = f.body();
         if (exprBody != null) {
@@ -639,6 +695,34 @@ import org.axl.compiler.check.Whens;
             i += 1;
         }
         return result;
+    }
+    private boolean isChecked(TypeRef type, boolean boxed, Set<String> variables) {
+        if (!options.paramChecks() || type.nullable() || (PRIMITIVE_NAMES.containsKey(type.name()) && !boxed)) {
+            return false;
+        }
+        return !type.args().isEmpty() || !variables.contains(type.name());
+    }
+    private Set<String> nullableVariablesOf(List<Decl.TypeParam> typeParams, Set<String> outer) {
+        final var result = new HashSet<String>(outer);
+        for (final var p : typeParams) {
+            final var bound = p.bound();
+            if (bound == null || bound.nullable() || (bound.args().isEmpty() && result.contains(bound.name()))) {
+                result.add(p.name());
+            }
+        }
+        return result;
+    }
+    private void emitParamChecks(int line, List<String> names) {
+        for (final var name : names) {
+            em.line(line, paramCheck(name) + ";");
+        }
+    }
+    private String paramCheck(String name) {
+        return "Nulls.param(" + name + ", \"" + name + "\")";
+    }
+    private String delegatedArgument(Expr a, Set<String> unchecked) {
+        final var code = expr(a);
+        return (a instanceof Expr.Name a$1 && code.equals(a$1.name()) && unchecked.remove(a$1.name()) ? paramCheck(code) : code);
     }
     private void emitStatements(List<Stmt> list) {
         for (final var stmt : list) {
@@ -3405,9 +3489,18 @@ import org.axl.compiler.check.Whens;
             "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity");
     private static final Set<String> INTERRUPT_CATCHERS = Set.of("Exception", "Throwable", "java.lang.Exception", "java.lang.Throwable");
     public enum WhenForm { STATEMENT, RESULT, VALUE }
-    public record Lifted(String code, boolean pure) {}
+    public record Lifted(String code, boolean pure) {
+        public Lifted {
+            Nulls.param(code, "code");
+        }
+    }
     public static GeneratedUnit generate(String sourcePath, SourceFile file, Analysis analysis, Options options,
             Map<String, String> valueTypes) {
+        Nulls.param(sourcePath, "sourcePath");
+        Nulls.param(file, "file");
+        Nulls.param(analysis, "analysis");
+        Nulls.param(options, "options");
+        Nulls.param(valueTypes, "valueTypes");
         final var generator = new Generator(file, analysis, options, valueTypes, Set.of());
         generator.emitFile();
         return new GeneratedUnit(sourcePath, Nulls.or(file.packageName(), () -> ""), file.className(), generator.em.text(),
@@ -3415,6 +3508,11 @@ import org.axl.compiler.check.Whens;
     }
     public static GeneratedUnit probe(SourceFile file, Analysis analysis, Options options, Map<String, String> valueTypes,
             Set<String> probed) {
+        Nulls.param(file, "file");
+        Nulls.param(analysis, "analysis");
+        Nulls.param(options, "options");
+        Nulls.param(valueTypes, "valueTypes");
+        Nulls.param(probed, "probed");
         final var generator = new Generator(file, analysis, options, valueTypes, probed);
         generator.emitFile();
         final var name = file.className() + ".axl";
@@ -3425,6 +3523,7 @@ import org.axl.compiler.check.Whens;
         return new LineMap(sourcePath, em.lineNumbers().stream().mapToInt(Integer::intValue).toArray());
     }
     public static String javaType(TypeRef type) {
+        Nulls.param(type, "type");
         return typeText(type, false);
     }
     private static String boxedType(TypeRef type) {
@@ -4069,5 +4168,10 @@ import org.axl.compiler.check.Whens;
             "TreeSet", "Collection");
     private static final Set<String> LIST_SUPERTYPES = Set.of("java.lang.Object", "java.lang.Iterable", "java.util.Collection",
             "java.util.SequencedCollection", "java.util.List", "java.io.Serializable", "java.lang.Cloneable");
-    public record Pattern(String label, String marker) {}
+    public record Pattern(String label, String marker) {
+        public Pattern {
+            Nulls.param(label, "label");
+            Nulls.param(marker, "marker");
+        }
+    }
 }

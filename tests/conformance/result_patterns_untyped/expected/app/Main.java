@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static int viaIf(String a) {
+        Nulls.param(a, "a");
         final var x = Result.attempt(() -> Integer.parseInt(a), $ex1 -> -1);
         if (x instanceof Ok(var x$1)) {
             return x$1 + 1;
@@ -12,6 +13,7 @@ import org.jspecify.annotations.*;
         return 0;
     }
     public static String viaWhen(String a) {
+        Nulls.param(a, "a");
         final var x = Result.attempt(() -> Integer.parseInt(a), $ex1 -> -1);
         switch (x) {
             case Ok(var x$1) -> {
@@ -23,6 +25,8 @@ import org.jspecify.annotations.*;
         }
     }
     public static int both(String a, String b) {
+        Nulls.param(a, "a");
+        Nulls.param(b, "b");
         final var x = Result.attempt(() -> Integer.parseInt(a), $ex1 -> -1);
         final var y = Result.attempt(() -> Integer.parseInt(b), $ex2 -> -1);
         if (x instanceof Ok(var x$1) && y instanceof Ok(var y$2)) {
@@ -31,6 +35,7 @@ import org.jspecify.annotations.*;
         return -1;
     }
     public static String otherFile(String s) {
+        Nulls.param(s, "s");
         final var r = Parse.number(s);
         if (!(r instanceof Ok(var r$1))) {
             return "bad";
@@ -38,6 +43,7 @@ import org.jspecify.annotations.*;
         return "" + (r$1 * 2);
     }
     public static String whole(String s) {
+        Nulls.param(s, "s");
         final var r = Parse.number(s);
         switch (r) {
             case Ok(var r$1) -> {
@@ -49,6 +55,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static String describe(Result<Integer, String> r) {
+        Nulls.param(r, "r");
         return (r instanceof Ok(var r$1) ? "value" : "error");
     }
     public static void main(String[] args) {

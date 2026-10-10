@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static boolean same(String a, @Nullable String b) {
+        Nulls.param(a, "a");
         return a.equals(b);
     }
     public static void main(String[] args) {

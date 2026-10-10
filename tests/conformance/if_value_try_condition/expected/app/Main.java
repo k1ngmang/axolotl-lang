@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Boolean, String> check(String s) {
+        Nulls.param(s, "s");
         return new Ok<>(s.length() > 1);
     }
     public static Result<Integer, String> size(@Nullable String s) {

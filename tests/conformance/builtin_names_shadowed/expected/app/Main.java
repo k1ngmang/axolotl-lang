@@ -17,6 +17,7 @@ import java.util.List;
     public static final class Lines {
         private final BufferedReader reader;
         public Lines(BufferedReader reader) {
+            Nulls.param(reader, "reader");
             this.reader = reader;
         }
         private @Nullable String readLine() {
@@ -32,6 +33,7 @@ import java.util.List;
             lines.add(text);
         }
         public int info(String text) {
+            Nulls.param(text, "text");
             println("info " + text);
             final java.util.function.Consumer<String> each = t -> println(t);
             each.accept("more " + text);
@@ -41,7 +43,7 @@ import java.util.List;
     public static final class Capture extends PrintStream {
         public final ByteArrayOutputStream bytes;
         public Capture(ByteArrayOutputStream bytes) {
-            super(bytes);
+            super(Nulls.param(bytes, "bytes"));
             this.bytes = bytes;
         }
         public String hello() {

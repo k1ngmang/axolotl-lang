@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Logic {
     private Logic() {}
     public static Result<Boolean, String> flag(String label, boolean ok) {
+        Nulls.param(label, "label");
         System.out.println("try " + label);
         if (ok) {
             return new Ok<>(true);
@@ -12,6 +13,7 @@ import org.jspecify.annotations.*;
         return new Err<>("failed " + label);
     }
     public static Result<Integer, String> number(String label, boolean ok) {
+        Nulls.param(label, "label");
         System.out.println("try " + label);
         if (ok) {
             return new Ok<>(7);

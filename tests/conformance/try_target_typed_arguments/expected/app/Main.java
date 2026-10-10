@@ -13,9 +13,11 @@ import java.util.List;
         return 2;
     }
     public static String take(Result<Integer, String> r, int n) {
+        Nulls.param(r, "r");
         return r.toString() + n;
     }
     public static int size(List<String> xs, int n) {
+        Nulls.param(xs, "xs");
         return xs.size() + n;
     }
     public static Result<String, String> run() {

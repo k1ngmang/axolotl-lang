@@ -11,15 +11,18 @@ import org.jspecify.annotations.*;
     public record Circle(double radius) implements Shape {}
     public record Dot() implements Shape {}
     public static String describe(Option<Integer> o) {
+        Nulls.param(o, "o");
         if (o instanceof None<Integer> o$1) {
             return "none";
         }
         return "some " + ((Some<Integer>) o).value();
     }
     public static String label(Option<String> o) {
+        Nulls.param(o, "o");
         return (o instanceof None<String> o$1 ? "none" : ((Some<String>) o).value());
     }
     public static double radius(Shape s) {
+        Nulls.param(s, "s");
         if (s instanceof Dot s$1) {
             return 0.0;
         }

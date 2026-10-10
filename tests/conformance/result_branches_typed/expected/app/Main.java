@@ -14,6 +14,7 @@ import java.util.List;
         return (r instanceof Ok(var r$1) ? s : r);
     }
     public static Result<List<Integer>, String> positives(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
         for (final var it : xs) {
             final Result<Integer, String> $t1 = (it > 0 ? new Ok<>(it) : new Err<>("neg"));

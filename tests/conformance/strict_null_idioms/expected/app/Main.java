@@ -6,6 +6,7 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static long count(List<String> xs) {
+        Nulls.param(xs, "xs");
         return xs.stream().filter(it -> it.isEmpty()).count();
     }
     public static int size(boolean flag) {

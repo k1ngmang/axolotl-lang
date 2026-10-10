@@ -11,6 +11,9 @@ import java.nio.charset.StandardCharsets;
 @NullMarked public final class Main {
     private Main() {}
     public static int copy(InputStream input, OutputStream out, byte[] buffer) {
+        Nulls.param(input, "input");
+        Nulls.param(out, "out");
+        Nulls.param(buffer, "buffer");
         var total = 0;
         var n = Result.orThrow(() -> input.read(buffer), e -> new IllegalStateException(e));
         while (n > 0) {
@@ -27,6 +30,7 @@ import java.nio.charset.StandardCharsets;
         return total;
     }
     public static String read(String text) {
+        Nulls.param(text, "text");
         final var reader = new StringReader(text);
         final var chars = new char[4];
         final var out = new StringBuilder();
@@ -38,6 +42,7 @@ import java.nio.charset.StandardCharsets;
         return out.toString();
     }
     public static byte[] bytes(String text) {
+        Nulls.param(text, "text");
         return text.getBytes(StandardCharsets.UTF_8);
     }
     public static void main(String[] args) {

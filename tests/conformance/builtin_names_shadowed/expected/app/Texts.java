@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Texts {
     private Texts() {}
     public static void print(String text) {
+        Nulls.param(text, "text");
         System.out.println("[" + text + "]");
     }
 }

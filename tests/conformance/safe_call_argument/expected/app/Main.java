@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static String log(String s) {
+        Nulls.param(s, "s");
         System.out.println("log " + s);
         return s;
     }

@@ -6,6 +6,7 @@ import java.util.function.Supplier;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> ok(String label) {
+        Nulls.param(label, "label");
         System.out.println("try " + label);
         return new Ok<>(1);
     }
@@ -14,9 +15,11 @@ import java.util.function.Supplier;
         return new StringBuilder("sb");
     }
     public static String use(Supplier<String> f, int n) {
+        Nulls.param(f, "f");
         return f.get() + n;
     }
     public static String apply(java.util.function.Function<Object, String> f, int n) {
+        Nulls.param(f, "f");
         return f.apply(n);
     }
     public static Result<String, String> run() {

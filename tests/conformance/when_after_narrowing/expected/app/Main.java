@@ -8,6 +8,7 @@ import org.jspecify.annotations.*;
     public record Circle(int r) implements Shape {}
     public record Sq(int side) implements Shape {}
     public static int size(Shape s) {
+        Nulls.param(s, "s");
         if (!(s instanceof Sq s$1)) {
             return 0;
         }

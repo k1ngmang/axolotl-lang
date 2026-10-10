@@ -10,4 +10,10 @@ import java.util.List;
         @Nullable String packageName,
         List<Import> imports,
         List<Decl> decls) {
+    public SourceFile {
+        Nulls.param(path, "path");
+        Nulls.param(className, "className");
+        Nulls.param(imports, "imports");
+        Nulls.param(decls, "decls");
+    }
 }

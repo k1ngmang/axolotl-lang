@@ -9,6 +9,7 @@ import app.Model.Square;
 @NullMarked public final class Main {
     private Main() {}
     public static String label(Level level) {
+        Nulls.param(level, "level");
         switch (level) {
             case Level.LOW -> {
                 return "low";
@@ -23,6 +24,7 @@ import app.Model.Square;
         }
     }
     public static double area(Shape s) {
+        Nulls.param(s, "s");
         switch (s) {
             case Circle s$1 -> {
                 return 3.0 * s$1.radius() * s$1.radius();

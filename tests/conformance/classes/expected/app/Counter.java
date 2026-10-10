@@ -10,6 +10,7 @@ import java.util.ArrayList;
     public final ArrayList<Integer> history;
     private final String label;
     public Counter(String name, int step) {
+        Nulls.param(name, "name");
         this.name = name;
         this.step = step;
         this.count = 0;
@@ -33,6 +34,7 @@ import java.util.ArrayList;
         return next();
     }
     public static Counter start(String name) {
+        Nulls.param(name, "name");
         return new Counter(name, 1);
     }
 }

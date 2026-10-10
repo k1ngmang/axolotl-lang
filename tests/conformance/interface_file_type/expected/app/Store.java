@@ -10,9 +10,12 @@ import java.util.Map;
     public static final class MemoryStore implements Store {
         public final Map<String, String> values = new HashMap<String, String>();
         @Override public @Nullable String get(String key) {
+            Nulls.param(key, "key");
             return values.get(key);
         }
         @Override public void put(String key, String value) {
+            Nulls.param(key, "key");
+            Nulls.param(value, "value");
             values.put(key, value);
         }
     }
@@ -20,6 +23,8 @@ import java.util.Map;
         return new MemoryStore();
     }
     public static String describe(Store store, String key) {
+        Nulls.param(store, "store");
+        Nulls.param(key, "key");
         return key + "=" + Nulls.<String>or(store.get(key), () -> "unset");
     }
 }

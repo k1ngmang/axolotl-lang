@@ -12,6 +12,7 @@ import java.util.List;
         }
     }
     public static void parse(String s) {
+        Nulls.param(s, "s");
         Integer.parseInt(s);
     }
     public static Result<Boolean, String> small(int i) {
@@ -60,6 +61,7 @@ import java.util.List;
         return 1;
     }
     public static String describe(String s) {
+        Nulls.param(s, "s");
         try {
             parse(s);
         } catch (Exception e) {

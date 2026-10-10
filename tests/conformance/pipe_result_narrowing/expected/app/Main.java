@@ -9,6 +9,7 @@ import java.util.List;
     public record Some<T extends @Nullable Object>(T value) implements Option<T> {}
     public record None<T extends @Nullable Object>() implements Option<T> {}
     public static Result<Integer, String> parse(String s) {
+        Nulls.param(s, "s");
         return (s.isEmpty() ? new Err<>("empty") : new Ok<>(s.length()));
     }
     public static void main(String[] args) {

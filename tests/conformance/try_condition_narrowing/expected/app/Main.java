@@ -5,12 +5,15 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Boolean, String> ok(String s) {
+        Nulls.param(s, "s");
         return new Ok<>(s.length() > 1);
     }
     public static Result<Boolean, String> more(String s) {
+        Nulls.param(s, "s");
         return new Ok<>(s.length() < 4);
     }
     public static Result<Boolean, String> bad(String s) {
+        Nulls.param(s, "s");
         return new Ok<>(s.isEmpty());
     }
     public static Result<Integer, String> both(@Nullable String s) {

@@ -20,6 +20,10 @@ import java.util.List;
         private final String sourceName;
         private final @Nullable Integer spareWidth;
         public Generator(Options options, Box<Long> box, Box.Holder<String> holder, Source source, @Nullable Options spare) {
+            Nulls.param(options, "options");
+            Nulls.param(box, "box");
+            Nulls.param(holder, "holder");
+            Nulls.param(source, "source");
             this.columnWidth = options.columnWidth;
             this.tags = options.tags;
             this.separator = options.separator(true);

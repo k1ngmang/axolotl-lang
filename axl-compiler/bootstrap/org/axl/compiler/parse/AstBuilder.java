@@ -141,6 +141,9 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
 @NullMarked public final class AstBuilder {
     private AstBuilder() {}
     public static SourceFile build(String path, String className, CompilationUnitContext ctx) {
+        Nulls.param(path, "path");
+        Nulls.param(className, "className");
+        Nulls.param(ctx, "ctx");
         final var packageDecl = ctx.packageDecl();
         final @Nullable Pos packagePos = (packageDecl == null ? null : pos(packageDecl.start));
         final @Nullable String packageName = (packageDecl == null ? null : packageDecl.qualifiedName().getText());
@@ -158,6 +161,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         return new SourceFile(path, className, packagePos, packageName, imports, decls);
     }
     public static Pos pos(Token token) {
+        Nulls.param(token, "token");
         return new Pos(token.getLine(), token.getCharPositionInLine() + 1);
     }
     private static Import.Kind importKind(ImportDeclContext imp) {

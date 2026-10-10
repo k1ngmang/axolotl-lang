@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static String shout(String n) {
+        Nulls.param(n, "n");
         return n + "!";
     }
     public static Result<Integer, String> length(@Nullable String s, int k) {

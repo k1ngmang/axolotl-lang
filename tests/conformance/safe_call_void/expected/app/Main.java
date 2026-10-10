@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static @Nullable StringBuilder find(String s) {
+        Nulls.param(s, "s");
         return new StringBuilder(s);
     }
     public static Result<String, String> key() {

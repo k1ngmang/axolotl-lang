@@ -10,6 +10,7 @@ import org.jspecify.annotations.*;
             return last;
         }
         public void push(Integer item) {
+            Nulls.param(item, "item");
             last = item;
         }
     }

@@ -5,12 +5,22 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public sealed interface Node {}
-    public record Leaf(String text) implements Node {}
-    public record Pair(Node left, Node right) implements Node {}
+    public record Leaf(String text) implements Node {
+        public Leaf {
+            Nulls.param(text, "text");
+        }
+    }
+    public record Pair(Node left, Node right) implements Node {
+        public Pair {
+            Nulls.param(left, "left");
+            Nulls.param(right, "right");
+        }
+    }
     public static final class Holder {
         public Node node;
         public int count;
         public Holder(Node node) {
+            Nulls.param(node, "node");
             this.node = node;
             this.count = 0;
         }

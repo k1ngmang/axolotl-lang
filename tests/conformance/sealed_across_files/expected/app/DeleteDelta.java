@@ -6,6 +6,7 @@ import java.util.List;
 @NullMarked public final class DeleteDelta implements Delta {
     public final List<String> lines;
     public DeleteDelta(List<String> lines) {
+        Nulls.param(lines, "lines");
         this.lines = lines;
     }
     public String describe() {

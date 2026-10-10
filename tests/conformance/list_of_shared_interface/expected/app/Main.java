@@ -17,9 +17,11 @@ import java.util.Set;
         }
     }
     public static int count(List<Shape> shapes) {
+        Nulls.param(shapes, "shapes");
         return shapes.size();
     }
     public static int names(Set<Named> named) {
+        Nulls.param(named, "named");
         return named.size();
     }
     public static void main(String[] args) {

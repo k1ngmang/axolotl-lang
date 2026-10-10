@@ -13,9 +13,11 @@ import java.util.List;
     }
     public record Money(long cents) implements Comparable<Money> {
         public int compareTo(Money other) {
+            Nulls.param(other, "other");
             return Long.compare(cents, other.cents());
         }
         public Money plus(Money other) {
+            Nulls.param(other, "other");
             return new Money(cents + other.cents());
         }
         public String show() {
@@ -23,10 +25,15 @@ import java.util.List;
         }
     }
     public record Item(String name, Money money) implements Priced {
+        public Item {
+            Nulls.param(name, "name");
+            Nulls.param(money, "money");
+        }
         @Override public long price() {
             return money.cents();
         }
         @Override public String label(String prefix) {
+            Nulls.param(prefix, "prefix");
             return prefix + name + " " + money.show();
         }
     }

@@ -10,10 +10,12 @@ import lib.Options.Some;
     private Main() {}
     public static final class Length implements Mapper<String, Integer> {
         public Integer map(String x) {
+            Nulls.param(x, "x");
             return x.length();
         }
     }
     public static int lengths(List<Option<String>> options) {
+        Nulls.param(options, "options");
         var total = 0;
         for (final var o : options) {
             if (o instanceof Some(var o$1, var o$2)) {

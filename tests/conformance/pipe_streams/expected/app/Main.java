@@ -9,9 +9,11 @@ import java.util.stream.Stream;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> parse(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "bad " + s);
     }
     public static Result<Integer, String> total(Stream<String> numbers) {
+        Nulls.param(numbers, "numbers");
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
         for (final var it : numbers.toList()) {
             final var $t1 = parse(it);
@@ -29,6 +31,7 @@ import java.util.stream.Stream;
         public final ArrayList<String> items = new ArrayList<String>();
     }
     public static Result<List<Integer>, String> parsedAll(Bag bag) {
+        Nulls.param(bag, "bag");
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
         for (final var it : Nulls.stream(bag.items.stream()).toList()) {
             final var $t1 = parse(it);

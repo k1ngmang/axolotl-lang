@@ -44,6 +44,7 @@ import java.util.List;
         System.out.println("done");
     }
     public static int fallback(String s) {
+        Nulls.param(s, "s");
         return s.length();
     }
 }

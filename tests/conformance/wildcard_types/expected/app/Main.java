@@ -7,6 +7,7 @@ import java.util.Map;
 @NullMarked public final class Main {
     private Main() {}
     public static int size(List<?> xs) {
+        Nulls.param(xs, "xs");
         return xs.size();
     }
     public static void main(String[] args) {

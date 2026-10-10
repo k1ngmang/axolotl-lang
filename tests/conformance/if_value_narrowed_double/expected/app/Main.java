@@ -9,9 +9,11 @@ import org.jspecify.annotations.*;
     public record Square(double side) implements Shape {}
     public record Dot() implements Shape {}
     public static double size(Shape s) {
+        Nulls.param(s, "s");
         return (s instanceof Circle s$1 ? Double.valueOf(s$1.radius()) : Nulls.toDouble((s instanceof Square s$2 ? s$2.side() : 0.0)));
     }
     public static String label(Shape s) {
+        Nulls.param(s, "s");
         return (s instanceof Circle s$1 ? "circle " + s$1.radius() : (s instanceof Square s$2 ? "square " + s$2.side() : "dot"));
     }
     public static void main(String[] args) {

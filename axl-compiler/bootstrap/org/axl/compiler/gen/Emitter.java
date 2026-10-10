@@ -20,6 +20,7 @@ import java.util.List;
         lines.add(0);
     }
     public void line(int axlLine, String code) {
+        Nulls.param(code, "code");
         final var parts = Arrays.asList(code.split("\n", -1));
         write(axlLine, parts.get(0));
         for (final var part : parts.subList(1, parts.size())) {
@@ -52,9 +53,11 @@ import java.util.List;
     private static final String indentation = "    ";
     private static final Character markChar = '\000';
     public static String continuation(int axlLine, String code) {
+        Nulls.param(code, "code");
         return "\n" + markChar + axlLine + markChar + code;
     }
     public static String continued(int axlLine, String code) {
+        Nulls.param(code, "code");
         return continuation(axlLine, indentation + indentation + code);
     }
 }

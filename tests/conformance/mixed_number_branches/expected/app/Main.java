@@ -18,6 +18,7 @@ import org.jspecify.annotations.*;
         System.out.println(r);
     }
     public static void known(boolean c, @Nullable Integer n, String s) {
+        Nulls.param(s, "s");
         final var a = (c ? 0L : s.length());
         final var b = (n != null ? Nulls.toLong(n) : Long.valueOf(0L));
         System.out.println(a + b);

@@ -13,11 +13,13 @@ import org.axl.compiler.check.Analysis;
     public final LinkedHashSet<String> names;
     public int lambdaBodies;
     public Captures(Analysis analysis) {
+        Nulls.param(analysis, "analysis");
         this.analysis = analysis;
         this.names = new LinkedHashSet<String>();
         this.lambdaBodies = 0;
     }
     public void visit(Expr expr, boolean inLambda) {
+        Nulls.param(expr, "expr");
         switch (expr) {
             case Expr.Literal expr$1 -> {
             }
@@ -189,9 +191,13 @@ import org.axl.compiler.check.Analysis;
         }
     }
     public static List<String> capturedIn(Expr expr, Analysis analysis) {
+        Nulls.param(expr, "expr");
+        Nulls.param(analysis, "analysis");
         return capturedIn(expr, analysis, false);
     }
     public static List<String> capturedIn(Expr expr, Analysis analysis, boolean rootElvisInlined) {
+        Nulls.param(expr, "expr");
+        Nulls.param(analysis, "analysis");
         final var captures = new Captures(analysis);
         if (rootElvisInlined && expr instanceof Expr.Elvis expr$1) {
             captures.visit(expr$1.left(), false);
@@ -202,11 +208,15 @@ import org.axl.compiler.check.Analysis;
         return new ArrayList<String>(captures.names);
     }
     public static List<String> inAttemptCall(Expr body, Analysis analysis) {
+        Nulls.param(body, "body");
+        Nulls.param(analysis, "analysis");
         final var captures = new Captures(analysis);
         captures.visit(body, true);
         return new ArrayList<String>(captures.names);
     }
     public static List<String> inStatementChain(Chains.Chain chain, Analysis analysis) {
+        Nulls.param(chain, "chain");
+        Nulls.param(analysis, "analysis");
         final var captures = new Captures(analysis);
         captures.visit(chain.base(), false);
         for (final var step : chain.steps()) {

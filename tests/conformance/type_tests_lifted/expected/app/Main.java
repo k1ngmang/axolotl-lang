@@ -11,6 +11,7 @@ import org.jspecify.annotations.*;
         return (r >= 0.0 ? new Ok<>(r > 1.0) : new Err<>("negative"));
     }
     public static String kind(Object o) {
+        Nulls.param(o, "o");
         switch (o) {
             case Integer o$1 -> {
                 return "int " + o$1;
@@ -24,6 +25,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static int next(Result<Integer, String> r) {
+        Nulls.param(r, "r");
         switch (r) {
             case Ok(var r$1) -> {
                 return r$1 + 1;
@@ -34,6 +36,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static Result<String, String> big(Shape shape) {
+        Nulls.param(shape, "shape");
         if (shape instanceof Circle shape$1) {
             final var $t1 = check(shape$1.radius());
             if ($t1.isErr()) return Result.propagate($t1);
@@ -44,6 +47,7 @@ import org.jspecify.annotations.*;
         return new Ok<>("other");
     }
     public static Result<String, String> radius(Shape shape) {
+        Nulls.param(shape, "shape");
         if (!(shape instanceof Circle shape$1)) {
             return new Ok<>("not round");
         }

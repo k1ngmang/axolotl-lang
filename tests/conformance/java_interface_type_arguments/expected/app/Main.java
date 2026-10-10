@@ -10,6 +10,7 @@ import lib.Selector;
     public static final class Group implements Selector {
         private @Nullable String selected = null;
         public Result<@Nullable Void, String> select(String name) {
+            Nulls.param(name, "name");
             if (selected != null) {
                 return new Err<>("already selected");
             }
@@ -17,6 +18,7 @@ import lib.Selector;
             return new Ok<>(null);
         }
         public int count(List<@Nullable String> names) {
+            Nulls.param(names, "names");
             return names.size() + names.indexOf(null);
         }
     }

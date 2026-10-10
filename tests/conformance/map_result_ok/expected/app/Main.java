@@ -6,9 +6,11 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> p(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), $ex1 -> "bad " + s);
     }
     public static Result<List<List<Integer>>, String> f(List<List<String>> xss) {
+        Nulls.param(xss, "xss");
         final java.util.List<List<Integer>> $p1 = new java.util.ArrayList<>();
         for (final var row : xss) {
             final var $t1 = new Ok<>(Nulls.stream(row).map(Nulls.nonNull(it -> it.length())).toList());

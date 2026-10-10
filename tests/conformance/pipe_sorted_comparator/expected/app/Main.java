@@ -6,7 +6,11 @@ import java.util.List;
 
 @NullMarked public final class Main {
     private Main() {}
-    public record Person(String name, int age) {}
+    public record Person(String name, int age) {
+        public Person {
+            Nulls.param(name, "name");
+        }
+    }
     public static final Comparator<Person> byAge = Comparator.comparingInt(p -> p.age());
     public static void main(String[] args) {
         final var people = List.of(new Person("ann", 41), new Person("bob", 29), new Person("cid", 35));

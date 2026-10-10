@@ -7,6 +7,7 @@ import org.jspecify.annotations.*;
     public enum Color { RED, GREEN, BLUE }
     @SuppressWarnings("EffectivelyPrivate") private enum Mode { ON, OFF }
     public static String describe(Color color) {
+        Nulls.param(color, "color");
         if (color == Color.RED) {
             return "warm";
         }

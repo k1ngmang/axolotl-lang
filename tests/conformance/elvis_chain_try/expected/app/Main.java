@@ -12,6 +12,7 @@ import java.util.List;
         return null;
     }
     public static Result<Integer, String> pick(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         var $t1 = (Nulls.first(xs.stream().iterator()));
         if (java.util.Objects.isNull($t1)) {
             final var $t2 = none();

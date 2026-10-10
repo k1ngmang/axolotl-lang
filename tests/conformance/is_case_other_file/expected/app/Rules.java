@@ -9,6 +9,7 @@ import app.Model.Some;
 @NullMarked public final class Rules {
     private Rules() {}
     public static Result<Order, String> validate(Order o) {
+        Nulls.param(o, "o");
         return (o.id() > 0 ? new Ok<>(o) : new Err<>("bad"));
     }
     public static Option<Order> find(int id) {

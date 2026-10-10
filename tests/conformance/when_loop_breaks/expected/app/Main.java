@@ -8,7 +8,11 @@ import java.util.List;
     private Main() {}
     public sealed interface Shape {}
     public record Circle(int r) implements Shape {}
-    public record Dot(String tag) implements Shape {}
+    public record Dot(String tag) implements Shape {
+        public Dot {
+            Nulls.param(tag, "tag");
+        }
+    }
     public static void main(String[] args) {
         loop$1: for (final var x : List.of(1, 2, 3, 4)) {
             switch (Nulls.box(x)) {
@@ -43,6 +47,7 @@ import java.util.List;
         nested();
     }
     public static int sumUntilDot(List<Shape> shapes) {
+        Nulls.param(shapes, "shapes");
         var sum = 0;
         loop$1: for (final var s : shapes) {
             switch (s) {
@@ -57,6 +62,7 @@ import java.util.List;
         return sum;
     }
     public static int firstOrNone(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         loop$1: for (final var x : xs) {
             switch (Nulls.box(x)) {
                 case 1 -> {

@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> one(String s) {
+        Nulls.param(s, "s");
         return (s.isEmpty() ? new Err<>("empty") : new Ok<>(s.length()));
     }
     public static String describe(int n) {
@@ -24,6 +25,7 @@ import org.jspecify.annotations.*;
             return Main.describe(v);
         }
         public Result<java.util.List<Integer>, String> parse(java.util.List<String> xs) {
+            Nulls.param(xs, "xs");
             final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
             for (final var it : xs) {
                 final var $t1 = item(it);
@@ -34,6 +36,7 @@ import org.jspecify.annotations.*;
             return new Ok<>(sizes);
         }
         public Result<Integer, String> item(String s) {
+            Nulls.param(s, "s");
             return one(s);
         }
     }

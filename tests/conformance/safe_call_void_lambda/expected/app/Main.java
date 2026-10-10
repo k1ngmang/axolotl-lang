@@ -18,6 +18,7 @@ import java.util.function.Function;
         }
     }
     public static void run(Consumer<Integer> steps) {
+        Nulls.param(steps, "steps");
         steps.accept(1);
         steps.accept(2);
     }

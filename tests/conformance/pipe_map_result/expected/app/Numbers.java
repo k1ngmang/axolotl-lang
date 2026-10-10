@@ -6,10 +6,12 @@ import java.util.List;
 @NullMarked public final class Numbers {
     private Numbers() {}
     public static Result<Integer, String> parse(String text) {
+        Nulls.param(text, "text");
         System.out.println("parse " + text);
         return Result.attempt(() -> Integer.parseInt(text), $ex1 -> "not a number: " + text);
     }
     public static Result<List<Integer>, String> doubled(List<String> texts) {
+        Nulls.param(texts, "texts");
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
         for (final var it : texts.stream().filter(it -> !it.isEmpty()).toList()) {
             final var $t1 = parse(it);
@@ -20,6 +22,7 @@ import java.util.List;
         return new Ok<>(numbers);
     }
     public static Result<List<Integer>, String> lengths(List<String> texts) {
+        Nulls.param(texts, "texts");
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
         for (final var t : texts) {
             final var $t1 = Result.attempt(() -> t.length(), $ex1 -> "never");

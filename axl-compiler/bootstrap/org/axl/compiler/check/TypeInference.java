@@ -21,6 +21,9 @@ import org.axl.compiler.ast.TypeRef;
     public final HashSet<String> inProgress;
     public List<Decl.Function> methods;
     public TypeInference(SourceFile file, Map<String, TypeRef> known, List<SourceFile> siblings) {
+        Nulls.param(file, "file");
+        Nulls.param(known, "known");
+        Nulls.param(siblings, "siblings");
         this.file = file;
         this.known = known;
         this.siblings = siblings;
@@ -28,6 +31,7 @@ import org.axl.compiler.ast.TypeRef;
         this.methods = List.of();
     }
     public @Nullable TypeRef value(Decl.Value value) {
+        Nulls.param(value, "value");
         if (value.type() != null) {
             return value.type();
         }
@@ -42,6 +46,7 @@ import org.axl.compiler.ast.TypeRef;
         return type;
     }
     public @Nullable TypeRef of(Expr expr) {
+        Nulls.param(expr, "expr");
         switch (expr) {
             case Expr.Literal expr$1 -> {
                 return literal(expr$1);
@@ -492,6 +497,8 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static final List<String> comparisons = List.of("==", "!=", "<", "<=", ">", ">=", "&&", "||");
     public static void inferAll(SourceFile file, Map<String, TypeRef> known) {
+        Nulls.param(file, "file");
+        Nulls.param(known, "known");
         final var inference = new TypeInference(file, known, List.of());
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Value decl$1 && decl$1.type() == null) {
@@ -503,12 +510,19 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     public static @Nullable TypeRef typeOf(SourceFile file, Expr expr) {
+        Nulls.param(file, "file");
+        Nulls.param(expr, "expr");
         return new TypeInference(file, new HashMap<String, TypeRef>(), List.of()).of(expr);
     }
     public static @Nullable TypeRef typeOf(SourceFile file, List<SourceFile> siblings, Expr expr) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(expr, "expr");
         return new TypeInference(file, new HashMap<String, TypeRef>(), siblings).of(expr);
     }
     public static Map<String, TypeRef> propertyTypes(SourceFile file, List<SourceFile> siblings, Decl.@Nullable ClassDecl c) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
         final var result = new HashMap<String, TypeRef>();
         if (c == null) {
             return result;

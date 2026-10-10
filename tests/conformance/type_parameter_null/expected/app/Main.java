@@ -13,15 +13,19 @@ import java.util.List;
         return x.toString();
     }
     public static <T extends @Nullable Object> String shownOr(T x, String fallback) {
+        Nulls.param(fallback, "fallback");
         return Nulls.<String>or(Nulls.map(x, $n1 -> $n1.toString()), () -> fallback);
     }
     public static <T> String plain(T x) {
+        Nulls.param(x, "x");
         return x.toString();
     }
     public static <T extends @Nullable Object> String unbox(Box<T> b) {
+        Nulls.param(b, "b");
         return Nulls.<String>or(Nulls.map(b.value(), $n1 -> $n1.toString()), () -> "empty");
     }
     public static <T extends @Nullable Object> String first(List<T> xs) {
+        Nulls.param(xs, "xs");
         final var x = xs.get(0);
         return (x != null ? x.toString() : "none");
     }

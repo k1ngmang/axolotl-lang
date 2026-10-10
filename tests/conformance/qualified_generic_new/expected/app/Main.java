@@ -7,6 +7,7 @@ import org.jspecify.annotations.*;
     public static final class Item {
         public final String name;
         public Item(String name) {
+            Nulls.param(name, "name");
             this.name = name;
         }
     }

@@ -6,6 +6,7 @@ import lib.Lookup;
 @NullMarked public final class Shout {
     private Shout() {}
     public static Result<String, String> shout(String key) {
+        Nulls.param(key, "key");
         final var $t1 = Lookup.find(key);
         if ($t1.isErr()) return Result.propagate($t1);
         final var value = Result.unwrap($t1);

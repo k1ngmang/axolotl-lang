@@ -11,6 +11,7 @@ import java.util.Map;
         return new Ok<>(List.of("a", "bb"));
     }
     public static int total(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         var sum = 0;
         for (final var x : xs) {
             sum += x;

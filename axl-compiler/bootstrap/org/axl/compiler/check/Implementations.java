@@ -17,10 +17,26 @@ import org.axl.compiler.ast.TypeRef;
 
 @NullMarked public final class Implementations {
     private Implementations() {}
-    public record Mismatch(Pos pos, String message) {}
-    public record Given(Pos pos, @Nullable TypeRef type) {}
-    public record Implemented(Decl.Interface iface, List<TypeRef> args) {}
+    public record Mismatch(Pos pos, String message) {
+        public Mismatch {
+            Nulls.param(pos, "pos");
+            Nulls.param(message, "message");
+        }
+    }
+    public record Given(Pos pos, @Nullable TypeRef type) {
+        public Given {
+            Nulls.param(pos, "pos");
+        }
+    }
+    public record Implemented(Decl.Interface iface, List<TypeRef> args) {
+        public Implemented {
+            Nulls.param(iface, "iface");
+            Nulls.param(args, "args");
+        }
+    }
     public static List<Mismatch> check(SourceFile file, List<SourceFile> siblings) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
         final var problems = new ArrayList<Mismatch>();
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.DataClass decl$1) {
@@ -59,6 +75,8 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     public static List<Mismatch> foreignSealed(SourceFile file, List<SourceFile> siblings) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
         final var problems = new ArrayList<Mismatch>();
         for (final var decl : file.decls()) {
             for (final var type : supertypesOf(decl)) {
@@ -224,6 +242,9 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     public static List<Expr.Param> requiredValues(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(supertypes, "supertypes");
         final var values = new ArrayList<Expr.Param>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             values.addAll(implemented.iface().members());
@@ -231,6 +252,9 @@ import org.axl.compiler.ast.TypeRef;
         return values;
     }
     public static TypeRef substitute(TypeRef type, List<Decl.TypeParam> params, List<TypeRef> args) {
+        Nulls.param(type, "type");
+        Nulls.param(params, "params");
+        Nulls.param(args, "args");
         if (params.isEmpty() || params.size() != args.size()) {
             return type;
         }
@@ -245,8 +269,17 @@ import org.axl.compiler.ast.TypeRef;
         final var substituted = Nulls.stream(type.args()).map(Nulls.nonNull(a -> substitute(a, params, args))).toList();
         return new TypeRef(type.pos(), type.name(), substituted, type.nullable());
     }
-    public record RequiredMethod(String name, List<Boolean> boxedParams, boolean boxedResult) {}
+    public record RequiredMethod(String name, List<Boolean> boxedParams, boolean boxedResult) {
+        public RequiredMethod {
+            Nulls.param(name, "name");
+            Nulls.param(boxedParams, "boxedParams");
+        }
+    }
     public static List<RequiredMethod> requiredMethods(SourceFile file, List<SourceFile> siblings, JavaClasses classes, List<TypeRef> supertypes) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(classes, "classes");
+        Nulls.param(supertypes, "supertypes");
         final var result = new ArrayList<RequiredMethod>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
@@ -272,6 +305,9 @@ import org.axl.compiler.ast.TypeRef;
         return type != null && type.args().isEmpty() && names.contains(type.name());
     }
     public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(supertypes, "supertypes");
         final var keys = new ArrayList<String>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();

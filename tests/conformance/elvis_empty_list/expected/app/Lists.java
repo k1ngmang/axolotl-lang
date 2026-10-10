@@ -7,6 +7,7 @@ import static java.util.Collections.emptyList;
 @NullMarked public final class Lists {
     private Lists() {}
     public static List<String> pick(List<String> other) {
+        Nulls.param(other, "other");
         return Nulls.or(emptyList(), () -> other);
     }
     public static void main(String[] args) {

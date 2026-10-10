@@ -14,6 +14,7 @@ import java.util.Scanner;
         public final String name;
         public boolean closed;
         public Tracker(String name) {
+            Nulls.param(name, "name");
             this.name = name;
             this.closed = false;
         }
@@ -23,6 +24,7 @@ import java.util.Scanner;
         }
     }
     public static List<String> lines(String text) {
+        Nulls.param(text, "text");
         final var out = new ArrayList<String>();
         try (var reader = new BufferedReader(new StringReader(text))) {
             var line = Result.orThrow(() -> reader.readLine(), e -> new IllegalStateException(e));
@@ -37,6 +39,7 @@ import java.util.Scanner;
         return out;
     }
     public static long countWords(java.nio.file.Path path) {
+        Nulls.param(path, "path");
         var words = 0L;
         try (var scanner = new Scanner(path, java.nio.charset.StandardCharsets.UTF_8)) {
             while (scanner.hasNext()) {

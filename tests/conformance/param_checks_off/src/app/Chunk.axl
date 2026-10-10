@@ -1,0 +1,13 @@
+package app
+
+import java.util.List
+
+data class Chunk(val position: Int, val lines: List<String>)
+
+class Patch(val name: String) {
+    constructor(name: String, suffix: String) = this(name + suffix)
+
+    fn describe(prefix: String) -> String = prefix + name
+}
+
+fn last(c: Chunk) -> Int = c.position + c.lines.size() - 1

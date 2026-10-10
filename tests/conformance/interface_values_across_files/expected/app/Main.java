@@ -7,9 +7,11 @@ import org.jspecify.annotations.*;
     public static final class Polite implements Greeter {
         public final String name;
         public Polite(String name) {
+            Nulls.param(name, "name");
             this.name = name;
         }
         @Override public String greet(String who) {
+            Nulls.param(who, "who");
             return "Dear " + who + ", " + name;
         }
         @Override public String name() { return name; }
@@ -17,6 +19,7 @@ import org.jspecify.annotations.*;
     public static final class Terse implements Greeter {
         public final String name = "terse";
         @Override public String greet(String who) {
+            Nulls.param(who, "who");
             return who;
         }
         @Override public String name() { return name; }

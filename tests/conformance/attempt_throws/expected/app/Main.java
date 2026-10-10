@@ -7,9 +7,11 @@ import java.nio.file.Path;
 @NullMarked public final class Main {
     private Main() {}
     public static long size(String path) {
+        Nulls.param(path, "path");
         return Result.orThrow(() -> Files.size(Path.of(path)), e -> new IllegalStateException("no " + path, e));
     }
     public static long safeSize(String path) {
+        Nulls.param(path, "path");
         final var caught = Result.attempt(() -> size(path), e -> "failed: " + e.getMessage());
         switch (caught) {
             case Ok(var caught$1) -> {

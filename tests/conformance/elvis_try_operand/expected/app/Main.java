@@ -8,6 +8,7 @@ import org.jspecify.annotations.*;
         return (n > 1000 ? new Err<>("big") : new Ok<>(n));
     }
     public static Result<String, String> word(String s) {
+        Nulls.param(s, "s");
         return new Ok<>(s);
     }
     public static Result<Integer, String> doubled(@Nullable Integer n) {

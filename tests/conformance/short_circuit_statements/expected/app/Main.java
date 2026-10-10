@@ -6,13 +6,16 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static boolean doIt(String s) {
+        Nulls.param(s, "s");
         System.out.println("did " + s);
         return true;
     }
     public static Result<Integer, String> p(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "bad " + s);
     }
     public static Result<Integer, String> run(List<String> xs) {
+        Nulls.param(xs, "xs");
         final java.util.List<Integer> $p1 = new java.util.ArrayList<>();
         for (final var it : xs) {
             final var $t1 = p(it);

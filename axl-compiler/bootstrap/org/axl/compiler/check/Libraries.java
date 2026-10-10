@@ -10,8 +10,16 @@ import org.axl.compiler.ast.SourceFile;
 
 @NullMarked public final class Libraries {
     private Libraries() {}
-    public record Library(String name, ClassShape shape) {}
+    public record Library(String name, ClassShape shape) {
+        public Library {
+            Nulls.param(name, "name");
+            Nulls.param(shape, "shape");
+        }
+    }
     public static @Nullable Library classNamed(SourceFile file, JavaClasses classes, String name) {
+        Nulls.param(file, "file");
+        Nulls.param(classes, "classes");
+        Nulls.param(name, "name");
         for (final var candidate : candidates(file, name)) {
             final var shape = classes.shape(candidate);
             if (shape != null) {

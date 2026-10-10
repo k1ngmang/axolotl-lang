@@ -397,7 +397,7 @@ class CliTest {
         Path parse = tmp.resolve("classes/util/Parse.class");
         Files.write(parse, SmapInjector.withSmap(Files.readAllBytes(parse), Smap.of(lineMap, "Parse.java").format()));
         Path trace = tmp.resolve("trace.txt");
-        Files.writeString(trace, "java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.java:15)\n");
+        Files.writeString(trace, "java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.java:16)\n");
         out.reset();
         assertEquals(0, axl("retrace", "--classpath", tmp.resolve("classes").toString(), trace.toString()));
         assertEquals("java.lang.IllegalStateException\n\tat util.Parse.doubled(Parse.axl:9)\n",

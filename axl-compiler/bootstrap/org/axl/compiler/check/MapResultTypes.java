@@ -15,6 +15,9 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> lists = Set.of("List", "java.util.List");
     private static final Set<String> results = Set.of("Result", "axl.lang.Result");
     public static @Nullable TypeRef elementType(Expr.Stage stage, SourceFile file, List<Decl.Function> methods, @Nullable TypeRef declared) {
+        Nulls.param(stage, "stage");
+        Nulls.param(file, "file");
+        Nulls.param(methods, "methods");
         if (declared != null && lists.contains(declared.name()) && declared.args().size() == 1) {
             return declared.args().getFirst();
         }
@@ -33,6 +36,9 @@ import org.axl.compiler.ast.TypeRef;
         return null;
     }
     public static @Nullable TypeRef mappedResult(Expr.Stage stage, SourceFile file, List<Decl.Function> methods) {
+        Nulls.param(stage, "stage");
+        Nulls.param(file, "file");
+        Nulls.param(methods, "methods");
         final var call = calledFunction(stage);
         if (call == null) {
             return null;

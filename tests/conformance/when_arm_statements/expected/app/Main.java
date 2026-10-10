@@ -15,6 +15,7 @@ import java.util.List;
     public static final class Spawner {
         public final ArrayList<String> names = new ArrayList<String>();
         public void spawn(Character c) {
+            Nulls.param(c, "c");
             switch (c) {
                 case 'r' -> {
                     names.add("rat");

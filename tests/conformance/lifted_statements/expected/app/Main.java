@@ -6,6 +6,7 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<String, String> check(String s) {
+        Nulls.param(s, "s");
         System.out.println("check " + s);
         return new Ok<>(s);
     }
@@ -14,6 +15,7 @@ import java.util.List;
         return new Ok<>(true);
     }
     public static Result<Integer, String> validate(List<String> xs, boolean go) {
+        Nulls.param(xs, "xs");
         final java.util.List<String> $p1 = new java.util.ArrayList<>();
         for (final var it : xs) {
             final var $t1 = check(it);

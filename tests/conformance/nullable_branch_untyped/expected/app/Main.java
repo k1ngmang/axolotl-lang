@@ -8,6 +8,7 @@ import org.jspecify.annotations.*;
         return (c ? n : Integer.valueOf(k + 1));
     }
     public static @Nullable Integer size(boolean c, @Nullable Integer n, String s) {
+        Nulls.param(s, "s");
         return (c ? n : Integer.valueOf(s.length()));
     }
     public static @Nullable Integer nested(boolean c, @Nullable Integer n) {

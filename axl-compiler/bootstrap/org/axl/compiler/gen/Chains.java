@@ -7,9 +7,19 @@ import org.axl.compiler.ast.Expr;
 
 @NullMarked public final class Chains {
     private Chains() {}
-    public record Step(String name, @Nullable List<Expr> args, boolean safe, int line) {}
-    public record Chain(Expr base, List<Step> steps) {}
+    public record Step(String name, @Nullable List<Expr> args, boolean safe, int line) {
+        public Step {
+            Nulls.param(name, "name");
+        }
+    }
+    public record Chain(Expr base, List<Step> steps) {
+        public Chain {
+            Nulls.param(base, "base");
+            Nulls.param(steps, "steps");
+        }
+    }
     public static Chain flatten(Expr expr) {
+        Nulls.param(expr, "expr");
         switch (expr) {
             case Expr.Member expr$1 -> {
                 return extend(flatten(expr$1.target()), new Step(expr$1.name(), null, expr$1.safe(), expr$1.pos().line()));
@@ -35,6 +45,7 @@ import org.axl.compiler.ast.Expr;
         return new Chain(chain.base(), steps);
     }
     public static boolean hasSafeStep(Expr expr) {
+        Nulls.param(expr, "expr");
         final var isAccess = expr instanceof Expr.Member expr$1 || (expr instanceof Expr.Call expr$2 && expr$2.target() != null);
         return isAccess && flatten(expr).steps().stream().anyMatch(it -> it.safe());
     }

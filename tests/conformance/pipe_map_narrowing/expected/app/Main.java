@@ -6,6 +6,7 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> parse(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "bad " + s);
     }
     public static void main(String[] args) {

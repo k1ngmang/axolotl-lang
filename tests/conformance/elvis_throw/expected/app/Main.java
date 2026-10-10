@@ -7,6 +7,8 @@ import java.util.Map;
 @NullMarked public final class Main {
     private Main() {}
     public static String lookup(Map<String, String> m, String key) {
+        Nulls.param(m, "m");
+        Nulls.param(key, "key");
         return Nulls.or(m.get(key), () -> { throw new IllegalArgumentException("no entry for " + key); });
     }
     public static int lengthOf(@Nullable String s) {
@@ -14,6 +16,9 @@ import java.util.Map;
         return text.length();
     }
     public static String first(Map<String, String> m, String a, String b) {
+        Nulls.param(m, "m");
+        Nulls.param(a, "a");
+        Nulls.param(b, "b");
         return Nulls.or(Nulls.<@Nullable String>or(m.get(a), () -> m.get(b)), () -> { throw new IllegalArgumentException("neither " + a + " nor " + b); });
     }
     public static void main(String[] args) {

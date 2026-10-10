@@ -13,6 +13,7 @@ import org.jspecify.annotations.*;
         private int uses;
         private final String shown;
         public Opt(String name, @Nullable String description, int uses) {
+            Nulls.param(name, "name");
             this.name = name;
             this.description = description;
             this.uses = uses;
@@ -23,6 +24,7 @@ import org.jspecify.annotations.*;
             return shown + " (" + uses + ")";
         }
         public boolean sameDescription(Opt other) {
+            Nulls.param(other, "other");
             return java.util.Objects.equals(description, other.description);
         }
         @Override public String name() { return name; }
@@ -30,6 +32,7 @@ import org.jspecify.annotations.*;
     public static final class Secret implements Named {
         private final String name;
         public Secret(String name) {
+            Nulls.param(name, "name");
             this.name = name;
         }
         public String masked() {

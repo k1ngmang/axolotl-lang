@@ -6,6 +6,7 @@ import org.jspecify.annotations.*;
     private Strings() {}
     public static final int limit = 3;
     public static String shout(String s) {
+        Nulls.param(s, "s");
         return s.toUpperCase() + "!";
     }
 }

@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Sum {
     private Sum() {}
     public static Result<Integer, String> parse(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), $ex1 -> "bad: " + s);
     }
     public static Result<Boolean, String> check(int n) {
@@ -14,6 +15,8 @@ import org.jspecify.annotations.*;
         return new Ok<>(true);
     }
     public static Result<Integer, String> sum(String a, String b) {
+        Nulls.param(a, "a");
+        Nulls.param(b, "b");
         final var $t1 = parse(a);
         if ($t1.isErr()) return Result.propagate($t1);
         final var x = Result.unwrap($t1);

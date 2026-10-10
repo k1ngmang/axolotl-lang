@@ -7,12 +7,15 @@ import org.jspecify.annotations.*;
     public static final class Worker<T> {
         public final Class<T> type;
         public Worker(Class<T> type) {
+            Nulls.param(type, "type");
             this.type = type;
         }
         public T take(Object job) {
+            Nulls.param(job, "job");
             return type.cast(job);
         }
         public String label(Object job) {
+            Nulls.param(job, "job");
             return type.cast(job).toString();
         }
     }

@@ -6,17 +6,21 @@ import org.axl.compiler.ast.Expr;
 @NullMarked public final class Lifts {
     private Lifts() {}
     public static boolean hoisted(Expr expr) {
+        Nulls.param(expr, "expr");
         return needed(expr) || Chains.hasSafeStep(expr);
     }
     public static boolean numberAfterSafeCall(Expr.Elvis elvis) {
+        Nulls.param(elvis, "elvis");
         return Chains.hasSafeStep(elvis.left()) && isNumber(elvis.right());
     }
     public static boolean isNumber(Expr expr) {
+        Nulls.param(expr, "expr");
         final var digit = expr instanceof Expr.Literal expr$1 && Character.isDigit(expr$1.text().charAt(0));
         final var negative = expr instanceof Expr.Unary expr$2 && expr$2.op().equals("-") && expr$2.operand() instanceof Expr.Literal;
         return digit || negative;
     }
     public static boolean needed(Expr expr) {
+        Nulls.param(expr, "expr");
         switch (expr) {
             case Expr.Try expr$1 -> {
                 return true;

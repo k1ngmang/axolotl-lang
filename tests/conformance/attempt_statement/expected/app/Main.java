@@ -21,6 +21,7 @@ import java.util.List;
         }
     }
     public static void finish(Connection c) {
+        Nulls.param(c, "c");
         try {
             c.commit();
         } catch (Exception e) {
@@ -35,6 +36,7 @@ import java.util.List;
         }
     }
     public static void mustCommit(Connection c) {
+        Nulls.param(c, "c");
         try {
             c.commit();
         } catch (Exception e) {

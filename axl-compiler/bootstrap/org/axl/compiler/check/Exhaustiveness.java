@@ -14,6 +14,9 @@ import org.axl.compiler.ast.TypeRef;
 @NullMarked public final class Exhaustiveness {
     private Exhaustiveness() {}
     public static @Nullable String missingConstants(Expr.When w, SourceFile file, List<SourceFile> siblings) {
+        Nulls.param(w, "w");
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
         final var named = constantNames(w);
         for (final var decl : declsOf(file, siblings)) {
             if (decl instanceof Decl.EnumDecl decl$1) {
@@ -28,6 +31,9 @@ import org.axl.compiler.ast.TypeRef;
         return null;
     }
     public static @Nullable String typesProblem(Expr.When w, SourceFile file, List<SourceFile> siblings) {
+        Nulls.param(w, "w");
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
         final var tested = testedNames(w);
         for (final var decl : declsOf(file, siblings)) {
             if (decl instanceof Decl.Interface decl$1) {
@@ -40,6 +46,10 @@ import org.axl.compiler.ast.TypeRef;
         return null;
     }
     public static @Nullable String libraryTypesProblem(Expr.When w, SourceFile file, List<SourceFile> siblings, JavaClasses classes) {
+        Nulls.param(w, "w");
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(classes, "classes");
         final var declared = declsOf(file, siblings).stream().map(Nulls.nonNull(d -> nameOf(d))).toList();
         final var tested = new ArrayList<String>();
         final var parents = new ArrayList<String>();
@@ -88,10 +98,16 @@ import org.axl.compiler.ast.TypeRef;
         return new LibraryEnum(name, library.shape().constants(), named);
     }
     public static boolean coversLibraryEnum(Expr.When w, SourceFile file, JavaClasses classes) {
+        Nulls.param(w, "w");
+        Nulls.param(file, "file");
+        Nulls.param(classes, "classes");
         final var e = libraryEnum(w, file, classes);
         return e != null && e.named().containsAll(e.constants());
     }
     public static @Nullable String missingLibraryConstants(Expr.When w, SourceFile file, JavaClasses classes) {
+        Nulls.param(w, "w");
+        Nulls.param(file, "file");
+        Nulls.param(classes, "classes");
         final var e = libraryEnum(w, file, classes);
         if (e == null) {
             return null;
@@ -113,6 +129,8 @@ import org.axl.compiler.ast.TypeRef;
         return declsOf(file, siblings).stream().filter(d -> extendsType(d, name)).map(Nulls.nonNull(d -> nameOf(d))).toList();
     }
     public static List<Decl> declsOf(SourceFile file, List<SourceFile> siblings) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
         final var result = new ArrayList<Decl>(file.decls());
         for (final var sibling : siblings) {
             if (samePackage(file, sibling)) {

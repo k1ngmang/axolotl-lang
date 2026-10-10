@@ -11,22 +11,26 @@ import lib.Options.Some;
     private Main() {}
     public static final class Doubler implements Mapper<Integer, Integer> {
         public Integer map(Integer x) {
+            Nulls.param(x, "x");
             return x * 2;
         }
     }
     public static String show(Option<String> o) {
+        Nulls.param(o, "o");
         if (o instanceof Some<String> o$1) {
             return o$1.value().toUpperCase();
         }
         return "-";
     }
     public static String leave(Option<String> o) {
+        Nulls.param(o, "o");
         if (o instanceof None<String> o$1) {
             return "nothing";
         }
         return ((lib.Options.Some<String>) o).value().toUpperCase();
     }
     public static String describe(Option<String> o) {
+        Nulls.param(o, "o");
         switch (o) {
             case Some<String> o$1 -> {
                 return "some " + o$1.value().length();

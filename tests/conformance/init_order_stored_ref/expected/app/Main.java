@@ -10,6 +10,7 @@ import java.util.function.Supplier;
         public final Supplier<Integer> size;
         public final String later;
         public Counter(String text) {
+            Nulls.param(text, "text");
             this.text = text;
             this.size = this::count;
             this.later = text + "!";

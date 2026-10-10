@@ -23,6 +23,7 @@ import org.axl.compiler.ast.TypeRef;
     public final HashMap<String, Kept> keptBy;
     public final HashSet<String> direct;
     public InitOrder(SourceFile file) {
+        Nulls.param(file, "file");
         this.file = file;
         this.visited = new HashSet<String>();
         this.owner = null;
@@ -607,13 +608,30 @@ import org.axl.compiler.ast.TypeRef;
             }
         }
     }
-    public record Problem(Decl.Value value, String later) {}
-    public record PropertyProblem(Decl.Property property, String later, @Nullable Kept kept) {}
-    public record Kept(String ref, String callee) {}
+    public record Problem(Decl.Value value, String later) {
+        public Problem {
+            Nulls.param(value, "value");
+            Nulls.param(later, "later");
+        }
+    }
+    public record PropertyProblem(Decl.Property property, String later, @Nullable Kept kept) {
+        public PropertyProblem {
+            Nulls.param(property, "property");
+            Nulls.param(later, "later");
+        }
+    }
+    public record Kept(String ref, String callee) {
+        public Kept {
+            Nulls.param(ref, "ref");
+            Nulls.param(callee, "callee");
+        }
+    }
     public static List<Problem> check(SourceFile file) {
+        Nulls.param(file, "file");
         return new InitOrder(file).problems();
     }
     public static List<PropertyProblem> checkProperties(SourceFile file) {
+        Nulls.param(file, "file");
         return new InitOrder(file).propertyProblems();
     }
     private static final Set<String> ELEMENT_GETTERS = Set.of("get", "getFirst", "getLast", "first", "last");

@@ -23,6 +23,7 @@ import java.util.Map;
         public final String name;
         public final Map<K, V> items;
         public MemoryRepository(String name) {
+            Nulls.param(name, "name");
             this.name = name;
             this.items = new HashMap<K, V>();
         }
@@ -37,6 +38,7 @@ import java.util.Map;
     public static final class Stack<T> {
         public final List<T> items = new ArrayList<T>();
         public void push(T item) {
+            Nulls.param(item, "item");
             items.add(item);
         }
         public @Nullable T pop() {
@@ -48,9 +50,11 @@ import java.util.Map;
         }
     }
     public static <T extends @Nullable Object> @Nullable T firstOrNull(List<T> xs) {
+        Nulls.param(xs, "xs");
         return (xs.isEmpty() ? null : xs.get(0));
     }
     public static <T extends Comparable<T>> @Nullable T largest(List<T> xs) {
+        Nulls.param(xs, "xs");
         @Nullable T best = null;
         for (final var x : xs) {
             if (best == null || x.compareTo(best) > 0) {
@@ -60,9 +64,11 @@ import java.util.Map;
         return best;
     }
     public static <A extends @Nullable Object, B extends @Nullable Object> Pair<B, A> swap(Pair<A, B> p) {
+        Nulls.param(p, "p");
         return new Pair<B, A>(p.second(), p.first());
     }
     public static <T extends @Nullable Object> T valueOr(Option<T> option, T fallback) {
+        Nulls.param(option, "option");
         switch (option) {
             case Some<T> option$1 -> {
                 return option$1.value();

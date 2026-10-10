@@ -11,18 +11,22 @@ import java.util.function.Function;
     public static final class Equalizer<T> {
         private final BiPredicate<T, T> eq;
         public Equalizer(BiPredicate<T, T> eq) {
+            Nulls.param(eq, "eq");
             this.eq = eq;
         }
         public Equalizer() {
             this(Object::equals);
         }
         public boolean same(T a, T b) {
+            Nulls.param(a, "a");
+            Nulls.param(b, "b");
             return eq.test(a, b);
         }
     }
     public static final class Loose<T extends @Nullable Object> {
         private final BiPredicate<T, T> eq;
         public Loose(BiPredicate<T, T> eq) {
+            Nulls.param(eq, "eq");
             this.eq = eq;
         }
         public Loose() {
@@ -42,6 +46,7 @@ import java.util.function.Function;
         return a -> Nulls.or(Nulls.map(a, $n1 -> $n1.toString()), () -> "none");
     }
     public static <T> List<String> names(List<T> items) {
+        Nulls.param(items, "items");
         return items.stream().map(Nulls.nonNull(it -> it.toString())).toList();
     }
     public static void main(String[] args) {

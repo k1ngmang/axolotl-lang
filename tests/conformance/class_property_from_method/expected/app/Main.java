@@ -17,6 +17,7 @@ import java.util.List;
         public final List<String> names;
         public final String first;
         public Account(String owner, int cents) {
+            Nulls.param(owner, "owner");
             this.owner = owner;
             this.cents = cents;
             this.balance = compute();

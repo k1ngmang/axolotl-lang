@@ -5,6 +5,7 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> bump(Box b) {
+        Nulls.param(b, "b");
         b.value = 100;
         return new Ok<>(1);
     }

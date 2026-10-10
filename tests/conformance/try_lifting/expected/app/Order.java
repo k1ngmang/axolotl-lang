@@ -5,10 +5,12 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Order {
     private Order() {}
     public static int log(String label, int value) {
+        Nulls.param(label, "label");
         System.out.println("eval " + label);
         return value;
     }
     public static Result<Integer, String> check(String label, boolean ok) {
+        Nulls.param(label, "label");
         System.out.println("try " + label);
         if (ok) {
             return new Ok<>(2);

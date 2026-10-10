@@ -15,6 +15,7 @@ import java.util.function.Supplier;
     private Main() {}
     public static final class Doubler implements Function<Integer, Integer> {
         public Integer apply(Integer x) {
+            Nulls.param(x, "x");
             return x * 2;
         }
     }
@@ -25,16 +26,21 @@ import java.util.function.Supplier;
     }
     public static final class Even implements Predicate<Integer> {
         public boolean test(Integer x) {
+            Nulls.param(x, "x");
             return x % 2 == 0;
         }
     }
     public static final class Desc implements Comparator<Integer> {
         public int compare(Integer a, Integer b) {
+            Nulls.param(a, "a");
+            Nulls.param(b, "b");
             return b.compareTo(a);
         }
     }
     public static final class Plus implements BiFunction<Integer, Integer, Integer> {
         public Integer apply(Integer a, Integer b) {
+            Nulls.param(a, "a");
+            Nulls.param(b, "b");
             return a + b;
         }
     }
@@ -76,12 +82,16 @@ import java.util.function.Supplier;
         }
     }
     public record Label(String text) implements Supplier<String> {
+        public Label {
+            Nulls.param(text, "text");
+        }
         public String get() {
             return text;
         }
     }
     public record Offset(int by) implements Function<Integer, Integer> {
         public Integer apply(Integer x) {
+            Nulls.param(x, "x");
             return x + by;
         }
     }

@@ -7,8 +7,13 @@ import java.util.List;
     private Main() {}
     public sealed interface Token {}
     public record Num(int n) implements Token {}
-    public record Word(String w) implements Token {}
+    public record Word(String w) implements Token {
+        public Word {
+            Nulls.param(w, "w");
+        }
+    }
     public static List<Token> numbers(List<Token> tokens) {
+        Nulls.param(tokens, "tokens");
         return tokens.stream().filter(it -> it instanceof Num it$1).toList();
     }
     public static void main(String[] args) {

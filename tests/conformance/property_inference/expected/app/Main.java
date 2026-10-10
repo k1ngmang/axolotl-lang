@@ -14,6 +14,7 @@ import java.util.HashMap;
         public String label;
         public double scale;
         public Counter(String name) {
+            Nulls.param(name, "name");
             this.name = name;
             this.items = new ArrayList<String>();
             this.seen = new HashMap<String, Integer>();
@@ -22,6 +23,7 @@ import java.util.HashMap;
             this.scale = 1.5;
         }
         public void add(String item) {
+            Nulls.param(item, "item");
             items.add(item);
             seen.put(item, items.size());
             count += 1;

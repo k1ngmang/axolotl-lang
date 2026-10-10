@@ -5,9 +5,11 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> parse(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "bad " + s);
     }
     public static String show(String s) {
+        Nulls.param(s, "s");
         final var r = parse(s);
         if (r instanceof Err(var r$1)) {
             return "error " + r$1;
@@ -16,6 +18,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static String label(String s) {
+        Nulls.param(s, "s");
         final var r = parse(s);
         if (r instanceof Ok(var r$1)) {
             return "ok " + r$1;

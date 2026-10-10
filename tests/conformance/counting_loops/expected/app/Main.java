@@ -16,6 +16,7 @@ import java.util.function.Supplier;
         return n;
     }
     public static String upTo(List<String> xs) {
+        Nulls.param(xs, "xs");
         final var sb = new StringBuilder();
         for (int i = 0, $t1 = xs.size(); i < $t1; i++) {
             sb.append(i).append(xs.get(i));

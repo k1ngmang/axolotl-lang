@@ -17,12 +17,17 @@ import java.util.HashMap;
     public static final class Ages implements Repository<String, Integer> {
         public final HashMap<String, Integer> items = new HashMap<String, Integer>();
         @Override public @Nullable Integer find(String key) {
+            Nulls.param(key, "key");
             return items.get(key);
         }
         @Override public void save(String key, Integer value) {
+            Nulls.param(key, "key");
+            Nulls.param(value, "value");
             items.put(key, value);
         }
         @Override public boolean same(Integer a, Integer b) {
+            Nulls.param(a, "a");
+            Nulls.param(b, "b");
             return ((int) a) == ((int) b);
         }
         @Override public Integer total() {
@@ -35,6 +40,7 @@ import java.util.HashMap;
     }
     public record Vec(double x) implements Scalable<Double> {
         @Override public Scalable<Double> scale(Double factor) {
+            Nulls.param(factor, "factor");
             return new Vec(x * factor);
         }
     }

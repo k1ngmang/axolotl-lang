@@ -8,18 +8,21 @@ import java.util.function.Function;
     private Main() {}
     public record Box<T extends @Nullable Object>(T item) {}
     public static @Nullable Class<?> asClass(Object o) {
+        Nulls.param(o, "o");
         if (o instanceof Class<?> o$1) {
             return o$1;
         }
         return null;
     }
     public static @Nullable Class<?> asStarClass(Object o) {
+        Nulls.param(o, "o");
         if (o instanceof Class<?> o$1) {
             return o$1;
         }
         return null;
     }
     public static String describe(Object o) {
+        Nulls.param(o, "o");
         if (o instanceof Box<?> o$1) {
             final Box<?> box = o$1;
             return "box of " + box.item();

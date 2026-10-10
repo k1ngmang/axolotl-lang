@@ -6,6 +6,7 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static @Nullable Integer firstNegative(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         @Nullable Integer found = null;
         for (final var x : xs) {
             if (x >= 0) {
@@ -17,6 +18,8 @@ import java.util.List;
         return found;
     }
     public static String digitsBefore(String s, Character stop) {
+        Nulls.param(s, "s");
+        Nulls.param(stop, "stop");
         final var out = new StringBuilder();
         var i = 0;
         while (i < s.length()) {

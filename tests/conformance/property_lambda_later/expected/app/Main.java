@@ -10,6 +10,7 @@ import java.util.function.Supplier;
         public final Supplier<Integer> size;
         public final String text;
         public Greeting(String name) {
+            Nulls.param(name, "name");
             this.name = name;
             this.size = () -> Greeting.this.text.length();
             this.text = "hello " + name;

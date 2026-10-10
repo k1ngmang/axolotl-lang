@@ -6,8 +6,14 @@ import java.util.List;
 
 @NullMarked public sealed interface Delta permits Delta.ChangeDelta, Conflict, DeleteDelta, Deltas.EqualDelta, InsertDelta {
     List<String> lines();
-    public record ChangeDelta(List<String> lines, List<String> replaced) implements Delta {}
+    public record ChangeDelta(List<String> lines, List<String> replaced) implements Delta {
+        public ChangeDelta {
+            Nulls.param(lines, "lines");
+            Nulls.param(replaced, "replaced");
+        }
+    }
     public static int size(Delta d) {
+        Nulls.param(d, "d");
         switch (d) {
             case InsertDelta d$1 -> {
                 return d$1.lines().size();

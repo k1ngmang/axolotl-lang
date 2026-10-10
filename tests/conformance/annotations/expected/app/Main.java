@@ -30,9 +30,13 @@ import java.util.List;
     @Marker("value") public static final int limit =
             3;
     public static java.lang.reflect.Method method(Class<?> c, String name) {
+        Nulls.param(c, "c");
+        Nulls.param(name, "name");
         return java.util.Objects.requireNonNull((Nulls.first(Nulls.stream(List.of(c.getDeclaredMethods())).filter(it -> it.getName().equals(name)).iterator())));
     }
     public static java.lang.reflect.Field field(Class<?> c, String name) {
+        Nulls.param(c, "c");
+        Nulls.param(name, "name");
         return java.util.Objects.requireNonNull((Nulls.first(Nulls.stream(List.of(c.getDeclaredFields())).filter(it -> it.getName().equals(name)).iterator())));
     }
     @Marker("fn") public static void main(String[] args) {

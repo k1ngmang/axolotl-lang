@@ -5,9 +5,11 @@ import org.jspecify.annotations.*;
 @NullMarked public final class Main {
     private Main() {}
     public static Result<Integer, String> parse(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "bad " + s);
     }
     public static String run(boolean flag, String s) {
+        Nulls.param(s, "s");
         if (flag) {
             final var r = parse(s);
             if (r instanceof Err(var r$1)) {

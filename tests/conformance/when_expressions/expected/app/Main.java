@@ -9,6 +9,7 @@ import org.jspecify.annotations.*;
     public record Rect(double width, double height) implements Shape {}
     public record Empty(@Nullable String label) implements Shape {}
     public static double area(Shape shape) {
+        Nulls.param(shape, "shape");
         switch (shape) {
             case Circle shape$1 -> {
                 return 3.0 * shape$1.radius() * shape$1.radius();
@@ -22,6 +23,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static String name(Shape shape) {
+        Nulls.param(shape, "shape");
         switch (shape) {
             case Circle shape$1 -> {
                 return "circle";
@@ -49,6 +51,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static int kind(String word) {
+        Nulls.param(word, "word");
         final var length = switch (word) {
             case "a" -> 1;
             case "bb" -> 2;
@@ -59,6 +62,7 @@ import org.jspecify.annotations.*;
         return length + 1;
     }
     public static void show(Shape shape) {
+        Nulls.param(shape, "shape");
         switch (shape) {
             case Circle shape$1 -> {
                 System.out.println("circle " + shape$1.radius());

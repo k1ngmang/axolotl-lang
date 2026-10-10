@@ -11,6 +11,7 @@ import lib.Shapes.Square;
 @NullMarked public final class Main {
     private Main() {}
     public static int area(Shape s) {
+        Nulls.param(s, "s");
         switch (s) {
             case Circle s$1 -> {
                 return 3 * s$1.r() * s$1.r();
@@ -24,6 +25,7 @@ import lib.Shapes.Square;
         }
     }
     public static int weight(Level l) {
+        Nulls.param(l, "l");
         switch (l) {
             case Level.LOW -> {
                 return 1;
@@ -38,6 +40,7 @@ import lib.Shapes.Square;
         }
     }
     public static boolean weekend(DayOfWeek d) {
+        Nulls.param(d, "d");
         switch (d) {
             case DayOfWeek.SATURDAY, DayOfWeek.SUNDAY -> {
                 return true;

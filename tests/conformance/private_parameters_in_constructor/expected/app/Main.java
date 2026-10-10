@@ -20,7 +20,7 @@ import java.util.function.Supplier;
             this.many = argCount > 1;
         }
         public Opt(String option) {
-            this(option, false);
+            this(Nulls.param(option, "option"), false);
         }
         public String describe() {
             return key + "/" + argCount + "/" + many;
@@ -29,9 +29,11 @@ import java.util.function.Supplier;
     public static final class Handler {
         private final Map<String, String> converters;
         public Handler(Map<String, String> converterMap) {
+            Nulls.param(converterMap, "converterMap");
             this.converters = Objects.requireNonNull(converterMap, "converterMap");
         }
         public @Nullable String get(String k) {
+            Nulls.param(k, "k");
             return converters.get(k);
         }
     }
@@ -41,6 +43,7 @@ import java.util.function.Supplier;
         private final String kind;
         public Failure(int code, @Nullable String reason, String fallback) {
             super(reason);
+            Nulls.param(fallback, "fallback");
             this.status = "E" + code;
             this.shown = Nulls.or(reason, () -> fallback);
             this.kind = (code == 404 ? "missing" : "other");
@@ -57,6 +60,9 @@ import java.util.function.Supplier;
         private final String first;
         private final Supplier<String> shout;
         public Kept(String label, String prefix, int uses, String name) {
+            Nulls.param(label, "label");
+            Nulls.param(prefix, "prefix");
+            Nulls.param(name, "name");
             this.label = label;
             this.prefix = prefix;
             this.uses = uses;
@@ -69,6 +75,7 @@ import java.util.function.Supplier;
             return first + " " + label.length() + " " + shout.get() + " " + uses;
         }
         public boolean same(Kept other) {
+            Nulls.param(other, "other");
             return first.equals(other.first);
         }
         @Override public String name() { return name; }

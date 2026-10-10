@@ -23,9 +23,11 @@ import org.jspecify.annotations.*;
         }
     }
     public static double gravity(Planet p) {
+        Nulls.param(p, "p");
         return 6.67300E-11 * p.mass / (p.radius * p.radius);
     }
     public static String describe(Level level) {
+        Nulls.param(level, "level");
         switch (level) {
             case Level.LOW -> {
                 return level.code + " " + Nulls.or(level.label, () -> "-");

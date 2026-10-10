@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
     private Main() {}
     public enum Level { LOW, HIGH }
     public static String levels(SortedMap<String, Integer> counts) {
+        Nulls.param(counts, "counts");
         final var names = new ArrayList<String>();
         for (final var entry : counts.entrySet()) {
             names.add(entry.getKey() + "=" + entry.getValue());

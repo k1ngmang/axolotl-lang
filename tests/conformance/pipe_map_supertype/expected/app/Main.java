@@ -8,11 +8,17 @@ import java.util.List;
     public sealed interface Shape {}
     public record Dot(int x) implements Shape {}
     public record Box(int w) implements Shape {}
-    public record Group(List<Shape> shapes) {}
+    public record Group(List<Shape> shapes) {
+        public Group {
+            Nulls.param(shapes, "shapes");
+        }
+    }
     public static List<Shape> dots(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         return xs.stream().<Shape>map(Nulls.nonNull(it -> new Dot(it))).toList();
     }
     public static List<Shape> boxes(List<Integer> xs) {
+        Nulls.param(xs, "xs");
         return xs.stream().<Shape>map(Nulls.nonNull(it -> new Box(it))).distinct().limit(2).toList();
     }
     public static void main(String[] args) {

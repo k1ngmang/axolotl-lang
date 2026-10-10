@@ -1,0 +1,29 @@
+package app
+
+import java.util.List
+
+class Patch(val name: String, val lines: List<String>, val note: String?, val size: Int) {
+    constructor(name: String) = this(name, List.of(), null, 0)
+
+    constructor(lines: List<String>, label: String) = this(label.trim(), lines, null, lines.size())
+
+    private constructor(size: Int, name: String) = this(name, List.of(), null, size)
+
+    fn applyTo(target: List<String>, at: Int, comment: String?) -> String = name + " at " + at + " of " + target.size()
+
+    private fn hidden(text: String) -> String = text
+
+    fn describe() -> String = hidden(name) + Hidden(name).show("!")
+
+    fn resized(size: Int) -> Patch = Patch(size, name)
+}
+
+class Failure(val reason: String) : RuntimeException("failed: " + reason)
+
+class Wrapper(val reason: String) : RuntimeException(reason)
+
+private class Hidden(private val name: String) {
+    fn show(text: String) -> String = name + text
+}
+
+enum Kind(val label: String) { ADD("add"), DROP("drop") }

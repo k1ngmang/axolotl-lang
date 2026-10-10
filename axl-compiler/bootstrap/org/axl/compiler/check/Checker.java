@@ -57,6 +57,9 @@ import org.axl.compiler.ast.TypeRef;
     public List<Decl.Function> currentMethods;
     public @Nullable TypeRef declaredType;
     public Checker(SourceFile file, List<SourceFile> siblings, JavaClasses classes) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(classes, "classes");
         this.file = file;
         this.siblings = siblings;
         this.classes = classes;
@@ -1905,7 +1908,12 @@ import org.axl.compiler.ast.TypeRef;
     private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Double", "Boolean", "String", "Char");
     private static final Set<String> NUMBER_TYPES = Set.of("Int", "Long", "Double");
     public enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
-    public record Symbol(Kind kind, Pos pos, @Nullable TypeRef type) {}
+    public record Symbol(Kind kind, Pos pos, @Nullable TypeRef type) {
+        public Symbol {
+            Nulls.param(kind, "kind");
+            Nulls.param(pos, "pos");
+        }
+    }
     public static final class Scope {
         public final @Nullable Scope parent;
         public final boolean fileScope;
@@ -1916,6 +1924,7 @@ import org.axl.compiler.ast.TypeRef;
             this.names = new HashMap<String, Symbol>();
         }
         public @Nullable Symbol lookup(String name) {
+            Nulls.param(name, "name");
             @Nullable Scope s = this;
             while (s != null) {
                 final var symbol = s.names.get(name);
@@ -1928,6 +1937,10 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     public static Analysis check(SourceFile file, List<SourceFile> siblings, JavaClasses classes, List<AxlDiagnostic> diagnostics) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(classes, "classes");
+        Nulls.param(diagnostics, "diagnostics");
         final var checker = new Checker(file, siblings, classes);
         checker.run();
         diagnostics.addAll(checker.diagnostics);
@@ -1939,6 +1952,7 @@ import org.axl.compiler.ast.TypeRef;
         return constant != null && constant.text().equals("null");
     }
     public static boolean isAttemptStatement(Expr e, boolean valueStage) {
+        Nulls.param(e, "e");
         final var inner = unparenthesized(e);
         if (valueStage || !(inner instanceof Expr.Attempt inner$1)) {
             return false;

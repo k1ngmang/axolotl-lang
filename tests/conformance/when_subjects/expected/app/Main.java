@@ -58,6 +58,7 @@ import org.jspecify.annotations.*;
         }
     }
     public static boolean warm(Color c) {
+        Nulls.param(c, "c");
         switch (c) {
             case Color.RED -> {
                 return true;

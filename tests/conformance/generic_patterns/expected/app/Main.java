@@ -8,6 +8,7 @@ import app.Options.Some;
 @NullMarked public final class Main {
     private Main() {}
     public static String show(String s) {
+        Nulls.param(s, "s");
         final var parsed = Options.parse(s);
         if (parsed instanceof Some<Integer> parsed$1) {
             return "some " + (parsed$1.value() + 1);
@@ -15,6 +16,7 @@ import app.Options.Some;
         return "none " + ((None<Integer>) parsed).present();
     }
     public static String describe(String s) {
+        Nulls.param(s, "s");
         final var parsed = Options.parse(s);
         switch (parsed) {
             case Some<Integer> parsed$1 -> {
@@ -26,6 +28,7 @@ import app.Options.Some;
         }
     }
     public static String known(Option<String> option) {
+        Nulls.param(option, "option");
         switch (option) {
             case Some<String> option$1 -> {
                 return option$1.value().toUpperCase();

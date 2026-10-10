@@ -6,6 +6,7 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static String top(List<String> names) {
+        Nulls.param(names, "names");
         return Nulls.or(Nulls.first(names.stream().sorted(java.util.Comparator.naturalOrder()).iterator()), () -> "none");
     }
     public static void main(String[] args) {

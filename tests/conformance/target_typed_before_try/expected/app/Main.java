@@ -12,15 +12,19 @@ import java.util.Optional;
         return new Ok<>(1);
     }
     public static int take(Optional<String> o, int n) {
+        Nulls.param(o, "o");
         return n;
     }
     public static int sortBy(Comparator<String> c, int n) {
+        Nulls.param(c, "c");
         return n;
     }
     public static int wrapped(Result<List<String>, String> r, int n) {
+        Nulls.param(r, "r");
         return n;
     }
     public static int copied(List<String> xs, int n) {
+        Nulls.param(xs, "xs");
         return n;
     }
     public static Result<Integer, String> sum() {

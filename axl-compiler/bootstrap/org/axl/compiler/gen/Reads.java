@@ -18,6 +18,7 @@ import org.axl.compiler.ast.Stmt;
     public int lambdas = 0;
     public boolean expansions = false;
     public void expr(Expr e) {
+        Nulls.param(e, "e");
         switch (e) {
             case Expr.Literal e$1 -> {
             }
@@ -122,16 +123,19 @@ import org.axl.compiler.ast.Stmt;
         }
     }
     public void exprs(List<Expr> list) {
+        Nulls.param(list, "list");
         for (final var e : list) {
             expr(e);
         }
     }
     public void statements(List<Stmt> list) {
+        Nulls.param(list, "list");
         for (final var s : list) {
             statement(s);
         }
     }
     public void statement(Stmt s) {
+        Nulls.param(s, "s");
         switch (s) {
             case Stmt.Local s$1 -> {
                 expr(s$1.init());
@@ -198,6 +202,7 @@ import org.axl.compiler.ast.Stmt;
         }
     }
     public void function(Decl.Function f) {
+        Nulls.param(f, "f");
         final var exprBody = f.exprBody();
         if (exprBody != null) {
             expr(exprBody);
@@ -208,6 +213,7 @@ import org.axl.compiler.ast.Stmt;
         }
     }
     public void decl(Decl d) {
+        Nulls.param(d, "d");
         switch (d) {
             case Decl.Function d$1 -> {
                 function(d$1);
@@ -251,6 +257,10 @@ import org.axl.compiler.ast.Stmt;
         }
     }
     public static Set<String> constructorOnly(Decl.ClassDecl c, SourceFile file, List<SourceFile> siblings, Set<String> required) {
+        Nulls.param(c, "c");
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(required, "required");
         final var result = new HashSet<String>();
         for (final var p : c.parameters()) {
             if (p.isPrivate() && !p.mutable() && p.annotations().isEmpty() && !required.contains(p.name())) {

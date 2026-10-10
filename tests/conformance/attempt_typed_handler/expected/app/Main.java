@@ -11,18 +11,24 @@ import java.util.List;
 @NullMarked public final class Main {
     private Main() {}
     public static String read(Path p) {
+        Nulls.param(p, "p");
         return Result.orThrow(() -> Files.readString(p), e -> new UncheckedIOException(e), IOException.class);
     }
     public static Result<Long, String> size(Path p) {
+        Nulls.param(p, "p");
         return Result.attempt(() -> Files.size(p), e -> "cannot read " + e.getMessage(), IOException.class);
     }
     public static Result<Integer, String> number(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "not a number: " + s, NumberFormatException.class);
     }
     public static Result<Integer, String> parsedOrState(String s) {
+        Nulls.param(s, "s");
         return Result.attempt(() -> Integer.parseInt(s), e -> "illegal state", IllegalStateException.class);
     }
     public static void put(Appendable out, String text) {
+        Nulls.param(out, "out");
+        Nulls.param(text, "text");
         try {
             out.append(text);
         } catch (IOException e) {
@@ -30,6 +36,7 @@ import java.util.List;
         }
     }
     public static int firstChar(String text) {
+        Nulls.param(text, "text");
         try (var reader = new StringReader(text)) {
             return reader.read();
         } catch (IOException e) {
@@ -37,6 +44,7 @@ import java.util.List;
         }
     }
     public static int deleted(List<Path> paths) {
+        Nulls.param(paths, "paths");
         var n = 0;
         for (final var p : paths) {
             try {

@@ -31,7 +31,7 @@ import org.junit.jupiter.api.TestFactory;
  * Runs every case in tests/conformance. A case has a `src` tree and any of:
  * `expected/` with the exact generated .java files, `expected.err` with the expected errors
  * (`CODE file:line:column: error: message`, one per line), `expected.out` with the output of the
- * `main` class named in `case.properties`, which may also set `inlineElvis=true` and `strictNull=true`,
+ * `main` class named in `case.properties`, which may also set `inlineElvis=true`, `strictNull=true`, `paramChecks=false`,
  * and `classpathCase=<case>`: the source tree of that case is compiled first and put on the classpath,
  * as a jar when `classpathJar=true` is set as well.
  */
@@ -79,7 +79,8 @@ class ConformanceTest {
         }
         AxlBuild.Result result = new AxlBuild(src, generated, classes)
                 .display(p -> src.relativize(p).toString().replace('\\', '/'))
-                .options(new Options(Boolean.parseBoolean(props.getProperty("inlineElvis"))))
+                .options(new Options(Boolean.parseBoolean(props.getProperty("inlineElvis")),
+                        Boolean.parseBoolean(props.getProperty("paramChecks", "true"))))
                 .strictNull(Boolean.parseBoolean(props.getProperty("strictNull")))
                 .classpath(classpath)
                 .run();

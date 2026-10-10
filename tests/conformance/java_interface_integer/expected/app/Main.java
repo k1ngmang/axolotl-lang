@@ -15,11 +15,14 @@ import java.util.function.Supplier;
     }
     public static final class Inc implements Function<Integer, Integer> {
         public Integer apply(Integer x) {
+            Nulls.param(x, "x");
             return x + 1;
         }
     }
     public static final class Desc implements Comparator<Integer> {
         public int compare(Integer a, Integer b) {
+            Nulls.param(a, "a");
+            Nulls.param(b, "b");
             return b.compareTo(a);
         }
     }

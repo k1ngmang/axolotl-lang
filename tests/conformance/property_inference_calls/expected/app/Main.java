@@ -13,6 +13,7 @@ import java.util.List;
         public final int size;
         public long elapsed;
         public Timer(String label) {
+            Nulls.param(label, "label");
             this.label = label;
             this.started = System.nanoTime();
             this.upper = label.toUpperCase();

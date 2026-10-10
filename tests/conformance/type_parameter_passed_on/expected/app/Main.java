@@ -9,12 +9,16 @@ import java.util.function.Supplier;
 @NullMarked public final class Main {
     private Main() {}
     public static <T extends @Nullable Object> Conv<T> find(Class<T> clazz) {
+        Nulls.param(clazz, "clazz");
         return s -> clazz.cast(s);
     }
     public static <T extends @Nullable Object> Result<T, String> convert(String s, Class<T> clazz) {
+        Nulls.param(s, "s");
+        Nulls.param(clazz, "clazz");
         return Result.attempt(() -> find(clazz).apply(s), e -> "bad: " + e.getMessage());
     }
     public static <T extends @Nullable Object> Supplier<T> first(List<T> xs) {
+        Nulls.param(xs, "xs");
         return () -> xs.get(0);
     }
     public static <T extends @Nullable Object> Supplier<T> kept(T x) {

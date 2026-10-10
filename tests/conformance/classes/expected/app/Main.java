@@ -8,6 +8,7 @@ import org.jspecify.annotations.*;
         public final String value;
         public int seen;
         public Box(String value) {
+            Nulls.param(value, "value");
             this.value = value;
             this.seen = 0;
         }

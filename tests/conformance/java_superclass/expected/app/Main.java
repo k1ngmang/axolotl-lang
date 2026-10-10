@@ -10,6 +10,7 @@ import java.util.Map;
         public final String id;
         public NotFound(String id) {
             super("not found: " + id);
+            Nulls.param(id, "id");
             this.id = id;
         }
     }
@@ -35,6 +36,7 @@ import java.util.Map;
             this.limit = limit;
         }
         public boolean removeEldestEntry(Map.Entry<String, Integer> eldest) {
+            Nulls.param(eldest, "eldest");
             return size() > limit;
         }
     }
@@ -44,6 +46,7 @@ import java.util.Map;
         }
     }
     public static String find(String id) {
+        Nulls.param(id, "id");
         if (id.isEmpty()) {
             throw new NotFound(id);
         }

@@ -16,10 +16,12 @@ import java.util.List;
         public final String name;
         public final List<String> items;
         public MemoryNotes(String name) {
+            Nulls.param(name, "name");
             this.name = name;
             this.items = new ArrayList<String>();
         }
         @Override public int add(String text) {
+            Nulls.param(text, "text");
             items.add(text);
             return items.size();
         }
@@ -35,6 +37,7 @@ import java.util.List;
         public final Notes inner;
         public int added;
         public CountingNotes(Notes inner) {
+            Nulls.param(inner, "inner");
             this.inner = inner;
             this.added = 0;
         }
@@ -42,6 +45,7 @@ import java.util.List;
             return inner.name() + " (counted)";
         }
         @Override public int add(String text) {
+            Nulls.param(text, "text");
             added += 1;
             return inner.add(text);
         }
@@ -53,6 +57,7 @@ import java.util.List;
         }
     }
     public static String describe(Notes notes) {
+        Nulls.param(notes, "notes");
         final var id = notes.add("buy milk");
         final var found = notes.find(id);
         return notes.name() + ": " + id + " " + Nulls.<String>or(found, () -> "nothing") + " " + Nulls.<String>or(notes.find(99), () -> "nothing");

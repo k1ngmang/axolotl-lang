@@ -1,0 +1,17 @@
+4
+p at 2 of 1
+null
+empty
+anull1true0.5
+parameter lines of the Chunk constructor must not be null, at app.Chunk.<init>
+parameter name of the Patch constructor must not be null, at app.Patch.<init>
+parameter name of the Patch constructor must not be null, at app.Patch.<init>
+parameter lines of the Patch constructor must not be null, at app.Patch.<init>
+parameter target of Patch.applyTo must not be null, at app.Patch.applyTo
+parameter reason of Chunk.shifted must not be null, at app.Chunk.shifted
+parameter c of Chunk.last must not be null, at app.Chunk.last
+parameter b of Chunk.largest must not be null, at app.Chunk.largest
+parameter label of the Box constructor must not be null, at app.Chunk$Box.<init>
+parameter value of the Ranked constructor must not be null, at app.Chunk$Ranked.<init>
+parameter reason of the Failure constructor must not be null, at app.Patch$Failure.<init>
+parameter reason of the Wrapper constructor must not be null, at app.Patch$Wrapper.<init>

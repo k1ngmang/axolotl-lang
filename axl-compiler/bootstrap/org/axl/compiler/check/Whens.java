@@ -10,6 +10,7 @@ import org.axl.compiler.ast.Stmt.Return;
 @NullMarked public final class Whens {
     private Whens() {}
     public static List<Stmt> returning(Expr.Arm arm) {
+        Nulls.param(arm, "arm");
         final var statements = new ArrayList<Stmt>(arm.body());
         if (statements.isEmpty()) {
             return statements;
