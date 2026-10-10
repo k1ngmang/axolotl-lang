@@ -53,6 +53,13 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     @Parameter(property = "axl.inlineElvis", defaultValue = "false")
     boolean inlineElvis;
 
+    /**
+     * Check the non-null parameters of public functions and constructors on entry, so that a null passed
+     * from Java fails there and names the parameter.
+     */
+    @Parameter(property = "axl.paramChecks", defaultValue = "true")
+    boolean paramChecks = true;
+
     /** Treat values from Java code without nullness annotations as nullable. */
     @Parameter(property = "axl.strictNull", defaultValue = "false")
     boolean strictNull;
@@ -207,7 +214,7 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
         for (Map.Entry<String, String> file : readAll(contextFiles).entrySet()) {
             context.add(new Translation.Input(file.getKey(), contextFiles.get(file.getKey()).toString(), file.getValue()));
         }
-        List<Translator.Result> results = Translation.run(inputs, context, new Options(inlineElvis), classpath, javaRoots,
+        List<Translator.Result> results = Translation.run(inputs, context, new Options(inlineElvis, paramChecks), classpath, javaRoots,
                 output, strictNull);
         for (int i = 0; i < results.size(); i++) {
             Translator.Result result = results.get(i);
@@ -308,7 +315,8 @@ abstract class AbstractGenerateMojo extends AbstractMojo {
     }
 
     private String environment(List<Path> classpath, List<Path> javaRoots, List<Path> contextDirs) throws IOException {
-        StringBuilder sb = new StringBuilder("inlineElvis=" + inlineElvis + " strictNull=" + strictNull + " plugin=" + pluginVersion);
+        StringBuilder sb = new StringBuilder("inlineElvis=" + inlineElvis + " paramChecks=" + paramChecks + " strictNull=" + strictNull
+                + " plugin=" + pluginVersion);
         for (Path dir : contextDirs) {
             sb.append('\n').append(dir);
             if (Files.isDirectory(dir)) {

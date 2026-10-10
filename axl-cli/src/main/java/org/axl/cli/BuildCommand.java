@@ -42,6 +42,11 @@ final class BuildCommand implements Callable<Integer> {
     @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
     boolean inlineElvis;
 
+    @Option(names = "--no-param-checks", description = {
+            "Leave out the checks that Java callers pass no null for a non-null parameter.",
+            "By default public functions and constructors check them on entry."})
+    boolean noParamChecks;
+
     @Option(names = "--no-smap", description = {
             "Keep the line numbers of the generated .java files in the classes.",
             "By default the classes name the .axl file and its lines in stack traces and debuggers."})
@@ -56,7 +61,7 @@ final class BuildCommand implements Callable<Integer> {
         Paths.warnAboutTooDeep(List.of(sourceDir));
         Path generated = generatedDir != null ? generatedDir : classesDir;
         var job = new CompileJob(CompileJob.Kind.BUILD, List.of(sourceDir), null, generated, classesDir, classpath,
-                !noNullChecks, checkJava, strictNull, inlineElvis, !noSmap, Paths.workingDirectory());
+                !noNullChecks, checkJava, strictNull, inlineElvis, !noParamChecks, !noSmap, Paths.workingDirectory());
         return main.compiler().compile(job).success() ? 0 : 1;
     }
 }

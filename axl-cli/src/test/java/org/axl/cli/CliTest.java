@@ -377,6 +377,25 @@ class CliTest {
     }
 
     @Test
+    void buildChecksParametersAJavaCallerPassesNullFor(@TempDir Path tmp) throws Exception {
+        Path src = Files.createDirectories(tmp.resolve("src/app"));
+        Files.writeString(src.resolve("Main.axl"), "package app\n\nfn greet(\n    name: String\n) -> String = \"hi \" + name\n");
+        Files.writeString(src.resolve("Caller.java"),
+                "package app;\n\npublic class Caller {\n    public static void main(String[] args) {\n        Main.greet(null);\n    }\n}\n");
+        assertEquals(0, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("classes").toString(),
+                "-s", tmp.resolve("gen").toString()), err.toString());
+
+        String trace = runJava(tmp.resolve("classes"), "app.Caller").replace("\r\n", "\n");
+        assertTrue(trace.contains("java.lang.NullPointerException: parameter name of Main.greet must not be null\n"
+                + "\tat app.Main.greet(Main.axl:3)\n\tat app.Caller.main(Caller.java:5)"), trace);
+
+        assertEquals(0, axl("build", tmp.resolve("src").toString(), "-d", tmp.resolve("unchecked").toString(),
+                "-s", tmp.resolve("unchecked-gen").toString(), "--no-param-checks"), err.toString());
+        assertFalse(Files.readString(tmp.resolve("unchecked-gen/app/Main.java")).contains("Nulls.param"));
+        assertTrue(Files.readString(tmp.resolve("gen/app/Main.java")).contains("Nulls.param(name, \"name\");"));
+    }
+
+    @Test
     void retraceLeavesTracesThatNameAxlFilesAsTheyAre(@TempDir Path tmp) throws Exception {
         assertEquals(0, axl("build", CASES.resolve("hello/src").toString(), "-d", tmp.resolve("classes").toString(),
                 "-s", tmp.resolve("gen").toString()));

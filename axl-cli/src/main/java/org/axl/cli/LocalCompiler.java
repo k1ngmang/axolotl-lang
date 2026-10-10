@@ -78,7 +78,7 @@ final class LocalCompiler implements Compiler {
                 .nullChecks(job.nullChecks())
                 .checkJava(job.checkJava())
                 .strictNull(job.strictNull())
-                .options(new Options(job.inlineElvis()));
+                .options(new Options(job.inlineElvis(), job.paramChecks()));
     }
 
     private static void report(List<AxlDiagnostic> diagnostics) {

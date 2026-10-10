@@ -52,6 +52,11 @@ final class RunCommand implements Callable<Integer> {
     @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
     boolean inlineElvis;
 
+    @Option(names = "--no-param-checks", description = {
+            "Leave out the checks that Java callers pass no null for a non-null parameter.",
+            "By default public functions and constructors check them on entry."})
+    boolean noParamChecks;
+
     @Override
     public Integer call() throws Exception {
         if (!Files.isRegularFile(file)) {
@@ -73,7 +78,7 @@ final class RunCommand implements Callable<Integer> {
         }
         Path work = WorkDirectories.create(WorkDirectories.RUN);
         var job = new CompileJob(CompileJob.Kind.RUN, List.of(), file, work.resolve("generated"), work.resolve("classes"),
-                classpath, !noNullChecks, checkJava, strictNull, inlineElvis, false, Paths.workingDirectory());
+                classpath, !noNullChecks, checkJava, strictNull, inlineElvis, !noParamChecks, false, Paths.workingDirectory());
         CompileJob.Result result = main.compiler().compile(job);
         if (!result.success()) {
             return 1;

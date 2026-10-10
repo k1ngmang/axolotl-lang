@@ -18,7 +18,7 @@ import org.jspecify.annotations.Nullable;
  */
 record CompileJob(Kind kind, List<Path> sourceDirs, @Nullable Path file, Path generatedDir, Path classesDir,
                   List<Path> classpath, boolean nullChecks, boolean checkJava, boolean strictNull, boolean inlineElvis,
-                  boolean smap, Path workingDirectory) {
+                  boolean paramChecks, boolean smap, Path workingDirectory) {
 
     enum Kind { CHECK, BUILD, RUN }
 
@@ -31,7 +31,7 @@ record CompileJob(Kind kind, List<Path> sourceDirs, @Nullable Path file, Path ge
      */
     CompileJob resolved() {
         return new CompileJob(kind, sourceDirs, file, workingDirectory.resolve(generatedDir), workingDirectory.resolve(classesDir),
-                resolve(classpath), nullChecks, checkJava, strictNull, inlineElvis, smap, workingDirectory);
+                resolve(classpath), nullChecks, checkJava, strictNull, inlineElvis, paramChecks, smap, workingDirectory);
     }
 
     List<Path> resolve(List<Path> paths) {
@@ -58,6 +58,7 @@ record CompileJob(Kind kind, List<Path> sourceDirs, @Nullable Path file, Path ge
         out.writeBoolean(checkJava);
         out.writeBoolean(strictNull);
         out.writeBoolean(inlineElvis);
+        out.writeBoolean(paramChecks);
         out.writeBoolean(smap);
         writeString(out, workingDirectory.toString());
     }
@@ -68,7 +69,7 @@ record CompileJob(Kind kind, List<Path> sourceDirs, @Nullable Path file, Path ge
         String file = readString(in);
         return new CompileJob(kind, sourceDirs, file.isEmpty() ? null : Path.of(file), Path.of(readString(in)),
                 Path.of(readString(in)), readPaths(in), in.readBoolean(), in.readBoolean(), in.readBoolean(),
-                in.readBoolean(), in.readBoolean(), Path.of(readString(in)));
+                in.readBoolean(), in.readBoolean(), in.readBoolean(), Path.of(readString(in)));
     }
 
     private static void writePaths(DataOutputStream out, List<Path> paths) throws IOException {

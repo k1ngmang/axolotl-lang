@@ -38,6 +38,11 @@ final class CheckCommand implements Callable<Integer> {
     @Option(names = "--inline-elvis", description = "Expand `?:` at statement level without a lambda.")
     boolean inlineElvis;
 
+    @Option(names = "--no-param-checks", description = {
+            "Leave out the checks that Java callers pass no null for a non-null parameter.",
+            "By default public functions and constructors check them on entry."})
+    boolean noParamChecks;
+
     @Override
     public Integer call() throws Exception {
         if (!sourceDirs.stream().allMatch(Paths::isDirectory) || !Paths.haveSources(sourceDirs)) {
@@ -48,7 +53,8 @@ final class CheckCommand implements Callable<Integer> {
         Path work = WorkDirectories.create(WorkDirectories.CHECK);
         try {
             var job = new CompileJob(CompileJob.Kind.CHECK, sourceDirs, null, work.resolve("generated"),
-                    work.resolve("classes"), classpath, !noNullChecks, checkJava, strictNull, inlineElvis, false, Paths.workingDirectory());
+                    work.resolve("classes"), classpath, !noNullChecks, checkJava, strictNull, inlineElvis, !noParamChecks, false,
+                    Paths.workingDirectory());
             return main.compiler().compile(job).success() ? 0 : 1;
         } finally {
             WorkDirectories.delete(work);

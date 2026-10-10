@@ -24,6 +24,12 @@ public abstract class AxlExtension {
     public abstract Property<Boolean> getInlineElvis();
 
     /**
+     * Checks the non-null parameters of public functions and constructors on entry, so that a null passed
+     * from Java fails there and names the parameter.
+     */
+    public abstract Property<Boolean> getParamChecks();
+
+    /**
      * Makes compiled classes name the .axl file and its lines in stack traces and debuggers, and adds
      * a JSR-45 SMAP. When off, the classes keep the lines of the generated .java files.
      */

@@ -70,6 +70,9 @@ public abstract class GenerateAxlTask extends DefaultTask {
     @Input
     public abstract Property<Boolean> getInlineElvis();
 
+    @Input
+    public abstract Property<Boolean> getParamChecks();
+
     /** Types top-level values inferred from Java code without nullness annotations as nullable. */
     @Input
     public abstract Property<Boolean> getStrictNull();
@@ -185,7 +188,7 @@ public abstract class GenerateAxlTask extends DefaultTask {
     /** The unchanged files are read for their declarations but not written. */
     private void translate(List<Translation.Input> inputs, List<Translation.Input> context, Path out,
                            List<AxlDiagnostic> diagnostics) throws IOException {
-        Options options = new Options(getInlineElvis().get());
+        Options options = new Options(getInlineElvis().get(), getParamChecks().get());
         List<Path> classpath = getClasspath().getFiles().stream().map(File::toPath).toList();
         List<Path> javaRoots = getJavaSourceDirs().getFiles().stream().map(File::toPath).toList();
         for (Translator.Result result : Translation.run(inputs, context, options, classpath, javaRoots, out,

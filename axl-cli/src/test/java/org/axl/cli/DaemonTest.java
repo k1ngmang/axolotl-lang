@@ -228,7 +228,7 @@ class DaemonTest {
                 try {
                     Path work = WorkDirectories.create(WorkDirectories.CHECK);
                     var job = new CompileJob(CompileJob.Kind.CHECK, List.of(src), null, work.resolve("generated"),
-                            work.resolve("classes"), List.of(), false, false, false, false, false, Paths.workingDirectory());
+                            work.resolve("classes"), List.of(), false, false, false, false, true, false, Paths.workingDirectory());
                     codes.add(new DaemonClient(settings, false).compile(job).success() ? 0 : 1);
                     WorkDirectories.delete(work);
                 } catch (Throwable t) {

@@ -388,6 +388,21 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void paramChecksCanBeLeftOut() throws IOException {
+        Files.writeString(project.resolve("core/src/main/axl/core/Numbers.axl"),
+                "package core\n\nfn number(text: String) -> Int = Integer.parseInt(text)\n");
+        Path generated = project.resolve("core/build/generated/axl/main/core/Numbers.java");
+        gradle(":core:generateAxl").build();
+        assertTrue(Files.readString(generated).contains("Nulls.param(text, \"text\");"), Files.readString(generated));
+
+        Path build = project.resolve("core/build.gradle.kts");
+        Files.writeString(build, Files.readString(build) + "\naxl {\n    paramChecks = false\n}\n");
+        BuildResult result = gradle(":core:generateAxl").build();
+        assertEquals(TaskOutcome.SUCCESS, result.task(":core:generateAxl").getOutcome());
+        assertFalse(Files.readString(generated).contains("Nulls.param"), Files.readString(generated));
+    }
+
+    @Test
     void addsSmapAndShowsAxlLinesInFailedTests() throws IOException {
         Files.writeString(project.resolve("core/src/main/axl/core/Numbers.axl"),
                 "package core\n\nfn number(text: String) -> Int {\n    return Integer.parseInt(text)\n}\n"

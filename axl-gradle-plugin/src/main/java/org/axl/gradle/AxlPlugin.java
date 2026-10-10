@@ -42,6 +42,7 @@ public class AxlPlugin implements Plugin<Project> {
         axl.getCheckJava().convention(false);
         axl.getJavaRelease().convention(21);
         axl.getInlineElvis().convention(false);
+        axl.getParamChecks().convention(true);
         axl.getSmap().convention(true);
         axl.getStrictNull().convention(false);
 
@@ -97,6 +98,7 @@ public class AxlPlugin implements Plugin<Project> {
                     // The declarations of the source sets this one compiles against, such as main for test.
                     task.getContextSources().from(project.provider(() -> LspSources.of(project, sourceSet).dependencyAxl));
                     task.getInlineElvis().set(axl.getInlineElvis());
+                    task.getParamChecks().set(axl.getParamChecks());
                     task.getStrictNull().set(axl.getStrictNull());
                     task.getOutputDir().set(project.getLayout().getBuildDirectory().dir("generated/axl/" + name));
                     task.getClasspath().from(sourceSet.getCompileClasspath());

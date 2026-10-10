@@ -332,4 +332,18 @@ class GenerateMojoTest {
         inline.execute();
         assertEquals("Translated 1 of 1 .axl file(s)", messages.getLast());
     }
+
+    @Test
+    void leavesOutParamChecksWhenTurnedOff(@TempDir Path base) throws Exception {
+        Path sources = Files.createDirectories(base.resolve("src/main/axl/app"));
+        Files.writeString(sources.resolve("A.axl"), "package app\n\nfn a(s: String) -> Int = s.length()\n");
+        Path generated = base.resolve("target/generated-sources/axl/app/A.java");
+        mojo(base).execute();
+        assertTrue(Files.readString(generated).contains("Nulls.param(s, \"s\");"), Files.readString(generated));
+        GenerateMojo unchecked = mojo(base);
+        unchecked.paramChecks = false;
+        unchecked.execute();
+        assertEquals("Translated 1 of 1 .axl file(s)", messages.getLast());
+        assertFalse(Files.readString(generated).contains("Nulls.param"), Files.readString(generated));
+    }
 }
