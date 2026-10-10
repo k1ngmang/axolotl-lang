@@ -24,6 +24,7 @@ nav:
   - Migrating from Java: migration.md
   - Leaving Axolotl: leaving.md
   - FAQ: faq.md
+  - Stability: stability.md
   - Reference:
       - Gradle plugin: gradle.md
       - Maven plugin: maven.md
