@@ -78,6 +78,8 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
     private final Map<Path, Mapping> mappings = new HashMap<>();
     private final Set<String> reported = new HashSet<>();
     private final Set<String> javaPositions = new HashSet<>();
+    // The .axl lines whose `use` has a message about what its resource throws.
+    private final Set<String> resourceLines = new HashSet<>();
     // The Error Prone checks whose first warning has named them.
     private final Set<String> namedChecks = new HashSet<>();
 
@@ -113,7 +115,7 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         JCDiagnostic moved = move(diagnostic);
         if (moved == null) {
             prev.report(diagnostic);
-        } else if (!firstAtJavaPosition(diagnostic) || ignored(diagnostic)) {
+        } else if (!firstAtJavaPosition(diagnostic) || ignored(diagnostic) || !firstForResource(moved)) {
             return;
         } else if (reported.add(moved.getSource().toUri() + ":" + moved.getLineNumber() + ":"
                 + ErrorProneMessages.withoutSuppression(moved.getMessage(Locale.ROOT)))) {
@@ -193,6 +195,18 @@ final class AxlDiagnosticHandler extends Log.DiagnosticHandler {
         // javac shows one error per position, and many .axl errors share one; `report` drops true repeats.
         moved.setFlag(JCDiagnostic.DiagnosticFlag.API);
         return moved;
+    }
+
+    /**
+     * javac reports a resource whose opening and `close()` both throw twice, the opening first; one message
+     * for the line of the `use` says it all.
+     */
+    private boolean firstForResource(JCDiagnostic moved) {
+        String message = moved.getMessage(Locale.ROOT);
+        if (!message.startsWith(Messages.RESOURCE_THROWS) && !message.startsWith(Messages.CLOSE_THROWS)) {
+            return true;
+        }
+        return resourceLines.add(moved.getSource().toUri() + ":" + moved.getLineNumber());
     }
 
     /**

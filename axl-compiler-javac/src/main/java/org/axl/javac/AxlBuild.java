@@ -136,6 +136,9 @@ public final class AxlBuild {
         // Boxed numbers compared with `==` get their own error; the general one about `==` says less.
         diagnostics.removeIf(d -> d.message().startsWith(ErrorProneMessages.REFERENCE_EQUALITY)
                 && errors.stream().anyMatch(e -> e != d && samePosition(e, d)));
+        // A resource whose opening and `close()` both throw gets one message, the one about opening or closing.
+        diagnostics.removeIf(d -> d.message().startsWith(Messages.CLOSE_THROWS) && errors.stream().anyMatch(e -> e != d
+                && e.message().startsWith(Messages.RESOURCE_THROWS) && e.file().equals(d.file()) && e.line() == d.line()));
         List<AxlDiagnostic> all = List.copyOf(diagnostics);
         diagnostics.removeIf(d -> d.column() == 1 && all.stream().anyMatch(other -> placedBetter(other, d)));
         diagnostics.removeIf(d -> Messages.followsFrom(d, all));

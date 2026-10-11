@@ -186,6 +186,9 @@ final class Messages {
     private static final String UNKNOWN_NAME = "unknown name `";
     // The build adds where a type of another file is declared, to an unknown type and to an unknown name alike.
     static final String DECLARED_IN = "`; it is declared in ";
+    // What the resource of a `use` throws, which a `use` is told once.
+    static final String RESOURCE_THROWS = "opening or closing this resource can throw `";
+    static final String CLOSE_THROWS = "`close()` of `";
     // `Level.LOW` with `Level` unknown: javac reads `Level` as a package and points after the dot.
     private static final Pattern UNKNOWN_PACKAGE = Pattern.compile("^unknown package `(\\w+)`");
     private static final Pattern OPEN_TYPE_PARAMETER = Pattern.compile("\\b(\\w+) extends @Nullable Object\\b");
@@ -1438,7 +1441,7 @@ final class Messages {
         }
         Matcher unreportedClose = UNREPORTED_CLOSE.matcher(message);
         if (unreportedClose.find()) {
-            return "`close()` of `" + resourceType(unreportedClose.group(2), text) + "` can throw `"
+            return CLOSE_THROWS + resourceType(unreportedClose.group(2), text) + "` can throw `"
                     + axlType(unreportedClose.group(1)) + "`; add `else e -> ...` to the `use`";
         }
         Matcher unreported = UNREPORTED.matcher(message);
@@ -1457,7 +1460,7 @@ final class Messages {
                     + "`RuntimeException`, such as `IllegalStateException`, or return an `Err`";
         }
         if (unreported.find(0) && text.strip().startsWith("try (")) {
-            return "opening or closing this resource can throw `" + axlType(unreported.group(1)) + "`; handle it after the block: "
+            return RESOURCE_THROWS + axlType(unreported.group(1)) + "`; handle it after the block: "
                     + "`use (val r = ...) { ... } else e -> ...`";
         }
         if (unreported.find(0)) {

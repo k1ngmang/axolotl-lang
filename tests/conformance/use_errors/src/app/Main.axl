@@ -9,4 +9,8 @@ fn main() {
     use (val n = 5) {
         println(n)
     }
+    // Opening and closing both throw: one message for the resource.
+    use (val reader = java.io.FileReader("x")) {
+        println(reader)
+    }
 }
