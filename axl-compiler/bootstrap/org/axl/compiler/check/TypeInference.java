@@ -232,10 +232,15 @@ import org.axl.compiler.ast.TypeRef;
         if (!params.isEmpty() && params.size() != receiver.args().size()) {
             return null;
         }
+        final var value = (decl instanceof Decl.Interface decl$1 && c.args().isEmpty() ? Nulls.first(Nulls.stream(decl$1.members()).filter(m -> m.name().equals(c.name())).iterator()) : null);
+        final var valueType = Nulls.map(value, $n1 -> $n1.type());
+        if (valueType != null) {
+            return Implementations.substitute(valueType, params, receiver.args());
+        }
         final List<Decl.Function> methods = switch (decl) {
-            case Decl.DataClass decl$1 -> decl$1.methods();
-            case Decl.ClassDecl decl$2 -> decl$2.methods();
-            case Decl.Interface decl$3 -> decl$3.methods();
+            case Decl.DataClass decl$2 -> decl$2.methods();
+            case Decl.ClassDecl decl$3 -> decl$3.methods();
+            case Decl.Interface decl$4 -> decl$4.methods();
             case null, default -> List.of();
         };
         final var named = methods.stream().filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();

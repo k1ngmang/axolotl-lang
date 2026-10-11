@@ -1,0 +1,8 @@
+package app
+
+import app.Keys.Entry
+import app.Keys.Range
+
+fn sameKeys(a: Entry, b: Entry) -> Boolean = a.key() == b.key()
+
+fn wide(r: Range) -> Boolean = r.low() != r.high()

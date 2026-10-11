@@ -1,0 +1,27 @@
+1001
+true
+true
+true
+true
+Entry[key=1000, label=a]
+thousand
+other 7
+true
+true
+5000000001
+true
+3.0
+4
+true
+7
+42
+true
+[10000, 20]
+1001
+true
+8
+4
+thousand
+true
+false
+parameter key of the Entry constructor must not be null

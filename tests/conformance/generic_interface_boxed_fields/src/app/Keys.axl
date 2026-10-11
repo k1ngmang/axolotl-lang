@@ -1,0 +1,81 @@
+package app
+
+import java.util.List
+
+interface Keyed<K> {
+    fn key() -> K
+}
+
+interface Named<K> {
+    val key: K
+}
+
+interface Bounds<T> {
+    val low: T
+    val high: T
+}
+
+interface IntKeyed : Keyed<Int>
+
+data class Entry(val key: Int, val label: String) : Keyed<Int> {
+    fn sameKey(other: Entry) -> Boolean = key == other.key()
+}
+
+data class Tagged(val key: Long) : Named<Long>
+
+data class Flag(val key: Boolean) : Named<Boolean>
+
+data class Weight(val key: Double) : Keyed<Double>
+
+data class Slot(val key: Int) : IntKeyed
+
+data class Range(val low: Int, val high: Int) : Bounds<Int> {
+    fn empty() -> Boolean = low == high
+}
+
+class Account(val key: Long, val owner: String) : Named<Long>
+
+class Counter(var count: Int) : Named<Int> {
+    fn key() -> Int = count
+}
+
+fn describe(e: Entry) -> String = when (e.key()) {
+    1000 -> "thousand"
+    else -> "other " + e.key()
+}
+
+fn sizeOf(b: Bounds<Int>) -> Int = b.high() - b.low()
+
+fn main() {
+    val a = Entry(1000, "a")
+    val b = Entry(1000, "a")
+    val keyed: Keyed<Int> = a
+    println(keyed.key() + 1)
+    println(a.key() == b.key())
+    println(a.equals(b))
+    println(a.hashCode() == b.hashCode())
+    println(a.sameKey(b))
+    println(a)
+    println(describe(a))
+    println(describe(Entry(7, "b")))
+    val first = a.key()
+    val second = b.key()
+    println(first == second)
+    val other: Keyed<Int> = b
+    println(keyed.key() == other.key())
+    val named: Named<Long> = Tagged(5000000000L)
+    println(named.key() + 1)
+    println(Flag(true).key() && !Flag(false).key())
+    println(Weight(1.5).key() * 2)
+    println(Slot(3).key() + 1)
+    val range = Range(1000, 1000)
+    println(range.empty())
+    println(sizeOf(Range(2, 9)))
+    val account: Named<Long> = Account(42L, "ann")
+    println(account.key())
+    val counter = Counter(2000)
+    val again = Counter(2000)
+    println(counter.key() == again.key())
+    val keys: List<Keyed<Int>> = List.of(a, Entry(2, "c"))
+    println(keys |> map { k -> k.key() * 10 })
+}

@@ -126,6 +126,8 @@ class Generator(
     var currentClass: Decl.ClassDecl? = null
     /** The methods of the class or data class being emitted, which a call by a bare name may mean. */
     var currentMethods: List<Decl.Function> = List.of()
+    /** The fields of the data class being emitted that Java boxes, see Implementations.boxedFields. */
+    var boxedFields: Set<String> = Set.of()
     // The private parameters of that class that only its constructor reads, which get no field.
     var constructorOnly: Set<String> = Set.of()
     // Whether the class or data class whose members are being emitted is private, so that Java code cannot call
@@ -167,7 +169,8 @@ class Generator(
 
     // Types of the parameters and locals of the function so far; null where the code does not say.
     val localTypes: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
-    // Untyped locals set from `try` or `?:`, which Java keeps as the boxed type Result.unwrap or Nulls.or gives.
+    // Untyped locals set from `try`, `?:` or a method whose result Java boxes (see isBoxedResult), which Java keeps as
+    // the boxed type; also the boxed fields of a data class in its methods.
     val boxedLocals: HashSet<String> = HashSet<String>()
     // Untyped locals set from `List.of(...)`, a new collection or a pipe, whose element type the code may not tell.
     val collectionLocals: HashSet<String> = HashSet<String>()
@@ -278,7 +281,7 @@ class Generator(
         val marked = "@NullMarked " + annotations(fileType.annotations())
         if (fileType is Decl.DataClass) {
             em.line(line, marked + "public record " + fileType.name() + typeParamList(fileType.typeParams()) + "(" +
-                parameters(fileType.fields(), line) + ")" +
+                parameters(fileType.fields(), line, boxedFieldsOf(fileType)) + ")" +
                 typeList(" implements ", fileType.supertypes()) + " {")
             em.indent()
             emitDataClassMethods(fileType)
@@ -408,9 +411,9 @@ class Generator(
             resetCounters()
             emitFunction(method, false)
         }
+        emitAccessors(classDecl)
         overridden = outerOverridden
         requiredMethods = outerRequired
-        emitAccessors(classDecl)
         constructorOnly = outerConstructorOnly
         currentClass = outerClass
         currentMethods = outerMethods
@@ -504,8 +507,10 @@ class Generator(
             val property = propertyNamed(classDecl, member.name())
             val ownMethod = classDecl.methods() |> anyMatch { m -> m.name().equals(member.name()) && m.params().isEmpty() }
             if (property != null && !ownMethod && written.add(member.name())) {
-                em.line(property.pos().line(), "@Override public " + javaType(propertyTypeOf(property)) + " " +
-                    member.name() + "() { return " + member.name() + "; }")
+                // `val key: K` of `Named<Long>` is a `Long key()` in Java, which a `long` would not implement.
+                val boxed = requiredMethods |> anyMatch { r -> r.name().equals(member.name()) && r.boxedParams().isEmpty() && r.boxedResult() }
+                val type = if (boxed) boxedType(propertyTypeOf(property)) else javaType(propertyTypeOf(property))
+                em.line(property.pos().line(), "@Override public " + type + " " + member.name() + "() { return " + member.name() + "; }")
             }
         }
     }
@@ -533,7 +538,7 @@ class Generator(
     private fn emitDataClass(dataClass: Decl.DataClass) {
         val line = dataClass.pos().line()
         val head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
-            typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line) + ")" +
+            typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line, boxedFieldsOf(dataClass)) + ")" +
             typeList(" implements ", dataClass.supertypes())
         if (dataClass.methods().isEmpty() && checkedFields(dataClass).isEmpty()) {
             em.line(line, head + " {}")
@@ -552,8 +557,12 @@ class Generator(
             return List.of()
         }
         val variables = nullableVariablesOf(dataClass.typeParams(), Set.of())
-        return dataClass.fields() |> filter { f -> isChecked(memberType(f), false, variables) } |> map { f -> f.name() }
+        val boxed = boxedFieldsOf(dataClass)
+        return dataClass.fields() |> filter { f -> isChecked(memberType(f), boxed.contains(f.name()), variables) } |> map { f -> f.name() }
     }
+
+    private fn boxedFieldsOf(dataClass: Decl.DataClass) -> Set<String> =
+        Implementations.boxedFields(file, options.siblings(), options.classes(), dataClass)
 
     /** The checks of the fields in a compact constructor, then the methods, which read the fields by name as a class's do. */
     private fn emitDataClassMethods(dataClass: Decl.DataClass) {
@@ -571,8 +580,10 @@ class Generator(
         val outerMethods = currentMethods
         val outerPrivate = inPrivateType
         val outerVariables = nullableVariables
+        val outerBoxed = boxedFields
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes())
+        boxedFields = boxedFieldsOf(dataClass)
         currentMethods = dataClass.methods()
         inPrivateType = dataClass.isPrivate()
         nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of())
@@ -583,6 +594,7 @@ class Generator(
         currentMethods = outerMethods
         overridden = outerOverridden
         requiredMethods = outerRequired
+        boxedFields = outerBoxed
         inPrivateType = outerPrivate
         nullableVariables = outerVariables
     }
@@ -703,6 +715,9 @@ class Generator(
         localTypes.clear()
         boxedLocals.clear()
         boxedLocals.addAll(boxed)
+        if (!isStatic) {
+            boxedLocals.addAll(boxedFields |> filter { n -> f.params() |> noneMatch { p -> p.name().equals(n) } })
+        }
         collectionLocals.clear()
         for (p in f.params()) {
             localTypes.put(p.name(), p.type())
@@ -847,7 +862,7 @@ class Generator(
         } else {
             collectionLocals.remove(local.name())
         }
-        val unwrapped = whole is Expr.Try || whole is Expr.Elvis
+        val unwrapped = whole is Expr.Try || whole is Expr.Elvis || isBoxedResult(whole)
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name())
         } else {
@@ -2337,7 +2352,13 @@ class Generator(
         }
         val target = inner.target()
         val receiver = if (target == null) null else typeOf(target)
-        if (receiver == null || receiver.args().isEmpty()) {
+        if (receiver == null) {
+            return false
+        }
+        if (Implementations.boxedResult(file, options.siblings(), options.classes(), receiver, inner.name(), inner.args().size())) {
+            return true
+        }
+        if (receiver.args().isEmpty()) {
             return false
         }
         val library = Libraries.classNamed(file, options.classes(), receiver.name())

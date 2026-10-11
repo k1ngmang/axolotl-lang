@@ -237,6 +237,9 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaCl
     for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
         val iface = implemented.iface()
         val names = iface.typeParams() |> map { p -> p.name() }
+        for (member in iface.members()) {
+            result.add(RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type())))
+        }
         for (method in iface.methods()) {
             val params = method.params() |> map { p -> isTypeVariable(names, p.type()) }
             result.add(RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())))
@@ -258,6 +261,68 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaCl
 
 private fn isTypeVariable(names: List<String>, type: TypeRef?) -> Boolean =
     type != null && type.args().isEmpty() && names.contains(type.name())
+
+/**
+ * The fields of a data class that give a method whose result is a type variable, `val key: Int` for `fn key() -> K`
+ * of `Keyed<Int>`. A record's accessor returns the type of its field and Java allows no second `key()`, so the
+ * field is an `Integer` in Java.
+ */
+fn boxedFields(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses, dataClass: Decl.DataClass) -> Set<String> {
+    val result = HashSet<String>()
+    val required = requiredMethods(file, siblings, classes, dataClass.supertypes())
+    for (field in dataClass.fields()) {
+        val type = field.type()
+        val boxes = required |> anyMatch { r -> r.name().equals(field.name()) && r.boxedParams().isEmpty() && r.boxedResult() }
+        if (boxes && type != null && !type.nullable() && type.args().isEmpty() && PRIMITIVES.contains(type.name())) {
+            result.add(field.name())
+        }
+    }
+    return result
+}
+
+private val PRIMITIVES: Set<String> = Set.of("Int", "Long", "Boolean", "Double")
+
+/**
+ * Whether Java gives the box of the result of the method of a type of the build: one that implements a method
+ * whose result is a type variable, `e.key()` on `data class Entry(val key: Int) : Keyed<Int>`, or one an interface
+ * declares so, `k.key()` on a `Keyed<Int>`.
+ */
+fn boxedResult(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses, type: TypeRef, method: String, arity: Int) -> Boolean {
+    val found = typeNamed(file, siblings, type.name())
+    if (found == null) {
+        return false
+    }
+    val decl = found.decl()
+    val supertypes = if (decl is Decl.Interface) List.of(type) else supertypesOf(decl)
+    return requiredMethods(found.file(), siblings, classes, supertypes) |>
+        anyMatch { r -> r.name().equals(method) && r.boxedParams().size() == arity && r.boxedResult() }
+}
+
+/** A declaration with the file that declares it. */
+data class Located(val file: SourceFile, val decl: Decl)
+
+/** The data class, class or interface of the build a type name means in the file: its own, its package's or an imported one. */
+private fn typeNamed(file: SourceFile, siblings: List<SourceFile>, name: String) -> Located? {
+    val qualified = qualifiedName(file, name)
+    if (qualified == null) {
+        for (decl in file.decls()) {
+            if (isImplementer(decl) && decl.name().equals(name)) {
+                return Located(file, decl)
+            }
+        }
+    }
+    for (sibling in siblings) {
+        for (decl in sibling.decls()) {
+            if (isImplementer(decl) && (if (qualified == null) samePackage(file, sibling) && decl.name().equals(name)
+                    else qualified.equals(javaName(sibling, decl)))) {
+                return Located(sibling, decl)
+            }
+        }
+    }
+    return null
+}
+
+private fn isImplementer(decl: Decl) -> Boolean = decl is Decl.DataClass || decl is Decl.ClassDecl || decl is Decl.Interface
 
 /** What the interfaces require, as `name/arity`: a value is a method without parameters. */
 fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<String> {

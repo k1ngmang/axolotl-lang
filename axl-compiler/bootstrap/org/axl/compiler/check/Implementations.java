@@ -284,6 +284,9 @@ import org.axl.compiler.ast.TypeRef;
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
             final var names = Nulls.stream(iface.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
+            for (final var member : iface.members()) {
+                result.add(new RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type())));
+            }
             for (final var method : iface.methods()) {
                 final var params = Nulls.stream(method.params()).map(Nulls.nonNull(p -> isTypeVariable(names, p.type()))).toList();
                 result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())));
@@ -303,6 +306,66 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static boolean isTypeVariable(List<String> names, @Nullable TypeRef type) {
         return type != null && type.args().isEmpty() && names.contains(type.name());
+    }
+    public static Set<String> boxedFields(SourceFile file, List<SourceFile> siblings, JavaClasses classes, Decl.DataClass dataClass) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(classes, "classes");
+        Nulls.param(dataClass, "dataClass");
+        final var result = new HashSet<String>();
+        final var required = requiredMethods(file, siblings, classes, dataClass.supertypes());
+        for (final var field : dataClass.fields()) {
+            final var type = field.type();
+            final var boxes = required.stream().anyMatch(r -> r.name().equals(field.name()) && r.boxedParams().isEmpty() && r.boxedResult());
+            if (boxes && type != null && !type.nullable() && type.args().isEmpty() && PRIMITIVES.contains(type.name())) {
+                result.add(field.name());
+            }
+        }
+        return result;
+    }
+    private static final Set<String> PRIMITIVES = Set.of("Int", "Long", "Boolean", "Double");
+    public static boolean boxedResult(SourceFile file, List<SourceFile> siblings, JavaClasses classes, TypeRef type, String method, int arity) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(classes, "classes");
+        Nulls.param(type, "type");
+        Nulls.param(method, "method");
+        final var found = typeNamed(file, siblings, type.name());
+        if (found == null) {
+            return false;
+        }
+        final var decl = found.decl();
+        final var supertypes = (decl instanceof Decl.Interface decl$1 ? List.of(type) : supertypesOf(decl));
+        return requiredMethods(found.file(), siblings, classes, supertypes).stream()
+                .anyMatch(r -> r.name().equals(method) && r.boxedParams().size() == arity && r.boxedResult());
+    }
+    public record Located(SourceFile file, Decl decl) {
+        public Located {
+            Nulls.param(file, "file");
+            Nulls.param(decl, "decl");
+        }
+    }
+    private static @Nullable Located typeNamed(SourceFile file, List<SourceFile> siblings, String name) {
+        final var qualified = qualifiedName(file, name);
+        if (qualified == null) {
+            for (final var decl : file.decls()) {
+                if (isImplementer(decl) && decl.name().equals(name)) {
+                    return new Located(file, decl);
+                }
+            }
+        }
+        for (final var sibling : siblings) {
+            for (final var decl : sibling.decls()) {
+                if (isImplementer(decl) && ((qualified == null ? samePackage(file, sibling) && decl.name().equals(name) :
+                        qualified.equals(javaName(sibling, decl))))) {
+                    return new Located(sibling, decl);
+                }
+            }
+        }
+        return null;
+    }
+    private static boolean isImplementer(Decl decl) {
+        return decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.ClassDecl decl$2 || decl instanceof Decl.Interface decl$3;
     }
     public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         Nulls.param(file, "file");

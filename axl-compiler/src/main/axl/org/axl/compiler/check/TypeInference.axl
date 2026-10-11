@@ -215,6 +215,12 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         if (!params.isEmpty() && params.size() != receiver.args().size()) {
             return null
         }
+        // `q.left()` for `val left: T` of the interface.
+        val value = if (decl is Decl.Interface && c.args().isEmpty()) decl.members() |> filter { m -> m.name().equals(c.name()) } |> first else null
+        val valueType = value?.type()
+        if (valueType != null) {
+            return Implementations.substitute(valueType, params, receiver.args())
+        }
         val methods: List<Decl.Function> = when (decl) {
             is Decl.DataClass -> decl.methods()
             is Decl.ClassDecl -> decl.methods()

@@ -70,6 +70,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
+    public Set<String> boxedFields;
     public Set<String> constructorOnly;
     public boolean inPrivateType;
     public Set<String> nullableVariables;
@@ -122,6 +123,7 @@ import org.axl.compiler.check.Whens;
         this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
         this.currentMethods = List.of();
+        this.boxedFields = Set.of();
         this.constructorOnly = Set.of();
         this.inPrivateType = false;
         this.nullableVariables = Set.of();
@@ -249,7 +251,7 @@ import org.axl.compiler.check.Whens;
         final var marked = "@NullMarked " + annotations(fileType.annotations());
         if (fileType instanceof Decl.DataClass fileType$1) {
             em.line(line, marked + "public record " + fileType$1.name() + typeParamList(fileType$1.typeParams()) + "(" +
-                    parameters(fileType$1.fields(), line) +
+                    parameters(fileType$1.fields(), line, boxedFieldsOf(fileType$1)) +
                     ")" +
                     typeList(" implements ", fileType$1.supertypes()) +
                     " {");
@@ -373,9 +375,9 @@ import org.axl.compiler.check.Whens;
             resetCounters();
             emitFunction(method, false);
         }
+        emitAccessors(classDecl);
         overridden = outerOverridden;
         requiredMethods = outerRequired;
-        emitAccessors(classDecl);
         constructorOnly = outerConstructorOnly;
         currentClass = outerClass;
         currentMethods = outerMethods;
@@ -462,11 +464,9 @@ import org.axl.compiler.check.Whens;
             final var property = propertyNamed(classDecl, member.name());
             final var ownMethod = Nulls.stream(classDecl.methods()).anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
             if (property != null && !ownMethod && written.add(member.name())) {
-                em.line(property.pos().line(), "@Override public " + javaType(propertyTypeOf(property)) + " " +
-                        member.name() +
-                        "() { return " +
-                        member.name() +
-                        "; }");
+                final var boxed = Nulls.stream(requiredMethods).anyMatch(r -> r.name().equals(member.name()) && r.boxedParams().isEmpty() && r.boxedResult());
+                final var type = (boxed ? boxedType(propertyTypeOf(property)) : javaType(propertyTypeOf(property)));
+                em.line(property.pos().line(), "@Override public " + type + " " + member.name() + "() { return " + member.name() + "; }");
             }
         }
     }
@@ -493,7 +493,7 @@ import org.axl.compiler.check.Whens;
         final var head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
                 typeParamList(dataClass.typeParams()) +
                 "(" +
-                parameters(dataClass.fields(), line) +
+                parameters(dataClass.fields(), line, boxedFieldsOf(dataClass)) +
                 ")" +
                 typeList(" implements ", dataClass.supertypes());
         if (dataClass.methods().isEmpty() && checkedFields(dataClass).isEmpty()) {
@@ -511,7 +511,11 @@ import org.axl.compiler.check.Whens;
             return List.of();
         }
         final var variables = nullableVariablesOf(dataClass.typeParams(), Set.of());
-        return Nulls.stream(dataClass.fields()).filter(f -> isChecked(memberType(f), false, variables)).map(Nulls.nonNull(f -> f.name())).toList();
+        final var boxed = boxedFieldsOf(dataClass);
+        return Nulls.stream(dataClass.fields()).filter(f -> isChecked(memberType(f), boxed.contains(f.name()), variables)).map(Nulls.nonNull(f -> f.name())).toList();
+    }
+    private Set<String> boxedFieldsOf(Decl.DataClass dataClass) {
+        return Implementations.boxedFields(file, options.siblings(), options.classes(), dataClass);
     }
     private void emitDataClassMethods(Decl.DataClass dataClass) {
         final var checked = checkedFields(dataClass);
@@ -528,8 +532,10 @@ import org.axl.compiler.check.Whens;
         final var outerMethods = currentMethods;
         final var outerPrivate = inPrivateType;
         final var outerVariables = nullableVariables;
+        final var outerBoxed = boxedFields;
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes());
+        boxedFields = boxedFieldsOf(dataClass);
         currentMethods = dataClass.methods();
         inPrivateType = dataClass.isPrivate();
         nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of());
@@ -540,6 +546,7 @@ import org.axl.compiler.check.Whens;
         currentMethods = outerMethods;
         overridden = outerOverridden;
         requiredMethods = outerRequired;
+        boxedFields = outerBoxed;
         inPrivateType = outerPrivate;
         nullableVariables = outerVariables;
     }
@@ -658,6 +665,9 @@ import org.axl.compiler.check.Whens;
         localTypes.clear();
         boxedLocals.clear();
         boxedLocals.addAll(boxed);
+        if (!isStatic) {
+            boxedLocals.addAll(Nulls.stream(boxedFields).filter(n -> Nulls.stream(f.params()).noneMatch(p -> p.name().equals(n))).toList());
+        }
         collectionLocals.clear();
         for (final var p : f.params()) {
             localTypes.put(p.name(), p.type());
@@ -802,7 +812,7 @@ import org.axl.compiler.check.Whens;
         } else {
             collectionLocals.remove(local.name());
         }
-        final var unwrapped = whole instanceof Expr.Try whole$4 || whole instanceof Expr.Elvis whole$5;
+        final var unwrapped = whole instanceof Expr.Try whole$4 || whole instanceof Expr.Elvis whole$5 || isBoxedResult(whole);
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name());
         } else {
@@ -2094,7 +2104,13 @@ import org.axl.compiler.check.Whens;
         }
         final var target = inner$1.target();
         final var receiver = (target == null ? null : typeOf(target));
-        if (receiver == null || receiver.args().isEmpty()) {
+        if (receiver == null) {
+            return false;
+        }
+        if (Implementations.boxedResult(file, options.siblings(), options.classes(), receiver, inner$1.name(), inner$1.args().size())) {
+            return true;
+        }
+        if (receiver.args().isEmpty()) {
             return false;
         }
         final var library = Libraries.classNamed(file, options.classes(), receiver.name());
