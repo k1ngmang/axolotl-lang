@@ -159,7 +159,7 @@ A fourth audit checked the new language features, the self-hosted compiler, the 
 
 Left as they are: mixing `Int?` and `Long?` branches in one value, `Int? ?: 0L`, and `var x = when` with lambdas in the branches (the message asks for the type).
 
-## Unreleased (0.2.0)
+## 0.2.0 (2026-10-22)
 
 Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and the VS Code and IntelliJ plugins.
 
