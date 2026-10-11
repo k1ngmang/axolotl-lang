@@ -860,7 +860,10 @@ class Generator(
         val whole = withoutParens(init)
         // `val xs = if (c) List.of() else ys`: javac would give the conditional a wildcard type; the typed branch tells it.
         val branchType = if (declared == null && whole is Expr.Conditional) typedBranch(whole) else null
-        val typeCode = if (declared != null) javaType(declared) else if (branchType != null) javaType(branchType) else "var"
+        // `val c = attempt reader.read() else e -> throw ...`: Result.orThrow gives the box, which `c == quote` would compare as an object.
+        val thrown = if (declared == null && whole is Expr.Attempt && withoutParens(whole.handler()) is Expr.Throw) typeOf(whole.body()) else null
+        val unboxed = if (thrown == null) null else primitive(thrown)
+        val typeCode = if (declared != null) javaType(declared) else if (branchType != null) javaType(branchType) else unboxed ?: "var"
         if (whole is Expr.When) {
             emitWhen(line, whole, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE)
             localTypes.put(local.name(), declared)

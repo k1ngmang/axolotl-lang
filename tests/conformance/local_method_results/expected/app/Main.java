@@ -1,6 +1,9 @@
 package app;
 import axl.lang.*;
 import org.jspecify.annotations.*;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 
 @NullMarked public final class Main {
     private Main() {}
@@ -87,6 +90,36 @@ import org.jspecify.annotations.*;
             }
         }
     }
+    public static int countQuotes(Reader reader, Character quote) {
+        Nulls.param(reader, "reader");
+        Nulls.param(quote, "quote");
+        var count = 0;
+        while (true) {
+            final int c = Result.orThrow(() -> reader.read(), e -> new IllegalStateException(e), IOException.class);
+            if (c == -1) {
+                break;
+            }
+            if (c == quote) {
+                count += 1;
+            }
+        }
+        return count;
+    }
+    public static String firstKind(Reader reader) {
+        Nulls.param(reader, "reader");
+        final int ch = Result.orThrow(() -> reader.read(), e -> new IllegalStateException(e), IOException.class);
+        switch (ch) {
+            case 'x' -> {
+                return "x";
+            }
+            case EOF -> {
+                return "end";
+            }
+            default -> {
+                return "other";
+            }
+        }
+    }
     public static final int ZERO = 0;
     public static String remainder(int n) {
         switch (Nulls.box(Math.floorMod(n, 3))) {
@@ -121,6 +154,8 @@ import org.jspecify.annotations.*;
         System.out.println(new Format('!').isEscape("\\"));
         System.out.println(position("abc"));
         System.out.println(position("x"));
+        System.out.println(countQuotes(new StringReader("a\"b\""), '"'));
+        System.out.println(firstKind(new StringReader("x")) + " " + firstKind(new StringReader("")));
         System.out.println(remainder(6) + " " + remainder(7) + " " + remainder(-1));
     }
 }

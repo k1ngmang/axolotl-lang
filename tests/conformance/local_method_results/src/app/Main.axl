@@ -1,5 +1,9 @@
 package app
 
+import java.io.IOException
+import java.io.Reader
+import java.io.StringReader
+
 val EOF = -1
 
 interface Ticks {
@@ -57,6 +61,30 @@ fn position(text: String) -> String {
     }
 }
 
+// The value of `attempt ... else e -> throw ...` is the `Int` itself, which compares with a character by value.
+fn countQuotes(reader: Reader, quote: Character) -> Int {
+    var count = 0
+    while (true) {
+        val c = attempt reader.read() else e: IOException -> throw IllegalStateException(e)
+        if (c == -1) {
+            break
+        }
+        if (c == quote) {
+            count += 1
+        }
+    }
+    return count
+}
+
+fn firstKind(reader: Reader) -> String {
+    val ch = attempt reader.read() else e: IOException -> throw IllegalStateException(e)
+    return when (ch) {
+        'x' -> "x"
+        EOF -> "end"
+        else -> "other"
+    }
+}
+
 // A subject of a type the translator does not know, with a named constant, is boxed: it may be a primitive.
 val ZERO = 0
 
@@ -88,5 +116,7 @@ fn main() {
     println(Format('!').isEscape("\\"))
     println(position("abc"))
     println(position("x"))
+    println(countQuotes(StringReader("a\"b\""), '"'))
+    println(firstKind(StringReader("x")) + " " + firstKind(StringReader("")))
     println(remainder(6) + " " + remainder(7) + " " + remainder(-1))
 }

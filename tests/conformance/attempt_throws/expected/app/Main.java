@@ -25,7 +25,7 @@ import java.nio.file.Path;
     public static void main(String[] args) {
         final int n = Result.orThrow(() -> Integer.parseInt("7"), e -> new RuntimeException(e));
         System.out.println(n + 1);
-        final var parsed = Result.orThrow(() -> Integer.parseInt("8"), $ex1 -> new IllegalStateException("unparsable"));
+        final int parsed = Result.orThrow(() -> Integer.parseInt("8"), $ex1 -> new IllegalStateException("unparsable"));
         System.out.println(parsed * 2);
         System.out.println(safeSize("/nowhere"));
     }

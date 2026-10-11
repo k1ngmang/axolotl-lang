@@ -808,9 +808,11 @@ import org.axl.compiler.check.Whens;
         final var modifiers = (local.mutable() ? "" : "final ");
         final var whole = withoutParens(init);
         final var branchType = (declared == null && whole instanceof Expr.Conditional whole$1 ? typedBranch(whole$1) : null);
-        final var typeCode = (declared != null ? javaType(declared) : (branchType != null ? javaType(branchType) : "var"));
-        if (whole instanceof Expr.When whole$2) {
-            emitWhen(line, whole$2, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE);
+        final var thrown = (declared == null && whole instanceof Expr.Attempt whole$2 && withoutParens(whole$2.handler()) instanceof Expr.Throw ? typeOf(whole$2.body()) : null);
+        final var unboxed = (thrown == null ? null : primitive(thrown));
+        final var typeCode = (declared != null ? javaType(declared) : (branchType != null ? javaType(branchType) : Nulls.or(unboxed, () -> "var")));
+        if (whole instanceof Expr.When whole$3) {
+            emitWhen(line, whole$3, modifiers + typeCode + " " + local.name() + " = ", WhenForm.VALUE);
             localTypes.put(local.name(), declared);
             return;
         }
@@ -819,7 +821,7 @@ import org.axl.compiler.check.Whens;
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
             storedType = declared;
             storedValue = whole;
-            final var code = (init instanceof Expr.Try init$3 ? unwrapTry(line, init$3) : valueCode(line, init, stored));
+            final var code = (init instanceof Expr.Try init$4 ? unwrapTry(line, init$4) : valueCode(line, init, stored));
             storedType = null;
             storedValue = null;
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
@@ -830,7 +832,7 @@ import org.axl.compiler.check.Whens;
         } else {
             collectionLocals.remove(local.name());
         }
-        final var unwrapped = whole instanceof Expr.Try whole$4 || whole instanceof Expr.Elvis whole$5 || isBoxedResult(whole);
+        final var unwrapped = whole instanceof Expr.Try whole$5 || whole instanceof Expr.Elvis whole$6 || isBoxedResult(whole);
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name());
         } else {
