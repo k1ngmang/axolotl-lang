@@ -61,7 +61,11 @@ public final class DiagnosticsPlugin implements Plugin {
         if (!roots.isEmpty()) {
             new AxlDiagnosticHandler(((BasicJavacTask) task).getContext(), roots);
         }
-        NullChecker nullChecker = new NullChecker(task, strict, nullAwayReports(task));
+        NullAwayReports nullAwayReports = nullAwayReports(task);
+        if (nullAwayReports != null) {
+            new CharacterEquality((BasicJavacTask) task);
+        }
+        NullChecker nullChecker = new NullChecker(task, strict, nullAwayReports);
         InitCycles initCycles = new InitCycles(task);
         task.addTaskListener(nullChecker);
         task.addTaskListener(initCycles);

@@ -249,6 +249,7 @@ final class Messages {
 
     static Placement placement(String translated, String javaText) {
         boolean operator = translated.contains("` cannot be applied to `") || translated.equals(ErrorProneMessages.BOXED_EQUALITY)
+                || translated.equals(ErrorProneMessages.BOXED_CHARACTER_EQUALITY)
                 || translated.startsWith("`==` tests whether") || translated.equals("division by zero")
                 || translated.startsWith("both sides of this expression");
         Pattern anchor = anchor(translated, javaText);

@@ -21,6 +21,10 @@ final class ErrorProneMessages {
             + "compare them with `a.equals(b)`";
     static final String BOXED_EQUALITY = "`==` compares these numbers as objects, not by value, since they may be null; "
             + "use `java.util.Objects.equals(a, b)`";
+    static final String BOXED_CHARACTER_EQUALITY = "`==` compares these characters as objects, not by value, since they may be "
+            + "null; use `java.util.Objects.equals(a, b)`";
+    /** What CharacterEquality adds to the finding about boxed values when both are characters. */
+    static final String CHARACTER_OPERANDS = "Both operands are characters. ";
 
     /** The check that evaluates a call with constant arguments, such as `LocalDate.parse("2026-13-40")`. */
     static final String ALWAYS_THROWS = "AlwaysThrows";
@@ -167,7 +171,7 @@ final class ErrorProneMessages {
     private static String reworded(String message, String text) {
         return switch (tag(message)) {
             case "ReferenceEquality" -> REFERENCE_EQUALITY;
-            case "BoxedPrimitiveEquality" -> BOXED_EQUALITY;
+            case "BoxedPrimitiveEquality" -> message.contains(CHARACTER_OPERANDS) ? BOXED_CHARACTER_EQUALITY : BOXED_EQUALITY;
             case "ConstantOverflow" -> DIVISION_BY_ZERO.matcher(text).find() ? "division by zero"
                     : "this calculation is too large for its type; use `Long`, with `L` after a number";
             case "EqualsHashCode" -> "a class that gives `fn equals` must also give `fn hashCode() -> Int`, so that equal "

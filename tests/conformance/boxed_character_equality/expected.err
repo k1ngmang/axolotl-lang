@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:9:14: error: `==` compares these characters as objects, not by value, since they may be null; use `java.util.Objects.equals(a, b)`
+AXL100 app/Main.axl:15:14: error: `==` compares these numbers as objects, not by value, since they may be null; use `java.util.Objects.equals(a, b)`

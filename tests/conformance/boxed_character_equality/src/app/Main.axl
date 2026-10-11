@@ -1,0 +1,16 @@
+package app
+
+import java.util.Optional
+
+// The translator does not know what `get()` of an Optional gives, so Java compares the boxes.
+fn sameCharacters(a: Optional<Character>, b: Optional<Character>) -> Boolean {
+    val x = a.get()
+    val y = b.get()
+    return x == y
+}
+
+fn sameNumbers(a: Optional<Int>, b: Optional<Int>) -> Boolean {
+    val x = a.get()
+    val y = b.get()
+    return x == y
+}
