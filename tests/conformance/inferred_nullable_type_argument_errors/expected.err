@@ -1,0 +1,5 @@
+AXL102 app/Main.axl:9:79: error: `map` may produce null here, but the list it builds cannot hold nulls; filter them out first or give a default with `?:`
+AXL102 app/Main.axl:12:48: error: a type argument of the value has `?`, but the result type has none there; add `?` to the type argument of the result type or drop the nulls first
+AXL102 app/Main.axl:15:36: error: the result of `get()` may be null, but the lambda must not return null: `Function.apply` returns `String` here; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:22:54: error: a type argument of the value has `?`, but the result type has none there; add `?` to the type argument of the result type or drop the nulls first
+AXL102 app/Main.axl:26:9: error: type mismatch: expected `List<String>`, found `List<String?>`

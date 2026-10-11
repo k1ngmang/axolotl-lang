@@ -22,10 +22,13 @@ import com.sun.tools.javac.util.JCDiagnostic.DiagnosticType;
 import com.sun.tools.javac.util.Log;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import javax.lang.model.element.Element;
@@ -54,11 +57,16 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
 
     private record Reported(URI file, long start) {}
 
+    /** An error about a value whose type arguments lack only `?`, which waits for what NullChecker infers for them. */
+    private record Held(JCDiagnostic diagnostic, Reported at, Tree value) {}
+
     private final Trees trees;
     private final Elements elements;
     private final Types types;
     private final List<Reported> reported = new ArrayList<>();
     private final Map<URI, CompilationUnitTree> units = new HashMap<>();
+    private final List<Held> held = new ArrayList<>();
+    private final Set<Tree> inferred = Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean errors;
 
     NullAwayReports(BasicJavacTask task) {
@@ -79,7 +87,6 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
     @Override
     public void report(JCDiagnostic diagnostic) {
         String message = diagnostic.getMessage(Locale.ROOT);
-        errors |= diagnostic.getType() == DiagnosticType.ERROR;
         if (diagnostic.getType() == DiagnosticType.ERROR && diagnostic.getSource() != null && message.startsWith("[NullAway]")) {
             long start = diagnostic.getStartPosition() < 0 ? diagnostic.getPosition() : diagnostic.getStartPosition();
             URI file = diagnostic.getSource().toUri();
@@ -90,6 +97,14 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
                     return;
                 }
             }
+            // javac infers type arguments without `?`, as for `putIn(LinkedHashMap<String, String?>(), v)`.
+            if (lacksQuestionMarks(message) && units.containsKey(file)) {
+                TreePath stored = storedValue(units.get(file), start);
+                if (stored != null) {
+                    held.add(new Held(diagnostic, new Reported(file, start), stored.getLeaf()));
+                    return;
+                }
+            }
             // Java code without nullness annotations says nothing about its type arguments, so an override may add `?`.
             if (OVERRIDE.matcher(message.lines().findFirst().orElse("").strip()).matches() && units.containsKey(file)
                     && overridesUnannotated(units.get(file), start)) {
@@ -97,7 +112,28 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
             }
             reported.add(new Reported(file, start));
         }
+        errors |= diagnostic.getType() == DiagnosticType.ERROR;
         prev.report(diagnostic);
+    }
+
+    /**
+     * NullChecker found the `?` that NullAway misses in the type arguments of this value, from the written types
+     * of the arguments of the calls it is made of and the results of their lambdas.
+     */
+    void inferred(Tree value) {
+        inferred.add(value);
+    }
+
+    /** Reports the held errors whose values NullChecker did not find to have the `?` they need. */
+    void release() {
+        for (Held h : held) {
+            if (!inferred.contains(h.value())) {
+                reported.add(h.at());
+                errors = true;
+                prev.report(h.diagnostic());
+            }
+        }
+        held.clear();
     }
 
     /** Whether javac or a check reported an error so far. */
@@ -115,6 +151,13 @@ final class NullAwayReports extends Log.DiagnosticHandler implements TaskListene
         Matcher incompatible = INCOMPATIBLE.matcher(message.lines().findFirst().orElse("").strip());
         return incompatible.matches() && !NULLABLE.matcher(incompatible.group(1)).find()
                 && NULLABLE.matcher(incompatible.group(2)).replaceAll("").equals(incompatible.group(1));
+    }
+
+    /** `LinkedHashMap<String, String>` where `Map<String, @Nullable String>` is expected: the value has no `?` at all. */
+    private static boolean lacksQuestionMarks(String message) {
+        Matcher incompatible = INCOMPATIBLE.matcher(message.lines().findFirst().orElse("").strip());
+        return incompatible.matches() && !NULLABLE.matcher(incompatible.group(1)).find()
+                && NULLABLE.matcher(incompatible.group(2)).find();
     }
 
     /**

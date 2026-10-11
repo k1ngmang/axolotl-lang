@@ -48,8 +48,10 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -223,6 +225,16 @@ final class NullChecker implements TaskListener {
             return false;
         }
 
+        /** Whether a type argument that has `?` in the declared shape has none in this one. */
+        boolean lacksQuestionMark(Shape declared) {
+            for (int i = 0; i < declared.args.size(); i++) {
+                if (declared.arg(i).nullable && !arg(i).nullable || arg(i).lacksQuestionMark(declared.arg(i))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /** Whether a type argument that the declared shape gives without `?` is from Java in this one. */
         boolean losesJavaArgument(Shape declared) {
             for (int i = 0; i < declared.args.size(); i++) {
@@ -255,11 +267,34 @@ final class NullChecker implements TaskListener {
 
     // Error Prone skips its analysis once the compilation has errors, so these wait until every class is analyzed.
     private final List<Report> reports = new ArrayList<>();
+    // A lambda that may give null for a type variable such as `R` of `Stream.map`, with the lambda: where the
+    // value it is part of goes to a written type, the type arguments are checked there instead.
+    private final Map<Report, TreePath> inferredResults = new IdentityHashMap<>();
+    // Values whose type arguments were checked against a written type by what the code says of their `?`.
+    private final Set<Tree> typedStores = Collections.newSetFromMap(new IdentityHashMap<>());
 
     void report() {
-        reports.stream().filter(r -> !reportedByNullAway(r))
+        if (nullAway != null) {
+            nullAway.release();
+        }
+        reports.stream().filter(r -> !reportedByNullAway(r) && !storedWithType(inferredResults.get(r)))
                 .forEach(r -> trees.printMessage(Diagnostic.Kind.ERROR, r.message(), r.tree(), r.unit()));
         reports.clear();
+        inferredResults.clear();
+    }
+
+    /** Whether the value the lambda is part of, up to the statement or lambda around it, goes to a written type. */
+    private boolean storedWithType(TreePath lambda) {
+        if (lambda == null) {
+            return false;
+        }
+        for (TreePath p = lambda.getParentPath(); p != null && p.getLeaf() instanceof ExpressionTree
+                && !(p.getLeaf() instanceof LambdaExpressionTree); p = p.getParentPath()) {
+            if (typedStores.contains(p.getLeaf())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -1289,8 +1324,19 @@ final class NullChecker implements TaskListener {
                 }
                 return;
             }
+            int before = reports.size();
             reportValue(result, result, isNullMarked(iface), ", but the lambda must not return null: " + name
                     + " returns `" + typeName(returned) + "` here");
+            if (parent.getLeaf() instanceof MethodInvocationTree call
+                    && trees.getElement(parent) instanceof ExecutableElement callee) {
+                int index = call.getArguments().indexOf(lambda.getLeaf());
+                TypeMirror param = index < 0 ? null : parameterType(callee, index, call.getArguments().size());
+                if (param != null && inferredVariable(callee, functionResult(param))) {
+                    for (Report r : reports.subList(before, reports.size())) {
+                        inferredResults.put(r, lambda);
+                    }
+                }
+            }
         }
 
         /** `else e -> null` of an `attempt`: the error of the `Result` may be null, but its type is not written with `?`. */
@@ -1310,7 +1356,10 @@ final class NullChecker implements TaskListener {
         }
 
         private boolean resultMayBeNull(TreePath lambda, TypeElement iface, ExecutableElement method, TypeMirror returned) {
-            if (PlatformValues.isNullable(method, returned)) {
+            // `Nulls.nullable`, for a pipe's `map` whose nulls are dropped or go to a list written with `?`: javac 21
+            // does not read the `@Nullable R` of its method from the class file.
+            if (PlatformValues.isNullable(method, returned)
+                    || iface.getQualifiedName().contentEquals("axl.lang.Nulls.NullableFunction")) {
                 return true;
             }
             TreePath parent = lambda.getParentPath();
@@ -1699,10 +1748,19 @@ final class NullChecker implements TaskListener {
             Shape wanted = shapeOf(declared, bindings);
             TypeMirror valueType = typeOf(value);
             // NullAway compares the types javac knows itself.
-            if (shapeAs(shapeOf(valueType, Map.of()), valueType, element).losesQuestionMark(wanted)) {
+            Shape inferred = shapeAs(shapeOf(valueType, Map.of()), valueType, element);
+            if (inferred.losesQuestionMark(wanted)) {
                 return;
             }
-            if (shapeAs(shape(value), valueType, element).losesQuestionMark(wanted)) {
+            Shape followed = shapeAs(shape(value), valueType, element);
+            boolean fits = inferred.lacksQuestionMark(wanted) && !followed.lacksQuestionMark(wanted);
+            if (fits && nullAway != null) {
+                nullAway.inferred(value);
+            }
+            if (fits || followed.losesQuestionMark(wanted)) {
+                typedStores.add(value);
+            }
+            if (followed.losesQuestionMark(wanted)) {
                 report(value, Origin.HIDDEN, false, "a type argument of the value has `?`, but " + target
                         + " has none there; add `?` to the type argument of " + target + " or drop the nulls first");
             } else {
@@ -2192,7 +2250,7 @@ final class NullChecker implements TaskListener {
                 ExpressionTree arg = unwrap(args.get(i));
                 if (arg instanceof LambdaExpressionTree lambda) {
                     if (withLambdas && lambda.getBody() instanceof ExpressionTree body) {
-                        bindResult(param, body, bound);
+                        bindResult(method, param, body, bound);
                     }
                 } else if (!(arg instanceof MemberReferenceTree)) {
                     bind(param, valueShape(arg), typeOf(arg), bound);
@@ -2210,19 +2268,39 @@ final class NullChecker implements TaskListener {
             return bound;
         }
 
-        private void bindResult(TypeMirror param, ExpressionTree body, Map<Element, Shape> bound) {
+        private void bindResult(ExecutableElement method, TypeMirror param, ExpressionTree body, Map<Element, Shape> bound) {
+            TypeMirror target = functionResult(param);
+            if (target == null) {
+                return;
+            }
+            // Elsewhere the lambda must not return null, which `checkLambdaResult` reports.
+            boolean mayReturnNull = target instanceof TypeVariable variable && nullableBound(variable)
+                    || inferredVariable(method, target);
+            bind(target, mayReturnNull ? valueShape(body) : shape(body).nonNull(), typeOf(body), bound);
+        }
+
+        /** The type argument a functional interface type gives the result of its method: `? extends R` of `Function<T, ? extends R>`. */
+        private TypeMirror functionResult(TypeMirror param) {
             if (!(param instanceof DeclaredType declared) || !(declared.asElement() instanceof TypeElement iface)
                     || functionalMethod(iface) == null
                     || !(functionalMethod(iface).getReturnType() instanceof TypeVariable result)) {
-                return;
+                return null;
             }
             int position = iface.getTypeParameters().indexOf((TypeParameterElement) result.asElement());
-            if (position >= 0 && position < declared.getTypeArguments().size()) {
-                // Elsewhere the lambda must not return null, which `checkLambdaResult` reports.
-                TypeMirror target = declared.getTypeArguments().get(position);
-                boolean mayReturnNull = target instanceof TypeVariable variable && nullableBound(variable);
-                bind(target, mayReturnNull ? valueShape(body) : shape(body).nonNull(), typeOf(body), bound);
-            }
+            return position >= 0 && position < declared.getTypeArguments().size() ? declared.getTypeArguments().get(position) : null;
+        }
+
+        /**
+         * `R` of `Stream.map`: a type variable of a method of Java code without nullness annotations that the
+         * method's result holds as a type argument. javac infers it without `?`, but a lambda may give null for it,
+         * which then goes on in the type arguments of the result, as into `List<String?>`.
+         */
+        private boolean inferredVariable(ExecutableElement method, TypeMirror target) {
+            TypeMirror inner = target instanceof WildcardType wildcard && wildcard.getExtendsBound() != null
+                    ? wildcard.getExtendsBound() : target;
+            return !isNullMarked(method) && inner instanceof TypeVariable variable
+                    && variable.asElement() instanceof TypeParameterElement parameter
+                    && parameter.getGenericElement().equals(method) && isTypeArgumentOf(method.getReturnType(), parameter);
         }
 
         /** Matches a parameter type against the shape of an argument of the given type. */

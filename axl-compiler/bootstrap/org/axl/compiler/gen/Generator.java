@@ -3397,8 +3397,10 @@ import org.axl.compiler.check.Whens;
                 final var written = (targetElement == null || targetElement.nullable() || targetElement.name().equals(TypeRef.ANY) ? null :
                         Nulls.box((given != null || declaredType(targetElement.name()) instanceof Decl.Interface ? targetElement : null)));
                 final var mapped = Nulls.or(written, () -> given);
-                final var witness = (mapped == null ? "" : "<" + boxedType(mapped) + ">");
-                final var wrap = (nullsDropped ? "Nulls.nullable(" : "Nulls.nonNull(");
+                final var nullable = targetElement != null && targetElement.nullable();
+                final var result = (mapped == null ? null : new TypeRef(mapped.pos(), mapped.name(), mapped.args(), mapped.nullable() || nullable));
+                final var witness = (result == null ? "" : "<" + boxedType(result) + ">");
+                final var wrap = (nullsDropped || nullable ? "Nulls.nullable(" : "Nulls.nonNull(");
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))");
             }
             case "sorted" -> {

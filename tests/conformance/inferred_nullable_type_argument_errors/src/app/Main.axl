@@ -1,0 +1,28 @@
+package app
+
+import java.util.LinkedHashMap
+import java.util.List
+import java.util.Map
+import java.util.stream.Collectors
+
+// Without a written type that takes null, the nulls a `map` may give stay errors.
+fn noTarget(rows: List<Map<String, String?>>) -> List<String> = rows |> map { it.get("a") }
+
+fn streamWithoutQuestionMark(rows: List<Map<String, String?>>) -> List<String> =
+    rows.stream().map({ row -> row.get("a") }).collect(Collectors.toList())
+
+fn streamCount(rows: List<Map<String, String?>>) -> Long =
+    rows.stream().map({ row -> row.get("a") }).count()
+
+fn putIn<M : Map<String, String?>>(map: M, value: String?) -> M {
+    map.put("key", value)
+    return map
+}
+
+fn wrongMap(value: String?) -> Map<String, String> = putIn(LinkedHashMap<String, String?>(), value)
+
+fn local(rows: List<Map<String, String?>>) -> Int {
+    val xs: List<String?> = rows |> map { it.get("a") }
+    val ys: List<String> = xs
+    return ys.size()
+}

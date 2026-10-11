@@ -1,0 +1,43 @@
+package app
+
+import java.util.LinkedHashMap
+import java.util.List
+import java.util.Map
+import java.util.stream.Collectors
+
+// Commons CSV: a CSV value may be null. The `?` of the type arguments the code writes survives inference.
+fn putIn<M : Map<String, String?>>(map: M, value: String?) -> M {
+    map.put("key", value)
+    return map
+}
+
+fn toMap(value: String?) -> Map<String, String?> {
+    val map = LinkedHashMap<String, String?>()
+    return putIn(map, value)
+}
+
+fn toMapDirectly(value: String?) -> Map<String, String?> = putIn(LinkedHashMap<String, String?>(), value)
+
+// The lambda's result tells the elements of the stream.
+fn column(rows: List<Map<String, String?>>) -> List<String?> =
+    rows.stream().map({ row -> row.get("a") }).collect(Collectors.toList())
+
+// A pipe's `map` gives null where the list it builds is written with `?`.
+fn firstColumn(rows: List<Map<String, String?>>) -> List<String?> = rows |> map { it.get("a") }
+
+fn countMissing(rows: List<Map<String, String?>>) -> Long {
+    val values: List<String?> = rows |> map { it.get("a") }
+    return values |> filter { it == null } |> count
+}
+
+fn present(rows: List<Map<String, String?>>) -> List<String> = rows |> map { it.get("a") } |> filter { it != null }
+
+fn main() {
+    println(toMap(null))
+    println(toMapDirectly("v"))
+    val rows: List<Map<String, String?>> = List.of(Map.of("a", "x"), Map.of("b", "y"))
+    println(column(rows))
+    println(firstColumn(rows))
+    println(countMissing(rows))
+    println(present(rows))
+}

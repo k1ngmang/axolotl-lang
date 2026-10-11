@@ -3843,8 +3843,11 @@ class Generator(
                 val written = if (targetElement == null || targetElement.nullable() || targetElement.name().equals(TypeRef.ANY)) null
                     else if (given != null || declaredType(targetElement.name()) is Decl.Interface) targetElement else null
                 val mapped = written ?: given
-                val witness = if (mapped == null) "" else "<" + boxedType(mapped) + ">"
-                val wrap = if (nullsDropped) "Nulls.nullable(" else "Nulls.nonNull("
+                // `val xs: List<String?> = rows |> map { it.get("a") }`: the written type lets `map` give null.
+                val nullable = targetElement != null && targetElement.nullable()
+                val result = if (mapped == null) null else TypeRef(mapped.pos(), mapped.name(), mapped.args(), mapped.nullable() || nullable)
+                val witness = if (result == null) "" else "<" + boxedType(result) + ">"
+                val wrap = if (nullsDropped || nullable) "Nulls.nullable(" else "Nulls.nonNull("
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))")
             }
             // naturalOrder makes javac check that the elements can be compared; sorted() would throw.
