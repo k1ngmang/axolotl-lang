@@ -71,6 +71,7 @@ import org.axl.compiler.check.Whens;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
     public Set<String> boxedFields;
+    public Map<String, TypeRef> memberTypes;
     public Set<String> constructorOnly;
     public boolean inPrivateType;
     public Set<String> nullableVariables;
@@ -124,6 +125,7 @@ import org.axl.compiler.check.Whens;
         this.currentClass = null;
         this.currentMethods = List.of();
         this.boxedFields = Set.of();
+        this.memberTypes = Map.of();
         this.constructorOnly = Set.of();
         this.inPrivateType = false;
         this.nullableVariables = Set.of();
@@ -341,8 +343,10 @@ import org.axl.compiler.check.Whens;
         final var outerMethods = currentMethods;
         final var outerPrivate = inPrivateType;
         final var outerVariables = nullableVariables;
+        final var outerMembers = memberTypes;
         currentClass = classDecl;
         currentMethods = classDecl.methods();
+        memberTypes = withThis(TypeInference.propertyTypes(file, options.siblings(), classDecl), classDecl.name(), classDecl.typeParams());
         inPrivateType = classDecl.isPrivate();
         nullableVariables = nullableVariablesOf(classDecl.typeParams(), Set.of());
         final var lifting = Nulls.stream(classDecl.properties()).anyMatch(p -> Lifts.needed(propertyInit(p)));
@@ -381,9 +385,16 @@ import org.axl.compiler.check.Whens;
         constructorOnly = outerConstructorOnly;
         currentClass = outerClass;
         currentMethods = outerMethods;
+        memberTypes = outerMembers;
         inPrivateType = outerPrivate;
         nullableVariables = outerVariables;
         em.dedent();
+    }
+    private Map<String, TypeRef> withThis(Map<String, TypeRef> members, String name, List<Decl.TypeParam> typeParams) {
+        final var result = new HashMap<String, TypeRef>(members);
+        final var pos = new Pos(1, 1);
+        result.put("this", new TypeRef(pos, name, typeParams.stream().map(Nulls.nonNull(p -> new TypeRef(pos, p.name(), List.of(), false))).toList(), false));
+        return result;
     }
     private TypeRef propertyTypeOf(Decl.Property p) {
         final var type = p.type();
@@ -464,7 +475,7 @@ import org.axl.compiler.check.Whens;
             final var property = propertyNamed(classDecl, member.name());
             final var ownMethod = Nulls.stream(classDecl.methods()).anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
             if (property != null && !ownMethod && written.add(member.name())) {
-                final var boxed = Nulls.stream(requiredMethods).anyMatch(r -> r.name().equals(member.name()) && r.boxedParams().isEmpty() && r.boxedResult());
+                final var boxed = requiredMethods.stream().anyMatch(r -> r.name().equals(member.name()) && r.boxedParams().isEmpty() && r.boxedResult());
                 final var type = (boxed ? boxedType(propertyTypeOf(property)) : javaType(propertyTypeOf(property)));
                 em.line(property.pos().line(), "@Override public " + type + " " + member.name() + "() { return " + member.name() + "; }");
             }
@@ -533,10 +544,16 @@ import org.axl.compiler.check.Whens;
         final var outerPrivate = inPrivateType;
         final var outerVariables = nullableVariables;
         final var outerBoxed = boxedFields;
+        final var outerMembers = memberTypes;
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes());
         boxedFields = boxedFieldsOf(dataClass);
         currentMethods = dataClass.methods();
+        final var fields = new HashMap<String, TypeRef>();
+        for (final var f : dataClass.fields()) {
+            fields.put(f.name(), memberType(f));
+        }
+        memberTypes = withThis(fields, dataClass.name(), dataClass.typeParams());
         inPrivateType = dataClass.isPrivate();
         nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of());
         for (final var method : dataClass.methods()) {
@@ -544,6 +561,7 @@ import org.axl.compiler.check.Whens;
             emitFunction(method, false);
         }
         currentMethods = outerMethods;
+        memberTypes = outerMembers;
         overridden = outerOverridden;
         requiredMethods = outerRequired;
         boxedFields = outerBoxed;
@@ -642,7 +660,7 @@ import org.axl.compiler.check.Whens;
         em.line(0, "}");
     }
     private void emitFunction(Decl.Function f, boolean isStatic) {
-        final var required = (isStatic ? null : Nulls.first(Nulls.stream(requiredMethods).filter(r -> r.name().equals(f.name()) &&
+        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> r.name().equals(f.name()) &&
                 r.boxedParams().size() == f.params().size())
                 .iterator()));
         final var boxed = boxedParameters(f, required);
@@ -666,7 +684,7 @@ import org.axl.compiler.check.Whens;
         boxedLocals.clear();
         boxedLocals.addAll(boxed);
         if (!isStatic) {
-            boxedLocals.addAll(Nulls.stream(boxedFields).filter(n -> Nulls.stream(f.params()).noneMatch(p -> p.name().equals(n))).toList());
+            boxedLocals.addAll(boxedFields.stream().filter(n -> Nulls.stream(f.params()).noneMatch(p -> p.name().equals(n))).toList());
         }
         collectionLocals.clear();
         for (final var p : f.params()) {
@@ -1125,7 +1143,7 @@ import org.axl.compiler.check.Whens;
                 em.line(line, "final var " + name + " = " + lifted(line, w.subject()).code() + ";");
                 subject.add(name);
             } else {
-                subject.add(Nulls.or(unnarrowed(w.subject()), () -> lifted(line, w.subject()).code()));
+                subject.add(Nulls.<String>or(unnarrowed(w.subject()), () -> lifted(line, w.subject()).code()));
             }
         });
         final var subjectCode = subject.getFirst();
@@ -1316,7 +1334,7 @@ import org.axl.compiler.check.Whens;
         final var label = newLoopLabel(loop.body());
         markLastContinue(loop.body());
         final var type = countType(loop);
-        final var declared = Nulls.or(type, () -> "var");
+        final var declared = Nulls.<String>or(type, () -> "var");
         final var kind = loop.kind();
         final var step = loop.step();
         final var stepValue = (step == null ? BigInteger.ONE : Expr.integerValue(step));
@@ -1604,14 +1622,19 @@ import org.axl.compiler.check.Whens;
         return (element == null ? null : new TypeRef(pipe.pos(), "java.util.List", List.of(element), false));
     }
     private @Nullable TypeRef infer(Expr e) {
-        return new TypeInference(file, knownTypes(), options.siblings()).of(e);
+        final var inference = new TypeInference(file, knownTypes(), options.siblings());
+        inference.methods = currentMethods;
+        inference.classes = options.classes();
+        return inference.of(e);
     }
     private Map<String, TypeRef> knownTypes() {
-        final var result = new HashMap<String, TypeRef>();
+        final var result = new HashMap<String, TypeRef>(memberTypes);
         for (final var local : localTypes.entrySet()) {
             final var type = local.getValue();
             if (type != null) {
                 result.put(local.getKey(), type);
+            } else {
+                result.remove(local.getKey());
             }
         }
         for (final var entry : smart.entrySet()) {
@@ -2537,7 +2560,7 @@ import org.axl.compiler.check.Whens;
         if (subject != null && !subject.args().isEmpty() && tested.args().isEmpty()) {
             final var arguments = argumentsOf(tested, subject);
             if (arguments != null) {
-                return name + "<" + String.join(", ", Nulls.stream(arguments).map(Nulls.nonNull(a -> "?")).toList()) + ">";
+                return name + "<" + String.join(", ", arguments.stream().map(Nulls.nonNull(a -> "?")).toList()) + ">";
             }
         }
         return boxedType(tested);
@@ -2696,7 +2719,7 @@ import org.axl.compiler.check.Whens;
         return c.name() + "(" + args + ")";
     }
     private boolean functionInScope(String name) {
-        if (declaredFunctions.contains(name) || (Nulls.stream(currentMethods).anyMatch(m -> m.name().equals(name)))) {
+        if (declaredFunctions.contains(name) || (currentMethods.stream().anyMatch(m -> m.name().equals(name)))) {
             return true;
         }
         final var owner = currentClass;
@@ -2712,8 +2735,8 @@ import org.axl.compiler.check.Whens;
             return false;
         }
         final var arity = c.args().size();
-        final var methods = Nulls.stream(currentMethods).filter(m -> m.name().equals(c.name())).toList();
-        final var method = Nulls.stream(methods).anyMatch(m -> m.params().size() == arity);
+        final var methods = currentMethods.stream().filter(m -> m.name().equals(c.name())).toList();
+        final var method = methods.stream().anyMatch(m -> m.params().size() == arity);
         final var function = Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(c.name()) && d$1.params().size() == arity);
         return !methods.isEmpty() && !method && function;
     }
@@ -2806,7 +2829,15 @@ import org.axl.compiler.check.Whens;
     }
     private String lambdaCode(Expr.Lambda l) {
         lambdaDepth += 1;
+        final var names = (analysis.implicitIt().contains(l) ? List.of("it") : Nulls.stream(l.params()).map(Nulls.nonNull(p -> p.name())).toList());
+        final var hidden = Nulls.stream(names).filter(n -> memberTypes.containsKey(n) && !localTypes.containsKey(n)).toList();
+        for (final var name : hidden) {
+            localTypes.put(name, null);
+        }
         final var code = lambdaCodeIn(l);
+        for (final var name : hidden) {
+            localTypes.remove(name);
+        }
         lambdaDepth -= 1;
         return code;
     }
@@ -3959,8 +3990,8 @@ import org.axl.compiler.check.Whens;
                 if (c.type() != null) {
                     return true;
                 }
-                if (constant != null && (constant.text().startsWith("\"") || Character.isLetter(constant.text().charAt(0)))) {
-                    return !constant.text().equals("true") && !constant.text().equals("false");
+                if (constant != null && constant.text().startsWith("\"")) {
+                    return true;
                 }
             }
         }

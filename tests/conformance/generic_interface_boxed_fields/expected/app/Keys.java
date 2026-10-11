@@ -23,7 +23,7 @@ import java.util.List;
         }
         public boolean sameKey(Entry other) {
             Nulls.param(other, "other");
-            return key == ((int) other.key());
+            return ((int) key) == ((int) other.key());
         }
     }
     public record Tagged(Long key) implements Named<Long> {
@@ -52,7 +52,7 @@ import java.util.List;
             Nulls.param(high, "high");
         }
         public boolean empty() {
-            return Nulls.same(low, high);
+            return ((int) low) == ((int) high);
         }
     }
     public static final class Account implements Named<Long> {

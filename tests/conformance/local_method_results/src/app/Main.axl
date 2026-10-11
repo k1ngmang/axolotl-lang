@@ -1,0 +1,92 @@
+package app
+
+val EOF = -1
+
+interface Ticks {
+    fn next() -> Int
+}
+
+data class Cell(val text: String) {
+    fn first() -> Character = text.charAt(0)
+}
+
+// Locals set from a call on a property, on `this` or on a parameter take the result type the method is written with.
+class Lexer(private val source: Source, private val ticks: Ticks) {
+    fn kind() -> String {
+        val ch = source.read()
+        when (ch) {
+            'a' -> return "a"
+            EOF -> return "end"
+            else -> return "other"
+        }
+    }
+
+    fn tick() -> String {
+        val t = ticks.next()
+        return when (t) {
+            1 -> "one"
+            else -> "many"
+        }
+    }
+
+    fn sameStart(cell: Cell, other: Cell) -> Boolean {
+        val a = cell.first()
+        val b = other.first()
+        return a == b
+    }
+}
+
+class Format(private val escapeChar: Character?) {
+    fn getEscape() -> Character = escapeChar ?: '\\'
+
+    fn isEscape(s: String) -> Boolean {
+        val c: Character = s.charAt(0)
+        val esc = getEscape()
+        val again = this.getEscape()
+        return c == esc && esc == again
+    }
+}
+
+// JDK methods with a primitive result: `StringBuilder.indexOf` gives an `Int`.
+fn position(text: String) -> String {
+    val sb = StringBuilder(text)
+    val at = sb.indexOf("b")
+    return when (at) {
+        EOF -> "none"
+        else -> "at " + at
+    }
+}
+
+// A subject of a type the translator does not know, with a named constant, is boxed: it may be a primitive.
+val ZERO = 0
+
+fn remainder(n: Int) -> String = when (Math.floorMod(n, 3)) {
+    ZERO -> "none"
+    1 -> "one"
+    else -> "two"
+}
+
+class Counter : Ticks {
+    private var n = 0
+
+    fn next() -> Int {
+        n += 1
+        return n
+    }
+}
+
+fn main() {
+    println(Lexer(Source("a"), Counter()).kind())
+    println(Lexer(Source(""), Counter()).kind())
+    val lexer = Lexer(Source("b"), Counter())
+    println(lexer.kind())
+    println(lexer.tick())
+    println(lexer.tick())
+    println(lexer.sameStart(Cell("x1"), Cell("x2")))
+    println(lexer.sameStart(Cell("x1"), Cell("y2")))
+    println(Format(null).isEscape("\\"))
+    println(Format('!').isEscape("\\"))
+    println(position("abc"))
+    println(position("x"))
+    println(remainder(6) + " " + remainder(7) + " " + remainder(-1))
+}

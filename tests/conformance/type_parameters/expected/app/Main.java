@@ -45,7 +45,7 @@ import java.util.Map;
             return (items.isEmpty() ? null : items.remove(items.size() - 1));
         }
         public String describe() {
-            final var top = Nulls.first(Nulls.stream(items).map(Nulls.nonNull(it -> it.toString())).iterator());
+            final var top = Nulls.first(items.stream().map(Nulls.nonNull(it -> it.toString())).iterator());
             return items.size() + " items, top " + Nulls.or(top, () -> "none");
         }
     }

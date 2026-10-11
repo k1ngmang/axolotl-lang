@@ -22,7 +22,7 @@ import java.util.Map;
             this.b = b;
         }
         public boolean same() {
-            return Nulls.same(Nulls.or(a, () -> f()), Nulls.or(b, () -> f()));
+            return ((int) Nulls.<Integer>or(a, () -> f())) == ((int) Nulls.<Integer>or(b, () -> f()));
         }
     }
     public static Result<Boolean, String> tried() {

@@ -27,7 +27,7 @@ import org.jspecify.annotations.*;
         this("?", null, false, null);
     }
     public String describe() {
-        return opt + "/" + longOpt + "/" + hasArg + "/" + Nulls.or(description, () -> "-");
+        return opt + "/" + longOpt + "/" + hasArg + "/" + Nulls.<String>or(description, () -> "-");
     }
     public Opt blank() {
         return new Opt();

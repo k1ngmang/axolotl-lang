@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.axl.compiler.JavaClasses;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Import;
@@ -20,6 +21,7 @@ import org.axl.compiler.ast.TypeRef;
     public final List<SourceFile> siblings;
     public final HashSet<String> inProgress;
     public List<Decl.Function> methods;
+    public @Nullable JavaClasses classes;
     public TypeInference(SourceFile file, Map<String, TypeRef> known, List<SourceFile> siblings) {
         Nulls.param(file, "file");
         Nulls.param(known, "known");
@@ -29,6 +31,7 @@ import org.axl.compiler.ast.TypeRef;
         this.siblings = siblings;
         this.inProgress = new HashSet<String>();
         this.methods = List.of();
+        this.classes = null;
     }
     public @Nullable TypeRef value(Decl.Value value) {
         Nulls.param(value, "value");
@@ -70,7 +73,7 @@ import org.axl.compiler.ast.TypeRef;
                 return Nulls.or(known.get(expr$7.name()), () -> topLevelValue(expr$7.name()));
             }
             case Expr.Call expr$8 -> {
-                return (expr$8.target() == null ? call(expr$8) : Nulls.or(siblingCall(expr$8), () -> member(expr$8)));
+                return (expr$8.target() == null ? call(expr$8) : Nulls.<@Nullable TypeRef>or(siblingCall(expr$8), () -> member(expr$8)));
             }
             case Expr.Member expr$9 -> {
                 return field(expr$9);
@@ -91,7 +94,7 @@ import org.axl.compiler.ast.TypeRef;
                 return classOf(expr$14);
             }
             case Expr.Attempt expr$15 -> {
-                return (throwsInstead(expr$15) ? Nulls.box(of(expr$15.body())) : resultOf(of(expr$15.body()), of(expr$15.handler()), expr$15.pos()));
+                return (throwsInstead(expr$15) ? of(expr$15.body()) : resultOf(of(expr$15.body()), of(expr$15.handler()), expr$15.pos()));
             }
             default -> {
                 return null;
@@ -158,7 +161,7 @@ import org.axl.compiler.ast.TypeRef;
         return (right != null && left != null && sameType(left, right) ? right : null);
     }
     private @Nullable TypeRef call(Expr.Call c) {
-        final var own = Nulls.stream(methods).filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();
+        final var own = methods.stream().filter(m -> m.name().equals(c.name()) && m.params().size() == c.args().size()).toList();
         if (!own.isEmpty()) {
             return (own.size() == 1 && own.getFirst().typeParams().isEmpty() ? own.getFirst().returnType() : null);
         }
@@ -215,7 +218,7 @@ import org.axl.compiler.ast.TypeRef;
             return null;
         }
         final var own = (c.args().isEmpty() ? fieldOf(receiver, c.name()) : null);
-        final var type = Nulls.or(own, () -> Nulls.or(methodOf(receiver, c), () -> jdkMethod(receiver, c)));
+        final var type = Nulls.or(own, () -> Nulls.or(methodOf(receiver, c), () -> Nulls.or(jdkMethod(receiver, c), () -> classpathMethod(receiver.name(), c))));
         return (type == null || !c.safe() ? type : new TypeRef(type.pos(), type.name(), type.args(), true));
     }
     private @Nullable TypeRef field(Expr.Member m) {
@@ -259,7 +262,7 @@ import org.axl.compiler.ast.TypeRef;
         if (!params.isEmpty() && params.size() != receiver.args().size()) {
             return null;
         }
-        final var field = Nulls.first(Nulls.stream(fieldsOf(decl)).filter(f -> f.name().equals(name)).iterator());
+        final var field = Nulls.first(fieldsOf(decl).stream().filter(f -> f.name().equals(name)).iterator());
         final var type = Nulls.map(field, $n1 -> $n1.type());
         return (type == null ? null : Implementations.substitute(type, params, receiver.args()));
     }
@@ -427,7 +430,17 @@ import org.axl.compiler.ast.TypeRef;
         if (VALUE_TYPES.contains(owner)) {
             return simple((owner.equals("Paths") ? "Path" : owner), pos);
         }
-        return null;
+        return classpathMethod(owner, c);
+    }
+    private @Nullable TypeRef classpathMethod(String owner, Expr.Call c) {
+        final var known = classes;
+        if (known == null || typeNamed(owner) != null) {
+            return null;
+        }
+        final var library = Libraries.classNamed(file, known, owner);
+        final var result = (library == null ? null : known.result(library.name(), c.name(), c.args().size()));
+        final var type = (result == null ? null : PRIMITIVE_RESULTS.get(result));
+        return (type == null ? null : simple(type, c.pos()));
     }
     private @Nullable TypeRef elementsOf(String owner, List<Expr> args, Pos pos) {
         @Nullable TypeRef element = null;
@@ -485,6 +498,8 @@ import org.axl.compiler.ast.TypeRef;
         return null;
     }
     private static final List<String> numbers = List.of("Int", "Long", "Double");
+    private static final Map<String, String> PRIMITIVE_RESULTS = Map.of("int", "Int", "long", "Long", "double", "Double", "boolean", "Boolean",
+            "char", "Character");
     private static final Set<String> STRING_STRINGS = Set.of("toUpperCase", "toLowerCase", "trim", "strip", "stripLeading", "stripTrailing",
             "substring", "replace", "replaceAll", "replaceFirst", "repeat", "concat", "formatted", "intern", "indent");
     private static final Set<String> STRING_INTS = Set.of("length", "indexOf", "lastIndexOf", "compareTo", "compareToIgnoreCase", "codePointAt");

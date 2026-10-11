@@ -128,6 +128,8 @@ class Generator(
     var currentMethods: List<Decl.Function> = List.of()
     /** The fields of the data class being emitted that Java boxes, see Implementations.boxedFields. */
     var boxedFields: Set<String> = Set.of()
+    /** The types of the parameters, properties or fields of that class or data class, and of `this`, which its methods read. */
+    var memberTypes: Map<String, TypeRef> = Map.of()
     // The private parameters of that class that only its constructor reads, which get no field.
     var constructorOnly: Set<String> = Set.of()
     // Whether the class or data class whose members are being emitted is private, so that Java code cannot call
@@ -375,8 +377,10 @@ class Generator(
         val outerMethods = currentMethods
         val outerPrivate = inPrivateType
         val outerVariables = nullableVariables
+        val outerMembers = memberTypes
         currentClass = classDecl
         currentMethods = classDecl.methods()
+        memberTypes = withThis(TypeInference.propertyTypes(file, options.siblings(), classDecl), classDecl.name(), classDecl.typeParams())
         inPrivateType = classDecl.isPrivate()
         nullableVariables = nullableVariablesOf(classDecl.typeParams(), Set.of())
         // Properties are set after the parameters, in the constructor, since they may read them; so are
@@ -417,9 +421,18 @@ class Generator(
         constructorOnly = outerConstructorOnly
         currentClass = outerClass
         currentMethods = outerMethods
+        memberTypes = outerMembers
         inPrivateType = outerPrivate
         nullableVariables = outerVariables
         em.dedent()
+    }
+
+    /** The member types of a class or data class with `this`, typed with its own type parameters. */
+    private fn withThis(members: Map<String, TypeRef>, name: String, typeParams: List<Decl.TypeParam>) -> Map<String, TypeRef> {
+        val result = HashMap<String, TypeRef>(members)
+        val pos = Pos(1, 1)
+        result.put("this", TypeRef(pos, name, typeParams |> map { p -> TypeRef(pos, p.name(), List.of(), false) }, false))
+        return result
     }
 
     /** The written type of a property, or the one its value tells, which may read the class's parameters and typed properties. */
@@ -581,10 +594,16 @@ class Generator(
         val outerPrivate = inPrivateType
         val outerVariables = nullableVariables
         val outerBoxed = boxedFields
+        val outerMembers = memberTypes
         overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes())
         boxedFields = boxedFieldsOf(dataClass)
         currentMethods = dataClass.methods()
+        val fields = HashMap<String, TypeRef>()
+        for (f in dataClass.fields()) {
+            fields.put(f.name(), memberType(f))
+        }
+        memberTypes = withThis(fields, dataClass.name(), dataClass.typeParams())
         inPrivateType = dataClass.isPrivate()
         nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of())
         for (method in dataClass.methods()) {
@@ -592,6 +611,7 @@ class Generator(
             emitFunction(method, false)
         }
         currentMethods = outerMethods
+        memberTypes = outerMembers
         overridden = outerOverridden
         requiredMethods = outerRequired
         boxedFields = outerBoxed
@@ -1353,7 +1373,8 @@ class Generator(
 
     /**
      * Without a written type the subject may be a primitive, which `case null` does not compile for;
-     * boxing it lets null go to `else`. Type tests, strings and enum constants need an object anyway.
+     * boxing it lets null go to `else`. Type tests and strings need an object anyway; a named constant
+     * may be an enum's or a number, such as `EOF`.
      */
     private fn boxesSubject(w: Expr.When, subjectType: TypeRef?) -> Boolean =
         subjectType == null && !testsObjects(w) && !hasNullArm(w) && !switchesByIndex(w, subjectType)
@@ -1791,14 +1812,22 @@ class Generator(
     }
 
     /** The file-wide inference, told the types of the locals and the ones the `is` tests around the expression gave. */
-    private fn infer(e: Expr) -> TypeRef? = TypeInference(file, knownTypes(), options.siblings()).of(e)
+    private fn infer(e: Expr) -> TypeRef? {
+        val inference = TypeInference(file, knownTypes(), options.siblings())
+        inference.methods = currentMethods
+        inference.classes = options.classes()
+        return inference.of(e)
+    }
 
     private fn knownTypes() -> Map<String, TypeRef> {
-        val result = HashMap<String, TypeRef>()
+        val result = HashMap<String, TypeRef>(memberTypes)
+        // A parameter or local may have the name of a property, also when its type is not known.
         for (local in localTypes.entrySet()) {
             val type = local.getValue()
             if (type != null) {
                 result.put(local.getKey(), type)
+            } else {
+                result.remove(local.getKey())
             }
         }
         for (entry in smart.entrySet()) {
@@ -3229,7 +3258,16 @@ class Generator(
 
     private fn lambdaCode(l: Expr.Lambda) -> String {
         lambdaDepth += 1
+        // The parameters hide properties of the same name, whose types would otherwise be taken for theirs.
+        val names = if (analysis.implicitIt().contains(l)) List.of("it") else l.params() |> map { p -> p.name() }
+        val hidden = names |> filter { n -> memberTypes.containsKey(n) && !localTypes.containsKey(n) }
+        for (name in hidden) {
+            localTypes.put(name, null)
+        }
         val code = lambdaCodeIn(l)
+        for (name in hidden) {
+            localTypes.remove(name)
+        }
         lambdaDepth -= 1
         return code
     }
@@ -4369,8 +4407,8 @@ private fn testsObjects(w: Expr.When) -> Boolean {
             if (c.type() != null) {
                 return true
             }
-            if (constant != null && (constant.text().startsWith("\"") || Character.isLetter(constant.text().charAt(0)))) {
-                return !constant.text().equals("true") && !constant.text().equals("false")
+            if (constant != null && constant.text().startsWith("\"")) {
+                return true
             }
         }
     }

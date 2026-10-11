@@ -45,7 +45,7 @@ import java.util.function.Supplier;
             super(reason);
             Nulls.param(fallback, "fallback");
             this.status = "E" + code;
-            this.shown = Nulls.or(reason, () -> fallback);
+            this.shown = Nulls.<String>or(reason, () -> fallback);
             this.kind = (code == 404 ? "missing" : "other");
         }
         public String describe() {

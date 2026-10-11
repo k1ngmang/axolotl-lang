@@ -983,7 +983,7 @@ import org.axl.compiler.ast.TypeRef;
     }
     private boolean dropsResult(Expr.Call c) {
         final var called = calledFunctions(c);
-        return !called.isEmpty() && (Nulls.stream(called).allMatch(f -> returnsResult(f)));
+        return !called.isEmpty() && (called.stream().allMatch(f -> returnsResult(f)));
     }
     private List<Decl.Function> calledFunctions(Expr.Call c) {
         final var target = c.target();
@@ -1014,7 +1014,7 @@ import org.axl.compiler.ast.TypeRef;
             return (Character.isUpperCase(target$1.name().charAt(0)) ? functionsOfFile(target$1.name(), c) : List.of());
         }
         final var written = symbol.type();
-        final var typeName = (written != null && written.args().isEmpty() ? written.name() : createdTypes.get(symbol.pos()));
+        final var typeName = (written != null && written.args().isEmpty() ? Nulls.box(written.name()) : createdTypes.get(symbol.pos()));
         final var decl = (typeName == null ? null : typeOfBuild(typeName));
         switch (decl) {
             case Decl.ClassDecl decl$2 -> {
@@ -1304,7 +1304,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private boolean functionExists(String name) {
-        if ((Nulls.stream(currentMethods).anyMatch(f -> f.name().equals(name))) ||
+        if ((currentMethods.stream().anyMatch(f -> f.name().equals(name))) ||
                 (functionsIn(file.decls()).stream().anyMatch(f -> f.name().equals(name))) ||
                 (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.FN && i.simpleName().equals(name)))) {
             return true;

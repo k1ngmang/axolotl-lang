@@ -17,7 +17,7 @@ import org.jspecify.annotations.*;
             this.name = name;
             this.description = description;
             this.uses = uses;
-            this.shown = name + ": " + Nulls.or(description, () -> "no description");
+            this.shown = name + ": " + Nulls.<String>or(description, () -> "no description");
         }
         public String describe() {
             uses += 1;

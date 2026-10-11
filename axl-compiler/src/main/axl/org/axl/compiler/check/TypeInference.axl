@@ -6,6 +6,7 @@ import java.util.HashSet
 import java.util.List
 import java.util.Map
 import java.util.Set
+import org.axl.compiler.JavaClasses
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.Import
@@ -24,6 +25,9 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
 
     /** The methods of the class whose properties are being typed: a call without a receiver may be to one. */
     var methods: List<Decl.Function> = List.of()
+
+    /** The classes of the classpath, whose methods may tell a primitive result; null where only the build counts. */
+    var classes: JavaClasses? = null
 
     fn value(value: Decl.Value) -> TypeRef? {
         if (value.type() != null) {
@@ -194,7 +198,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
             return null
         }
         val own = if (c.args().isEmpty()) fieldOf(receiver, c.name()) else null
-        val type = own ?: (methodOf(receiver, c) ?: jdkMethod(receiver, c))
+        val type = own ?: (methodOf(receiver, c) ?: (jdkMethod(receiver, c) ?: classpathMethod(receiver.name(), c)))
         return if (type == null || !c.safe()) type else TypeRef(type.pos(), type.name(), type.args(), true)
     }
 
@@ -422,7 +426,22 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         if (VALUE_TYPES.contains(owner)) {
             return simple(if (owner.equals("Paths")) "Path" else owner, pos)
         }
-        return null
+        return classpathMethod(owner, c)
+    }
+
+    /**
+     * `reader.read()`, `Byte.toUnsignedInt(b)`: a method of a class of the classpath whose overloads of that
+     * arity agree on a primitive result, which cannot be null. Other results keep the nullness Java gives them.
+     */
+    private fn classpathMethod(owner: String, c: Expr.Call) -> TypeRef? {
+        val known = classes
+        if (known == null || typeNamed(owner) != null) {
+            return null
+        }
+        val library = Libraries.classNamed(file, known, owner)
+        val result = if (library == null) null else known.result(library.name(), c.name(), c.args().size())
+        val type = if (result == null) null else PRIMITIVE_RESULTS.get(result)
+        return if (type == null) null else simple(type, c.pos())
     }
 
     /** `List.of(1, 2)` is a `List<Int>` when every element has that type. */
@@ -472,6 +491,9 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
 }
 
 private val numbers: List<String> = List.of("Int", "Long", "Double")
+
+private val PRIMITIVE_RESULTS: Map<String, String> = Map.of("int", "Int", "long", "Long", "double", "Double", "boolean", "Boolean",
+    "char", "Character")
 
 private val STRING_STRINGS: Set<String> = Set.of("toUpperCase", "toLowerCase", "trim", "strip", "stripLeading", "stripTrailing",
     "substring", "replace", "replaceAll", "replaceFirst", "repeat", "concat", "formatted", "intern", "indent")

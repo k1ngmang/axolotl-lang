@@ -110,16 +110,14 @@ import java.util.function.Supplier;
             sum += i;
         }
         final var start = Duration.ofSeconds(4000000000L);
-        final var $t3 = start.toSeconds();
-        final var $t4 = start.toSeconds() + 2;
-        for (var i = Math.min($t3, $t4); i < $t4; i++) {
+        for (long i = start.toSeconds(), $t3 = start.toSeconds() + 2; i < $t3; i++) {
             sum += i;
         }
         System.out.println("long sum: " + sum);
         final var days = new StringBuilder();
-        final var $t5 = LocalDate.of(2024, 2, 3).getDayOfMonth();
-        boolean $t6 = 1 <= $t5;
-        for (var day = Math.min(1, $t5); $t6; $t6 = day != $t5, day++) {
+        final int $t4 = LocalDate.of(2024, 2, 3).getDayOfMonth();
+        boolean $t5 = 1 <= $t4;
+        for (int day = 1; $t5; $t5 = day != $t4, day++) {
             days.append(day);
         }
         System.out.println("days: " + days);

@@ -35,7 +35,7 @@ import java.util.List;
             this.item = item;
         }
         public String shown() {
-            return Nulls.or(Nulls.map(item, $n1 -> $n1.toString()), () -> "nothing");
+            return Nulls.<String>or(Nulls.map(item, $n1 -> $n1.toString()), () -> "nothing");
         }
     }
     public static void main(String[] args) {

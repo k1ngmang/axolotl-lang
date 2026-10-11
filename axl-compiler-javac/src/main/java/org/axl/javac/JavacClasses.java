@@ -42,6 +42,7 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
     private final Map<String, ClassShape> shapes = new HashMap<>();
     private final Map<String, List<MethodShape>> methods = new HashMap<>();
     private final Map<String, List<Signature>> signatures = new HashMap<>();
+    private final Map<String, String> results = new HashMap<>();
     private final boolean keepOpen;
     private StandardJavaFileManager files;
     private Elements elements;
@@ -86,6 +87,15 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
             signatures.put(key, readSignatures(qualifiedName, name));
         }
         return signatures.get(key);
+    }
+
+    @Override
+    public synchronized String result(String qualifiedName, String name, int arity) {
+        String key = qualifiedName + "#" + name + "#" + arity;
+        if (!results.containsKey(key)) {
+            results.put(key, readResult(qualifiedName, name, arity));
+        }
+        return results.get(key);
     }
 
     @Override
@@ -180,6 +190,41 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
             return found;
         } catch (RuntimeException e) {
             return List.of();
+        } finally {
+            release();
+        }
+    }
+
+    private String readResult(String qualifiedName, String name, int arity) {
+        try {
+            TypeElement type = typeNamed(qualifiedName);
+            if (type == null) {
+                return null;
+            }
+            String result = null;
+            for (Element member : elements.getAllMembers(type)) {
+                if (!(member instanceof ExecutableElement method) || member.getKind() != ElementKind.METHOD
+                        || !member.getModifiers().contains(Modifier.PUBLIC) || !member.getSimpleName().contentEquals(name)) {
+                    continue;
+                }
+                int count = method.getParameters().size();
+                if (count != arity && !(method.isVarArgs() && arity >= count - 1)) {
+                    continue;
+                }
+                TypeMirror returned = method.getReturnType();
+                if (method.isVarArgs() || returned.getKind() == TypeKind.TYPEVAR) {
+                    return null;
+                }
+                String found = returned.getKind().isPrimitive() || returned.getKind() == TypeKind.VOID
+                        ? returned.toString() : erased(returned);
+                if (result != null && !result.equals(found)) {
+                    return null;
+                }
+                result = found;
+            }
+            return result;
+        } catch (RuntimeException e) {
+            return null;
         } finally {
             release();
         }

@@ -68,4 +68,14 @@ public interface JavaClasses {
     default List<Signature> signatures(String qualifiedName, String name) {
         return List.of();
     }
+
+    /**
+     * The result type of the public methods of that name that take that many arguments, as an erased canonical
+     * type such as `int` or `java.lang.String`; null when there is none, when they differ, when one is a type
+     * variable, or when a method with varargs might take the arguments. The translator types a local set from
+     * such a call, as `val ch = reader.read()`.
+     */
+    default String result(String qualifiedName, String name, int arity) {
+        return null;
+    }
 }

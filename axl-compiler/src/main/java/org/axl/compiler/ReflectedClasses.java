@@ -123,6 +123,35 @@ public final class ReflectedClasses implements JavaClasses {
         return signatures;
     }
 
+    @Override
+    public String result(String qualifiedName, String name, int arity) {
+        Class<?> type = load(qualifiedName);
+        if (type == null) {
+            return null;
+        }
+        try {
+            String result = null;
+            for (Method method : type.getMethods()) {
+                int count = method.getParameterCount();
+                if (!method.getName().equals(name) || method.isBridge()
+                        || count != arity && !(method.isVarArgs() && arity >= count - 1)) {
+                    continue;
+                }
+                if (method.isVarArgs() || method.getGenericReturnType() instanceof TypeVariable<?>) {
+                    return null;
+                }
+                String found = method.getReturnType().getCanonicalName();
+                if (result != null && !result.equals(found)) {
+                    return null;
+                }
+                result = found;
+            }
+            return result;
+        } catch (LinkageError | TypeNotPresentException | java.lang.reflect.MalformedParameterizedTypeException e) {
+            return null;
+        }
+    }
+
     /** A canonical name stands for the binary name `lib.Options$Some` as well as `lib.Options.Some`. */
     private Class<?> load(String qualifiedName) {
         String name = qualifiedName;
