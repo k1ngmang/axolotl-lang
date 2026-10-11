@@ -163,7 +163,9 @@ other way. A data class implements such methods in a body after its fields, as i
 Long.compare(cents, o.cents()) }`. A method without parameters may also be given by a field of the same name and a
 fitting type, as a record's accessor: `data class Insert(val lines: List<String>) : Delta` gives `fn lines() ->
 List<String>`. A class's property is a field and gives no method; declare it in the interface as `val lines:
-List<String>` instead. The body holds methods only; behavior over data classes otherwise
+List<String>` instead. A field of type `Int`, `Long`, `Boolean` or `Double` that gives a method whose result is a type
+variable, `data class Entry(val key: Int) : Keyed<Int>` for `fn key() -> K`, is an `Integer` (or `Long`, ...) in the Java
+record, since Java cannot give the record a second `key()`; Axolotl code reads it as an `Int`. The body holds methods only; behavior over data classes otherwise
 stays in functions at the top level, with `when` over the sealed interface.
 
 ## Classes
