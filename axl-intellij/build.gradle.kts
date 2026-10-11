@@ -54,6 +54,19 @@ intellijPlatform {
     }
 }
 
+// A library the tests put on the classpath of a module, as a jar.
+val testLibrary = sourceSets.create("testLibrary")
+val testLibraryJar = tasks.register<Jar>("testLibraryJar") {
+    from(testLibrary.output)
+    archiveFileName = "test-library.jar"
+    destinationDirectory = layout.buildDirectory.dir("testLibrary")
+}
+
+tasks.test {
+    dependsOn(testLibraryJar)
+    systemProperty("axl.testLibrary", testLibraryJar.get().archiveFile.get().asFile.absolutePath)
+}
+
 // The compiler with Error Prone and the language server run in their own JVM from server/lib.
 val server = configurations.create("server") {
     isCanBeConsumed = false

@@ -24,16 +24,17 @@ import org.axl.intellij.psi.AxlFile;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * The options of a translation in the IDE: the types of top-level values from the IDE's Java model,
- * and the other .axl files of the module parsed, whose declarations the translator reads as the
- * build does, such as the values of an interface a class implements or a generic sealed type.
+ * The options of a translation in the IDE: the types of top-level values and the classes of the module's
+ * classpath from the IDE's Java model, and the other .axl files of the module parsed, whose declarations
+ * the translator reads as the build does, such as the values of an interface a class implements or a
+ * generic sealed type.
  */
 public final class TranslationOptions {
 
     private TranslationOptions() {}
 
     public static Options of(AxlFile file) {
-        return new Options(false).withJavaTypes(new PsiJavaTypes(file)).withSiblings(siblingsOf(file));
+        return new Options(false).withJavaTypes(new PsiJavaTypes(file)).withSiblings(siblingsOf(file)).withClasses(PsiJavaClasses.of(file));
     }
 
     /**
