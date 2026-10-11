@@ -1,0 +1,12 @@
+package app
+
+// `limit` is read only by the value of `max`: it needs no field, whatever other classes call their members.
+class Counter(private val limit: Int, private val step: Int) {
+    private val max = limit * 2
+    private val by = step
+
+    fn max() -> Int = max
+
+    // A read through a value of this class keeps the field.
+    fn sameStep(other: Counter) -> Boolean = other.step == by
+}

@@ -1,0 +1,13 @@
+package app
+
+// A property of that name read through a value of another class.
+class Range(val limit: Int)
+
+fn widest(options: Options, range: Range) -> Int = Math.max(options.limit(), range.limit)
+
+fn main() {
+    println(Counter(3, 1).max())
+    println(Counter(3, 1).sameStep(Counter(5, 1)))
+    println(Options().setLimit(4).limit())
+    println(widest(Options(), Range(12)))
+}

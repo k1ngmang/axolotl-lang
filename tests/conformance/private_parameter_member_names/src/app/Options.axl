@@ -1,0 +1,13 @@
+package app
+
+// Commons CSV's builders: a member named like the parameter of another class, read through `this`.
+class Options {
+    private var limit = 10
+
+    fn setLimit(limit: Int) -> Options {
+        this.limit = limit
+        return this
+    }
+
+    fn limit() -> Int = limit
+}

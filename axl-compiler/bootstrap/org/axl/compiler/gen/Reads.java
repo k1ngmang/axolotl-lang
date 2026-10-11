@@ -2,13 +2,17 @@ package org.axl.compiler.gen;
 import axl.lang.*;
 import org.jspecify.annotations.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.Stmt;
+import org.axl.compiler.ast.TypeRef;
+import org.axl.compiler.check.TypeInference;
 
 @NullMarked public final class Reads {
     public final Set<String> names = new HashSet<String>();
@@ -17,6 +21,12 @@ import org.axl.compiler.ast.Stmt;
     public final Set<String> assigned = new HashSet<String>();
     public int lambdas = 0;
     public boolean expansions = false;
+    public Decl.@Nullable ClassDecl memberOf = null;
+    public @Nullable SourceFile file = null;
+    public List<SourceFile> siblings = List.of();
+    public @Nullable Decl owner = null;
+    public Map<String, TypeRef> ownerTypes = Map.of();
+    public final HashMap<String, @Nullable TypeRef> locals = new HashMap<String, @Nullable TypeRef>();
     public void expr(Expr e) {
         Nulls.param(e, "e");
         switch (e) {
@@ -30,7 +40,9 @@ import org.axl.compiler.ast.Stmt;
                 }
             }
             case Expr.Member e$3 -> {
-                members.add(e$3.name());
+                if (readsMember(e$3)) {
+                    members.add(e$3.name());
+                }
                 expanded(e$3.safe(), () -> expr(e$3.target()));
             }
             case Expr.Call e$4 -> {
@@ -96,6 +108,9 @@ import org.axl.compiler.ast.Stmt;
                 });
             }
             case Expr.Lambda e$19 -> {
+                for (final var p : e$19.params()) {
+                    locals.put(p.name(), p.type());
+                }
                 lambdas += 1;
                 statements(e$19.body());
                 lambdas -= 1;
@@ -111,6 +126,34 @@ import org.axl.compiler.ast.Stmt;
                 }
             }
         }
+    }
+    private boolean readsMember(Expr.Member e) {
+        final var c = memberOf;
+        final var inFile = file;
+        if (c == null || inFile == null) {
+            return true;
+        }
+        final var target = e.target();
+        if (target instanceof Expr.Name target$1 && target$1.name().equals("this")) {
+            return c.equals(owner);
+        }
+        if (target instanceof Expr.Name target$2 && locals.containsKey(target$2.name()) && locals.get(target$2.name()) == null) {
+            return true;
+        }
+        final var type = new TypeInference(inFile, knownTypes(), siblings).of(target);
+        return type == null || type.name().substring(type.name().lastIndexOf('.') + 1).equals(c.name());
+    }
+    private Map<String, TypeRef> knownTypes() {
+        final var known = new HashMap<String, TypeRef>(ownerTypes);
+        for (final var local : locals.entrySet()) {
+            final var type = local.getValue();
+            if (type != null) {
+                known.put(local.getKey(), type);
+            } else {
+                known.remove(local.getKey());
+            }
+        }
+        return known;
     }
     private void expanded(boolean lambda, Runnable visit) {
         final var counts = lambda && expansions;
@@ -139,6 +182,7 @@ import org.axl.compiler.ast.Stmt;
         switch (s) {
             case Stmt.Local s$1 -> {
                 expr(s$1.init());
+                locals.put(s$1.name(), Nulls.or(s$1.type(), () -> localType(s$1.init())));
             }
             case Stmt.Assign s$2 -> {
                 final var target = s$2.target();
@@ -162,6 +206,7 @@ import org.axl.compiler.ast.Stmt;
             }
             case Stmt.Use s$7 -> {
                 expr(s$7.resource());
+                locals.put(s$7.name(), Nulls.or(s$7.type(), () -> localType(s$7.resource())));
                 statement(s$7.body());
                 final var handler = s$7.handler();
                 if (handler != null) {
@@ -182,9 +227,11 @@ import org.axl.compiler.ast.Stmt;
             }
             case Stmt.For s$10 -> {
                 expr(s$10.iterable());
+                locals.put(s$10.name(), null);
                 statement(s$10.body());
             }
             case Stmt.Count s$11 -> {
+                locals.put(s$11.name(), null);
                 expr(s$11.from());
                 expr(s$11.to());
                 final var step = s$11.step();
@@ -201,8 +248,19 @@ import org.axl.compiler.ast.Stmt;
             }
         }
     }
+    private @Nullable TypeRef localType(Expr init) {
+        final var inFile = file;
+        if (memberOf == null || inFile == null) {
+            return null;
+        }
+        return new TypeInference(inFile, knownTypes(), siblings).of(init);
+    }
     public void function(Decl.Function f) {
         Nulls.param(f, "f");
+        locals.clear();
+        for (final var p : f.params()) {
+            locals.put(p.name(), p.type());
+        }
         final var exprBody = f.exprBody();
         if (exprBody != null) {
             expr(exprBody);
@@ -214,6 +272,12 @@ import org.axl.compiler.ast.Stmt;
     }
     public void decl(Decl d) {
         Nulls.param(d, "d");
+        locals.clear();
+        owner = d;
+        final var inFile = file;
+        if (memberOf != null && inFile != null) {
+            ownerTypes = ownerTypesOf(d, inFile, siblings);
+        }
         switch (d) {
             case Decl.Function d$1 -> {
                 function(d$1);
@@ -255,6 +319,20 @@ import org.axl.compiler.ast.Stmt;
                 }
             }
         }
+    }
+    private static Map<String, TypeRef> ownerTypesOf(Decl d, SourceFile file, List<SourceFile> siblings) {
+        final var types = new HashMap<String, TypeRef>();
+        if (d instanceof Decl.ClassDecl d$1) {
+            types.putAll(TypeInference.propertyTypes(file, siblings, d$1));
+        } else if (d instanceof Decl.DataClass d$2) {
+            for (final var f : d$2.fields()) {
+                final var type = f.type();
+                if (type != null) {
+                    types.put(f.name(), type);
+                }
+            }
+        }
+        return types;
     }
     public static Set<String> constructorOnly(Decl.ClassDecl c, SourceFile file, List<SourceFile> siblings, Set<String> required) {
         Nulls.param(c, "c");
@@ -303,7 +381,10 @@ import org.axl.compiler.ast.Stmt;
             return result;
         }
         final var inBuild = new Reads();
-        for (final var f : with(file, siblings)) {
+        inBuild.memberOf = c;
+        inBuild.siblings = with(file, siblings);
+        for (final var f : inBuild.siblings) {
+            inBuild.file = f;
             for (final var d : f.decls()) {
                 inBuild.decl(d);
             }

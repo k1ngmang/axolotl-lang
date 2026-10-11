@@ -1,13 +1,17 @@
 package org.axl.compiler.gen
 
 import java.util.ArrayList
+import java.util.HashMap
 import java.util.HashSet
 import java.util.List
+import java.util.Map
 import java.util.Set
 import org.axl.compiler.ast.Decl
 import org.axl.compiler.ast.Expr
 import org.axl.compiler.ast.SourceFile
 import org.axl.compiler.ast.Stmt
+import org.axl.compiler.ast.TypeRef
+import org.axl.compiler.check.TypeInference
 
 /**
  * The names some code reads: as a name, as a name inside a lambda it writes, and as the member of a value. Whether a
@@ -26,6 +30,18 @@ class Reads {
     /** Whether the lambdas Java gets for `?:`, `?.` and `attempt` count as lambdas too. */
     var expansions: Boolean = false
 
+    /**
+     * When set, `members` holds only the member reads that may be of this class: through `this` in its own code,
+     * or through a value whose type is the class or not known. file and siblings are the build being read.
+     */
+    var memberOf: Decl.ClassDecl? = null
+    var file: SourceFile? = null
+    var siblings: List<SourceFile> = List.of()
+    // The type whose code is read, with the types of its members and of the parameters and locals so far.
+    var owner: Decl? = null
+    var ownerTypes: Map<String, TypeRef> = Map.of()
+    val locals: HashMap<String, TypeRef?> = HashMap<String, TypeRef?>()
+
     fn expr(e: Expr) {
         when (e) {
             is Expr.Literal -> { }
@@ -37,7 +53,9 @@ class Reads {
                 }
             }
             is Expr.Member -> {
-                members.add(e.name())
+                if (readsMember(e)) {
+                    members.add(e.name())
+                }
                 expanded(e.safe(), { -> expr(e.target()) })
             }
             is Expr.Call -> expanded(e.safe(), { ->
@@ -80,6 +98,9 @@ class Reads {
                 expr(e.handler())
             })
             is Expr.Lambda -> {
+                for (p in e.params()) {
+                    locals.put(p.name(), p.type())
+                }
                 lambdas += 1
                 statements(e.body())
                 lambdas -= 1
@@ -95,6 +116,37 @@ class Reads {
                 }
             }
         }
+    }
+
+    /** `other.limit` may read the parameter `limit` of the class `memberOf` when `other` is one, or may be. */
+    private fn readsMember(e: Expr.Member) -> Boolean {
+        val c = memberOf
+        val inFile = file
+        if (c == null || inFile == null) {
+            return true
+        }
+        val target = e.target()
+        if (target is Expr.Name && target.name().equals("this")) {
+            return c.equals(owner)
+        }
+        if (target is Expr.Name && locals.containsKey(target.name()) && locals.get(target.name()) == null) {
+            return true
+        }
+        val type = TypeInference(inFile, knownTypes(), siblings).of(target)
+        return type == null || type.name().substring(type.name().lastIndexOf('.') + 1).equals(c.name())
+    }
+
+    private fn knownTypes() -> Map<String, TypeRef> {
+        val known = HashMap<String, TypeRef>(ownerTypes)
+        for (local in locals.entrySet()) {
+            val type = local.getValue()
+            if (type != null) {
+                known.put(local.getKey(), type)
+            } else {
+                known.remove(local.getKey())
+            }
+        }
+        return known
     }
 
     private fn expanded(lambda: Boolean, visit: Runnable) {
@@ -122,7 +174,10 @@ class Reads {
 
     fn statement(s: Stmt) {
         when (s) {
-            is Stmt.Local -> expr(s.init())
+            is Stmt.Local -> {
+                expr(s.init())
+                locals.put(s.name(), s.type() ?: localType(s.init()))
+            }
             is Stmt.Assign -> {
                 val target = s.target()
                 if (target is Expr.Name) {
@@ -144,6 +199,7 @@ class Reads {
             }
             is Stmt.Use -> {
                 expr(s.resource())
+                locals.put(s.name(), s.type() ?: localType(s.resource()))
                 statement(s.body())
                 val handler = s.handler()
                 if (handler != null) {
@@ -164,9 +220,11 @@ class Reads {
             }
             is Stmt.For -> {
                 expr(s.iterable())
+                locals.put(s.name(), null)
                 statement(s.body())
             }
             is Stmt.Count -> {
+                locals.put(s.name(), null)
                 expr(s.from())
                 expr(s.to())
                 val step = s.step()
@@ -180,7 +238,20 @@ class Reads {
         }
     }
 
+    /** The type of a local's value, when member reads are resolved; null otherwise or when not known. */
+    private fn localType(init: Expr) -> TypeRef? {
+        val inFile = file
+        if (memberOf == null || inFile == null) {
+            return null
+        }
+        return TypeInference(inFile, knownTypes(), siblings).of(init)
+    }
+
     fn function(f: Decl.Function) {
+        locals.clear()
+        for (p in f.params()) {
+            locals.put(p.name(), p.type())
+        }
         val exprBody = f.exprBody()
         if (exprBody != null) {
             expr(exprBody)
@@ -192,6 +263,12 @@ class Reads {
     }
 
     fn decl(d: Decl) {
+        locals.clear()
+        owner = d
+        val inFile = file
+        if (memberOf != null && inFile != null) {
+            ownerTypes = ownerTypesOf(d, inFile, siblings)
+        }
         when (d) {
             is Decl.Function -> function(d)
             is Decl.Value -> expr(d.init())
@@ -232,13 +309,29 @@ class Reads {
     }
 }
 
+/** The members of a class or data class with their types, which its code reads by name. */
+private fn ownerTypesOf(d: Decl, file: SourceFile, siblings: List<SourceFile>) -> Map<String, TypeRef> {
+    val types = HashMap<String, TypeRef>()
+    if (d is Decl.ClassDecl) {
+        types.putAll(TypeInference.propertyTypes(file, siblings, d))
+    } else if (d is Decl.DataClass) {
+        for (f in d.fields()) {
+            val type = f.type()
+            if (type != null) {
+                types.put(f.name(), type)
+            }
+        }
+    }
+    return types
+}
+
 /**
  * The private `val` parameters of a class that only its constructor reads, in the values of properties and of the
  * superclass: they need no field, which Error Prone would report as never read. A parameter keeps its field when a
  * method, a lambda written in a property or another constructor reads its name, when a file of the build reads a
- * member of that name (javac then reports a read from outside the class as private), when an interface requires a value
- * of that name, when it carries annotations, which Java puts on the field, and when nothing reads it, which Error Prone
- * reports.
+ * member of that name through `this` in the class or through a value that is or may be of the class (javac then
+ * reports a read from outside the class as private), when an interface requires a value of that name, when it carries
+ * annotations, which Java puts on the field, and when nothing reads it, which Error Prone reports.
  */
 fn constructorOnly(c: Decl.ClassDecl, file: SourceFile, siblings: List<SourceFile>, required: Set<String>) -> Set<String> {
     val result = HashSet<String>()
@@ -285,7 +378,10 @@ fn constructorOnly(c: Decl.ClassDecl, file: SourceFile, siblings: List<SourceFil
         return result
     }
     val inBuild = Reads()
-    for (f in with(file, siblings)) {
+    inBuild.memberOf = c
+    inBuild.siblings = with(file, siblings)
+    for (f in inBuild.siblings) {
+        inBuild.file = f
         for (d in f.decls()) {
             inBuild.decl(d)
         }
