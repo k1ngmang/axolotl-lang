@@ -42,7 +42,11 @@ takes precedence over them.
 the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `java.util.Map<String, Int>`.
 `T?` allows `null`; `T` does not. Nullness is checked by NullAway in JSpecify mode. `Class<*>` and
 `List<*>` are Java's `Class<?>` and `List<?>`: a type argument that is not known.
-A character in single quotes, `'a'`, is a Java `Character`; text in double quotes is a `String`.
+A character in single quotes, `'a'`, is a Java `Character` where a type is written; where the type is inferred it is
+Java's `char`, so `val CR = '\r'` at the top level is a `char` constant for Java callers. `Character(code)` is the
+character with that code, an `Int`, as Java's `(char) code`; it throws `IllegalArgumentException` for a number that is not
+a character code, such as the `-1` of `Reader.read()` at the end. A `Character` is its code where an `Int` is expected:
+`val code: Int = c`. Text in double quotes is a `String`.
 
 A data class, class, interface or function may take type parameters, written after its name:
 
@@ -80,7 +84,8 @@ Axolotl has no bounded wildcards (`? extends T`, `? super T`). A parameter that 
 - `use (val reader = Files.newBufferedReader(path)) { ... } else e -> println(e)` opens a resource for the
   block and closes it after, also when the block throws. The `else` handles what opening, the block or
   `close()` throws, a call or a `throw`; it is needed when `close()` declares a checked exception. Without it, the error names the resource whose `close()` throws: `close()` of `BufferedReader` can
-  throw `IOException`.
+  throw `IOException`. `use (hold(lock)) { ... }` holds a resource that the block does not read, such as a lock or a
+  scope; it is closed the same way, and the `else` works as with a name.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
 - `for (i in 0 until n) { ... }` counts from 0 to n - 1, `for (i in 1..n)` from 1 to n and `for (i in n downTo 0)` down to 0,
   each with an optional `step k`, such as `for (k in -d..d step 2)`. Bounds and step are `Int` or `Long`, and the variable
@@ -213,9 +218,10 @@ class Opt(val opt: String?, val longOpt: String?, val hasArg: Boolean, private v
 }
 ```
 
-`Opt("v", "verbose")` and Java's `new Opt("v", "verbose")` call the first. A constructor has no body: `this(...)` gives a
-value to each parameter of the class and sees only the constructor's own parameters, since it runs before the object has
-fields. It may carry annotations and `private`. Java tells constructors apart by their parameter types without `?` and type
+`Opt("v", "verbose")` and Java's `new Opt("v", "verbose")` call the first. A constructor has no body: `this(...)` passes
+values to the class's parameters, or to another constructor of the class; as in Java, the number and types of the values
+pick the constructor. It sees only the constructor's own parameters, since it runs before the object has fields, and
+constructors that lead back to themselves are an error. It may carry annotations and `private`. Java tells constructors apart by their parameter types without `?` and type
 arguments, so two constructors that differ only there are an error. Data classes, enums and interfaces have only their own
 constructor.
 
@@ -227,7 +233,9 @@ record's and an enum's.
 
 A class may extend a Java class by calling its constructor after the colon: `class NotFound(val id:
 String) : RuntimeException("not found: " + id)`, `class Worker : Thread("worker") { fn run() { ... } }`.
-Its methods override the Java class's by name, and interfaces follow after a comma. A class written in
+Its methods override the Java class's by name, and interfaces follow after a comma. They call the methods of that class
+with `super`: `fn read() -> Int = ... super.read() ...` runs the method it overrides. `super` stands only before such a
+call, in a class that extends a Java class; it does not reach the default methods of interfaces. A class written in
 Axolotl cannot be extended: keep one in a property and give both an interface.
 A plain constructor parameter cannot be forwarded to the superclass: `class E(val code: Int, msg: String) :
 RuntimeException(msg)` is rejected, write `val msg: String`.
@@ -264,7 +272,10 @@ is not an annotation but part of the type, so `@Nullable` and `@NonNull` are rej
 `enum Color { RED, GREEN, BLUE }` is a Java enum, nested like a data class: `Color.RED`,
 `Color.values()`. Its constants may carry fields, declared after the name and given by each constant:
 `enum Planet(val mass: Double, val radius: Double) { MERCURY(3.303e23, 2.4397e6), EARTH(5.976e24, 6.37814e6) }`,
-read as `Planet.EARTH.mass`. Behavior stays in functions that `when` over the constants.
+read as `Planet.EARTH.mass`. Methods follow the constants, after an optional `;`, and read the fields by name; `this` is the constant. After a colon an
+enum implements interfaces: `enum Predefined(val format: String) : Supplier<String> { DEFAULT(","), TDF("\t"); fn get()
+-> String = format }`. Constants have no bodies and every method has one: what differs between the constants is a field.
+The methods every Java enum has, such as `name()` and `ordinal()`, cannot be redefined.
 
 ## `if` as a value and `throw`
 
@@ -477,7 +488,8 @@ fn doubled(s: String) -> Result<Int, String> {
   `IOException` in the handler, and any other exception is thrown on as it would be without `attempt`, so a checked one
   that the class does not take is an error: `val text = attempt Files.readString(p) else e: IOException -> throw
   UncheckedIOException(e)`. The same holds for the handler and the exits of an `attempt` statement and for the `else` of
-  `use`. Without a class, the handler takes any `Exception`.
+  `use`. Without a class, the handler takes any `Exception`. A typed handler catches its class also where the code does not
+  declare it, on a line of its own as in a value, since Axolotl code passes checked exceptions on undeclared.
 - `==` on strings, data classes and other values that define their own equality is an error: it would
   compare the objects, not their values; write `a.equals(b)`. `==` on numbers, booleans and enum constants
   compares the values, also for numbers taken from a collection, such as `xs.get(0) == xs.get(1)` on a
