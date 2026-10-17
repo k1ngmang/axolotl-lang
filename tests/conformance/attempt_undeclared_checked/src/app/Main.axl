@@ -1,0 +1,74 @@
+package app
+
+import java.io.IOException
+import java.io.Reader
+import java.io.StringReader
+import java.io.UncheckedIOException
+import java.util.List
+
+// An Axolotl wrapper cannot declare `throws IOException`, so the exception travels undeclared.
+class Source(private val input: Reader, private val fail: Boolean) : AutoCloseable {
+    fn read() -> Int {
+        if (fail) {
+            throw Sneaky.sneaky(IOException("boom"))
+        }
+        return attempt input.read() else e: IOException -> throw Sneaky.sneaky(e)
+    }
+
+    fn close() {
+        println("closed")
+    }
+}
+
+class Missing : Exception("missing")
+
+fn source(fail: Boolean) -> Source = Source(StringReader("a"), fail)
+
+// The statement catches the undeclared IOException by its class, as the value form does.
+fn skip(s: Source) {
+    attempt s.read() else e: IOException -> println("skipped: " + e.getMessage())
+}
+
+fn count(sources: List<Source>) -> Int {
+    var n = 0
+    for (s in sources) {
+        attempt s.read() else e: IOException -> continue
+        n += 1
+    }
+    return n
+}
+
+fn first(s: Source) -> Result<Int, String> = attempt s.read() else e: IOException -> "io " + e.getMessage()
+
+fn guarded(s: Source) {
+    use (s) {
+        println(s.read())
+    } else e: IOException -> println("use caught " + e.getMessage())
+}
+
+// A checked exception of the build's own, and one that the code declares, which keeps a plain catch.
+fn missing() {
+    attempt Sneaky.sneaky(Missing()) else e: Missing -> println("caught " + e.getMessage())
+}
+
+fn declared(r: Reader) {
+    attempt r.read() else e: IOException -> throw UncheckedIOException(e)
+}
+
+// Other exceptions pass through unchanged.
+fn other() -> Int {
+    attempt Integer.parseInt("x") else e: IOException -> println("never")
+    return 0
+}
+
+fn main() {
+    skip(source(true))
+    skip(source(false))
+    println(count(List.of(source(false), source(true), source(false))))
+    println(first(source(true)))
+    guarded(source(true))
+    missing()
+    declared(StringReader("z"))
+    val r: Result<Int, Exception> = attempt other() else e -> e
+    println(r)
+}

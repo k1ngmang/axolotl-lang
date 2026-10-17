@@ -2369,6 +2369,9 @@ import org.axl.compiler.check.Whens;
         withCopies(line, stmt.resource(), () ->
                 em.line(line, "try (" + typeCode + " " + name + " = " + lifted(line, stmt.resource()).code() + ") {"));
         localTypes.put(name, Nulls.or(declared, () -> typeOf(stmt.resource())));
+        em.indent();
+        declareCaught(line, stmt.errorType());
+        em.dedent();
         emitBlock(stmt.body());
         final var handler = stmt.handler();
         if (handler == null) {
@@ -2395,6 +2398,7 @@ import org.axl.compiler.check.Whens;
         final var handler = withoutParens(a.handler());
         em.line(line, "try {");
         em.indent();
+        declareCaught(line, a.errorType());
         em.line(line, exprIn(a.body(), true) + ";");
         em.dedent();
         em.line(line, "} catch (" + caughtType(a.errorType()) + " " + error + ") {");
@@ -2415,6 +2419,7 @@ import org.axl.compiler.check.Whens;
         withCopiesOf(line, Captures.inAttemptCall(stmt.body(), analysis), () -> {
             em.line(line, "try {");
             em.indent();
+            declareCaught(line, stmt.errorType());
             em.line(line, exprIn(stmt.body(), true) + ";");
             em.dedent();
             em.line(line, "} catch (" + caughtType(stmt.errorType()) + " " + error + ") {");
@@ -2435,6 +2440,39 @@ import org.axl.compiler.check.Whens;
         } else if (INTERRUPT_CATCHERS.contains(name)) {
             em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();");
         }
+    }
+    private void declareCaught(int line, @Nullable TypeRef caught) {
+        if (caught != null && isCheckedException(caught)) {
+            em.line(line, "Result.mayThrow(" + javaType(caught) + ".class);");
+        }
+    }
+    private boolean isCheckedException(TypeRef exception) {
+        final var decl = declaredType(exception.name());
+        if (decl instanceof Decl.ClassDecl decl$1 && decl$1.superArgs() != null) {
+            final var parent = Libraries.classNamed(file, options.classes(), decl$1.supertypes().getFirst().name());
+            return parent == null || isCheckedClass(parent.name());
+        }
+        final var library = Libraries.classNamed(file, options.classes(), exception.name());
+        return library == null || (!CATCH_ALL.contains(library.name()) && isCheckedClass(library.name()));
+    }
+    private boolean isCheckedClass(String name) {
+        if (UNCHECKED_ROOTS.contains(name)) {
+            return false;
+        }
+        if (CATCH_ALL.contains(name)) {
+            return true;
+        }
+        final var shape = options.classes().shape(name);
+        if (shape == null) {
+            return true;
+        }
+        for (final var supertype : shape.supertypes()) {
+            final var parent = options.classes().shape(supertype.name());
+            if (parent != null && !parent.isInterface()) {
+                return isCheckedClass(supertype.name());
+            }
+        }
+        return true;
     }
     private String caughtType(@Nullable TypeRef caught) {
         return (caught == null ? "Exception" : javaType(caught));
@@ -3570,6 +3608,8 @@ import org.axl.compiler.check.Whens;
     private static final Set<String> TARGET_TYPED_FACTORIES = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
             "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity");
     private static final Set<String> INTERRUPT_CATCHERS = Set.of("Exception", "Throwable", "java.lang.Exception", "java.lang.Throwable");
+    private static final Set<String> UNCHECKED_ROOTS = Set.of("java.lang.RuntimeException", "java.lang.Error");
+    private static final Set<String> CATCH_ALL = Set.of("java.lang.Exception", "java.lang.Throwable");
     public enum WhenForm { STATEMENT, RESULT, VALUE }
     public record Lifted(String code, boolean pure) {
         public Lifted {

@@ -1,0 +1,7 @@
+skipped: boom
+2
+Err[error=io boom]
+closed
+use caught boom
+caught missing
+Err[error=java.lang.NumberFormatException: For input string: "x"]

@@ -208,7 +208,6 @@ final class Messages {
     // `else e: IOException ->`: the name and the class a handler catches.
     private static final Pattern TYPED_HANDLER = Pattern.compile("\\belse\\s+(\\w+)\\s*:\\s*([\\w.]+)\\s*->");
     private static final Pattern TYPED_CATCH = Pattern.compile("^\\s*\\} catch \\((?!Exception )([\\w.]+) (\\w+)\\) \\{$");
-    private static final Pattern NEVER_THROWN = Pattern.compile("^exception ([\\w.$]+) is never thrown in body of corresponding try statement$");
     private static final Pattern SINGLE_FORMAT_VALUE = Pattern.compile(
             "(?:\\.(?:format|printf)\\(\\s*\"(?:[^\"\\\\]|\\\\.)*\"\\s*,|\\.formatted\\()\\s*([A-Za-z_]\\w*)\\s*\\)");
     private static final Pattern COLLECTION_TYPE = Pattern.compile("(?:^|\\.)(?:\\w*List|\\w*Set|Collection)(?:\\.of)?$");
@@ -1467,12 +1466,6 @@ final class Messages {
         Matcher typedHandler = TYPED_HANDLER.matcher(axlText);
         if (unreported.find() && !text.strip().startsWith("throw ") && typedHandler.find()) {
             return notCaught(unreported.group(1), typedHandler);
-        }
-        Matcher neverThrown = NEVER_THROWN.matcher(message);
-        if (neverThrown.find()) {
-            String e = typedHandler.find(0) ? typedHandler.group(1) : "e";
-            return "`" + axlType(neverThrown.group(1)) + "` is never thrown here, so the handler would never run; catch the "
-                    + "exception the code throws, or every exception with `else " + e + " ->`";
         }
         if (unreported.find(0) && text.strip().startsWith("throw ")) {
             return "`" + axlType(unreported.group(1)) + "` is a checked exception and cannot be thrown here; throw a "

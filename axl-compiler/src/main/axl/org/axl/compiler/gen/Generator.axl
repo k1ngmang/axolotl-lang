@@ -73,6 +73,10 @@ private val TARGET_TYPED_FACTORIES: Set<String> = Set.of("of", "copyOf", "ofEntr
 // The classes a `catch` of which may hold an InterruptedException among others.
 private val INTERRUPT_CATCHERS: Set<String> = Set.of("Exception", "Throwable", "java.lang.Exception", "java.lang.Throwable")
 
+// A `catch` of these classes compiles whatever the code in the `try` declares, and so does one of a subclass of the first two.
+private val UNCHECKED_ROOTS: Set<String> = Set.of("java.lang.RuntimeException", "java.lang.Error")
+private val CATCH_ALL: Set<String> = Set.of("java.lang.Exception", "java.lang.Throwable")
+
 /** Where a `when` stands: what its branches do with their value. */
 enum WhenForm { STATEMENT, RESULT, VALUE }
 
@@ -2686,6 +2690,9 @@ class Generator(
             em.line(line, "try (" + typeCode + " " + name + " = " + lifted(line, stmt.resource()).code() + ") {")
         })
         localTypes.put(name, declared ?: typeOf(stmt.resource()))
+        em.indent()
+        declareCaught(line, stmt.errorType())
+        em.dedent()
         emitBlock(stmt.body())
         val handler = stmt.handler()
         if (handler == null) {
@@ -2717,6 +2724,7 @@ class Generator(
         val handler = withoutParens(a.handler())
         em.line(line, "try {")
         em.indent()
+        declareCaught(line, a.errorType())
         em.line(line, exprIn(a.body(), true) + ";")
         em.dedent()
         em.line(line, "} catch (" + caughtType(a.errorType()) + " " + error + ") {")
@@ -2739,6 +2747,7 @@ class Generator(
         withCopiesOf(line, Captures.inAttemptCall(stmt.body(), analysis), { ->
             em.line(line, "try {")
             em.indent()
+            declareCaught(line, stmt.errorType())
             em.line(line, exprIn(stmt.body(), true) + ";")
             em.dedent()
             em.line(line, "} catch (" + caughtType(stmt.errorType()) + " " + error + ") {")
@@ -2766,6 +2775,49 @@ class Generator(
         } else if (INTERRUPT_CATCHERS.contains(name)) {
             em.line(line, "if (" + error + " instanceof InterruptedException) Thread.currentThread().interrupt();")
         }
+    }
+
+    /**
+     * `else e: IOException ->` on a statement catches the exception also where the code does not declare it, as the value
+     * form does: Axolotl code, which has no `throws`, passes checked exceptions on undeclared. javac accepts the catch
+     * after a call that declares the class.
+     */
+    private fn declareCaught(line: Int, caught: TypeRef?) {
+        if (caught != null && isCheckedException(caught)) {
+            em.line(line, "Result.mayThrow(" + javaType(caught) + ".class);")
+        }
+    }
+
+    /** Whether javac checks that a `catch` of this class has code that declares it; a class it cannot read counts as checked. */
+    private fn isCheckedException(exception: TypeRef) -> Boolean {
+        val decl = declaredType(exception.name())
+        if (decl is Decl.ClassDecl && decl.superArgs() != null) {
+            val parent = Libraries.classNamed(file, options.classes(), decl.supertypes().getFirst().name())
+            return parent == null || isCheckedClass(parent.name())
+        }
+        val library = Libraries.classNamed(file, options.classes(), exception.name())
+        return library == null || (!CATCH_ALL.contains(library.name()) && isCheckedClass(library.name()))
+    }
+
+    /** A class or superclass of the exception: checked unless it extends `RuntimeException` or `Error`. */
+    private fn isCheckedClass(name: String) -> Boolean {
+        if (UNCHECKED_ROOTS.contains(name)) {
+            return false
+        }
+        if (CATCH_ALL.contains(name)) {
+            return true
+        }
+        val shape = options.classes().shape(name)
+        if (shape == null) {
+            return true
+        }
+        for (supertype in shape.supertypes()) {
+            val parent = options.classes().shape(supertype.name())
+            if (parent != null && !parent.isInterface()) {
+                return isCheckedClass(supertype.name())
+            }
+        }
+        return true
     }
 
     /** `Exception` for `else e ->`, the written class for `else e: IOException ->`. */

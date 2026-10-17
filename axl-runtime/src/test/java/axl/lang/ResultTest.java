@@ -23,6 +23,17 @@ class ResultTest {
     }
 
     @Test
+    void mayThrowOnlyLetsACatchOfTheClassCompile() throws java.io.IOException {
+        String caught = "none";
+        try {
+            Result.mayThrow(java.io.IOException.class);
+        } catch (java.io.IOException e) {
+            caught = "io";
+        }
+        assertEquals("none", caught);
+    }
+
+    @Test
     void attemptDoesNotCatchErrors() {
         assertThrows(StackOverflowError.class,
                 () -> Result.attempt(() -> { throw new StackOverflowError(); }, Exception::getMessage));

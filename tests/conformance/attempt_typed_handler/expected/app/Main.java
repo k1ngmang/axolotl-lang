@@ -30,6 +30,7 @@ import java.util.List;
         Nulls.param(out, "out");
         Nulls.param(text, "text");
         try {
+            Result.mayThrow(IOException.class);
             out.append(text);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -38,6 +39,7 @@ import java.util.List;
     public static int firstChar(String text) {
         Nulls.param(text, "text");
         try (var reader = new StringReader(text)) {
+            Result.mayThrow(IOException.class);
             return reader.read();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -48,6 +50,7 @@ import java.util.List;
         var n = 0;
         for (final var p : paths) {
             try {
+                Result.mayThrow(IOException.class);
                 Files.delete(p);
             } catch (IOException e) {
                 continue;
@@ -58,6 +61,7 @@ import java.util.List;
     }
     public static String pause() {
         try {
+            Result.mayThrow(InterruptedException.class);
             Thread.sleep(1L);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

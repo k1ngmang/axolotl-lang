@@ -52,6 +52,7 @@ import java.util.concurrent.locks.ReentrantLock;
             System.out.println("caught " + e.getMessage());
         }
         try (var $r2 = new BufferedReader(new StringReader("x"))) {
+            Result.mayThrow(java.io.IOException.class);
             System.out.println("reading");
         } catch (java.io.IOException e) {
             System.out.println(e);

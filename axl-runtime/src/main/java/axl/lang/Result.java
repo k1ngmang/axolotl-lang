@@ -19,6 +19,9 @@ public sealed interface Result<T extends @Nullable Object, E extends @Nullable O
     static <T extends @Nullable Object, X extends Throwable> T orThrow(ThrowingCall<T, X> x, Function<? super X, ? extends RuntimeException> y, Class<X> type) {
         try { return x.get(); } catch (Throwable ex) { throw y.apply(caught(ex, type)); }
     }
+    // Starts the body of the statement `attempt X else e: IOException -> Y`: javac then accepts the catch of a checked
+    // exception that X does not declare, as it accepts the value form's ThrowingCall; Axolotl code throws them undeclared.
+    static <X extends Throwable> void mayThrow(Class<X> type) throws X { }
     // The exception as the class the handler takes; another one is thrown on as it is.
     private static <X extends Throwable> X caught(Throwable ex, Class<X> type) {
         if (!type.isInstance(ex)) throw Result.<RuntimeException>sneaky(ex);
