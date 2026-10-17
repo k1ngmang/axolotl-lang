@@ -117,7 +117,7 @@ data class Constructor(
     val annotations: List<Annotation>
 )
 
-/** An enumeration of constants without members. */
+/** An enumeration of constants, with fields each constant gives and methods all of them share. */
 data class EnumDecl(
     val pos: Pos,
     val namePos: Pos,
@@ -128,7 +128,11 @@ data class EnumDecl(
     /** `enum Planet(val mass: Double)`: the fields every constant gives a value for. */
     val fields: List<Expr.Param>,
     /** The arguments of each constant, in the order of the constants: `EARTH(5.97e24)`. */
-    val arguments: List<List<Expr>>
+    val arguments: List<List<Expr>>,
+    /** The interfaces after the colon. */
+    val supertypes: List<TypeRef>,
+    /** The methods after the constants, which read the fields by name as a data class's do. */
+    val methods: List<Function>
 ) : Decl
 
 data class Property(

@@ -158,6 +158,9 @@ import org.axl.compiler.ast.TypeRef;
             case Decl.Interface decl$3 -> {
                 return decl$3.supertypes();
             }
+            case Decl.EnumDecl decl$4 -> {
+                return decl$4.supertypes();
+            }
             default -> {
                 return List.of();
             }

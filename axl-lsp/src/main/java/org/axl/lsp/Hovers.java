@@ -130,7 +130,8 @@ final class Hovers {
                     + supertypes(classDecl.supertypes(), classDecl.superArgs() != null)
                     + body(classDecl.constructors().stream().map(Hovers::constructor).toList());
             case Decl.EnumDecl enumeration -> visibility + "enum " + enumeration.name()
-                    + (enumeration.fields().isEmpty() ? "" : fields(enumeration.fields()));
+                    + (enumeration.fields().isEmpty() ? "" : fields(enumeration.fields())) + supertypes(enumeration.supertypes(), false)
+                    + body(enumeration.methods().stream().map(Hovers::signature).toList());
             case Decl.Function fn -> signature(fn);
             case Decl.Value value -> "val " + value.name();
         };

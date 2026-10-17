@@ -1,0 +1,24 @@
+package app
+
+interface Coded {
+    val code: Int
+    fn describe() -> String
+}
+
+enum Names(val n: Int) : Coded {
+    A(1), B(2);
+
+    fn name() -> String = "x"
+    fn ordinal() -> Int = n
+    fn compareTo(other: Names) -> Int = 0
+}
+
+enum Hidden(val code: Int) : Coded {
+    C(3);
+
+    private fn describe() -> String = "hidden"
+}
+
+fn main() {
+    println(Names.A.n)
+}

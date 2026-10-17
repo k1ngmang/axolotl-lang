@@ -1,0 +1,8 @@
+package app
+
+enum Body(val code: Int) {
+    A(1) {
+        fn x() -> Int = 2
+    },
+    B(2)
+}

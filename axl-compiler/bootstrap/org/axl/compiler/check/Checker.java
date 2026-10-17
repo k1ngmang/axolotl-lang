@@ -112,6 +112,7 @@ import org.axl.compiler.ast.TypeRef;
                 }
                 case Decl.EnumDecl decl$4 -> {
                     enumConstants(decl$4);
+                    enumMethods(decl$4);
                 }
                 case Decl.DataClass decl$5 -> {
                     members(decl$5.fields(), "field");
@@ -254,6 +255,17 @@ import org.axl.compiler.ast.TypeRef;
                 recordFileMembers(decl$2);
             } else if (decl instanceof Decl.Interface decl$3 && decl$3.name().equals(file.className())) {
                 interfaceFileMembers(decl$3);
+            } else if (decl instanceof Decl.EnumDecl decl$4 && decl$4.name().equals(file.className())) {
+                enumFileMembers(decl$4);
+            }
+        }
+    }
+    private void enumFileMembers(Decl.EnumDecl e) {
+        for (final var decl : file.decls()) {
+            if (decl instanceof Decl.Function decl$1 && (Nulls.stream(e.methods()).anyMatch(m -> m.name().equals(decl$1.name()) && m.params().size() == decl$1.params().size()))) {
+                error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + e.name() + "`, the type of this file, has a method `" +
+                        decl$1.name() +
+                        "` with as many parameters, so a function of the file cannot have its name; rename one");
             }
         }
     }
@@ -499,27 +511,42 @@ import org.axl.compiler.ast.TypeRef;
         return type.args().isEmpty() && openTypeParams.contains(type.name());
     }
     private void dataClassMethods(Decl.DataClass data) {
-        if (data.methods().isEmpty()) {
-            return;
-        }
-        scope = new Scope(scope, false);
-        for (final var f : data.fields()) {
-            declare(f.pos(), f.name(), Kind.FIELD, f.type());
-        }
-        final var outerMethods = currentMethods;
-        final var outerOpen = openTypeParams;
-        openTypeParams = openTypeParams(data.typeParams());
-        currentMethods = data.methods();
-        integerAllowed = Nulls.stream(data.supertypes()).anyMatch(t -> !declaresType(t.name()));
-        enclosingTypeParams = Nulls.stream(data.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : data.methods()) {
-            checkReserved(m.namePos(), m.name());
             if (m.params().isEmpty() && (Nulls.stream(data.fields()).anyMatch(f -> f.name().equals(m.name())))) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "()` already reads the field `" + m.name() +
                         "` of `" +
                         data.name() +
                         "`; give the method another name");
             }
+        }
+        bodyMethods(data.fields(), data.typeParams(), data.supertypes(), data.methods());
+    }
+    private void enumMethods(Decl.EnumDecl e) {
+        for (final var m : e.methods()) {
+            if (ENUM_METHODS.contains(m.name() + "/" + m.params().size())) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "` is a method every Java enum has, which " +
+                        "cannot be replaced; give the method another name");
+            }
+        }
+        bodyMethods(e.fields(), List.of(), e.supertypes(), e.methods());
+    }
+    private void bodyMethods(List<Expr.Param> fields, List<Decl.TypeParam> typeParams, List<TypeRef> supertypes,
+            List<Decl.Function> methods) {
+        if (methods.isEmpty()) {
+            return;
+        }
+        scope = new Scope(scope, false);
+        for (final var f : fields) {
+            declare(f.pos(), f.name(), Kind.FIELD, f.type());
+        }
+        final var outerMethods = currentMethods;
+        final var outerOpen = openTypeParams;
+        openTypeParams = openTypeParams(typeParams);
+        currentMethods = methods;
+        integerAllowed = supertypes.stream().anyMatch(t -> !declaresType(t.name()));
+        enclosingTypeParams = typeParams.stream().map(Nulls.nonNull(p -> p.name())).toList();
+        for (final var m : methods) {
+            checkReserved(m.namePos(), m.name());
             typeParams(m);
             function(m);
         }
@@ -1025,6 +1052,9 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Decl.Interface decl$4 -> {
                 return functionsNamed(decl$4.methods(), c);
+            }
+            case Decl.EnumDecl decl$5 -> {
+                return functionsNamed(decl$5.methods(), c);
             }
             case null, default -> {
                 return List.of();
@@ -1893,6 +1923,8 @@ import org.axl.compiler.ast.TypeRef;
             "notify/0", "notifyAll/0", "wait/0", "wait/1", "wait/2", "clone/0", "finalize/0");
     private static final Set<String> OBJECT_METHOD_NAMES = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
             "notify", "notifyAll", "wait");
+    private static final Set<String> ENUM_METHODS = Set.of("name/0", "ordinal/0", "compareTo/1", "getDeclaringClass/0", "equals/1",
+            "hashCode/0", "clone/0", "finalize/0", "describeConstable/0", "values/0", "valueOf/1");
     private static final Map<String, String> BOXES = Map.of("Int", "Integer", "Long", "java.lang.Long", "Double", "java.lang.Double",
             "Boolean", "java.lang.Boolean");
     private static final Map<String, String> JAVA_PRIMITIVES = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",

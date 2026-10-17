@@ -1,0 +1,7 @@
+AXL017 app/Main.axl:8:6: error: `Names` does not give `val code: Int`, which the interface `Coded` requires; add it to its fields
+AXL017 app/Main.axl:8:6: error: `Names` does not give `fn describe() -> String`, which the interface `Coded` requires; add the method
+AXL010 app/Main.axl:11:8: error: `name` is a method every Java enum has, which cannot be replaced; give the method another name
+AXL010 app/Main.axl:12:8: error: `ordinal` is a method every Java enum has, which cannot be replaced; give the method another name
+AXL010 app/Main.axl:13:8: error: `compareTo` is a method every Java enum has, which cannot be replaced; give the method another name
+AXL017 app/Main.axl:19:16: error: `describe` implements a method of the interface `Coded`, so it cannot be private
+AXL010 app/Mode.axl:9:4: error: `Mode`, the type of this file, has a method `label` with as many parameters, so a function of the file cannot have its name; rename one

@@ -1,0 +1,2 @@
+AXL001 app/Abstract.axl:6:5: error: a method of an enum has a body, `= value` or `{ ... }`, which every constant shares; Axolotl has no abstract methods, so give what differs as a field each constant sets
+AXL001 app/Body.axl:4:10: error: an enum constant has no body; the methods after the constants serve every constant, so give what differs as a field: `enum Op(val sign: String) { PLUS("+"), MINUS("-") }`

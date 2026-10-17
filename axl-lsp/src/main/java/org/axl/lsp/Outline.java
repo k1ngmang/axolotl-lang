@@ -160,17 +160,24 @@ final class Outline {
     /** The fields of a data class, then the methods of its body with their text. */
     private static List<DocumentSymbol> dataClassMembers(Document document, Decl.DataClass data) {
         List<DocumentSymbol> result = new ArrayList<>(fields(document, data.fields()));
-        List<Pos> starts = data.methods().stream().map(Decl.Function::pos).toList();
-        for (Decl.Function m : data.methods()) {
+        result.addAll(methods(document, data.methods()));
+        return result;
+    }
+
+    private static List<DocumentSymbol> methods(Document document, List<Decl.Function> methods) {
+        List<Pos> starts = methods.stream().map(Decl.Function::pos).toList();
+        List<DocumentSymbol> result = new ArrayList<>();
+        for (Decl.Function m : methods) {
             result.add(withBody(document, symbol(document, m.namePos(), m.name(), SymbolKind.Method, List.of()), m.pos(), starts));
         }
         return result;
     }
 
-    /** The fields of an enum, then its constants. */
+    /** The fields of an enum, its constants, then its methods. */
     private static List<DocumentSymbol> enumMembers(Document document, Decl.EnumDecl enumeration) {
         List<DocumentSymbol> result = new ArrayList<>(fields(document, enumeration.fields()));
         result.addAll(constants(document, enumeration));
+        result.addAll(methods(document, enumeration.methods()));
         return result;
     }
 

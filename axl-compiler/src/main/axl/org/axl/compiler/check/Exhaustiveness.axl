@@ -155,6 +155,7 @@ private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
     is Decl.DataClass -> decl.supertypes()
     is Decl.ClassDecl -> decl.supertypes()
     is Decl.Interface -> decl.supertypes()
+    is Decl.EnumDecl -> decl.supertypes()
     else -> List.of()
 }
 

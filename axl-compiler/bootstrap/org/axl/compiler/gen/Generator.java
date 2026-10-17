@@ -272,9 +272,12 @@ import org.axl.compiler.check.Whens;
                     " {");
             emitClassMembers(fileType$3);
         } else if (fileType instanceof Decl.EnumDecl fileType$4) {
-            em.line(line, marked + "public enum " + fileType$4.name() + " { " + constantList(fileType$4) + ";");
+            em.line(line, marked + "public enum " + fileType$4.name() + typeList(" implements ", fileType$4.supertypes()) + " { " +
+                    constantList(fileType$4) +
+                    ";");
             em.indent();
             emitEnumFields(fileType$4);
+            emitEnumMethods(fileType$4);
             em.dedent();
         } else {
             throw new IllegalStateException();
@@ -298,8 +301,9 @@ import org.axl.compiler.check.Whens;
     }
     private void emitEnum(Decl.EnumDecl e) {
         final var line = e.pos().line();
-        final var head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name();
-        if (e.fields().isEmpty()) {
+        final var head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name() +
+                typeList(" implements ", e.supertypes());
+        if (e.fields().isEmpty() && e.methods().isEmpty()) {
             em.line(line, head + " { " + constantList(e) + " }");
             return;
         }
@@ -307,8 +311,24 @@ import org.axl.compiler.check.Whens;
         em.indent();
         em.line(line, constantList(e) + ";");
         emitEnumFields(e);
+        emitEnumMethods(e);
         em.dedent();
         em.line(line, "}");
+    }
+    private void emitEnumMethods(Decl.EnumDecl e) {
+        emitBodyMethods(e.supertypes(), e.methods(), e.isPrivate(), List.of(), Set.of(),
+                withThis(fieldTypes(e.fields()), e.name(), List.of()));
+        final var written = new HashSet<String>();
+        for (final var member : Implementations.requiredValues(file, options.siblings(), e.supertypes())) {
+            final var field = Nulls.first(Nulls.stream(e.fields()).filter(f -> f.name().equals(member.name())).iterator());
+            final var ownMethod = Nulls.stream(e.methods()).anyMatch(m -> m.name().equals(member.name()) && m.params().isEmpty());
+            if (field != null && !ownMethod && written.add(member.name())) {
+                em.line(field.pos().line(), "@Override public " + javaType(memberType(field)) + " " + member.name() +
+                        "() { return " +
+                        member.name() +
+                        "; }");
+            }
+        }
     }
     private String constantList(Decl.EnumDecl e) {
         final var texts = new ArrayList<String>();
@@ -389,6 +409,13 @@ import org.axl.compiler.check.Whens;
         inPrivateType = outerPrivate;
         nullableVariables = outerVariables;
         em.dedent();
+    }
+    private Map<String, TypeRef> fieldTypes(List<Expr.Param> fields) {
+        final var types = new HashMap<String, TypeRef>();
+        for (final var f : fields) {
+            types.put(f.name(), memberType(f));
+        }
+        return types;
     }
     private Map<String, TypeRef> withThis(Map<String, TypeRef> members, String name, List<Decl.TypeParam> typeParams) {
         final var result = new HashMap<String, TypeRef>(members);
@@ -538,6 +565,11 @@ import org.axl.compiler.check.Whens;
             em.dedent();
             em.line(line, "}");
         }
+        emitBodyMethods(dataClass.supertypes(), dataClass.methods(), dataClass.isPrivate(), dataClass.typeParams(),
+                boxedFieldsOf(dataClass), withThis(fieldTypes(dataClass.fields()), dataClass.name(), dataClass.typeParams()));
+    }
+    private void emitBodyMethods(List<TypeRef> supertypes, List<Decl.Function> methods, boolean isPrivate,
+            List<Decl.TypeParam> typeParams, Set<String> boxed, Map<String, TypeRef> members) {
         final var outerOverridden = overridden;
         final var outerRequired = requiredMethods;
         final var outerMethods = currentMethods;
@@ -545,18 +577,14 @@ import org.axl.compiler.check.Whens;
         final var outerVariables = nullableVariables;
         final var outerBoxed = boxedFields;
         final var outerMembers = memberTypes;
-        overridden = Implementations.required(file, options.siblings(), dataClass.supertypes());
-        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes());
-        boxedFields = boxedFieldsOf(dataClass);
-        currentMethods = dataClass.methods();
-        final var fields = new HashMap<String, TypeRef>();
-        for (final var f : dataClass.fields()) {
-            fields.put(f.name(), memberType(f));
-        }
-        memberTypes = withThis(fields, dataClass.name(), dataClass.typeParams());
-        inPrivateType = dataClass.isPrivate();
-        nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of());
-        for (final var method : dataClass.methods()) {
+        overridden = Implementations.required(file, options.siblings(), supertypes);
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), supertypes);
+        boxedFields = boxed;
+        currentMethods = methods;
+        memberTypes = members;
+        inPrivateType = isPrivate;
+        nullableVariables = nullableVariablesOf(typeParams, Set.of());
+        for (final var method : methods) {
             resetCounters();
             emitFunction(method, false);
         }
@@ -1959,11 +1987,12 @@ import org.axl.compiler.check.Whens;
             case Decl.DataClass decl$1 -> decl$1.supertypes();
             case Decl.ClassDecl decl$2 -> decl$2.supertypes();
             case Decl.Interface decl$3 -> decl$3.supertypes();
+            case Decl.EnumDecl decl$4 -> decl$4.supertypes();
             case null, default -> List.of();
         };
         for (final var supertype : supertypes) {
             final var found = declaredType(supertype.name());
-            if (found instanceof Decl.Interface found$4 && found$4.typeParams().isEmpty() && supertype.args().isEmpty() && result.add(supertype.name())) {
+            if (found instanceof Decl.Interface found$5 && found$5.typeParams().isEmpty() && supertype.args().isEmpty() && result.add(supertype.name())) {
                 result.addAll(interfacesOf(supertype.name()));
             }
         }
@@ -2886,6 +2915,7 @@ import org.axl.compiler.check.Whens;
                 case Decl.Interface decl$2 -> decl$2.methods();
                 case Decl.ClassDecl decl$3 -> decl$3.methods();
                 case Decl.DataClass decl$4 -> decl$4.methods();
+                case Decl.EnumDecl decl$5 -> decl$5.methods();
                 case null, default -> List.of();
             };
             final var named = methods.stream().filter(m -> m.name().equals(call$1.name()) && m.params().size() == arity).toList();
@@ -3797,6 +3827,9 @@ import org.axl.compiler.check.Whens;
             }
             case Decl.Interface decl$3 -> {
                 return decl$3.supertypes();
+            }
+            case Decl.EnumDecl decl$4 -> {
+                return decl$4.supertypes();
             }
             default -> {
                 return List.of();

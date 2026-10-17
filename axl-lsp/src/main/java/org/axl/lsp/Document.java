@@ -372,6 +372,8 @@ final class Document {
     List<Pos> constantPositions(Decl.EnumDecl enumeration) {
         List<Pos> result = new ArrayList<>();
         boolean open = false;
+        // Names in the arguments of a constant, `DEFAULT(Format.CSV)`, are not constants.
+        int depth = 0;
         for (Token token : tokens.subList(firstTokenFrom(enumeration.namePos()), tokens.size())) {
             if (result.size() == enumeration.constants().size()) {
                 break;
@@ -381,7 +383,11 @@ final class Document {
             }
             if (!open) {
                 open = token.getType() == AxolotlLexer.LBRACE;
-            } else if (token.getType() == AxolotlLexer.IDENTIFIER) {
+            } else if (token.getType() == AxolotlLexer.LPAREN) {
+                depth++;
+            } else if (token.getType() == AxolotlLexer.RPAREN) {
+                depth--;
+            } else if (token.getType() == AxolotlLexer.IDENTIFIER && depth == 0) {
                 result.add(start(token));
             }
         }

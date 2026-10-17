@@ -417,8 +417,9 @@ public final class AxlResolver {
                 inConstructor = true;
             } else if (parent instanceof AxlTypeDeclaration declaration) {
                 result.addAll(declaration.typeParameters());
-                // The methods of a class and of a data class read its fields by name.
-                if (!inConstructor && (type == AxlElementTypes.CLASS || type == AxlElementTypes.DATA_CLASS)) {
+                // The methods of a class, a data class and an enum read its fields by name.
+                if (!inConstructor && (type == AxlElementTypes.CLASS || type == AxlElementTypes.DATA_CLASS
+                        || type == AxlElementTypes.ENUM)) {
                     result.addAll(declaration.fields());
                     result.addAll(declaration.methods());
                 }

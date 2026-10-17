@@ -712,6 +712,41 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void readsTheMethodsAndInterfacesOfAnEnum() throws Exception {
+        String text = """
+                package app
+
+                import java.util.function.Supplier
+
+                enum Predefined(val format: String) : Supplier<String> {
+                    DEFAULT(Formats.comma()),
+                    TDF("\\t");
+
+                    fn get() -> String = format
+
+                    fn width() -> Int = format.length()
+                }
+
+                fn comma() -> String = ","
+
+                fn main() {
+                    println(Predefined.TDF.width())
+                }
+                """;
+        String uri = open("Formats.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        assertContains(hoverAt(uri, text, "enum |Predefined"), "enum Predefined(val format: String) : Supplier<String> {\n"
+                + "    fn get() -> String\n    fn width() -> Int\n}");
+        assertContains(hoverAt(uri, text, "fn width() -> Int = |format"), "val format: String");
+        assertEquals(List.of("Formats.axl:10:7"), definitionsAt(uri, text, "Predefined.TDF.|width()"));
+        DocumentSymbol predefined = new Outline(workspace).symbols(uri).getFirst();
+        assertEquals(List.of("format", "DEFAULT", "TDF", "get", "width"),
+                predefined.getChildren().stream().map(DocumentSymbol::getName).toList());
+        List<String> inBody = labelsAt(uri, text, "fn get() -> String = |format");
+        assertTrue(inBody.containsAll(List.of("format", "width")), inBody.toString());
+    }
+
+    @Test
     void completesUseBreakContinueAndTheConsoleFunctions() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n");
         List<String> labels = labelsAt(uri, "package app\n\nfn main() {\n\n}\n", "fn main() {\n|\n}");

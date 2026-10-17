@@ -161,7 +161,9 @@ import java.util.List;
             List<String> constants,
             List<Annotation> annotations,
             List<Expr.Param> fields,
-            List<List<Expr>> arguments) implements Decl {
+            List<List<Expr>> arguments,
+            List<TypeRef> supertypes,
+            List<Function> methods) implements Decl {
         public EnumDecl {
             Nulls.param(pos, "pos");
             Nulls.param(namePos, "namePos");
@@ -170,6 +172,8 @@ import java.util.List;
             Nulls.param(annotations, "annotations");
             Nulls.param(fields, "fields");
             Nulls.param(arguments, "arguments");
+            Nulls.param(supertypes, "supertypes");
+            Nulls.param(methods, "methods");
         }
     }
     public record Property(

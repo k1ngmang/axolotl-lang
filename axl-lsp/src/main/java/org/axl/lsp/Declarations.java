@@ -112,7 +112,8 @@ final class Declarations {
             case Decl.ClassDecl classDecl -> classMember(document, classDecl, name, argumentTypes);
             case Decl.EnumDecl enumeration -> {
                 Found constant = constant(document, enumeration, name);
-                yield constant != null ? constant : field(document, enumeration.fields(), name);
+                Found field = constant != null ? constant : field(document, enumeration.fields(), name);
+                yield field != null ? field : method(document, enumeration.methods(), name, argumentTypes);
             }
             default -> null;
         };

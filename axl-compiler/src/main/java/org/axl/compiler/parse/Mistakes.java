@@ -54,6 +54,10 @@ final class Mistakes {
         if (primary != null) {
             return primary;
         }
+        Placed enumMember = enumMember(tokens, at);
+        if (enumMember != null) {
+            return enumMember;
+        }
         Token withoutBraces = withoutBraces(tokens, at);
         if (withoutBraces != null) {
             return new Placed(withoutBraces, SourceParser.needsBraces(withoutBraces));
@@ -424,6 +428,30 @@ final class Mistakes {
         }
         return lineHas(tokens, brace.getLine(), AxolotlLexer.INTERFACE)
                 ? "an interface has no constructors; the classes that implement it have them" : null;
+    }
+
+    /**
+     * `A(1) { ... }` and `fn code() -> Int` without a body in an enum: Java's constant bodies and abstract methods, which
+     * Axolotl leaves out, since a field given by each constant says what differs.
+     */
+    private static Placed enumMember(CommonTokenStream tokens, Token at) {
+        Token brace = enclosingBrace(tokens, at);
+        if (brace == null || !lineHas(tokens, brace.getLine(), AxolotlLexer.ENUM) || enclosingBrace(tokens, brace) != null) {
+            return null;
+        }
+        Token previous = SourceParser.previousToken(tokens, at);
+        boolean constant = previous != null && (previous.getType() == AxolotlLexer.RPAREN || previous.getType() == AxolotlLexer.IDENTIFIER);
+        if (at.getType() == AxolotlLexer.LBRACE && constant && !startsFunction(tokens, previous)) {
+            return new Placed(at, "an enum constant has no body; the methods after the constants serve every constant, so "
+                    + "give what differs as a field: `enum Op(val sign: String) { PLUS(\"+\"), MINUS(\"-\") }`", true);
+        }
+        boolean nextMember = Set.of(AxolotlLexer.RBRACE, AxolotlLexer.FN, AxolotlLexer.PRIVATE, AxolotlLexer.AT).contains(at.getType());
+        if (nextMember && previous != null && previous.getLine() < at.getLine() && startsFunction(tokens, previous)
+                && !lineHas(tokens, previous.getLine(), AxolotlLexer.ASSIGN) && !lineHas(tokens, previous.getLine(), AxolotlLexer.LBRACE)) {
+            return new Placed(SourceParser.lineStart(tokens, previous), "a method of an enum has a body, `= value` or `{ ... }`, which every constant shares; "
+                    + "Axolotl has no abstract methods, so give what differs as a field each constant sets", true);
+        }
+        return null;
     }
 
     /**

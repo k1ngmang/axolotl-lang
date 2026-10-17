@@ -43,6 +43,8 @@ import org.axl.compiler.ast.TypeRef;
                 implementer(file, siblings, decl$1, fieldsOf(decl$1.fields()), decl$1.supertypes(), problems);
             } else if (decl instanceof Decl.ClassDecl decl$2) {
                 implementer(file, siblings, decl$2, propertiesOf(decl$2), decl$2.supertypes(), problems);
+            } else if (decl instanceof Decl.EnumDecl decl$3) {
+                implementer(file, siblings, decl$3, withMethods(fieldsOf(decl$3.fields()), decl$3.methods()), decl$3.supertypes(), problems);
             }
         }
         return problems;
@@ -61,7 +63,8 @@ import org.axl.compiler.ast.TypeRef;
                             text(required) +
                             "`, which the interface `" +
                             iface.name() +
-                            "` requires; add it to its parameters"));
+                            "` requires; add it to its " +
+                            ((decl instanceof Decl.EnumDecl decl$1 ? "fields" : "parameters"))));
                 } else {
                     compare(member.name(), field, required, iface, problems);
                 }
@@ -109,6 +112,9 @@ import org.axl.compiler.ast.TypeRef;
             case Decl.Interface decl$3 -> {
                 return decl$3.supertypes();
             }
+            case Decl.EnumDecl decl$4 -> {
+                return decl$4.supertypes();
+            }
             default -> {
                 return List.of();
             }
@@ -137,6 +143,9 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Decl.DataClass decl$2 -> {
                 return decl$2.methods();
+            }
+            case Decl.EnumDecl decl$3 -> {
+                return decl$3.methods();
             }
             default -> {
                 return List.of();
@@ -210,9 +219,12 @@ import org.axl.compiler.ast.TypeRef;
             case Decl.DataClass c$1 -> {
                 return Nulls.first(Nulls.stream(c$1.fields()).filter(f -> f.name().equals(name)).iterator());
             }
-            case Decl.ClassDecl c$2 -> {
-                final var all = new ArrayList<Decl.Property>(c$2.parameters());
-                all.addAll(c$2.properties());
+            case Decl.EnumDecl c$2 -> {
+                return Nulls.first(Nulls.stream(c$2.fields()).filter(f -> f.name().equals(name)).iterator());
+            }
+            case Decl.ClassDecl c$3 -> {
+                final var all = new ArrayList<Decl.Property>(c$3.parameters());
+                all.addAll(c$3.properties());
                 final var found = Nulls.first(all.stream().filter(p -> p.name().equals(name)).iterator());
                 return (found == null ? null : new Expr.Param(found.namePos(), found.name(), found.type(), List.of()));
             }
@@ -455,7 +467,10 @@ import org.axl.compiler.ast.TypeRef;
         for (final var p : c.properties()) {
             given.put(p.name(), new Given(p.namePos(), p.type()));
         }
-        for (final var m : c.methods()) {
+        return withMethods(given, c.methods());
+    }
+    private static Map<String, Given> withMethods(Map<String, Given> given, List<Decl.Function> methods) {
+        for (final var m : methods) {
             if (m.params().isEmpty()) {
                 given.put(m.name(), new Given(m.namePos(), m.returnType()));
             }

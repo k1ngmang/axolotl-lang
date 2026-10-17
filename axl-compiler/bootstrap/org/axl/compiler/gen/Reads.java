@@ -299,6 +299,9 @@ import org.axl.compiler.check.TypeInference;
                 for (final var args : d$5.arguments()) {
                     exprs(args);
                 }
+                for (final var m : d$5.methods()) {
+                    function(m);
+                }
             }
             case Decl.ClassDecl d$6 -> {
                 final var superArgs = d$6.superArgs();

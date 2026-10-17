@@ -1,0 +1,58 @@
+package app
+
+import java.util.function.Supplier
+
+interface Named {
+    val label: String
+    fn describe(prefix: String) -> String
+}
+
+sealed interface Shape
+
+data class Circle(val radius: Double) : Shape
+
+// Methods after the constants read the fields by name and `this` is the constant, as in a data class body.
+enum Level(val label: String, val weight: Int) : Named, Shape {
+    LOW("low", 1), HIGH("high", 10)
+
+    fn describe(prefix: String) -> String = prefix + label + "/" + weight + "/" + name()
+
+    fn heavier(other: Level) -> Boolean = weight > other.weight
+
+    fn next() -> Level = if (this == LOW) HIGH else this
+}
+
+// Without fields, the methods follow the constants after a `;`.
+enum Toggle : Runnable {
+    ON, OFF;
+
+    fn run() {
+        println("toggle " + name().toLowerCase())
+    }
+}
+
+fn read(s: Supplier<String>) -> String = s.get()
+
+fn rank(level: Level) -> String = when (level) {
+    Level.LOW -> "l"
+    Level.HIGH -> "h"
+}
+
+fn area(shape: Shape) -> String = when (shape) {
+    is Circle -> "circle"
+    is Level -> "level " + shape.weight
+}
+
+fn main() {
+    println(read(Predefined.TDF).length())
+    println(Predefined.DEFAULT.get() + Predefined.DEFAULT.width())
+    println(Predefined.named("TDF").width())
+    val named: Named = Level.HIGH
+    println(named.label() + " " + named.describe("> "))
+    println(Level.HIGH.heavier(Level.LOW))
+    println(Level.LOW.next() == Level.HIGH)
+    println(rank(Level.LOW.next()))
+    println(area(Level.LOW) + " " + area(Circle(1.0)))
+    Toggle.OFF.run()
+    println(JavaCaller.formats())
+}

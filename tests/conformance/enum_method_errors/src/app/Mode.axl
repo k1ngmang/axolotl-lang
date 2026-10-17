@@ -1,0 +1,9 @@
+package app
+
+enum Mode {
+    FAST, SLOW;
+
+    fn label() -> String = name().toLowerCase()
+}
+
+fn label() -> String = "mode"

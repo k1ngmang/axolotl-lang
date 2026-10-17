@@ -1,0 +1,17 @@
+package app
+
+import java.util.function.Supplier
+
+// Commons CSV's `CSVFormat.Predefined`: an enum of the file with a field, a getter Java calls and an interface.
+enum Predefined(val format: String) : Supplier<String> {
+    DEFAULT(","),
+    TDF("\t");
+
+    fn get() -> String = format
+
+    fn getFormat() -> String = format
+
+    fn width() -> Int = format.length()
+}
+
+fn named(name: String) -> Predefined = Predefined.valueOf(name)

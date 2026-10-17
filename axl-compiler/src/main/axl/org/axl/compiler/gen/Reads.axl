@@ -286,6 +286,9 @@ class Reads {
                 for (args in d.arguments()) {
                     exprs(args)
                 }
+                for (m in d.methods()) {
+                    function(m)
+                }
             }
             is Decl.ClassDecl -> {
                 val superArgs = d.superArgs()

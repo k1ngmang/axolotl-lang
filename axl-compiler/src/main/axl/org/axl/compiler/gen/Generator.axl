@@ -298,9 +298,11 @@ class Generator(
             emitClassMembers(fileType)
         } else if (fileType is Decl.EnumDecl) {
             // The rest of the file follows the constants, which a `;` ends.
-            em.line(line, marked + "public enum " + fileType.name() + " { " + constantList(fileType) + ";")
+            em.line(line, marked + "public enum " + fileType.name() + typeList(" implements ", fileType.supertypes()) + " { " +
+                constantList(fileType) + ";")
             em.indent()
             emitEnumFields(fileType)
+            emitEnumMethods(fileType)
             em.dedent()
         } else {
             throw IllegalStateException()
@@ -326,8 +328,9 @@ class Generator(
 
     private fn emitEnum(e: Decl.EnumDecl) {
         val line = e.pos().line()
-        val head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name()
-        if (e.fields().isEmpty()) {
+        val head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name() +
+            typeList(" implements ", e.supertypes())
+        if (e.fields().isEmpty() && e.methods().isEmpty()) {
             em.line(line, head + " { " + constantList(e) + " }")
             return
         }
@@ -335,8 +338,24 @@ class Generator(
         em.indent()
         em.line(line, constantList(e) + ";")
         emitEnumFields(e)
+        emitEnumMethods(e)
         em.dedent()
         em.line(line, "}")
+    }
+
+    /** The methods after the fields, then a method for each field that a value of its interfaces requires, as a class gets. */
+    private fn emitEnumMethods(e: Decl.EnumDecl) {
+        emitBodyMethods(e.supertypes(), e.methods(), e.isPrivate(), List.of(), Set.of(),
+            withThis(fieldTypes(e.fields()), e.name(), List.of()))
+        val written = HashSet<String>()
+        for (member in Implementations.requiredValues(file, options.siblings(), e.supertypes())) {
+            val field = e.fields() |> filter { f -> f.name().equals(member.name()) } |> first
+            val ownMethod = e.methods() |> anyMatch { m -> m.name().equals(member.name()) && m.params().isEmpty() }
+            if (field != null && !ownMethod && written.add(member.name())) {
+                em.line(field.pos().line(), "@Override public " + javaType(memberType(field)) + " " + member.name() +
+                    "() { return " + member.name() + "; }")
+            }
+        }
     }
 
     /** `MERCURY(3.3e23), EARTH(5.97e24)`: the constants with the values of their fields. */
@@ -428,6 +447,15 @@ class Generator(
     }
 
     /** The member types of a class or data class with `this`, typed with its own type parameters. */
+    /** The written types of fields, by name, which the methods of their data class or enum read. */
+    private fn fieldTypes(fields: List<Expr.Param>) -> Map<String, TypeRef> {
+        val types = HashMap<String, TypeRef>()
+        for (f in fields) {
+            types.put(f.name(), memberType(f))
+        }
+        return types
+    }
+
     private fn withThis(members: Map<String, TypeRef>, name: String, typeParams: List<Decl.TypeParam>) -> Map<String, TypeRef> {
         val result = HashMap<String, TypeRef>(members)
         val pos = Pos(1, 1)
@@ -588,6 +616,13 @@ class Generator(
             em.dedent()
             em.line(line, "}")
         }
+        emitBodyMethods(dataClass.supertypes(), dataClass.methods(), dataClass.isPrivate(), dataClass.typeParams(),
+            boxedFieldsOf(dataClass), withThis(fieldTypes(dataClass.fields()), dataClass.name(), dataClass.typeParams()))
+    }
+
+    /** The methods of a data class or an enum, which read the fields by name. */
+    private fn emitBodyMethods(supertypes: List<TypeRef>, methods: List<Decl.Function>, isPrivate: Boolean,
+                               typeParams: List<Decl.TypeParam>, boxed: Set<String>, members: Map<String, TypeRef>) {
         val outerOverridden = overridden
         val outerRequired = requiredMethods
         val outerMethods = currentMethods
@@ -595,18 +630,14 @@ class Generator(
         val outerVariables = nullableVariables
         val outerBoxed = boxedFields
         val outerMembers = memberTypes
-        overridden = Implementations.required(file, options.siblings(), dataClass.supertypes())
-        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), dataClass.supertypes())
-        boxedFields = boxedFieldsOf(dataClass)
-        currentMethods = dataClass.methods()
-        val fields = HashMap<String, TypeRef>()
-        for (f in dataClass.fields()) {
-            fields.put(f.name(), memberType(f))
-        }
-        memberTypes = withThis(fields, dataClass.name(), dataClass.typeParams())
-        inPrivateType = dataClass.isPrivate()
-        nullableVariables = nullableVariablesOf(dataClass.typeParams(), Set.of())
-        for (method in dataClass.methods()) {
+        overridden = Implementations.required(file, options.siblings(), supertypes)
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), supertypes)
+        boxedFields = boxed
+        currentMethods = methods
+        memberTypes = members
+        inPrivateType = isPrivate
+        nullableVariables = nullableVariablesOf(typeParams, Set.of())
+        for (method in methods) {
             resetCounters()
             emitFunction(method, false)
         }
@@ -2169,6 +2200,7 @@ class Generator(
             is Decl.DataClass -> decl.supertypes()
             is Decl.ClassDecl -> decl.supertypes()
             is Decl.Interface -> decl.supertypes()
+            is Decl.EnumDecl -> decl.supertypes()
             else -> List.of()
         }
         for (supertype in supertypes) {
@@ -3324,6 +3356,7 @@ class Generator(
                 is Decl.Interface -> decl.methods()
                 is Decl.ClassDecl -> decl.methods()
                 is Decl.DataClass -> decl.methods()
+                is Decl.EnumDecl -> decl.methods()
                 else -> List.of()
             }
             val named = methods |> filter { m -> m.name().equals(call.name()) && m.params().size() == arity }
@@ -4209,6 +4242,7 @@ private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
     is Decl.DataClass -> decl.supertypes()
     is Decl.ClassDecl -> decl.supertypes()
     is Decl.Interface -> decl.supertypes()
+    is Decl.EnumDecl -> decl.supertypes()
     else -> List.of()
 }
 

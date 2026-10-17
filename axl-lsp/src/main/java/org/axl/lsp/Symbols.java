@@ -53,8 +53,11 @@ final class Symbols {
             classScope(classDecl, result);
             enclosing = enclosingMethod(classDecl.methods(), pos);
         } else if (enclosing instanceof Decl.DataClass data) {
-            dataClassScope(data, result);
+            bodyScope(data.fields(), data.methods(), result);
             enclosing = enclosingMethod(data.methods(), pos);
+        } else if (enclosing instanceof Decl.EnumDecl enumeration) {
+            bodyScope(enumeration.fields(), enumeration.methods(), result);
+            enclosing = enclosingMethod(enumeration.methods(), pos);
         }
         if (enclosing instanceof Decl.Function fn) {
             for (Expr.Param p : fn.params()) {
@@ -128,12 +131,12 @@ final class Symbols {
         return new Symbol(p.name(), p.mutable() ? Kind.VARIABLE : Kind.LOCAL, p.namePos(), p.type(), null, null);
     }
 
-    /** The methods of a data class see its fields and each other by name, as those of a class do. */
-    private static void dataClassScope(Decl.DataClass data, List<Symbol> out) {
-        for (Expr.Param field : data.fields()) {
+    /** The methods of a data class or an enum see its fields and each other by name, as those of a class do. */
+    private static void bodyScope(List<Expr.Param> fields, List<Decl.Function> methods, List<Symbol> out) {
+        for (Expr.Param field : fields) {
             out.add(new Symbol(field.name(), Kind.LOCAL, field.pos(), field.type(), null, null));
         }
-        for (Decl.Function method : data.methods()) {
+        for (Decl.Function method : methods) {
             out.add(new Symbol(method.name(), Kind.FUNCTION, method.namePos(), method.returnType(), method, null));
         }
     }

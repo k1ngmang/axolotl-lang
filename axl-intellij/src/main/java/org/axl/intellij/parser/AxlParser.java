@@ -193,7 +193,7 @@ public final class AxlParser implements PsiParser {
         m.done(AxlElementTypes.DATA_CLASS);
     }
 
-    /** The body of a data class holds methods only, for the interfaces it implements. */
+    /** The body of a data class, or of an enum after its constants, holds methods only. */
     private void dataClassMember() {
         PsiBuilder.Marker m = b.mark();
         annotations();
@@ -309,7 +309,8 @@ public final class AxlParser implements PsiParser {
 
     /**
      * `enum Color { RED, GREEN }`, or `enum Planet(val mass: Double) { MERCURY(3.3e23), EARTH(5.97e24) }` with
-     * fields that each constant gives a value for; a trailing comma is fine.
+     * fields that each constant gives a value for; a trailing comma is fine. Interfaces may follow a colon, and
+     * methods the constants, after an optional `;`.
      */
     private void enumDeclaration(PsiBuilder.Marker m) {
         consume(PRIVATE);
@@ -321,6 +322,7 @@ public final class AxlParser implements PsiParser {
             } while (consume(COMMA));
             expect(RPAREN, "`)` expected");
         }
+        supertypes(false);
         if (expect(LBRACE, "`{` expected")) {
             while (at(IDENTIFIER)) {
                 PsiBuilder.Marker constant = b.mark();
@@ -332,6 +334,10 @@ public final class AxlParser implements PsiParser {
                 if (!consume(COMMA)) {
                     break;
                 }
+            }
+            consume(SEMI);
+            while (!at(RBRACE) && !b.eof()) {
+                dataClassMember();
             }
             expect(RBRACE, "`}` expected");
         }

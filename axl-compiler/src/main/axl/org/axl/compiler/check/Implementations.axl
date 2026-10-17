@@ -35,6 +35,8 @@ fn check(file: SourceFile, siblings: List<SourceFile>) -> List<Mismatch> {
             implementer(file, siblings, decl, fieldsOf(decl.fields()), decl.supertypes(), problems)
         } else if (decl is Decl.ClassDecl) {
             implementer(file, siblings, decl, propertiesOf(decl), decl.supertypes(), problems)
+        } else if (decl is Decl.EnumDecl) {
+            implementer(file, siblings, decl, withMethods(fieldsOf(decl.fields()), decl.methods()), decl.supertypes(), problems)
         }
     }
     return problems
@@ -53,7 +55,8 @@ private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl,
                 // Reported where the interface declares it twice.
             } else if (field == null) {
                 problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` does not give `val " + member.name() + ": " +
-                    text(required) + "`, which the interface `" + iface.name() + "` requires; add it to its parameters"))
+                    text(required) + "`, which the interface `" + iface.name() + "` requires; add it to its " +
+                    (if (decl is Decl.EnumDecl) "fields" else "parameters")))
             } else {
                 compare(member.name(), field, required, iface, problems)
             }
@@ -96,6 +99,7 @@ private fn supertypesOf(decl: Decl) -> List<TypeRef> = when (decl) {
     is Decl.DataClass -> decl.supertypes()
     is Decl.ClassDecl -> decl.supertypes()
     is Decl.Interface -> decl.supertypes()
+    is Decl.EnumDecl -> decl.supertypes()
     else -> List.of()
 }
 
@@ -122,6 +126,7 @@ private fn javaName(file: SourceFile, decl: Decl) -> String {
 private fn methodsOf(decl: Decl) -> List<Decl.Function> = when (decl) {
     is Decl.ClassDecl -> decl.methods()
     is Decl.DataClass -> decl.methods()
+    is Decl.EnumDecl -> decl.methods()
     else -> List.of()
 }
 
@@ -174,9 +179,10 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
     }
 }
 
-/** The field of a data class, or the parameter or property of a class, of that name. */
+/** The field of a data class or an enum, or the parameter or property of a class, of that name. */
 private fn propertyNamed(c: Decl, name: String) -> Expr.Param? = when (c) {
     is Decl.DataClass -> c.fields() |> filter { f -> f.name().equals(name) } |> first
+    is Decl.EnumDecl -> c.fields() |> filter { f -> f.name().equals(name) } |> first
     is Decl.ClassDecl -> {
         val all = ArrayList<Decl.Property>(c.parameters())
         all.addAll(c.properties())
@@ -423,8 +429,12 @@ private fn propertiesOf(c: Decl.ClassDecl) -> Map<String, Given> {
     for (p in c.properties()) {
         given.put(p.name(), Given(p.namePos(), p.type()))
     }
-    // A method without parameters gives the value as well.
-    for (m in c.methods()) {
+    return withMethods(given, c.methods())
+}
+
+/** A method without parameters gives the value as well. */
+private fn withMethods(given: Map<String, Given>, methods: List<Decl.Function>) -> Map<String, Given> {
+    for (m in methods) {
         if (m.params().isEmpty()) {
             given.put(m.name(), Given(m.namePos(), m.returnType()))
         }

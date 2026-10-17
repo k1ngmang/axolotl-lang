@@ -206,7 +206,7 @@ private fn buildEnum(enumeration: EnumDeclContext) -> Decl.EnumDecl {
     val arguments = enumeration.enumConstant() |> map { c -> buildArguments(c.arguments()) }
     return EnumDecl(pos(enumeration.start), pos(enumeration.identifier().start), enumeration.PRIVATE() != null,
         nameOf(enumeration.identifier()), constants, buildAnnotations(enumeration.annotation()), buildFields(enumeration.field()),
-        arguments)
+        arguments, buildTypes(enumeration.type()), enumeration.functionDecl() |> map { f -> buildFunction(f) })
 }
 
 private fn buildClass(ctx: ClassDeclContext) -> Decl.ClassDecl {

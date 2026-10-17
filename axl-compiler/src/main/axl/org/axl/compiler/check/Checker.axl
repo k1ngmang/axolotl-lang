@@ -62,6 +62,10 @@ private val OBJECT_METHODS: Set<String> = Set.of("toString/0", "hashCode/0", "eq
 private val OBJECT_METHOD_NAMES: Set<String> = Set.of("toString", "hashCode", "getClass", "clone", "finalize",
     "notify", "notifyAll", "wait")
 
+// Methods every Java enum has and none can replace: final in `Enum`, or made for each enum by Java.
+private val ENUM_METHODS: Set<String> = Set.of("name/0", "ordinal/0", "compareTo/1", "getDeclaringClass/0", "equals/1",
+    "hashCode/0", "clone/0", "finalize/0", "describeConstable/0", "values/0", "valueOf/1")
+
 // The Java class of a nullable `Int`, `Long`, `Double` or `Boolean`, told apart from the primitive the plain one is.
 private val BOXES: Map<String, String> = Map.of("Int", "Integer", "Long", "java.lang.Long", "Double", "java.lang.Double",
     "Boolean", "java.lang.Boolean")
@@ -176,7 +180,10 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                     function(decl)
                 }
                 is Decl.ClassDecl -> classDecl(decl)
-                is Decl.EnumDecl -> enumConstants(decl)
+                is Decl.EnumDecl -> {
+                    enumConstants(decl)
+                    enumMethods(decl)
+                }
                 is Decl.DataClass -> {
                     members(decl.fields(), "field")
                     dataClassMethods(decl)
@@ -323,6 +330,17 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                 recordFileMembers(decl)
             } else if (decl is Decl.Interface && decl.name().equals(file.className())) {
                 interfaceFileMembers(decl)
+            } else if (decl is Decl.EnumDecl && decl.name().equals(file.className())) {
+                enumFileMembers(decl)
+            }
+        }
+    }
+
+    private fn enumFileMembers(e: Decl.EnumDecl) {
+        for (decl in file.decls()) {
+            if (decl is Decl.Function && (e.methods() |> anyMatch { m -> m.name().equals(decl.name()) && m.params().size() == decl.params().size() })) {
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + e.name() + "`, the type of this file, has a method `" +
+                    decl.name() + "` with as many parameters, so a function of the file cannot have its name; rename one")
             }
         }
     }
@@ -561,25 +579,43 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
 
     /** The methods of a data class see its fields by name, like the methods of a class. */
     private fn dataClassMethods(data: Decl.DataClass) {
-        if (data.methods().isEmpty()) {
-            return
-        }
-        scope = Scope(scope, false)
-        for (f in data.fields()) {
-            declare(f.pos(), f.name(), Kind.FIELD, f.type())
-        }
-        val outerMethods = currentMethods
-        val outerOpen = openTypeParams
-        openTypeParams = openTypeParams(data.typeParams())
-        currentMethods = data.methods()
-        integerAllowed = data.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
-        enclosingTypeParams = data.typeParams() |> map { p -> p.name() }
         for (m in data.methods()) {
-            checkReserved(m.namePos(), m.name())
             if (m.params().isEmpty() && (data.fields() |> anyMatch { f -> f.name().equals(m.name()) })) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "()` already reads the field `" + m.name() +
                     "` of `" + data.name() + "`; give the method another name")
             }
+        }
+        bodyMethods(data.fields(), data.typeParams(), data.supertypes(), data.methods())
+    }
+
+    /** The methods of an enum see its fields by name, as a data class's do; Java's `Enum` keeps its own methods. */
+    private fn enumMethods(e: Decl.EnumDecl) {
+        for (m in e.methods()) {
+            if (ENUM_METHODS.contains(m.name() + "/" + m.params().size())) {
+                error(m.namePos(), ErrorCode.DUPLICATE_NAME, "`" + m.name() + "` is a method every Java enum has, which " +
+                    "cannot be replaced; give the method another name")
+            }
+        }
+        bodyMethods(e.fields(), List.of(), e.supertypes(), e.methods())
+    }
+
+    private fn bodyMethods(fields: List<Expr.Param>, typeParams: List<Decl.TypeParam>, supertypes: List<TypeRef>,
+                           methods: List<Decl.Function>) {
+        if (methods.isEmpty()) {
+            return
+        }
+        scope = Scope(scope, false)
+        for (f in fields) {
+            declare(f.pos(), f.name(), Kind.FIELD, f.type())
+        }
+        val outerMethods = currentMethods
+        val outerOpen = openTypeParams
+        openTypeParams = openTypeParams(typeParams)
+        currentMethods = methods
+        integerAllowed = supertypes |> anyMatch { t -> !declaresType(t.name()) }
+        enclosingTypeParams = typeParams |> map { p -> p.name() }
+        for (m in methods) {
+            checkReserved(m.namePos(), m.name())
             typeParams(m)
             function(m)
         }
@@ -1079,6 +1115,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
             is Decl.ClassDecl -> functionsNamed(decl.methods(), c)
             is Decl.DataClass -> functionsNamed(decl.methods(), c)
             is Decl.Interface -> functionsNamed(decl.methods(), c)
+            is Decl.EnumDecl -> functionsNamed(decl.methods(), c)
             else -> List.of()
         }
     }

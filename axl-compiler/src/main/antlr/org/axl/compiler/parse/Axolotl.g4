@@ -167,8 +167,10 @@ field
     ;
 
 // `enum Planet(val mass: Double) { MERCURY(3.3e23), EARTH(5.97e24) }`: fields, given by each constant.
+// Methods follow the constants, after an optional `;`, as in a data class body; the supertypes are interfaces.
 enumDecl
-    : annotation* PRIVATE? ENUM identifier (LPAREN field (COMMA field)* RPAREN)? LBRACE (enumConstant (COMMA enumConstant)* COMMA?)? RBRACE
+    : annotation* PRIVATE? ENUM identifier (LPAREN field (COMMA field)* RPAREN)? (COLON type (COMMA type)*)?
+      LBRACE (enumConstant (COMMA enumConstant)* COMMA?)? SEMI? functionDecl* RBRACE
     ;
 enumConstant
     : identifier (LPAREN arguments? RPAREN)?

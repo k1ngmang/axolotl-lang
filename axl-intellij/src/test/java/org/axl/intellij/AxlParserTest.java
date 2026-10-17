@@ -166,7 +166,7 @@ public class AxlParserTest extends BasePlatformTestCase {
                 "pipe_sorted_comparator/src/app/Main", "console_io/src/app/Main", "when_arm_statements/src/app/Main",
                 "attempt_exits/src/app/Main", "private_class_parameters/src/app/Main",
                 "attempt_typed_handler/src/app/Main", "class_constructors/src/app/Main", "class_constructors/src/app/Opt",
-                "primary_constructors/src/app/Main")) {
+                "primary_constructors/src/app/Main", "enum_methods/src/app/Main", "enum_methods/src/app/Predefined")) {
             String text = Files.readString(Path.of("..", "tests", "conformance", name + ".axl"));
             PsiFile file = myFixture.configureByText("Case.axl", text);
             assertNull(name, PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
@@ -539,6 +539,39 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertTrue(money.methods().get(1).isPrivate());
         assertFalse(money.methods().getFirst().isAbstract());
         assertEquals(List.of(), ((AxlFile) file).typeDeclarations().get(1).methods());
+    }
+
+    public void testReadsTheInterfacesAndMethodsOfAnEnum() {
+        PsiFile file = myFixture.configureByText("Formats.axl", """
+                package app
+
+                enum Predefined(val format: String) : Supplier<String>, Named {
+                    DEFAULT(","),
+                    TDF("\\t");
+
+                    fn get() -> String = format
+
+                    private fn width() -> Int {
+                        return format.length()
+                    }
+                }
+
+                enum Toggle : Runnable {
+                    ON, OFF
+                    fn run() {
+                    }
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        AxlTypeDeclaration predefined = ((AxlFile) file).typeDeclarations().getFirst();
+        assertEquals(List.of("format", "DEFAULT", "TDF"), predefined.fields().stream().map(AxlVariable::getName).toList());
+        assertEquals(List.of("get", "width"), predefined.methods().stream().map(AxlFunction::getName).toList());
+        assertEquals(List.of("Supplier<String>", "Named"),
+                PsiTreeUtil.getChildrenOfTypeAsList(predefined, org.axl.intellij.psi.AxlType.class).stream()
+                        .map(PsiElement::getText).toList());
+        assertEquals(List.of("run"), ((AxlFile) file).typeDeclarations().get(1).methods().stream().map(AxlFunction::getName).toList());
+        assertErrors("enum E(val x: Int) {\n    A(1) {\n        fn f() = 1\n    }\n}\n");
+        assertErrors("enum E {\n    A;\n    val x: Int = 1\n}\n");
     }
 
     public void testRejectsWhatTheGrammarRejectsInTheNewStatementsAndMembers() {

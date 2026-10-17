@@ -97,7 +97,10 @@ final class Layout {
                 decl.field().forEach(this::item);
                 decl.interfaceMethod().forEach(this::item);
             }
-            case AxolotlParser.EnumDeclContext decl -> decl.enumConstant().forEach(this::item);
+            case AxolotlParser.EnumDeclContext decl -> {
+                decl.enumConstant().forEach(this::item);
+                decl.functionDecl().forEach(this::item);
+            }
             case AxolotlParser.WhenExpressionContext when -> when.whenArm().forEach(this::item);
             case AxolotlParser.AnnotationValueContext value -> value.annotationValue().forEach(this::item);
             default -> { }
@@ -455,7 +458,8 @@ final class Layout {
     /** `class A : B` and `<T : Comparable<T>>` against `x: Int`. */
     private static boolean spacedColon(ParserRuleContext parent) {
         return parent instanceof AxolotlParser.TypeParamContext || parent instanceof AxolotlParser.ClassDeclContext
-                || parent instanceof AxolotlParser.DataClassDeclContext || parent instanceof AxolotlParser.InterfaceDeclContext;
+                || parent instanceof AxolotlParser.DataClassDeclContext || parent instanceof AxolotlParser.InterfaceDeclContext
+                || parent instanceof AxolotlParser.EnumDeclContext;
     }
 
     /** `<`, `>` or `,` of type arguments or type parameters, not a comparison or a list of values. */

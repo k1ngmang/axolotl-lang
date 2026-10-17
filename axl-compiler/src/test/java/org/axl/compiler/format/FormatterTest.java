@@ -285,6 +285,33 @@ class FormatterTest {
     }
 
     @Test
+    void writesEnumMethodsAfterTheConstants() {
+        formats("""
+                package app
+
+                enum Predefined(val format:String):Supplier<String>,Named{
+                  DEFAULT(","),
+                    TDF("\\t") ;
+                fn get()->String=format
+                    fn width() -> Int {
+                    return format.length()
+                    }
+                }
+                """, """
+                package app
+
+                enum Predefined(val format: String) : Supplier<String>, Named {
+                    DEFAULT(","),
+                    TDF("\\t");
+                    fn get() -> String = format
+                    fn width() -> Int {
+                        return format.length()
+                    }
+                }
+                """);
+    }
+
+    @Test
     void writesTheConstructorOfAClassHeaderAfterTheName() {
         formats("""
                 package app

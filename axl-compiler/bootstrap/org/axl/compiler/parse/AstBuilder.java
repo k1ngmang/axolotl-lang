@@ -209,7 +209,7 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
         final var arguments = Nulls.stream(enumeration.enumConstant()).map(Nulls.nonNull(c -> buildArguments(c.arguments()))).toList();
         return new EnumDecl(pos(enumeration.start), pos(enumeration.identifier().start), enumeration.PRIVATE() != null,
                 nameOf(enumeration.identifier()), constants, buildAnnotations(enumeration.annotation()), buildFields(enumeration.field()),
-                arguments);
+                arguments, buildTypes(enumeration.type()), Nulls.stream(enumeration.functionDecl()).map(Nulls.nonNull(f -> buildFunction(f))).toList());
     }
     private static Decl.ClassDecl buildClass(ClassDeclContext ctx) {
         final var parameters = new ArrayList<Property>();
