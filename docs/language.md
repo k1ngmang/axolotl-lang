@@ -88,7 +88,8 @@ Axolotl has no bounded wildcards (`? extends T`, `? super T`). A parameter that 
   scope; it is closed the same way, and the `else` works as with a name.
 - `for (x in xs) { ... }` goes over a `List`, a `Set`, any `Iterable` or an array. `x` is a `val`.
 - `for (i in 0 until n) { ... }` counts from 0 to n - 1, `for (i in 1..n)` from 1 to n and `for (i in n downTo 0)` down to 0,
-  each with an optional `step k`, such as `for (k in -d..d step 2)`. Bounds and step are `Int` or `Long`, and the variable
+  each with an optional `step k`, such as `for (k in -d..d step 2)`. Bounds and step are `Int` or `Long`, also where only javac knows their type, such as a chain of
+  Java calls, and the variable
   is a `val` of their type, a `Long` if one of them is. They are read once, before the loop. A step that is not positive
   throws `IllegalArgumentException`, and an end at the limit of the type stops there. These forms exist only in the header
   of a `for`: Axolotl has no range values, and `until`, `downTo` and `step` are names elsewhere.
@@ -367,7 +368,8 @@ fn greet(name: String?) -> String = "Hello, " + (name?.trim() ?: "stranger")
   `addAll`, `Collections.addAll` and `ArrayList<String>(xs)` do not take elements that may be null. This
   follows nested type arguments (`Map<String, List<String?>>`), copies such as `ArrayList<>(xs)` and
   `collect(Collectors.toList())`, and fields of Java generic classes. `xs |> filter { it != null }`
-  drops the `?`: its value fits a `List<String>`.
+  drops the `?`: its value fits a `List<String>`. `val xs = rows |> map { it.get("a") }` is a
+  `List<String?>` when `get` may give null.
 - `Map.get` may return null, as NullAway knows, and so may the JDK methods that return null when
   there is no value: `poll` and `peek` of a `Queue`, `pollFirst`, `peekFirst` and the like of a
   `Deque`, `put`, `remove`, `putIfAbsent` and `replace` of a `Map` (the previous value) and its
@@ -582,8 +584,13 @@ Circle } |> map { it.radius() }` is a `List<Double>`, and `filter { it is Circle
 A pipe stored in a typed `val` or returned from a function may give a supertype of what `map` gives:
 `val shapes: List<Shape> = xs |> map { Dot(it) }`, when only `distinct`, `limit` or `skip` follow the `map`.
 Passed straight as an argument it does not; store it in a typed `val` first.
-A `map` that gives null may be followed by `filter { it != null }`, which drops the nulls and gives a list
-without them.
+A `map` that gives null builds a list whose elements may be null. Stored in a `val` without a written type
+or in a list written with `?`, or followed by stages such as `count`, `first`, `filter` or another `map`, the
+nulls are kept and checked where the elements are used (`sorted` without a comparator needs elements that are
+not null). Where the list must hold non-null elements, such as `val xs: List<String> = ...` or a field, the
+`map` gets the error "`map` may produce null here, but the list it builds cannot hold nulls";
+`filter { it != null }` right after the `map` drops the nulls and gives a list without them. Passed straight
+as an argument, even to a `List<String?>` parameter, the pipe gets this error; store it in a `val` first.
 
 Without an ending stage the result is a `List`. `mapResult` needs a function that returns `Result`
 and the element type of the list it builds: either the lambda calls a function of the same file
