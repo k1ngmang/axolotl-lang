@@ -1,0 +1,26 @@
+package app
+
+import java.io.BufferedReader
+import java.io.Reader
+
+// `super` belongs to a class that extends a Java class, before a call of one of its methods.
+fn name() -> String = super.toString()
+
+class Plain {
+    fn text() -> String = super.toString()
+}
+
+data class Point(val x: Int) {
+    fn hash() -> Int = super.hashCode()
+}
+
+class Lines(val input: Reader) : BufferedReader(input) {
+    fn bare() -> Object = super
+    fn field() -> Object = super.lock
+}
+
+class Worker : Thread("w") {
+    fn run() {
+        super(1)
+    }
+}

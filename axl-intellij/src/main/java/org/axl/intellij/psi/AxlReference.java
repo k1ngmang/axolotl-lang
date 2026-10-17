@@ -96,6 +96,9 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
         }
         PsiClass named = AxlResolver.asClass(owner);
         boolean self = isThis(qualifier);
+        if (isSuper(qualifier)) {
+            return named == null ? new Object[0] : superMethods(named);
+        }
         boolean statics = named != null && !self;
         PsiClass cls = named != null ? named : AxlResolver.typeOf(qualifier);
         if (cls == null) {
@@ -177,6 +180,24 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
                 || declaration instanceof AxlImport imp && imp.kind() == AxlImport.Kind.TYPE;
     }
 
+    /** After `super.`, the methods of the superclass that a subclass can call: those that are not private or static. */
+    private static Object[] superMethods(PsiClass parent) {
+        List<LookupElement> members = new ArrayList<>();
+        for (PsiMethod method : parent.getAllMethods()) {
+            if (!method.isConstructor() && !method.hasModifierProperty(PsiModifier.PRIVATE)
+                    && !method.hasModifierProperty(PsiModifier.STATIC)) {
+                members.add(LookupElementBuilder.create(method, method.getName())
+                        .withTailText(method.getParameterList().getText(), true)
+                        .withTypeText(method.getReturnType() == null ? "" : method.getReturnType().getPresentableText()));
+            }
+        }
+        return members.toArray();
+    }
+
+    private static boolean isSuper(PsiElement element) {
+        return element instanceof AxlReferenceExpression ref && ref.qualifier() == null && ref.referenceName().equals("super");
+    }
+
     /** `this` stands for the enclosing class's instance, whose private members are visible too. */
     private static boolean isThis(PsiElement element) {
         return element instanceof AxlReferenceExpression ref && ref.qualifier() == null && ref.referenceName().equals("this");
@@ -223,8 +244,8 @@ public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReference
     /** Only for a single target: a call that several overloads may take must not be renamed with one of them. */
     @Override
     public boolean isReferenceTo(@NotNull PsiElement element) {
-        // `this` does not spell its class's name, so renaming the class must leave it alone.
-        if (isThis(getElement())) {
+        // `this` and `super` do not spell their classes' names, so renaming a class must leave them alone.
+        if (isThis(getElement()) || isSuper(getElement())) {
             return false;
         }
         ResolveResult[] results = multiResolve(false);

@@ -1398,6 +1398,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     }
 
     private fn name(e: Expr.Name) {
+        if (e.name().equals("super")) {
+            error(e.pos(), ErrorCode.SYNTAX, "`super` stands only before a call of a method of the Java class the class " +
+                "extends, as in `super.read()`")
+            return
+        }
         val symbol = scope.lookup(e.name())
         if (symbol == null) {
             staticNames.add(e)
@@ -1419,8 +1424,13 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         if (target != null && e.safe()) {
             warnNeverNull(target, "write `.` instead of `?.`")
         }
-        if (target != null) {
+        if (target is Expr.Name && target.name().equals("super")) {
+            superCall(target)
+        } else if (target != null) {
             expr(target)
+        } else if (e.name().equals("super")) {
+            error(e.pos(), ErrorCode.SYNTAX, "the Java class a class extends gets its arguments after the colon, as in " +
+                "`class Worker : Thread(\"w\")`; `super(...)` cannot be called")
         } else if (localLookup(e.name()) != null && !functionExists(e.name())) {
             error(e.pos(), ErrorCode.JAVAC, "`" + e.name() + "` is a value, not a function; " +
                 "call its method, such as `" + e.name() + ".apply(...)` or `" + e.name() + ".get()`")
@@ -1433,6 +1443,21 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         exprs(e.args())
         if (safeTail) {
             safeTailDepth = safeTailDepth - 1
+        }
+    }
+
+    /**
+     * `super.read()` runs the method of the Java class that the class extends, as a method that overrides it needs; javac
+     * reports a method that class does not have. Axolotl classes, data classes and enums extend none.
+     */
+    private fn superCall(target: Expr.Name) {
+        // Generated as it is written, as a Java class name would be.
+        staticNames.add(target)
+        val c = currentClass
+        if (c == null || c.superArgs() == null) {
+            val here = if (c == null) "only a class that extends one has it" else "`" + c.name() + "` extends none"
+            error(target.pos(), ErrorCode.SYNTAX, "`super` calls a method of the Java class a class extends, such as " +
+                "`super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; " + here)
         }
     }
 

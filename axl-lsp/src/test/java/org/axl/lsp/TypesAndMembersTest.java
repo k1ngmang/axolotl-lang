@@ -747,6 +747,30 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void hoversAndCompletesTheMethodsOfTheSuperclassAfterSuper() throws Exception {
+        String text = """
+                package app
+
+                import java.io.BufferedReader
+                import java.io.IOException
+                import java.io.Reader
+
+                class Lines(private val input: Reader) : BufferedReader(input) {
+                    fn read() -> Int = attempt super.read() else e: IOException -> throw IllegalStateException(e)
+
+                    fn markSupported() -> Boolean = super.markSupported()
+                }
+                """;
+        String uri = open("Lines.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        assertContains(hoverAt(uri, text, "super.|markSupported()"), "markSupported");
+        String typed = text.replace("super.markSupported()", "super.mark");
+        String typedUri = open("Lines.axl", typed);
+        List<String> members = membersAt(typedUri, typed, "super.mark|");
+        assertTrue(members.containsAll(List.of("markSupported", "mark")), members.toString());
+    }
+
+    @Test
     void completesUseBreakContinueAndTheConsoleFunctions() throws Exception {
         String uri = open("Main.axl", "package app\n\nfn main() {\n\n}\n");
         List<String> labels = labelsAt(uri, "package app\n\nfn main() {\n\n}\n", "fn main() {\n|\n}");

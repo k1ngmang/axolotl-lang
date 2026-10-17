@@ -1,0 +1,15 @@
+package app
+
+import java.io.BufferedReader
+import java.io.Reader
+import java.util.function.Supplier
+
+class Lines(val input: Reader) : BufferedReader(input), Supplier<String> {
+    fn twice() -> Int = super.nothing()
+
+    fn get() -> String = "x"
+
+    fn first() -> String = super.get()
+
+    fn lineCount(n: Int) -> Long = super.skip(n, 1)
+}

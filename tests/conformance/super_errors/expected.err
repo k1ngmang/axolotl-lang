@@ -1,0 +1,6 @@
+AXL001 app/Main.axl:7:23: error: `super` calls a method of the Java class a class extends, such as `super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; only a class that extends one has it
+AXL001 app/Main.axl:10:27: error: `super` calls a method of the Java class a class extends, such as `super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; `Plain` extends none
+AXL001 app/Main.axl:14:24: error: `super` calls a method of the Java class a class extends, such as `super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; only a class that extends one has it
+AXL001 app/Main.axl:18:27: error: `super` stands only before a call of a method of the Java class the class extends, as in `super.read()`
+AXL001 app/Main.axl:19:28: error: `super` stands only before a call of a method of the Java class the class extends, as in `super.read()`
+AXL001 app/Main.axl:24:9: error: the Java class a class extends gets its arguments after the colon, as in `class Worker : Thread("w")`; `super(...)` cannot be called

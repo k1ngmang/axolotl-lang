@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeMirror;
 import org.antlr.v4.runtime.Token;
+import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.parse.AxolotlLexer;
@@ -117,6 +118,12 @@ final class Receivers {
         if (first.name().equals("this") && symbol == null) {
             String cls = Symbols.enclosingClass(ast, pos);
             TypeElement type = cls == null ? null : java.resolveType(ast, cls);
+            return new Receiver(type == null ? null : type.asType(), false);
+        }
+        // `super.read()` in a class that extends a Java class: the methods of that class.
+        if (first.name().equals("super") && symbol == null
+                && Symbols.enclosingDecl(ast, pos) instanceof Decl.ClassDecl classDecl && classDecl.superArgs() != null) {
+            TypeElement type = java.resolveType(ast, classDecl.supertypes().getFirst().name());
             return new Receiver(type == null ? null : type.asType(), false);
         }
         if (first.arguments() != null) {

@@ -501,6 +501,28 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(names.toString(), names.containsAll(List.of("count", "inc", "twice")) && !names.contains("wait0"));
     }
 
+    public void testResolvesAndCompletesTheMethodsOfTheSuperclassAfterSuper() {
+        myFixture.addFileToProject("app/Base.java", """
+                package app;
+                public class Base {
+                    public int read() { return 1; }
+                    protected int fill() { return 2; }
+                    private int hidden() { return 3; }
+                    public static int create() { return 4; }
+                }
+                """);
+        String text = "package app\n\nclass Reader2 : Base() {\n    fn read() -> Int = super.re<caret>ad() + 1\n}\n";
+        myFixture.configureByText("Reader2.axl", text);
+        PsiElement target = myFixture.getElementAtCaret();
+        assertTrue(target.toString(), target instanceof PsiMethod method && method.getContainingClass() != null
+                && "app.Base".equals(method.getContainingClass().getQualifiedName()));
+        myFixture.configureByText("Reader3.axl", "package app\n\nclass Reader3 : Base() {\n    fn read() -> Int = super.<caret>\n}\n");
+        myFixture.completeBasic();
+        List<String> names = myFixture.getLookupElementStrings();
+        assertNotNull(names);
+        assertTrue(names.toString(), names.containsAll(List.of("read", "fill")) && !names.contains("hidden") && !names.contains("create"));
+    }
+
     public void testCompletesTheMembersOfJavaClassesOfTheSamePackageThatAreNotPublic() {
         myFixture.addFileToProject("app/Tool.java", """
                 package app;

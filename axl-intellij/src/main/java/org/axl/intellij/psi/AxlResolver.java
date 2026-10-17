@@ -1,6 +1,7 @@
 package org.axl.intellij.psi;
 
 import com.intellij.openapi.util.RecursionManager;
+import com.intellij.psi.CommonClassNames;
 import com.intellij.psi.JavaPsiFacade;
 import com.intellij.psi.PsiArrayType;
 import com.intellij.psi.PsiClass;
@@ -53,6 +54,10 @@ public final class AxlResolver {
         if (name.equals("this")) {
             AxlTypeDeclaration owner = PsiTreeUtil.getParentOfType(place, AxlTypeDeclaration.class);
             return owner == null ? List.of() : List.of(owner);
+        }
+        if (name.equals("super")) {
+            PsiClass parent = superclass(place);
+            return parent == null ? List.of() : List.of(parent);
         }
         if (name.equals("it")) {
             PsiElement lambda = implicitParameterOwner(place);
@@ -141,6 +146,17 @@ public final class AxlResolver {
             overridden.addAll(Arrays.asList(method.findSuperMethods()));
         }
         return Arrays.stream(methods).filter(m -> !overridden.contains(m)).toList();
+    }
+
+    /** The Java class that the class around a place extends, which `super` stands for; null outside such a class. */
+    static @Nullable PsiClass superclass(PsiElement place) {
+        AxlTypeDeclaration owner = PsiTreeUtil.getParentOfType(place, AxlTypeDeclaration.class);
+        if (owner == null || owner.getNode().getElementType() != AxlElementTypes.CLASS) {
+            return null;
+        }
+        PsiClass cls = asClass(owner);
+        PsiClass parent = cls == null ? null : cls.getSuperClass();
+        return parent == null || CommonClassNames.JAVA_LANG_OBJECT.equals(parent.getQualifiedName()) ? null : parent;
     }
 
     /** The class Java sees for an Axolotl type declaration or type parameter or a Java class; null for other elements. */

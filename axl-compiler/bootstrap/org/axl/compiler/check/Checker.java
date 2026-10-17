@@ -1339,6 +1339,11 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void name(Expr.Name e) {
+        if (e.name().equals("super")) {
+            error(e.pos(), ErrorCode.SYNTAX, "`super` stands only before a call of a method of the Java class the class " +
+                    "extends, as in `super.read()`");
+            return;
+        }
         final var symbol = scope.lookup(e.name());
         if (symbol == null) {
             staticNames.add(e);
@@ -1359,8 +1364,13 @@ import org.axl.compiler.ast.TypeRef;
         if (target != null && e.safe()) {
             warnNeverNull(target, "write `.` instead of `?.`");
         }
-        if (target != null) {
+        if (target instanceof Expr.Name target$1 && target$1.name().equals("super")) {
+            superCall(target$1);
+        } else if (target != null) {
             expr(target);
+        } else if (e.name().equals("super")) {
+            error(e.pos(), ErrorCode.SYNTAX, "the Java class a class extends gets its arguments after the colon, as in " +
+                    "`class Worker : Thread(\"w\")`; `super(...)` cannot be called");
         } else if (localLookup(e.name()) != null && !functionExists(e.name())) {
             error(e.pos(), ErrorCode.JAVAC, "`" + e.name() + "` is a value, not a function; " +
                     "call its method, such as `" +
@@ -1376,6 +1386,16 @@ import org.axl.compiler.ast.TypeRef;
         exprs(e.args());
         if (safeTail) {
             safeTailDepth = safeTailDepth - 1;
+        }
+    }
+    private void superCall(Expr.Name target) {
+        staticNames.add(target);
+        final var c = currentClass;
+        if (c == null || c.superArgs() == null) {
+            final var here = (c == null ? "only a class that extends one has it" : "`" + c.name() + "` extends none");
+            error(target.pos(), ErrorCode.SYNTAX, "`super` calls a method of the Java class a class extends, such as " +
+                    "`super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; " +
+                    here);
         }
     }
     private boolean functionExists(String name) {

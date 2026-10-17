@@ -1,0 +1,45 @@
+package app
+
+import java.io.BufferedReader
+import java.io.IOException
+import java.io.Reader
+import java.io.StringReader
+import java.util.LinkedHashMap
+import java.util.Map
+
+// Commons CSV's ExtendedBufferedReader: counts lines in read() and calls the read() it overrides.
+class CountingReader(private val input: Reader) : BufferedReader(input) {
+    private var lines = 0L
+
+    fn read() -> Int {
+        val c: Int = attempt super.read() else e: IOException -> throw IllegalStateException(e)
+        if (c == '\n') {
+            lines += 1
+        }
+        return c
+    }
+
+    fn markSupported() -> Boolean = super.markSupported()
+
+    fn lineCount() -> Long = lines
+}
+
+// A protected method of the superclass.
+class Recent(val limit: Int) : LinkedHashMap<String, Int>() {
+    fn removeEldestEntry(eldest: Map.Entry<String, Int>) -> Boolean = size() > limit || super.removeEldestEntry(eldest)
+
+    fn toString() -> String = "recent " + super.toString()
+}
+
+fn main() {
+    val r = CountingReader(StringReader("a\nb\n"))
+    while (r.read() >= 0) {
+    }
+    println(r.lineCount())
+    println(r.markSupported())
+    val recent = Recent(2)
+    recent.put("a", 1)
+    recent.put("b", 2)
+    recent.put("c", 3)
+    println(recent)
+}

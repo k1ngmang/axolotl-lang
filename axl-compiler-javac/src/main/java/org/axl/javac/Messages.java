@@ -57,6 +57,9 @@ final class Messages {
             "inference variable \\w+ has incompatible bounds; (?:equality constraints|upper bounds): (.+?); lower bounds: ([^;)]+)");
     private static final Pattern UNKNOWN = Pattern.compile("^cannot find symbol; symbol: (variable|method|class) (.+?); location: (.+)$");
     private static final Pattern UNKNOWN_STATIC = Pattern.compile("^cannot find symbol; symbol: static (\\w+); location: \\w+ (.+)$");
+    // javac names no location for a method `super.m()` does not find.
+    private static final Pattern SUPER_METHOD = Pattern.compile("^cannot find symbol; symbol: method (\\w+)\\(.*\\)$");
+    private static final Pattern EXTENDING_CLASS = Pattern.compile("\\bclass (\\w+)(?:<.*?>)? extends ([\\w.]+(?:<.*?>)?)(?: implements .*)? \\{$");
     private static final Pattern NOT_APPLICABLE = Pattern.compile(
             "^(?:method|constructor) (\\w+) in \\w+ .+? cannot be applied to given types;+ required: (.+?); found: (.+?); reason");
     private static final Pattern PRIVATE_ACCESS = Pattern.compile("^(\\w+)(\\(.*\\))? has private access in ([\\w.$]+)$");
@@ -1331,6 +1334,14 @@ final class Messages {
                     + (created == null || isInterface(created.replaceAll("<.*", ""), simple, javaLines) ? ""
                     : "; a `Supplier` is a lambda that creates the value: `{ -> " + axlType(created) + "() }`");
         }
+        Matcher superMethod = SUPER_METHOD.matcher(message);
+        if (superMethod.find() && text.contains("super." + superMethod.group(1) + "(")) {
+            Matcher parent = superclass(javaLines, Arrays.asList(javaLines).lastIndexOf(text));
+            String owner = parent == null ? "the Java class this class extends"
+                    : "`" + simpleNames(axlType(parent.group(2))) + "`, the class `" + parent.group(1) + "` extends";
+            return "`" + superMethod.group(1) + "` is not a method of " + owner + "; `super` calls only the methods of that "
+                    + "class, not those of interfaces";
+        }
         Matcher unknownStatic = UNKNOWN_STATIC.matcher(message);
         if (unknownStatic.find()) {
             return "`" + simpleNames(axlType(unknownStatic.group(2))) + "` has no function or value `" + unknownStatic.group(1) + "`";
@@ -1602,6 +1613,20 @@ final class Messages {
      * The type of the resource `br` of a `use`, as the header `try (var br = new BufferedReader(...))` shows
      * it: the declared type, the created class, or the name itself when the value comes from a call.
      */
+    /** The header of the class around a line that extends a Java class, with the class's name and the superclass; or null. */
+    private static Matcher superclass(String[] javaLines, int javaLine) {
+        for (int i = Math.min(javaLine, javaLines.length - 1); i >= 0; i--) {
+            Matcher header = EXTENDING_CLASS.matcher(javaLines[i]);
+            if (header.find()) {
+                return header;
+            }
+            if (CLASS_DECLARATION.matcher(javaLines[i]).find()) {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private static String resourceType(String name, String text) {
         Matcher resource = Pattern.compile("[(;]\\s*(?:final )?([\\w.]+(?:<.*?>)?) " + Pattern.quote(name) + " = (new )?([\\w.]+)")
                 .matcher(text);

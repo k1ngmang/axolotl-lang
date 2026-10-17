@@ -1,0 +1,3 @@
+AXL100 app/Main.axl:8:31: error: `nothing` is not a method of `BufferedReader`, the class `Lines` extends; `super` calls only the methods of that class, not those of interfaces
+AXL100 app/Main.axl:12:34: error: `get` is not a method of `BufferedReader`, the class `Lines` extends; `super` calls only the methods of that class, not those of interfaces
+AXL100 app/Main.axl:14:42: error: wrong arguments for `skip`: expected (Long), got (Int, Int)
