@@ -1,0 +1,15 @@
+package app
+
+class Loop(val a: String, val b: Int) {
+    constructor(a: String) = this(a, "x", 1)
+    constructor(a: String, b: String, c: Int) = this(a)
+    constructor(x: Double, y: Double, z: Double, w: Double) = this(1, 2, 3, 4, 5)
+}
+
+class Itself(val a: String, val b: String) {
+    constructor(c: Long) = this(c)
+}
+
+fn main() {
+    println(Loop("a").b)
+}

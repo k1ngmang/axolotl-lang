@@ -1,4 +1,4 @@
-AXL001 app/Main.axl:6:33: error: `this(...)` passes a value to each parameter of `Opt` (`opt`, `longOpt`, `names`): 3 values, not 2
+AXL001 app/Main.axl:6:33: error: `this(...)` passes 4 values, but no constructor of `Opt` takes 4: the class's parameters (`opt`, `longOpt`, `names`) take 3, the other constructors 1, 2 or 3
 AXL010 app/Main.axl:9:5: error: Java cannot tell this constructor from the one the class's parameters make: the parameter types are the same once `?` and type arguments are left out; give it other parameters, or create the object in a function of the file
 AXL010 app/Main.axl:13:5: error: Java cannot tell this constructor from the one at line 11: the parameter types are the same once `?` and type arguments are left out; give it other parameters, or create the object in a function of the file
 AXL007 app/Main.axl:17:39: error: `try` can only be used in a function that returns `Result`

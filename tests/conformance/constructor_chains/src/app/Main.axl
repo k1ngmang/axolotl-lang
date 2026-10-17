@@ -1,0 +1,31 @@
+package app
+
+import java.io.Reader
+import java.io.StringReader
+
+// Commons CSV's deprecated CSVParser constructors: one passes its values to the other, which passes them to the private one.
+class Parser private constructor(private val reader: Reader, private val offset: Long, private val first: Long, private val track: Boolean) {
+    constructor(reader: Reader, offset: Long, first: Long) = this(reader, offset, first, false)
+    constructor(reader: Reader) = this(reader, 0L, 1L)
+
+    fn offset() -> Long = offset + first
+    fn tracking() -> Boolean = track
+    fn input() -> Reader = reader
+}
+
+// Two constructors take one value: Java picks the one the types fit, as for any call.
+class Label(val text: String, val size: Int) {
+    constructor(text: String) = this(text, text.length())
+    constructor(size: Int) = this("#" + size)
+    constructor() = this(3)
+}
+
+fn main() {
+    val parser = Parser(StringReader("x"))
+    println(parser.offset())
+    println(parser.tracking())
+    println(Label().text + " " + Label().size)
+    println(Label(7).text)
+    println(Label("abc").size)
+    println(JavaCaller.label())
+}

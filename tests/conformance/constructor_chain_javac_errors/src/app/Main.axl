@@ -1,0 +1,16 @@
+package app
+
+// Several constructors take one value, so the cycles go through the types, which javac follows.
+class ByType(val a: String, val b: Int) {
+    constructor(a: String) = this(a.length())
+    constructor(n: Int) = this("#" + n)
+    constructor(n: Long) = this(n + 1)
+}
+
+class Same(val a: String) {
+    constructor(c: Long) = this(c)
+}
+
+fn main() {
+    println(ByType("a").b + Same(1L).a)
+}

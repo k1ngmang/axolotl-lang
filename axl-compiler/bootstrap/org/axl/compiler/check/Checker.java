@@ -438,15 +438,23 @@ import org.axl.compiler.ast.TypeRef;
                 declare(p.pos(), p.name(), Kind.PARAM, p.type());
                 annotations(p.annotations());
             }
-            if (k.args().size() != c.parameters().size()) {
+            final var arity = k.args().size();
+            final var others = Nulls.stream(c.constructors()).filter(o -> !o.pos().equals(k.pos())).map(Nulls.nonNull(o -> o.params().size())).toList();
+            if (arity != c.parameters().size() && !others.contains(arity) && k.params().size() != arity) {
                 final var names = Nulls.stream(c.parameters()).map(Nulls.nonNull(p -> "`" + p.name() + "`")).toList();
                 final var listed = (names.isEmpty() ? "none" : String.join(", ", names));
-                error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` passes a value to each parameter of `" + c.name() + "` (" +
-                        listed +
-                        "): " +
+                error(k.thisPos(), ErrorCode.SYNTAX, (others.isEmpty() ?
+                        "`this(...)` passes a value to each parameter of `" + c.name() + "` (" + listed + "): " +
                         c.parameters().size() +
                         " values, not " +
-                        k.args().size());
+                        arity :
+                        "`this(...)` passes " + arity + " values, but no constructor of `" + c.name() + "` takes " + arity +
+                        ": the class's parameters (" +
+                        listed +
+                        ") take " +
+                        c.parameters().size() +
+                        ", the other constructors " +
+                        arities(others)));
             }
             exprs(k.args());
             pop();
@@ -467,6 +475,39 @@ import org.axl.compiler.ast.TypeRef;
                 error(k.namePos(), ErrorCode.DUPLICATE_NAME, "Java cannot tell this constructor from " + other + ": the " +
                         "parameter types are the same once `?` and type arguments are left out; give it other parameters, or " +
                         "create the object in a function of the file");
+            }
+        }
+        constructorCycles(c);
+    }
+    private String arities(List<Integer> counts) {
+        final var texts = counts.stream().distinct().sorted(java.util.Comparator.naturalOrder()).map(Nulls.nonNull(n -> "" + n)).toList();
+        return (texts.size() == 1 ? texts.getFirst() :
+                String.join(", ", texts.subList(0, texts.size() - 1)) + " or " + texts.getLast());
+    }
+    private void constructorCycles(Decl.ClassDecl c) {
+        final var targets = new HashMap<Pos, Decl.Constructor>();
+        for (final var k : c.constructors()) {
+            final var arity = k.args().size();
+            final var candidates = Nulls.stream(c.constructors()).filter(o -> o.params().size() == arity).toList();
+            if (arity != c.parameters().size() && candidates.size() == 1) {
+                targets.put(k.pos(), candidates.getFirst());
+            }
+        }
+        for (final var k : c.constructors()) {
+            final var through = new ArrayList<Integer>();
+            var next = targets.get(k.pos());
+            while (next != null && !next.pos().equals(k.pos()) && through.size() < targets.size()) {
+                through.add(next.namePos().line());
+                next = targets.get(next.pos());
+            }
+            if (next != null && next.pos().equals(k.pos()) && through.isEmpty()) {
+                error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` calls this same constructor, so the class's parameters are " +
+                        "never set; pass the values to the class's parameters or to another constructor");
+            } else if (next != null && next.pos().equals(k.pos())) {
+                final var lines = through.stream().map(Nulls.nonNull(line -> "" + line)).toList();
+                final var path = " through the " + ((lines.size() == 1 ? "one" : "ones")) + " at line " + String.join(", ", lines);
+                error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` leads back to this constructor" + path + ", so the class's " +
+                        "parameters are never set; let one of these constructors pass its values to the class's parameters");
             }
         }
     }

@@ -1,0 +1,4 @@
+AXL001 app/Main.axl:4:30: error: `this(...)` leads back to this constructor through the one at line 5, so the class's parameters are never set; let one of these constructors pass its values to the class's parameters
+AXL001 app/Main.axl:5:49: error: `this(...)` leads back to this constructor through the one at line 4, so the class's parameters are never set; let one of these constructors pass its values to the class's parameters
+AXL001 app/Main.axl:6:63: error: `this(...)` passes 5 values, but no constructor of `Loop` takes 5: the class's parameters (`a`, `b`) take 2, the other constructors 1 or 3
+AXL001 app/Main.axl:10:28: error: `this(...)` calls this same constructor, so the class's parameters are never set; pass the values to the class's parameters or to another constructor

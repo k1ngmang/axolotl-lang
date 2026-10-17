@@ -1277,6 +1277,11 @@ final class Messages {
             return "`this(...)` runs before the object has its fields, so it cannot use `" + beforeConstructor.group(1)
                     + "`; pass the constructor's parameters or other values";
         }
+        // Constructors that take as many values call each other by type, which the checker cannot follow.
+        if (message.equals("recursive constructor invocation")) {
+            return "this constructor leads back to itself through `this(...)`, so the class's parameters are never set; let "
+                    + "one of the constructors it reaches pass its values to the class's parameters";
+        }
         Matcher privateAccess = PRIVATE_ACCESS.matcher(message);
         if (privateAccess.find()) {
             String name = privateAccess.group(1);
