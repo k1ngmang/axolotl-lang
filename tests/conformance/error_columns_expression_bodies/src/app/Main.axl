@@ -1,0 +1,11 @@
+package app
+
+fn take(x: String) -> Int = x.length()
+
+// The errors point at the name that is wrong, not at an earlier one or at the start of the body.
+fn generic<T>(s: String?, t: T) -> Int = take(s ?: "") + take(s)
+
+@Deprecated
+fn annotated(s: String?) -> Int = take(s ?: "") + take(s)
+
+@Deprecated fn sameLine(s: String?) -> Int = take(s ?: "") + take(s)

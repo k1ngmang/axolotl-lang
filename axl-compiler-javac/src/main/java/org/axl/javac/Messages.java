@@ -2440,9 +2440,12 @@ final class Messages {
                     + " have no common type for Java; write it: `val " + local + ": " + simpleNames(axlType(expected)) + " = ...`";
         }
         // `o is List` binds `o$1` as a `List<?>`: Java keeps no type arguments to test.
+        // A target without type arguments, such as `String`, is a plain mismatch.
         if (found.contains("capture#") && PATTERN_VARIABLE.matcher(rest).lookingAt()) {
             String star = axlType(found.replaceAll("capture#\\d+ of \\?", "*"));
-            return RawTypes.uncheckedMessage(star.substring(0, star.indexOf('<')), star, axlType(expected).replaceFirst("\\?$", ""));
+            return expected.contains("<")
+                    ? RawTypes.uncheckedMessage(star.substring(0, star.indexOf('<')), star, axlType(expected).replaceFirst("\\?$", ""))
+                    : "type mismatch: expected `" + axlType(expected) + "`, found `" + star + "`";
         }
         String message = mismatch(expected, found);
         if (!message.equals("type mismatch: expected `Long`, found `Int`") || rest.isEmpty()) {

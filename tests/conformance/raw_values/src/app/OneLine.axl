@@ -1,0 +1,10 @@
+package app
+
+import java.util.List
+
+fn length(s: String) -> Int = s.length()
+
+// On one line the error points at the narrowed name, not at the start of the body.
+fn narrowed(o: Object) -> List<String> = if (o is List) o else List.of()
+
+fn passed(o: Object) -> Int = if (o is List) length(o) else 0

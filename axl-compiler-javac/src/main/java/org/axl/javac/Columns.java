@@ -19,10 +19,18 @@ final class Columns {
     private static final Pattern LITERAL = Pattern.compile("\"[^\"\\\\]*+(\\\\.[^\"\\\\]*+)*+\"|'[^'\\\\]*+(\\\\.[^'\\\\]*+)*+'");
     private static final Pattern NUMBER = Pattern.compile("(?<![\\w.])\\d[\\w.]*");
     private static final Pattern IMPLICIT_IT = Pattern.compile("it\\s*->");
+    // `o$1`, the binding of `o is List` or a copy of `o`: the .axl line writes it `o`.
+    private static final Pattern BINDING = Pattern.compile("([A-Za-z_]\\w*)\\$\\d+");
+    // Where a binding is declared, which the .axl line has no name for: `o instanceof List<?> o$1`, `Some(var o$1)`.
+    private static final Pattern DECLARED = Pattern.compile(
+            "(?:\\binstanceof\\s+[\\w.]+(?:<[^()]*?>)?|\\bcase\\s+[\\w.]+(?:<[^()]*?>)?|\\bvar)\\s+$");
     private static final Pattern COMMENT = Pattern.compile("//.*|/\\*.*?(\\*/|$)");
-    private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:public|private) (?:static )?(.+?) ([\\w$]+)\\((.*)\\) \\{$");
-    private static final Pattern AXL_SIGNATURE = Pattern.compile("^\\s*(?:private\\s+)?fn\\s+[\\w$]+\\s*\\(");
+    private static final Pattern JAVA_SIGNATURE = Pattern.compile("^\\s*(?:@[\\w.]+(?:\\([^)]*\\))? )*(?:public|private) (?:static )?(.+?) ([\\w$]+)\\((.*)\\) \\{$");
+    private static final Pattern SIGNATURE_START = Pattern.compile("^\\s*(?:@[\\w.]+(?:\\([^)]*\\))? )*(?:public|private) (?:static )?.+? [\\w$]+\\($");
+    private static final Pattern AXL_SIGNATURE = Pattern.compile("^\\s*(?:@[\\w.]+(?:\\([^)]*\\))?\\s+)*(?:private\\s+)?fn\\s+[\\w$]+\\s*(?:<[^(]*>\\s*)?\\(");
     // A `catch (Exception e)` of `else e ->` sets the interrupt flag again: a line the .axl line has no part of.
+    // The check of a parameter that Java code may pass null to, which the signature on the .axl line stands for.
+    private static final Pattern PARAMETER_CHECK = Pattern.compile("^\\s*Nulls\\.param\\([\\w$]+, \"[\\w$]+\"\\);$");
     private static final Pattern KEPT_INTERRUPT = Pattern.compile("^\\s*if \\(\\w+ instanceof InterruptedException\\) Thread\\.currentThread\\(\\)\\.interrupt\\(\\);$");
 
     private Columns() {}
@@ -125,6 +133,10 @@ final class Columns {
         if (word.startsWith("$")) {
             return null;
         }
+        Matcher binding = BINDING.matcher(word);
+        if (binding.matches()) {
+            word = binding.group(1);
+        }
         Integer found = inSignature(javaText, javaName, word, axlLine);
         return found != null ? found : inBody(javaLines, lineMap, javaLine, javaName, word, axlLine);
     }
@@ -167,7 +179,7 @@ final class Columns {
         int axl = lineMap.nearestAxlLine(javaLine);
         int before = 0;
         for (int line = 1; line < javaLine; line++) {
-            if (lineMap.axlLine(line) == axl && counted(javaLines[line - 1])) {
+            if (lineMap.axlLine(line) == axl && counted(javaLines, line)) {
                 before += index(javaLines[line - 1], null, null, word);
             }
         }
@@ -177,8 +189,28 @@ final class Columns {
     }
 
     /** Whether the names of a Java line count towards the occurrences of the .axl line it was made from. */
-    private static boolean counted(String javaText) {
-        return !JAVA_SIGNATURE.matcher(javaText).matches() && !KEPT_INTERRUPT.matcher(javaText).matches();
+    private static boolean counted(String[] javaLines, int line) {
+        String javaText = javaLines[line - 1];
+        return !JAVA_SIGNATURE.matcher(javaText).matches() && !KEPT_INTERRUPT.matcher(javaText).matches()
+                && !PARAMETER_CHECK.matcher(javaText).matches() && !splitSignature(javaLines, line);
+    }
+
+    /** Parameters on a line of their own: a signature split where an annotation stays on the line above the `fn`. */
+    private static boolean splitSignature(String[] javaLines, int line) {
+        String javaText = javaLines[line - 1];
+        if (!javaText.endsWith(") {") && !javaText.endsWith(",")) {
+            return false;
+        }
+        for (int before = line - 1; before >= 1; before--) {
+            String previous = javaLines[before - 1];
+            if (SIGNATURE_START.matcher(previous).matches()) {
+                return true;
+            }
+            if (!previous.endsWith(",")) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /** An operator alone, not the start or end of a longer one such as `<=` or `->`. */
@@ -195,7 +227,7 @@ final class Columns {
         int axl = lineMap.nearestAxlLine(javaLine);
         int occurrence = 0;
         for (int line = 1; line < javaLine; line++) {
-            if (lineMap.axlLine(line) == axl && counted(javaLines[line - 1])) {
+            if (lineMap.axlLine(line) == axl && counted(javaLines, line)) {
                 occurrence += starts(token, inCode, javaLines[line - 1], Integer.MAX_VALUE).size();
             }
         }
@@ -252,11 +284,21 @@ final class Columns {
             if (name != null && n.start() >= name.start()) {
                 break;
             }
-            if (inside && line.substring(n.start(), n.end()).equals(word)) {
+            if (inside && sameName(line, n, word)) {
                 count++;
             }
         }
         return count;
+    }
+
+    /** Whether the name in the Java line is the word of the .axl line, also as a binding or copy of it that is used there. */
+    private static boolean sameName(String line, Region name, String word) {
+        String text = line.substring(name.start(), name.end());
+        if (text.equals(word)) {
+            return true;
+        }
+        Matcher binding = BINDING.matcher(text);
+        return binding.matches() && binding.group(1).equals(word) && !DECLARED.matcher(line.substring(0, name.start())).find();
     }
 
     private static Integer nth(String line, Region region, String word, int occurrence) {
