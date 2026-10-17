@@ -3199,6 +3199,10 @@ class Generator(
         if (array != null && c.args().size() == 1 && !declaredFunctions.contains(c.name())) {
             return "new " + array + "[" + args + "]"
         }
+        // `Character(code)` is the character with that code, Java's `(char) code` for an `Int` that is one.
+        if (c.name().equals("Character") && c.args().size() == 1 && !declaredFunctions.contains(c.name())) {
+            return "Nulls.toChar(" + args + ")"
+        }
         if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
             return "new " + c.name() + "(" + args + ")"
         }

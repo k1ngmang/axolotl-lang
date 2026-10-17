@@ -2555,6 +2555,8 @@ final class Messages {
     private static String lossyConversion(String from, String to) {
         String conversion = switch (from + " " + to) {
             case "long int" -> ", for example with `Math.toIntExact(x)`";
+            case "int char" -> " with `Character(x)`, which fails for a number that is not a character code";
+            case "long char" -> " with `Character(Math.toIntExact(x))`";
             case "double long" -> ": `Double.valueOf(x).longValue()` drops the fraction, `Math.round(x)` rounds";
             case "double int" -> ": `Double.valueOf(x).intValue()` drops the fraction, `Math.toIntExact(Math.round(x))` rounds";
             default -> "";

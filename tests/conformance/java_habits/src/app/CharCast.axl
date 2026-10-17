@@ -1,0 +1,5 @@
+package app
+
+fn letter(code: Int) -> Character {
+    return (char) code
+}

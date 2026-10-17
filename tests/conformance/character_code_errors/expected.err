@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:3:51: error: `Int` does not always fit in `Character`; convert it explicitly with `Character(x)`, which fails for a number that is not a character code
+AXL100 app/Main.axl:5:47: error: `Long` does not always fit in `Int`; convert it explicitly, for example with `Math.toIntExact(x)`

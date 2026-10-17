@@ -66,6 +66,14 @@ import org.jspecify.annotations.Nullable;
     public static @Nullable Long toLong(@Nullable Number a) { return a == null ? null : a.longValue(); }
     @Contract("!null -> !null")
     public static @Nullable Double toDouble(@Nullable Number a) { return a == null ? null : a.doubleValue(); }
+    // `Character(code)`: Java's `(char) code` keeps the low 16 bits of any number, so a code out of range, such as the -1
+    // of Reader.read() at the end, would become another character.
+    public static char toChar(int code) {
+        if (code < Character.MIN_VALUE || code > Character.MAX_VALUE) {
+            throw new IllegalArgumentException("not a character code: " + code);
+        }
+        return (char) code;
+    }
     // A `when` subject of a type the translator does not know: an int becomes an Integer, which a
     // switch with `case null` takes.
     public static <T extends @Nullable Object> T box(T a) { return a; }

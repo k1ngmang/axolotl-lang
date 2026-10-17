@@ -1,0 +1,36 @@
+package app
+
+import java.io.IOException
+import java.io.Reader
+import java.io.StringReader
+
+// Commons CSV's Lexer: Reader.read() gives the code of a character, or -1 at the end; Java appends `(char) c`.
+fn token(reader: Reader) -> String {
+    val sb = StringBuilder()
+    while (true) {
+        val c: Int = attempt reader.read() else e: IOException -> throw IllegalStateException(e)
+        if (c == -1 || c == ',') {
+            break
+        }
+        sb.append(Character(c))
+    }
+    return sb.toString()
+}
+
+// A character is its code where an `Int` is wanted, as an `Int` is a `Long`.
+fn code(c: Character) -> Int = c
+
+fn shifted(c: Character, by: Int) -> Character = Character(c + by)
+
+fn main() {
+    println(token(StringReader("abc,def")))
+    val x = Character(120)
+    println(x)
+    println(x == 'x')
+    println(code('a'))
+    val n: Int = x
+    println(n)
+    println(shifted('a', 2))
+    val r: Result<Character, String> = attempt Character(-1) else e -> e.getMessage() ?: "none"
+    println(r)
+}

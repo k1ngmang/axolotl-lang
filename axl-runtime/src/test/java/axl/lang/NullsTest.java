@@ -2,6 +2,7 @@ package axl.lang;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import java.util.Map;
@@ -24,6 +25,14 @@ class NullsTest {
             return "b";
         }));
         assertEquals(1, calls.get());
+    }
+
+    @Test
+    void toCharTakesOnlyCharacterCodes() {
+        assertEquals('x', Nulls.toChar(120));
+        assertEquals(65535, Nulls.toChar(65535));
+        assertThrows(IllegalArgumentException.class, () -> Nulls.toChar(-1));
+        assertThrows(IllegalArgumentException.class, () -> Nulls.toChar(65536));
     }
 
     @Test

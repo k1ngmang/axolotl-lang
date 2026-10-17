@@ -489,6 +489,8 @@ final class Habits {
                     + "which rounds";
             case "Double", "double", "Float", "float" -> "Axolotl has no casts; an `Int` becomes a `Double` in arithmetic with a "
                     + "`Double`, as in `1.0 * n`, or with `Double.valueOf(n)`";
+            case "Character", "char" -> "Axolotl has no casts; the code of a character, an `Int`, becomes a `Character` with "
+                    + "`Character(n)`, and a `Character` is its code where an `Int` is expected, as in `val code: Int = c`";
             default -> null;
         };
     }

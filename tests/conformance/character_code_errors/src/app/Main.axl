@@ -1,0 +1,5 @@
+package app
+
+fn widen(n: Int) -> Character = Character.valueOf(n)
+
+fn fromLong(n: Long) -> Character = Character(n)

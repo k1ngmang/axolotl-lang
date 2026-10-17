@@ -2780,6 +2780,9 @@ import org.axl.compiler.check.Whens;
         if (array != null && c.args().size() == 1 && !declaredFunctions.contains(c.name())) {
             return "new " + array + "[" + args + "]";
         }
+        if (c.name().equals("Character") && c.args().size() == 1 && !declaredFunctions.contains(c.name())) {
+            return "Nulls.toChar(" + args + ")";
+        }
         if (Character.isUpperCase(c.name().charAt(0)) && !declaredFunctions.contains(c.name())) {
             return "new " + c.name() + "(" + args + ")";
         }

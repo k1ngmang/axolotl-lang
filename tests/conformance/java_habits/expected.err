@@ -11,6 +11,7 @@ AXL001 app/BufferIndexAssign.axl:5:8: error: Axolotl has no `[]` indexing, and `
 AXL001 app/Cast.axl:5:15: error: Axolotl has no casts; test the type with `is`: `if (x is String) { ... }`
 AXL001 app/CastInBody.axl:3:32: error: Axolotl has no casts; test the type with `is`: `if (o is String) { ... }`
 AXL001 app/ChainedAssignment.axl:6:11: error: an assignment is a statement, not a value: write `b = 3`, then `a = b`
+AXL001 app/CharCast.axl:4:12: error: Axolotl has no casts; the code of a character, an `Int`, becomes a `Character` with `Character(n)`, and a `Character` is its code where an `Int` is expected, as in `val code: Int = c`
 AXL001 app/CharsIndex.axl:5:31: error: Axolotl has no `[]` indexing; read a character of the string with `charAt`: `word.charAt(1)`
 AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { ... }`
 AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection, `for (x in xs) { ... }`, or counts: `for (i in 0 until n) { ... }`
