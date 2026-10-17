@@ -51,6 +51,9 @@ private val PRIMITIVE_NAMES: Map<String, String> = Map.of("Int", "int", "Long", 
 private val BOXED_NAMES: Map<String, String> = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
     "Double", "Double")
 // The buffers that Java's input and output read into and write from.
+/** The class nested in an interface that holds the private types of its file. */
+val PRIVATE_TYPES: String = "Private$"
+
 private val ARRAY_NAMES: Map<String, String> = Map.of("ByteArray", "byte", "CharArray", "char")
 
 // Stages that keep the elements as they are without reading them.
@@ -141,6 +144,9 @@ class Generator(
     var inPrivateType: Boolean = false
     var nullableVariables: Set<String> = Set.of()
 
+    // Whether the private types of an interface's file are being emitted, in the class that holds them; see emitFile.
+    var holding: Boolean = false
+
     // The label of the `else` branch of the `when` being emitted.
     var elseLabel: String = "default"
 
@@ -198,6 +204,10 @@ class Generator(
             val keyword = if (imp.kind() == Import.Kind.TYPE) "import " else "import static "
             em.line(imp.pos().line(), keyword + imp.name() + ";")
         }
+        val held = file.decls() |> filter { d -> isHeld(d) }
+        for (decl in held) {
+            em.line(0, "import " + packageName + "." + file.className() + "." + PRIVATE_TYPES + "." + decl.name() + ";")
+        }
         em.blank()
         val fileType = typeOfFile()
         if (fileType == null) {
@@ -209,13 +219,37 @@ class Generator(
         }
         for (decl in file.decls()) {
             resetCounters()
-            if (!decl.equals(fileType)) {
+            if (!decl.equals(fileType) && !isHeld(decl)) {
                 emitDecl(decl)
             }
+        }
+        if (!held.isEmpty()) {
+            emitHeld(held)
         }
         if (!probed.isEmpty()) {
             emitProbe()
         }
+        em.dedent()
+        em.line(0, "}")
+    }
+
+    /**
+     * The members of a Java interface are public, so the private types of an interface's file are package-private
+     * types of a class nested in it, which the imports name: they still see the rest of the file, and other
+     * packages cannot see them.
+     */
+    private fn isHeld(decl: Decl) -> Boolean = decl.isPrivate() && isTypeDecl(decl) && typeOfFile() is Decl.Interface
+
+    private fn emitHeld(held: List<Decl>) {
+        em.line(0, "final class " + PRIVATE_TYPES + " {")
+        em.indent()
+        em.line(0, "private " + PRIVATE_TYPES + "() {}")
+        holding = true
+        for (decl in held) {
+            resetCounters()
+            emitDecl(decl)
+        }
+        holding = false
         em.dedent()
         em.line(0, "}")
     }
@@ -320,11 +354,15 @@ class Generator(
     }
 
     private fn emitClass(classDecl: Decl.ClassDecl) {
-        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeVisibility(classDecl, classDecl.annotations()) + " static final class " + classDecl.name() +
+        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeModifiers(classDecl, "static final class") + " " + classDecl.name() +
             typeParamList(classDecl.typeParams()) + supertypeList(classDecl, classDecl.supertypes()) + " {")
         emitClassMembers(classDecl)
         em.line(classDecl.pos().line(), "}")
     }
+
+    /** The visibility before the modifiers of a type nested in the class of the file, which a held type does without. */
+    private fn typeModifiers(decl: Decl, modifiers: String) -> String =
+        if (holding) modifiers else typeVisibility(decl, decl.annotations()) + " " + modifiers
 
     /** `: Thread(name), Runnable` extends Thread and implements Runnable; without arguments every supertype is an interface. */
     private fn supertypeList(classDecl: Decl.ClassDecl, supertypes: List<TypeRef>) -> String {
@@ -336,7 +374,8 @@ class Generator(
 
     /** The other types of the file are nested in the type of the file, so its header, outside its body, names them through it. */
     private fn headerType(type: TypeRef) -> TypeRef {
-        val nested = !type.name().equals(file.className()) && (file.decls() |> anyMatch { d -> isTypeDecl(d) && d.name().equals(type.name()) })
+        val nested = !type.name().equals(file.className()) &&
+            (file.decls() |> anyMatch { d -> isTypeDecl(d) && !isHeld(d) && d.name().equals(type.name()) })
         return TypeRef(type.pos(), if (nested) file.className() + "." + type.name() else type.name(),
             type.args() |> map { t -> headerType(t) }, type.nullable())
     }
@@ -350,7 +389,7 @@ class Generator(
 
     private fn emitEnum(e: Decl.EnumDecl) {
         val line = e.pos().line()
-        val head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name() +
+        val head = annotations(e.annotations()) + typeModifiers(e, "enum") + " " + e.name() +
             typeList(" implements ", e.supertypes())
         if (e.fields().isEmpty() && e.methods().isEmpty()) {
             em.line(line, head + " { " + constantList(e) + " }")
@@ -600,7 +639,7 @@ class Generator(
 
     private fn emitDataClass(dataClass: Decl.DataClass) {
         val line = dataClass.pos().line()
-        val head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
+        val head = annotations(dataClass.annotations()) + typeModifiers(dataClass, "record") + " " + dataClass.name() +
             typeParamList(dataClass.typeParams()) + "(" + parameters(dataClass.fields(), line, boxedFieldsOf(dataClass)) + ")" +
             typeList(" implements ", dataClass.supertypes())
         if (dataClass.methods().isEmpty() && checkedFields(dataClass).isEmpty()) {
@@ -674,7 +713,7 @@ class Generator(
 
     private fn emitInterface(iface: Decl.Interface) {
         val line = iface.pos().line()
-        val head = annotations(iface.annotations()) + typeVisibility(iface, iface.annotations()) + interfaceModifier(iface) + " interface " + iface.name() +
+        val head = annotations(iface.annotations()) + typeModifiers(iface, (interfaceModifier(iface) + " interface").trim()) + " " + iface.name() +
             typeParamList(iface.typeParams()) + typeList(" extends ", iface.supertypes()) + permits(iface)
         if (iface.members().isEmpty() && iface.methods().isEmpty()) {
             em.line(line, head + " {}")
@@ -735,7 +774,7 @@ class Generator(
         for (d in file.decls()) {
             if (isTypeDecl(d) && extendsInterface(supertypesOf(d), iface.name())) {
                 // Nested in the interface, a type is named through it there.
-                val nestedInInterface = iface.name().equals(file.className()) && !d.name().equals(file.className())
+                val nestedInInterface = iface.name().equals(file.className()) && !d.name().equals(file.className()) && !isHeld(d)
                 own.add(if (nestedInInterface) iface.name() + "." + d.name() else d.name())
             }
         }

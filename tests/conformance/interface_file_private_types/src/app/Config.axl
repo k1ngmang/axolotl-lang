@@ -1,0 +1,34 @@
+package app
+
+import java.io.Writer
+
+// Java nests the rest of the file in the interface, whose members are all public; the private types still see the
+// private function of the file.
+interface Config {
+    fn create(writer: Writer) -> String
+}
+
+val MINIMAL: Config = Minimal(Mode.PLAIN)
+
+private fn prefix() -> String = "minimal"
+
+fn describe(config: Config) -> String = when (config) {
+    is Minimal -> "the minimal one: " + config.create(Writer.nullWriter())
+    else -> "another"
+}
+
+private class Minimal(val mode: Mode) : Config, Step {
+    fn create(writer: Writer) -> String = prefix() + " " + mode + " " + Pair(1, 2).sum() + " " + apply(3)
+
+    fn apply(n: Int) -> Int = n * 2
+}
+
+private data class Pair(val a: Int, val b: Int) {
+    fn sum() -> Int = a + b
+}
+
+private enum Mode { PLAIN, PRETTY }
+
+private interface Step {
+    fn apply(n: Int) -> Int
+}

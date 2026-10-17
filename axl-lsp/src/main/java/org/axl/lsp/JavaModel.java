@@ -59,6 +59,7 @@ import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.SourceFile;
 import org.axl.compiler.ast.TypeRef;
+import org.axl.compiler.gen.Generator;
 import org.axl.javac.RuntimeClasspath;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.Position;
@@ -161,9 +162,13 @@ final class JavaModel {
             // A file named like a type it declares is that type.
             return elements.getTypeElement(fileClass);
         }
-        if (file.decls().stream().anyMatch(d -> isType(d) && d.name().equals(name))) {
-            // The other data classes, classes, enums and interfaces are nested in the class of their file.
-            return elements.getTypeElement(fileClass + "." + name);
+        Decl declared = file.decls().stream().filter(d -> isType(d) && d.name().equals(name)).findFirst().orElse(null);
+        if (declared != null) {
+            // The other data classes, classes, enums and interfaces are nested in the class of their file; an
+            // interface's private ones in the class it holds them in.
+            boolean held = declared.isPrivate() && file.decls().stream()
+                    .anyMatch(d -> d instanceof Decl.Interface && d.name().equals(file.className()));
+            return elements.getTypeElement(fileClass + (held ? "." + Generator.PRIVATE_TYPES : "") + "." + name);
         }
         for (String candidate : List.of(pkg.isEmpty() ? name : pkg + "." + name, "java.lang." + name, "axl.lang." + name)) {
             TypeElement type = elements.getTypeElement(candidate);

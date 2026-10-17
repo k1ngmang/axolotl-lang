@@ -1,0 +1,9 @@
+package app
+
+import java.io.Writer
+
+fn main() {
+    println(Config.MINIMAL.create(Writer.nullWriter()))
+    println(Config.describe(Config.MINIMAL))
+    println(Shape.name(Shape.unit()) + " " + Shape.unit().area())
+}

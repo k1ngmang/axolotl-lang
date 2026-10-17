@@ -434,6 +434,38 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void findsThePrivateTypesOfAnInterfacesFile() throws Exception {
+        String text = """
+                package app
+
+                interface Config {
+                    fn create() -> String
+                }
+
+                fn minimal() -> Config = Minimal(Mode.PLAIN)
+
+                private class Minimal(val mode: Mode) : Config {
+                    fn create() -> String = "minimal " + mode
+                }
+
+                private enum Mode { PLAIN, PRETTY }
+
+                fn main() {
+                    val m = Minimal(Mode.PRETTY)
+                    println(m.create() + m.mode)
+                }
+                """;
+        String uri = open("Config.axl", text);
+        assertEquals(List.of("Config.axl:9:7"), definitionsAt(uri, text, "println(m.|create()"));
+        assertEquals(List.of("Config.axl:8:26"), definitionsAt(uri, text, "m.|mode)"));
+        assertContains(hoverAt(uri, text, "println(m.|create()"), "fn create() -> String");
+        List<String> members = membersAt(uri, text, "m.|mode)");
+        assertTrue(members.contains("mode") && members.contains("create"), members.toString());
+        List<String> constants = membersAt(uri, text, "Mode.|PRETTY");
+        assertTrue(constants.contains("PLAIN"), constants.toString());
+    }
+
+    @Test
     void hoversAndCompletesPrivateParametersThatOnlyPropertiesRead() throws Exception {
         String text = """
                 package app

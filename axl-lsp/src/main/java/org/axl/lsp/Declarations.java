@@ -9,6 +9,7 @@ import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.gen.Generator;
 
 /**
  * The declarations in .axl files that member accesses and type names lead to: fields and methods of
@@ -80,7 +81,13 @@ final class Declarations {
             return new TypeAt(file, typeNamed(file.ast, file.ast.className()));
         }
         int dot = qualifiedName.lastIndexOf('.');
-        Document outer = dot < 0 ? null : axlFile(module, qualifiedName.substring(0, dot));
+        String outerName = dot < 0 ? "" : qualifiedName.substring(0, dot);
+        String holder = "." + Generator.PRIVATE_TYPES;
+        if (outerName.endsWith(holder)) {
+            // The private types of an interface's file are nested in a class nested in the interface.
+            outerName = outerName.substring(0, outerName.length() - holder.length());
+        }
+        Document outer = dot < 0 ? null : axlFile(module, outerName);
         Decl nested = outer == null ? null : typeNamed(outer.ast, qualifiedName.substring(dot + 1));
         return nested == null ? null : new TypeAt(outer, nested);
     }

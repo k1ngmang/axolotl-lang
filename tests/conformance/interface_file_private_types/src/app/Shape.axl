@@ -1,0 +1,20 @@
+package app
+
+sealed interface Shape {
+    fn area() -> Double
+}
+
+private data class Square(val side: Double) : Shape {
+    fn area() -> Double = side * side
+}
+
+data class Circle(val r: Double) : Shape {
+    fn area() -> Double = 3.0 * r * r
+}
+
+fn unit() -> Shape = Square(1.0)
+
+fn name(shape: Shape) -> String = when (shape) {
+    is Square -> "square"
+    is Circle -> "circle"
+}

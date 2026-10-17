@@ -75,6 +75,7 @@ import org.axl.compiler.check.Whens;
     public Set<String> constructorOnly;
     public boolean inPrivateType;
     public Set<String> nullableVariables;
+    public boolean holding;
     public String elseLabel;
     public boolean inPropertyInit;
     public boolean storedInLocal;
@@ -130,6 +131,7 @@ import org.axl.compiler.check.Whens;
         this.constructorOnly = Set.of();
         this.inPrivateType = false;
         this.nullableVariables = Set.of();
+        this.holding = false;
         this.elseLabel = "default";
         this.inPropertyInit = false;
         this.storedInLocal = false;
@@ -163,6 +165,10 @@ import org.axl.compiler.check.Whens;
             final var keyword = (imp.kind() == Import.Kind.TYPE ? "import " : "import static ");
             em.line(imp.pos().line(), keyword + imp.name() + ";");
         }
+        final var held = Nulls.stream(file.decls()).filter(d -> isHeld(d)).toList();
+        for (final var decl : held) {
+            em.line(0, "import " + packageName + "." + file.className() + "." + PRIVATE_TYPES + "." + decl.name() + ";");
+        }
         em.blank();
         final var fileType = typeOfFile();
         if (fileType == null) {
@@ -174,13 +180,32 @@ import org.axl.compiler.check.Whens;
         }
         for (final var decl : file.decls()) {
             resetCounters();
-            if (!decl.equals(fileType)) {
+            if (!decl.equals(fileType) && !isHeld(decl)) {
                 emitDecl(decl);
             }
+        }
+        if (!held.isEmpty()) {
+            emitHeld(held);
         }
         if (!probed.isEmpty()) {
             emitProbe();
         }
+        em.dedent();
+        em.line(0, "}");
+    }
+    private boolean isHeld(Decl decl) {
+        return decl.isPrivate() && isTypeDecl(decl) && typeOfFile() instanceof Decl.Interface;
+    }
+    private void emitHeld(List<Decl> held) {
+        em.line(0, "final class " + PRIVATE_TYPES + " {");
+        em.indent();
+        em.line(0, "private " + PRIVATE_TYPES + "() {}");
+        holding = true;
+        for (final var decl : held) {
+            resetCounters();
+            emitDecl(decl);
+        }
+        holding = false;
         em.dedent();
         em.line(0, "}");
     }
@@ -289,12 +314,15 @@ import org.axl.compiler.check.Whens;
         em.indent();
     }
     private void emitClass(Decl.ClassDecl classDecl) {
-        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeVisibility(classDecl, classDecl.annotations()) + " static final class " + classDecl.name() +
+        em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeModifiers(classDecl, "static final class") + " " + classDecl.name() +
                 typeParamList(classDecl.typeParams()) +
                 supertypeList(classDecl, classDecl.supertypes()) +
                 " {");
         emitClassMembers(classDecl);
         em.line(classDecl.pos().line(), "}");
+    }
+    private String typeModifiers(Decl decl, String modifiers) {
+        return (holding ? modifiers : typeVisibility(decl, decl.annotations()) + " " + modifiers);
     }
     private String supertypeList(Decl.ClassDecl classDecl, List<TypeRef> supertypes) {
         if (classDecl.superArgs() == null || supertypes.isEmpty()) {
@@ -303,7 +331,8 @@ import org.axl.compiler.check.Whens;
         return " extends " + javaType(supertypes.getFirst()) + typeList(" implements ", supertypes.subList(1, supertypes.size()));
     }
     private TypeRef headerType(TypeRef type) {
-        final var nested = !type.name().equals(file.className()) && (Nulls.stream(file.decls()).anyMatch(d -> isTypeDecl(d) && d.name().equals(type.name())));
+        final var nested = !type.name().equals(file.className()) &&
+                (Nulls.stream(file.decls()).anyMatch(d -> isTypeDecl(d) && !isHeld(d) && d.name().equals(type.name())));
         return new TypeRef(type.pos(), (nested ? file.className() + "." + type.name() : type.name()),
                 Nulls.stream(type.args()).map(Nulls.nonNull(t -> headerType(t))).toList(), type.nullable());
     }
@@ -316,7 +345,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitEnum(Decl.EnumDecl e) {
         final var line = e.pos().line();
-        final var head = annotations(e.annotations()) + typeVisibility(e, e.annotations()) + " enum " + e.name() +
+        final var head = annotations(e.annotations()) + typeModifiers(e, "enum") + " " + e.name() +
                 typeList(" implements ", e.supertypes());
         if (e.fields().isEmpty() && e.methods().isEmpty()) {
             em.line(line, head + " { " + constantList(e) + " }");
@@ -543,7 +572,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitDataClass(Decl.DataClass dataClass) {
         final var line = dataClass.pos().line();
-        final var head = annotations(dataClass.annotations()) + typeVisibility(dataClass, dataClass.annotations()) + " record " + dataClass.name() +
+        final var head = annotations(dataClass.annotations()) + typeModifiers(dataClass, "record") + " " + dataClass.name() +
                 typeParamList(dataClass.typeParams()) +
                 "(" +
                 parameters(dataClass.fields(), line, boxedFieldsOf(dataClass)) +
@@ -613,7 +642,7 @@ import org.axl.compiler.check.Whens;
     }
     private void emitInterface(Decl.Interface iface) {
         final var line = iface.pos().line();
-        final var head = annotations(iface.annotations()) + typeVisibility(iface, iface.annotations()) + interfaceModifier(iface) + " interface " + iface.name() +
+        final var head = annotations(iface.annotations()) + typeModifiers(iface, (interfaceModifier(iface) + " interface").trim()) + " " + iface.name() +
                 typeParamList(iface.typeParams()) +
                 typeList(" extends ", iface.supertypes()) +
                 permits(iface);
@@ -670,7 +699,7 @@ import org.axl.compiler.check.Whens;
         final var own = new ArrayList<String>();
         for (final var d : file.decls()) {
             if (isTypeDecl(d) && extendsInterface(supertypesOf(d), iface.name())) {
-                final var nestedInInterface = iface.name().equals(file.className()) && !d.name().equals(file.className());
+                final var nestedInInterface = iface.name().equals(file.className()) && !d.name().equals(file.className()) && !isHeld(d);
                 own.add((nestedInInterface ? iface.name() + "." + d.name() : d.name()));
             }
         }
@@ -3662,6 +3691,7 @@ import org.axl.compiler.check.Whens;
             "Double", "double");
     private static final Map<String, String> BOXED_NAMES = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
             "Double", "Double");
+    public static final String PRIVATE_TYPES = "Private$";
     private static final Map<String, String> ARRAY_NAMES = Map.of("ByteArray", "byte", "CharArray", "char");
     private static final Set<String> ORDER_STAGES = Set.of("distinct", "limit", "skip");
     private static final Set<String> MAPPING_STAGES = Set.of("map", "mapResult", "flatMap");
