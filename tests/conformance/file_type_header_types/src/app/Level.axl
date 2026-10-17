@@ -1,0 +1,11 @@
+package app
+
+import java.util.function.Supplier
+
+enum Level : Supplier<Note> {
+    LOW, HIGH
+
+    fn get() -> Note = Note(name())
+}
+
+data class Note(val text: String)

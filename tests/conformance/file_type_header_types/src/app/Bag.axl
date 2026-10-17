@@ -1,0 +1,11 @@
+package app
+
+import java.util.Iterator
+import java.util.List
+
+// The header of the type of a file names the other types of the file: Java nests them in it, outside the header.
+class Bag(private val names: List<String>) : Iterable<Member> {
+    fn iterator() -> Iterator<Member> = (names |> map { Member(it) }).iterator()
+}
+
+class Member(val name: String)

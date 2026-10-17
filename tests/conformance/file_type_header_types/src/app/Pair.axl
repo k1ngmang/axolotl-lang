@@ -1,0 +1,11 @@
+package app
+
+import java.util.function.Supplier
+
+data class Pair<T : Comparable<Part>>(val part: Part, val other: T?) : Supplier<Part> {
+    fn get() -> Part = part
+}
+
+data class Part(val n: Int) : Comparable<Part> {
+    fn compareTo(other: Part) -> Int = Integer.compare(n, other.n())
+}

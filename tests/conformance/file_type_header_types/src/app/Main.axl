@@ -1,0 +1,24 @@
+package app
+
+import app.Holder.Item
+import app.Pair.Part
+import app.Repo.Key
+import java.util.List
+
+class Keys : Repo<Key> {
+    fn find(key: Key) -> Key? = if (key == Key.A) key else null
+
+    fn get() -> Key = Key.B
+}
+
+fn main() {
+    for (member in Bag(List.of("a", "b"))) {
+        println(member.name)
+    }
+    val holder = Holder<Item>(null)
+    holder.add(Item(3))
+    println(holder.get()?.n)
+    println(Pair<Part>(Part(1), null).get().n())
+    println(Keys().find(Key.A))
+    println(Level.HIGH.get().text())
+}

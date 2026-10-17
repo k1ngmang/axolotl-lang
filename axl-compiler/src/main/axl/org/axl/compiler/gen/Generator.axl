@@ -288,24 +288,26 @@ class Generator(
     private fn emitFileType(fileType: Decl) {
         val line = fileType.pos().line()
         val marked = "@NullMarked " + annotations(fileType.annotations())
+        val typeParams = headerTypeParams(typeParamsOf(fileType))
+        val supertypes = supertypesOf(fileType) |> map { t -> headerType(t) }
         if (fileType is Decl.DataClass) {
-            em.line(line, marked + "public record " + fileType.name() + typeParamList(fileType.typeParams()) + "(" +
+            em.line(line, marked + "public record " + fileType.name() + typeParamList(typeParams) + "(" +
                 parameters(fileType.fields(), line, boxedFieldsOf(fileType)) + ")" +
-                typeList(" implements ", fileType.supertypes()) + " {")
+                typeList(" implements ", supertypes) + " {")
             em.indent()
             emitDataClassMethods(fileType)
             em.dedent()
         } else if (fileType is Decl.Interface) {
-            em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() + typeParamList(fileType.typeParams()) +
-                typeList(" extends ", fileType.supertypes()) + permits(fileType) + " {")
+            em.line(line, marked + "public" + interfaceModifier(fileType) + " interface " + fileType.name() + typeParamList(typeParams) +
+                typeList(" extends ", supertypes) + permits(fileType) + " {")
             emitRequiredValues(fileType)
         } else if (fileType is Decl.ClassDecl) {
-            em.line(line, marked + "public final class " + fileType.name() + typeParamList(fileType.typeParams()) +
-                supertypeList(fileType) + " {")
+            em.line(line, marked + "public final class " + fileType.name() + typeParamList(typeParams) +
+                supertypeList(fileType, supertypes) + " {")
             emitClassMembers(fileType)
         } else if (fileType is Decl.EnumDecl) {
             // The rest of the file follows the constants, which a `;` ends.
-            em.line(line, marked + "public enum " + fileType.name() + typeList(" implements ", fileType.supertypes()) + " { " +
+            em.line(line, marked + "public enum " + fileType.name() + typeList(" implements ", supertypes) + " { " +
                 constantList(fileType) + ";")
             em.indent()
             emitEnumFields(fileType)
@@ -319,18 +321,31 @@ class Generator(
 
     private fn emitClass(classDecl: Decl.ClassDecl) {
         em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeVisibility(classDecl, classDecl.annotations()) + " static final class " + classDecl.name() +
-            typeParamList(classDecl.typeParams()) + supertypeList(classDecl) + " {")
+            typeParamList(classDecl.typeParams()) + supertypeList(classDecl, classDecl.supertypes()) + " {")
         emitClassMembers(classDecl)
         em.line(classDecl.pos().line(), "}")
     }
 
     /** `: Thread(name), Runnable` extends Thread and implements Runnable; without arguments every supertype is an interface. */
-    private fn supertypeList(classDecl: Decl.ClassDecl) -> String {
-        val supertypes = classDecl.supertypes()
+    private fn supertypeList(classDecl: Decl.ClassDecl, supertypes: List<TypeRef>) -> String {
         if (classDecl.superArgs() == null || supertypes.isEmpty()) {
             return typeList(" implements ", supertypes)
         }
         return " extends " + javaType(supertypes.getFirst()) + typeList(" implements ", supertypes.subList(1, supertypes.size()))
+    }
+
+    /** The other types of the file are nested in the type of the file, so its header, outside its body, names them through it. */
+    private fn headerType(type: TypeRef) -> TypeRef {
+        val nested = !type.name().equals(file.className()) && (file.decls() |> anyMatch { d -> isTypeDecl(d) && d.name().equals(type.name()) })
+        return TypeRef(type.pos(), if (nested) file.className() + "." + type.name() else type.name(),
+            type.args() |> map { t -> headerType(t) }, type.nullable())
+    }
+
+    private fn headerTypeParams(params: List<Decl.TypeParam>) -> List<Decl.TypeParam> = params |> map { p -> headerTypeParam(p) }
+
+    private fn headerTypeParam(param: Decl.TypeParam) -> Decl.TypeParam {
+        val bound = param.bound()
+        return Decl.TypeParam(param.pos(), param.name(), if (bound == null) null else headerType(bound))
     }
 
     private fn emitEnum(e: Decl.EnumDecl) {

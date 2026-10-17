@@ -1,0 +1,9 @@
+package app
+
+import java.util.function.Supplier
+
+interface Repo<T : Comparable<Key>> : Supplier<Key> {
+    fn find(key: Key) -> T?
+}
+
+enum Key { A, B }

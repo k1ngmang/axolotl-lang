@@ -253,28 +253,30 @@ import org.axl.compiler.check.Whens;
     private void emitFileType(Decl fileType) {
         final var line = fileType.pos().line();
         final var marked = "@NullMarked " + annotations(fileType.annotations());
+        final var typeParams = headerTypeParams(typeParamsOf(fileType));
+        final var supertypes = supertypesOf(fileType).stream().map(Nulls.nonNull(t -> headerType(t))).toList();
         if (fileType instanceof Decl.DataClass fileType$1) {
-            em.line(line, marked + "public record " + fileType$1.name() + typeParamList(fileType$1.typeParams()) + "(" +
+            em.line(line, marked + "public record " + fileType$1.name() + typeParamList(typeParams) + "(" +
                     parameters(fileType$1.fields(), line, boxedFieldsOf(fileType$1)) +
                     ")" +
-                    typeList(" implements ", fileType$1.supertypes()) +
+                    typeList(" implements ", supertypes) +
                     " {");
             em.indent();
             emitDataClassMethods(fileType$1);
             em.dedent();
         } else if (fileType instanceof Decl.Interface fileType$2) {
-            em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() + typeParamList(fileType$2.typeParams()) +
-                    typeList(" extends ", fileType$2.supertypes()) +
+            em.line(line, marked + "public" + interfaceModifier(fileType$2) + " interface " + fileType$2.name() + typeParamList(typeParams) +
+                    typeList(" extends ", supertypes) +
                     permits(fileType$2) +
                     " {");
             emitRequiredValues(fileType$2);
         } else if (fileType instanceof Decl.ClassDecl fileType$3) {
-            em.line(line, marked + "public final class " + fileType$3.name() + typeParamList(fileType$3.typeParams()) +
-                    supertypeList(fileType$3) +
+            em.line(line, marked + "public final class " + fileType$3.name() + typeParamList(typeParams) +
+                    supertypeList(fileType$3, supertypes) +
                     " {");
             emitClassMembers(fileType$3);
         } else if (fileType instanceof Decl.EnumDecl fileType$4) {
-            em.line(line, marked + "public enum " + fileType$4.name() + typeList(" implements ", fileType$4.supertypes()) + " { " +
+            em.line(line, marked + "public enum " + fileType$4.name() + typeList(" implements ", supertypes) + " { " +
                     constantList(fileType$4) +
                     ";");
             em.indent();
@@ -289,17 +291,28 @@ import org.axl.compiler.check.Whens;
     private void emitClass(Decl.ClassDecl classDecl) {
         em.line(classDecl.pos().line(), annotations(classDecl.annotations()) + typeVisibility(classDecl, classDecl.annotations()) + " static final class " + classDecl.name() +
                 typeParamList(classDecl.typeParams()) +
-                supertypeList(classDecl) +
+                supertypeList(classDecl, classDecl.supertypes()) +
                 " {");
         emitClassMembers(classDecl);
         em.line(classDecl.pos().line(), "}");
     }
-    private String supertypeList(Decl.ClassDecl classDecl) {
-        final var supertypes = classDecl.supertypes();
+    private String supertypeList(Decl.ClassDecl classDecl, List<TypeRef> supertypes) {
         if (classDecl.superArgs() == null || supertypes.isEmpty()) {
             return typeList(" implements ", supertypes);
         }
         return " extends " + javaType(supertypes.getFirst()) + typeList(" implements ", supertypes.subList(1, supertypes.size()));
+    }
+    private TypeRef headerType(TypeRef type) {
+        final var nested = !type.name().equals(file.className()) && (Nulls.stream(file.decls()).anyMatch(d -> isTypeDecl(d) && d.name().equals(type.name())));
+        return new TypeRef(type.pos(), (nested ? file.className() + "." + type.name() : type.name()),
+                Nulls.stream(type.args()).map(Nulls.nonNull(t -> headerType(t))).toList(), type.nullable());
+    }
+    private List<Decl.TypeParam> headerTypeParams(List<Decl.TypeParam> params) {
+        return params.stream().map(Nulls.nonNull(p -> headerTypeParam(p))).toList();
+    }
+    private Decl.TypeParam headerTypeParam(Decl.TypeParam param) {
+        final var bound = param.bound();
+        return new Decl.TypeParam(param.pos(), param.name(), (bound == null ? null : headerType(bound)));
     }
     private void emitEnum(Decl.EnumDecl e) {
         final var line = e.pos().line();

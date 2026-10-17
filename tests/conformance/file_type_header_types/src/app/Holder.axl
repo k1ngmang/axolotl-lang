@@ -1,0 +1,13 @@
+package app
+
+import java.util.ArrayList
+import java.util.function.Supplier
+
+// In the bound of a type parameter, the superclass's type arguments and a nullable type argument.
+class Holder<T : Comparable<Item>>(val first: T?) : ArrayList<Item>(), Supplier<Item?> {
+    fn get() -> Item? = if (isEmpty()) null else get(0)
+}
+
+class Item(val n: Int) : Comparable<Item> {
+    fn compareTo(other: Item) -> Int = Integer.compare(n, other.n)
+}
