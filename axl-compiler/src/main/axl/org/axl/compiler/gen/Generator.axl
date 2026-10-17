@@ -1656,8 +1656,12 @@ class Generator(
 
     /** The code of a bound or the step; early, one that may change is first stored in a temporary. */
     private fn countBound(line: Int, e: Expr, early: Boolean, declared: String, body: Reads) -> String {
-        val code = lifted(line, e).code()
-        if (!early || steadyBound(e, body)) {
+        val lifted = lifted(line, e).code()
+        // A bound of a type the code does not tell would let javac count with a double; Nulls.bound takes an int or a long.
+        val known = typeOf(e)?.name()
+        val checked = declared.equals("var") && !"Int".equals(known) && !"Long".equals(known)
+        val code = if (checked) "Nulls.bound(" + lifted + ")" else lifted
+        if (!early || (steadyBound(e, body) && !checked)) {
             return code
         }
         val temp = newTemp()

@@ -74,6 +74,10 @@ import org.jspecify.annotations.Nullable;
         }
         return (char) code;
     }
+    // A bound or step of a counting `for` whose type the translator does not know: javac rejects one
+    // that is not an int or a long, such as a double, which would make the variable a double.
+    public static int bound(int value) { return value; }
+    public static long bound(long value) { return value; }
     // A `when` subject of a type the translator does not know: an int becomes an Integer, which a
     // switch with `case null` takes.
     public static <T extends @Nullable Object> T box(T a) { return a; }

@@ -214,6 +214,9 @@ final class Messages {
     private static final Pattern NUMBER_STREAM = Pattern.compile("^java\\.util\\.stream\\.(?:Int|Long|Double)Stream$");
     private static final Pattern PIPE_SOURCE = Pattern.compile("^(?:(?:val|var)\\s+\\w+(?:\\s*:[^=]+)?\\s*=\\s*|return\\s+)?(.+)$");
     private static final String PIPE_SUBJECT = "`|>` needs a collection or a stream";
+    private static final String COUNT_BOUND = "a counting `for` counts with `Int` or `Long` values; this is a `";
+    // `final var $t1 = Nulls.bound(d);`: the bound of a counting `for`, which the .axl line writes the same way.
+    private static final Pattern COUNT_BOUND_VALUE = Pattern.compile("= Nulls\\.bound\\((.*)\\);$");
     private static final String SORTED_ARITY = "`sorted` takes a comparator with two parameters: "
             + "`sorted { a, b -> a.compareTo(b) }`";
     private static final Pattern RECORD = Pattern.compile("\\brecord (\\w+)(\\(.*\\))");
@@ -261,6 +264,10 @@ final class Messages {
     private static Pattern anchor(String translated, String javaText) {
         if (translated.startsWith(PIPE_SUBJECT)) {
             return PIPE;
+        }
+        Matcher bound = COUNT_BOUND_VALUE.matcher(javaText);
+        if (translated.startsWith(COUNT_BOUND) && bound.find()) {
+            return Pattern.compile("(?<![\\w$])" + Pattern.quote(bound.group(1)) + "(?![\\w$])");
         }
         Matcher member = IMPORTED_MEMBER.matcher(translated);
         if (member.find()) {
@@ -1303,6 +1310,12 @@ final class Messages {
         if (noSuitable.find(0) && noSuitable.group(1).equals("stream") && message.contains("axl.lang.Nulls.")
                 && splitTopLevel(noSuitable.group(2)).size() == 1) {
             return pipeSubject(noSuitable.group(2), axlText);
+        }
+        // A bound of a counting `for` whose type the translator does not know is passed to Nulls.bound.
+        if (noSuitable.find(0) && noSuitable.group(1).equals("bound") && message.contains("axl.lang.Nulls.")
+                && splitTopLevel(noSuitable.group(2)).size() == 1) {
+            String type = noSuitable.group(2);
+            return COUNT_BOUND + (type.equals("float") ? "Float" : axlType(type)) + "`";
         }
         if (noSuitable.find(0)) {
             Set<String> hidden = new HashSet<>();

@@ -1,0 +1,13 @@
+package app
+
+import java.util.concurrent.ThreadLocalRandom
+
+// Bounds whose types only javac knows (each range holds one number): an int counts with an Int, a long with a Long.
+fn main() {
+    for (i in 0 until ThreadLocalRandom.current().nextInt(2, 3)) {
+        println(i)
+    }
+    for (i in 1..ThreadLocalRandom.current().nextLong(60, 61) step 20) {
+        println(i + Long.MAX_VALUE - 41)
+    }
+}

@@ -50,27 +50,27 @@ import java.util.function.Supplier;
     }
     public static void limits() {
         var count = 0;
-        final var $t1 = Integer.MAX_VALUE - 2;
-        final var $t2 = Integer.MAX_VALUE;
+        final var $t1 = Nulls.bound(Integer.MAX_VALUE - 2);
+        final var $t2 = Nulls.bound(Integer.MAX_VALUE);
         boolean $t3 = $t1 <= $t2;
         for (var i = Math.min($t1, $t2); $t3; $t3 = i != $t2, i++) {
             count += 1;
         }
-        final var $t4 = Integer.MIN_VALUE + 1;
-        final var $t5 = Integer.MIN_VALUE;
+        final var $t4 = Nulls.bound(Integer.MIN_VALUE + 1);
+        final var $t5 = Nulls.bound(Integer.MIN_VALUE);
         boolean $t6 = $t4 >= $t5;
         for (var i = Math.max($t4, $t5); $t6; $t6 = i != $t5, i--) {
             count += 1;
         }
-        final var $t7 = Integer.MAX_VALUE - 5;
-        final var $t8 = Integer.MAX_VALUE;
+        final var $t7 = Nulls.bound(Integer.MAX_VALUE - 5);
+        final var $t8 = Nulls.bound(Integer.MAX_VALUE);
         final var $t9 = $t8 - 1 - Math.floorMod(Math.floorMod($t8 - 1, 2) - Math.floorMod($t7, 2), 2);
         boolean $t10 = $t7 < $t8;
         for (var i = Math.min($t7, $t9); $t10; $t10 = i != $t9, i += 2) {
             count += 1;
         }
-        final var $t11 = Integer.MAX_VALUE - 6;
-        final var $t12 = Integer.MAX_VALUE;
+        final var $t11 = Nulls.bound(Integer.MAX_VALUE - 6);
+        final var $t12 = Nulls.bound(Integer.MAX_VALUE);
         final var $t13 = $t12 - Math.floorMod(Math.floorMod($t12, 3) - Math.floorMod($t11, 3), 3);
         boolean $t14 = $t11 <= $t12;
         for (var i = Math.min($t11, $t13); $t14; $t14 = i != $t13, i += 3) {
@@ -85,8 +85,8 @@ import java.util.function.Supplier;
         }
         System.out.println("at the limits: " + count);
         final var longs = new StringBuilder();
-        final var $t16 = Long.MAX_VALUE - 1;
-        final var $t17 = Long.MAX_VALUE;
+        final var $t16 = Nulls.bound(Long.MAX_VALUE - 1);
+        final var $t17 = Nulls.bound(Long.MAX_VALUE);
         boolean $t18 = $t16 <= $t17;
         for (var i = Math.min($t16, $t17); $t18; $t18 = i != $t17, i++) {
             longs.append(" ").append(i - Long.MAX_VALUE);

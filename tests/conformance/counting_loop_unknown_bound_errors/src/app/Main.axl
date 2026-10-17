@@ -1,0 +1,18 @@
+package app
+
+import java.util.concurrent.ThreadLocalRandom
+
+// javac finds the types of these bounds, which the translator does not know: they count only Ints and Longs too.
+fn main() {
+    for (i in 0 until ThreadLocalRandom.current().nextDouble(2.0, 2.5)) {
+        println(i)
+    }
+    val d = Double.valueOf("2")
+    for (i in 1..d) {
+        println(i)
+    }
+    val f = ThreadLocalRandom.current().nextFloat() + 1
+    for (i in 0 until 4 step f) {
+        println(i)
+    }
+}

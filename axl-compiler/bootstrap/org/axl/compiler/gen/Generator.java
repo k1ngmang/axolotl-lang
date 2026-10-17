@@ -1502,8 +1502,11 @@ import org.axl.compiler.check.Whens;
         return inner instanceof Expr.Name inner$1 && (neverChanges(inner$1) || (isLocal(inner$1) && !body.assigned.contains(inner$1.name())));
     }
     private String countBound(int line, Expr e, boolean early, String declared, Reads body) {
-        final var code = lifted(line, e).code();
-        if (!early || steadyBound(e, body)) {
+        final var lifted = lifted(line, e).code();
+        final var known = Nulls.map(typeOf(e), $n1 -> $n1.name());
+        final var checked = declared.equals("var") && !"Int".equals(known) && !"Long".equals(known);
+        final var code = (checked ? "Nulls.bound(" + lifted + ")" : lifted);
+        if (!early || (steadyBound(e, body) && !checked)) {
             return code;
         }
         final var temp = newTemp();
