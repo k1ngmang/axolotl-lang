@@ -14,8 +14,8 @@ import java.util.List;
     }
     public static void main(String[] args) {
         final List<Result<Integer, String>> rs = List.of(parse("ab"), parse(""), parse("xyz"));
-        final var values = rs.stream().filter(it -> it instanceof Ok(var it$1)).map($t1 -> (Ok<Integer, String>) $t1).map(Nulls.nonNull(it -> it.value())).toList();
-        final var errors = rs.stream().filter(it -> it instanceof Err(var it$2)).map($t2 -> (Err<Integer, String>) $t2).map(Nulls.nonNull(it -> it.error())).toList();
+        final var values = rs.stream().filter(it -> it instanceof Ok(var it$1)).map($t1 -> (Ok<Integer, String>) $t1).map(Nulls.asGiven(it -> it.value())).toList();
+        final var errors = rs.stream().filter(it -> it instanceof Err(var it$2)).map($t2 -> (Err<Integer, String>) $t2).map(Nulls.asGiven(it -> it.error())).toList();
         System.out.println(values);
         System.out.println(errors);
         final List<Option<String>> os = List.of(new Some<String>("a"), new None<String>(), new Some<String>("b"));

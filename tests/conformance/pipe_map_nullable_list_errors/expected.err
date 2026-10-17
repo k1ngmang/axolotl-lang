@@ -1,0 +1,8 @@
+AXL102 app/Main.axl:9:42: error: `map` may produce null here, but the list it builds cannot hold nulls; filter them out first or give a default with `?:`
+AXL102 app/Main.axl:11:85: error: `map` may produce null here, but the list it builds cannot hold nulls; filter them out first or give a default with `?:`
+AXL102 app/Main.axl:15:33: error: a type argument of the value has `?`, but `strings` has none there; add `?` to the type argument of `strings` or drop the nulls first
+AXL102 app/Main.axl:21:26: error: the result of `get()` may be null: its type is a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:24:105: error: `it` may be null: it holds a value of a type argument written with `?`; use `?.`, `?:`, a null check or `!!`
+AXL102 app/Main.axl:26:101: error: the elements may be null, and `sorted` compares them; drop the nulls first: `|> filter { it != null }`
+AXL102 app/Main.axl:28:74: error: `map` may produce null here, but the list it builds cannot hold nulls; filter them out first or give a default with `?:`
+AXL102 app/Main.axl:32:70: error: `it` may be null: it holds a value of a type argument written with `?`; use `?.`, `?:`, a null check or `!!`

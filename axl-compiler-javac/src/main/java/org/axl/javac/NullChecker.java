@@ -105,6 +105,8 @@ final class NullChecker implements TaskListener {
             "java.lang.Boolean", "java.lang.Character", "java.lang.Short", "java.lang.Byte", "java.lang.Float");
     /** The runtime methods whose `.value()` only gives their argument a type of its own. */
     private static final Set<String> TYPING_CALLS = Set.of("typed", "inferred", "present");
+    /** The runtime methods that wrap the lambda of a pipe's `map`. */
+    private static final Set<String> PIPE_MAPS = Set.of("nonNull", "nullable", "asGiven");
     // JDK methods whose function argument may return null: Java documents what null means for them.
     // The Map methods then store or return null, so they allow it only for a value type with `?`.
     private static final Set<String> NULL_RESULT_ALLOWED = Set.of("java.util.Optional.map");
@@ -417,6 +419,8 @@ final class NullChecker implements TaskListener {
         private Map<Element, Origin> knownForState = Map.of();
         private Map<Element, Shape> knownForShapes = Map.of();
         private int computing;
+        // The lambdas whose result `lambdaResult` is working out.
+        private final Set<Tree> enteredLambdas = Collections.newSetFromMap(new IdentityHashMap<>());
 
         Scanner(CompilationUnitTree unit) {
             this.unit = unit;
@@ -521,6 +525,14 @@ final class NullChecker implements TaskListener {
             checkValue(value, property.asType(), property, true, name + " is not nullable");
             checkJavaTypeArguments(value, property.asType(), Map.of(), name);
             checkRaw(value, property.asType());
+            // `val xs: List<String?> = rows |> map { it.get("a") }`: javac infers the value without the `?` it has.
+            if (property.asType() instanceof DeclaredType type && type.asElement() instanceof TypeElement element) {
+                TypeMirror valueType = typeOf(value);
+                if (fitsInferred(value, shapeAs(shapeOf(valueType, Map.of()), valueType, element),
+                        shapeAs(shape(value), valueType, element), shapeOf(type, Map.of()))) {
+                    typedStores.add(value);
+                }
+            }
         }
 
         /**
@@ -992,11 +1004,23 @@ final class NullChecker implements TaskListener {
         @Override
         public Void visitLambdaExpression(LambdaExpressionTree lambda, Void unused) {
             Map<Element, Origin> before = new HashMap<>(state);
-            List<Shape> passed = passedShapes(getCurrentPath());
-            List<Shape> declared = parameterShapes(trees.getTypeMirror(getCurrentPath()), Map.of());
-            boolean fromJava = strict && passedToJava(getCurrentPath());
+            enterLambda(getCurrentPath());
+            super.visitLambdaExpression(lambda, unused);
+            if (lambda.getBody() instanceof ExpressionTree body) {
+                checkLambdaResult(getCurrentPath(), body);
+            }
+            state = before;
+            return null;
+        }
+
+        /** Puts what the parameters of a lambda get into `state` and `shapes`. */
+        private void enterLambda(TreePath path) {
+            LambdaExpressionTree lambda = (LambdaExpressionTree) path.getLeaf();
+            List<Shape> passed = passedShapes(path);
+            List<Shape> declared = parameterShapes(trees.getTypeMirror(path), Map.of());
+            boolean fromJava = strict && passedToJava(path);
             for (int i = 0; i < lambda.getParameters().size(); i++) {
-                Element element = trees.getElement(new TreePath(getCurrentPath(), lambda.getParameters().get(i)));
+                Element element = trees.getElement(new TreePath(path, lambda.getParameters().get(i)));
                 if (element == null) {
                     continue;
                 }
@@ -1006,15 +1030,30 @@ final class NullChecker implements TaskListener {
                 shapes.put(element, fromCall.or(fromType).nonNull());
                 state.put(element, element.asType().getKind().isPrimitive() ? Origin.NONE
                         : fromType.nullable() ? Origin.DECLARED : fromCall.nullable() ? Origin.HIDDEN
-                        : openTypeVariable(element.asType()) && !afterSafeCall(getCurrentPath()) ? Origin.OPEN
+                        : openTypeVariable(element.asType()) && !afterSafeCall(path) ? Origin.OPEN
                         : fromJava || fromCall.fromJava() ? Origin.PLATFORM : Origin.NONE);
             }
-            super.visitLambdaExpression(lambda, unused);
-            if (lambda.getBody() instanceof ExpressionTree body) {
-                checkLambdaResult(getCurrentPath(), body);
+        }
+
+        /**
+         * What a lambda with an expression body gives, with what its parameters get; null while it is
+         * being worked out, as the parameters of a pipe's `map` ask for the shape of the call around it.
+         */
+        private Shape lambdaResult(LambdaExpressionTree lambda, ExpressionTree body) {
+            TreePath path = TreePath.getPath(unit, lambda);
+            if (path == null || !enteredLambdas.add(lambda)) {
+                return null;
             }
-            state = before;
-            return null;
+            Map<Element, Origin> before = state;
+            state = new HashMap<>(before);
+            try {
+                enterLambda(path);
+                Shape given = valueShape(body);
+                return origin(body) == Origin.PLATFORM ? new Shape(false, true, given.args()) : given;
+            } finally {
+                state = before;
+                enteredLambdas.remove(lambda);
+            }
         }
 
         @Override
@@ -1218,8 +1257,9 @@ final class NullChecker implements TaskListener {
             if (!(trees.getElement(parent) instanceof ExecutableElement callee)) {
                 return List.of();
             }
-            // A pipe's `map` wraps its lambda in `Nulls.nonNull`; the elements come from the stream it is passed to.
-            if (callee.getSimpleName().contentEquals("nonNull") && declaredIn(callee, "axl.lang.Nulls")) {
+            // A pipe's `map` wraps its lambda in `Nulls.nonNull`, `Nulls.nullable` or `Nulls.asGiven`; the elements
+            // come from the stream it is passed to.
+            if (PIPE_MAPS.contains(callee.getSimpleName().toString()) && declaredIn(callee, "axl.lang.Nulls")) {
                 return passedShapes(parent);
             }
             for (int i = 0; i < args.size(); i++) {
@@ -1356,8 +1396,8 @@ final class NullChecker implements TaskListener {
         }
 
         private boolean resultMayBeNull(TreePath lambda, TypeElement iface, ExecutableElement method, TypeMirror returned) {
-            // `Nulls.nullable`, for a pipe's `map` whose nulls are dropped or go to a list written with `?`: javac 21
-            // does not read the `@Nullable R` of its method from the class file.
+            // `Nulls.nullable` and `Nulls.asGiven`, for a pipe's `map` that may give null: javac 21 does not read the
+            // `@Nullable R` of its method from the class file.
             if (PlatformValues.isNullable(method, returned)
                     || iface.getQualifiedName().contentEquals("axl.lang.Nulls.NullableFunction")) {
                 return true;
@@ -1753,10 +1793,7 @@ final class NullChecker implements TaskListener {
                 return;
             }
             Shape followed = shapeAs(shape(value), valueType, element);
-            boolean fits = inferred.lacksQuestionMark(wanted) && !followed.lacksQuestionMark(wanted);
-            if (fits && nullAway != null) {
-                nullAway.inferred(value);
-            }
+            boolean fits = fitsInferred(value, inferred, followed, wanted);
             if (fits || followed.losesQuestionMark(wanted)) {
                 typedStores.add(value);
             }
@@ -1766,6 +1803,18 @@ final class NullChecker implements TaskListener {
             } else {
                 checkJavaTypeArguments(value, declared, bindings, target);
             }
+        }
+
+        /**
+         * Whether the value has the `?` of the written type arguments that javac infers it without; NullAway's
+         * error for the value is then dropped.
+         */
+        private boolean fitsInferred(ExpressionTree value, Shape inferred, Shape followed, Shape wanted) {
+            boolean fits = inferred.lacksQuestionMark(wanted) && !followed.lacksQuestionMark(wanted);
+            if (fits && nullAway != null) {
+                nullAway.inferred(value);
+            }
+            return fits;
         }
 
         /** Strict mode: `val l: List<String> = J.list()!!` would make the elements that Java gives trusted. */
@@ -2190,6 +2239,15 @@ final class NullChecker implements TaskListener {
             Shape result = declaredShape(method, method.getReturnType(), bindings(fixed, method, args, true));
             if (method.getSimpleName().contentEquals("ofNullable") || receiver != null && filtersNulls(call, method)) {
                 result = result.withArg(0, result.arg(0).nonNull());
+            }
+            // `Nulls.asGiven` lets a pipe's `map` give null; the elements are nullable only where its lambda gives null.
+            if (method.getSimpleName().contentEquals("asGiven") && declaredIn(method, "axl.lang.Nulls") && args.size() == 1
+                    && unwrap(args.getFirst()) instanceof LambdaExpressionTree lambda
+                    && lambda.getBody() instanceof ExpressionTree body) {
+                Shape given = lambdaResult(lambda, body);
+                if (given != null) {
+                    result = result.withArg(1, given);
+                }
             }
             return result;
         }

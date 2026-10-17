@@ -15,6 +15,6 @@ import java.util.function.IntUnaryOperator;
         System.out.println(f.apply(1));
         System.out.println(g.applyAsInt(2));
         System.out.println(h.apply(3, null));
-        List.of(1, 2).stream().map(Nulls.nonNull((x) -> x * 2)).forEach(it -> System.out.println(it));
+        List.of(1, 2).stream().map(Nulls.asGiven((x) -> x * 2)).forEach(it -> System.out.println(it));
     }
 }

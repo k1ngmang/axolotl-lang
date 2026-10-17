@@ -50,7 +50,7 @@ import org.axl.compiler.ast.TypeRef;
         Nulls.param(file, "file");
         Nulls.param(siblings, "siblings");
         Nulls.param(classes, "classes");
-        final var declared = declsOf(file, siblings).stream().map(Nulls.nonNull(d -> nameOf(d))).toList();
+        final var declared = declsOf(file, siblings).stream().map(Nulls.asGiven(d -> nameOf(d))).toList();
         final var tested = new ArrayList<String>();
         final var parents = new ArrayList<String>();
         for (final var name : writtenTypes(w)) {

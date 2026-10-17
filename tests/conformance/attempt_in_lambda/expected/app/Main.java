@@ -39,7 +39,7 @@ import java.util.List;
             }
         };
         task.run();
-        final var values = xs.stream().map(Nulls.nonNull(it -> Result.attempt(() -> Integer.parseInt(it), e -> fallback(it)))).toList();
+        final var values = xs.stream().map(Nulls.asGiven(it -> Result.attempt(() -> Integer.parseInt(it), e -> fallback(it)))).toList();
         System.out.println(values);
         System.out.println("done");
     }

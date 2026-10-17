@@ -439,9 +439,9 @@ import org.axl.compiler.ast.TypeRef;
                 annotations(p.annotations());
             }
             final var arity = k.args().size();
-            final var others = Nulls.stream(c.constructors()).filter(o -> !o.pos().equals(k.pos())).map(Nulls.nonNull(o -> o.params().size())).toList();
+            final var others = Nulls.stream(c.constructors()).filter(o -> !o.pos().equals(k.pos())).map(Nulls.asGiven(o -> o.params().size())).toList();
             if (arity != c.parameters().size() && !others.contains(arity) && k.params().size() != arity) {
-                final var names = Nulls.stream(c.parameters()).map(Nulls.nonNull(p -> "`" + p.name() + "`")).toList();
+                final var names = Nulls.stream(c.parameters()).map(Nulls.asGiven(p -> "`" + p.name() + "`")).toList();
                 final var listed = (names.isEmpty() ? "none" : String.join(", ", names));
                 error(k.thisPos(), ErrorCode.SYNTAX, (others.isEmpty() ?
                         "`this(...)` passes a value to each parameter of `" + c.name() + "` (" + listed + "): " +
@@ -480,7 +480,7 @@ import org.axl.compiler.ast.TypeRef;
         constructorCycles(c);
     }
     private String arities(List<Integer> counts) {
-        final var texts = counts.stream().distinct().sorted(java.util.Comparator.naturalOrder()).map(Nulls.nonNull(n -> "" + n)).toList();
+        final var texts = counts.stream().distinct().sorted(java.util.Comparator.naturalOrder()).map(Nulls.asGiven(n -> "" + n)).toList();
         return (texts.size() == 1 ? texts.getFirst() :
                 String.join(", ", texts.subList(0, texts.size() - 1)) + " or " + texts.getLast());
     }
@@ -504,7 +504,7 @@ import org.axl.compiler.ast.TypeRef;
                 error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` calls this same constructor, so the class's parameters are " +
                         "never set; pass the values to the class's parameters or to another constructor");
             } else if (next != null && next.pos().equals(k.pos())) {
-                final var lines = through.stream().map(Nulls.nonNull(line -> "" + line)).toList();
+                final var lines = through.stream().map(Nulls.asGiven(line -> "" + line)).toList();
                 final var path = " through the " + ((lines.size() == 1 ? "one" : "ones")) + " at line " + String.join(", ", lines);
                 error(k.thisPos(), ErrorCode.SYNTAX, "`this(...)` leads back to this constructor" + path + ", so the class's " +
                         "parameters are never set; let one of these constructors pass its values to the class's parameters");
@@ -678,7 +678,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private void interfaceMethods(Decl.Interface iface) {
-        final var values = Nulls.stream(iface.members()).map(Nulls.nonNull(m -> m.name())).toList();
+        final var values = Nulls.stream(iface.members()).map(Nulls.asGiven(m -> m.name())).toList();
         final var seen = new HashSet<String>();
         enclosingTypeParams = Nulls.stream(iface.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : iface.methods()) {
@@ -717,7 +717,7 @@ import org.axl.compiler.ast.TypeRef;
                 checkReserved(e.namePos(), constant);
             }
             if (arguments.size() != e.fields().size()) {
-                final var names = Nulls.stream(e.fields()).map(Nulls.nonNull(f -> f.name())).toList();
+                final var names = Nulls.stream(e.fields()).map(Nulls.asGiven(f -> f.name())).toList();
                 error(e.namePos(), ErrorCode.SYNTAX, (e.fields().isEmpty() ?
                         "`" + constant + "` takes no arguments: `" + e.name() + "` declares no fields; declare them after the name: `enum " +
                         e.name() +

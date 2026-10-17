@@ -146,6 +146,9 @@ class Generator(
 
     // Whether the initializer of a class property is being emitted.
     var inPropertyInit: Boolean = false
+    // Whether the value stored is that of a local without a written type, whose type arguments the javac plugin
+    // follows to where they are used.
+    var storedInLocal: Boolean = false
 
     // How many lambdas the code being emitted is in.
     var lambdaDepth: Int = 0
@@ -424,7 +427,7 @@ class Generator(
         }
         for (p in classDecl.properties()) {
             resetCounters()
-            val initial = if (inConstructor) "" else " = " + propertyCode({ -> expr(propertyInit(p)) })
+            val initial = if (inConstructor) "" else " = " + propertyCode(p, { -> expr(propertyInit(p)) })
             em.line(p.pos().line(), field(p) + initial + ";")
         }
         if (inConstructor) {
@@ -512,7 +515,7 @@ class Generator(
         resetCounters()
         for (p in classDecl.properties()) {
             val stored = nullableType(propertyTypeOf(p))
-            em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode({ -> valueCode(p.pos().line(), propertyInit(p), stored) }) + ";")
+            em.line(p.pos().line(), "this." + p.name() + " = " + propertyCode(p, { -> valueCode(p.pos().line(), propertyInit(p), stored) }) + ";")
         }
         em.dedent()
         em.line(line, "}")
@@ -538,9 +541,9 @@ class Generator(
         }
     }
 
-    private fn propertyCode(code: Supplier<String>) -> String {
+    private fn propertyCode(p: Decl.Property, code: Supplier<String>) -> String {
         inPropertyInit = true
-        val result = code.get()
+        val result = fieldValue(p.type(), propertyInit(p), code)
         inPropertyInit = false
         return result
     }
@@ -735,7 +738,17 @@ class Generator(
         val type = if (declared != null) javaType(declared) else valueTypes.getOrDefault(value.name(), "Object")
         val line = value.pos().line()
         val head = annotations(value.annotations()) + visibility(value) + " static final " + type + " " + value.name()
-        em.line(line, joined(head, " = ", expr(value.init()), line, startLine(value.init())) + ";")
+        em.line(line, joined(head, " = ", fieldValue(declared, value.init(), { -> expr(value.init()) }), line, startLine(value.init())) + ";")
+    }
+
+    /** The value of a top-level `val` or a class property, which a pipe stored as a `List<String?>` keeps nulls in. */
+    private fn fieldValue(declared: TypeRef?, init: Expr, code: Supplier<String>) -> String {
+        storedType = declared
+        storedValue = withoutParens(init)
+        val result = code.get()
+        storedType = null
+        storedValue = null
+        return result
     }
 
     private fn emitProbe() {
@@ -744,7 +757,7 @@ class Generator(
         em.indent()
         for (decl in file.decls()) {
             if (decl is Decl.Value && probed.contains(decl.name())) {
-                em.line(decl.pos().line(), "var " + decl.name() + " = " + expr(decl.init()) + ";")
+                em.line(decl.pos().line(), "var " + decl.name() + " = " + fieldValue(null, decl.init(), { -> expr(decl.init()) }) + ";")
             }
         }
         em.dedent()
@@ -909,9 +922,11 @@ class Generator(
         withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
             storedType = declared
             storedValue = whole
+            storedInLocal = declared == null
             val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
             storedType = null
             storedValue = null
+            storedInLocal = false
             em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
         })
         localTypes.put(local.name(), localType)
@@ -2108,9 +2123,11 @@ class Generator(
             // A pipe inside the source or a stage is not the value stored.
             val target = storedType
             val whole = e.equals(storedValue)
+            val local = whole && storedInLocal
             storedType = null
             storedValue = null
-            pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) }, target, whole)
+            storedInLocal = false
+            pipeCode(exprIn(e.source(), inLambda), e.source(), e.stages(), { a -> exprIn(a, inLambda) }, target, whole, local)
         }
         is Expr.Try -> throw IllegalStateException("try at " + e.pos() + " should have been lifted")
         is Expr.When -> throw IllegalStateException("when at " + e.pos() + " should have been lifted")
@@ -3365,13 +3382,19 @@ class Generator(
         return code
     }
 
+    /** The body of a lambda that becomes a Java lambda with an expression body. */
+    private fn javaExpression(l: Expr.Lambda) -> Expr? {
+        val single = lambdaExpression(l.body())
+        return if (single != null && !Checker.isAttemptStatement(single, valueStage) && !safeCallWithoutResult(single)) single else null
+    }
+
     private fn lambdaCodeIn(l: Expr.Lambda) -> String {
         val params = lambdaParams(l)
         val body = l.body()
         val outerCopies = copies
         copies = Map.of()
-        val single = lambdaExpression(body)
-        if (single != null && !Checker.isAttemptStatement(single, valueStage) && !safeCallWithoutResult(single)) {
+        val single = javaExpression(l)
+        if (single != null) {
             val bodyLine = startLine(single)
             val code = expr(single)
             copies = outerCopies
@@ -3807,13 +3830,13 @@ class Generator(
         }
         val argOf: Function<Expr, String> = { a -> argCodes.getOrDefault(a, "") }
         if (mapResult == stages.size()) {
-            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null, false), false)
+            return Lifted(pipeCode(ops.getFirst().code(), pipe.source(), stages, argOf, null, false, false), false)
         }
         val sourceType = typeOf(pipe.source())
         val items = if (mapResult == 0 && sourceType == null) "Nulls.stream(" + ops.getFirst().code() + ").toList()"
             else if (mapResult == 0 && isStream(sourceType)) parenthesized(ops.getFirst().code(), pipe.source()) + ".toList()"
             else if (mapResult == 0) parenthesized(ops.getFirst().code(), pipe.source())
-            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null, false)
+            else pipeCode(ops.getFirst().code(), pipe.source(), stages.subList(0, mapResult), argOf, null, false, false)
         val list = mapResultLoop(line, stages.get(mapResult), items)
         val rest = stages.subList(mapResult + 1, stages.size())
         if (rest.isEmpty()) {
@@ -3878,7 +3901,7 @@ class Generator(
      * when the pipe is the whole value stored (whole), a `map` gives.
      */
     private fn pipeCode(source: String, sourceExpr: Expr, stages: List<Expr.Stage>, arg: Function<Expr, String>, target: TypeRef?,
-                        whole: Boolean) -> String {
+                        whole: Boolean, local: Boolean) -> String {
         val sourceType = typeOf(sourceExpr)
         // A source of unknown type may be a collection or a stream; Java picks the overload of Nulls.stream.
         val sb = if (sourceType == null) StringBuilder("Nulls.stream(").append(source).append(")")
@@ -3896,6 +3919,7 @@ class Generator(
             val outerStage = valueStage
             valueStage = !stage.name().equals("forEach") && !stage.name().equals("peek")
             val lambdaText = if (stageBody == null) "" else lambdaCode(stageBody)
+            val expressionBody = stageBody != null && javaExpression(stageBody) != null
             valueStage = outerStage
             if (stage.pos().line() > previousLine) {
                 sb.append(Emitter.continued(stage.pos().line(), ""))
@@ -3908,7 +3932,7 @@ class Generator(
             val mapsLater = later |> anyMatch { s -> MAPPING_STAGES.contains(s.name()) }
             val readLater = later |> anyMatch { s -> !ORDER_STAGES.contains(s.name()) }
             val written = if (mapsLater || (stage.name().equals("map") && (readLater || !whole))) null else elementTypeOf(target)
-            appendStage(sb, stage, lambdaText, arg, next != null && next.name().equals("filter") && dropsNulls(next), element, written)
+            appendStage(sb, stage, lambdaText, arg, mapWrapper(stage, next, later, expressionBody, target, whole, local), element, written)
             if (MAPPING_STAGES.contains(stage.name())) {
                 element = analysis.mapResultTypes().get(stage)
             }
@@ -3920,8 +3944,29 @@ class Generator(
         return if (terminal) sb.toString() else sb.append(".toList()").toString()
     }
 
+    /**
+     * What a `map` stage wraps its lambda in. `Nulls.nonNull` makes NullAway reject a lambda that may give null,
+     * where the elements go into a list written without `?` or to a place the javac plugin does not follow them
+     * to, such as a field or `Ok(...)`. `Nulls.nullable` lets it give null, where the next stage drops the nulls or
+     * the list is written with `?`. `Nulls.asGiven` lets it give null where the stages after it or a local without
+     * a written type take the elements, and the javac plugin follows the nulls of its lambda to where they are used;
+     * it does so for a lambda with an expression body only.
+     */
+    private fn mapWrapper(stage: Expr.Stage, next: Expr.Stage?, later: List<Expr.Stage>, expressionBody: Boolean, target: TypeRef?,
+                          whole: Boolean, local: Boolean) -> String {
+        if (!stage.name().equals("map")) {
+            return ""
+        }
+        val inList = later |> noneMatch { s -> MAPPING_STAGES.contains(s.name()) || Checker.TERMINAL_STAGES.contains(s.name()) }
+        val targetElement = if (whole && inList) elementTypeOf(target) else null
+        if ((next != null && next.name().equals("filter") && dropsNulls(next)) || (targetElement != null && targetElement.nullable())) {
+            return "Nulls.nullable("
+        }
+        return if (expressionBody && (!inList || local)) "Nulls.asGiven(" else "Nulls.nonNull("
+    }
+
     private fn appendStage(sb: StringBuilder, stage: Expr.Stage, lambdaText: String, arg: Function<Expr, String>,
-                           nullsDropped: Boolean, element: TypeRef?, targetElement: TypeRef?) {
+                           wrap: String, element: TypeRef?, targetElement: TypeRef?) {
         val name = stage.name()
         when (name) {
             "limit", "skip" -> sb.append('.').append(name).append('(').append(arg.apply(stage.args().getFirst())).append(')')
@@ -3938,7 +3983,6 @@ class Generator(
                 val nullable = targetElement != null && targetElement.nullable()
                 val result = if (mapped == null) null else TypeRef(mapped.pos(), mapped.name(), mapped.args(), mapped.nullable() || nullable)
                 val witness = if (result == null) "" else "<" + boxedType(result) + ">"
-                val wrap = if (nullsDropped || nullable) "Nulls.nullable(" else "Nulls.nonNull("
                 sb.append(".").append(witness).append("map(").append(wrap).append(lambdaText).append("))")
             }
             // naturalOrder makes javac check that the elements can be compared; sorted() would throw.

@@ -12,7 +12,7 @@ fn optional() -> Result<String?, String> = Ok(System.getenv("AXL_SURELY_NOT_SET"
 fn main() {
     val s = maybe() ?: System.getenv("AXL_SURELY_NOT_SET")
     println(s.length())
-    val ys = java.util.List.of("A") |> map { System.getenv(it) }
+    val ys: java.util.List<String> = java.util.List.of("A") |> map { System.getenv(it) }
     var n = 0
     n += Integer.getInteger("axl.surely.not.set")
     if (lib.Legacy.flag()) {

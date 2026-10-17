@@ -14,7 +14,7 @@ import java.util.concurrent.CompletableFuture;
         System.out.println(new TreeMap<String, Integer>(Map.ofEntries(Nulls.arrayOf(entries, java.util.Map.Entry.class))));
         final var futures = List.of(CompletableFuture.completedFuture(1));
         CompletableFuture.allOf(Nulls.arrayOf(futures, CompletableFuture.class)).join();
-        final var mapped = List.of(2, 3).stream().map(Nulls.nonNull(it -> CompletableFuture.completedFuture(it))).toList();
+        final var mapped = List.of(2, 3).stream().map(Nulls.asGiven(it -> CompletableFuture.completedFuture(it))).toList();
         CompletableFuture.allOf(Nulls.arrayOf(mapped, CompletableFuture.class)).join();
         System.out.println(Nulls.stream(mapped).map(Nulls.nonNull(it -> it.join())).toList());
         final var made = new ArrayList<CompletableFuture<Integer>>(mapped);

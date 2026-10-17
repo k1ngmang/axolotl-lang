@@ -1,0 +1,54 @@
+package app
+
+import java.util.Comparator
+import java.util.List
+import java.util.Map
+
+// A CSV value may be null: a `map` that gives null builds a list of nullable elements.
+val ROWS: List<Map<String, String?>> = List.of(Map.of("a", "x"), Map.of("b", "y"), Map.of("a", "zz"))
+
+val COLUMN: List<String?> = ROWS |> map { it.get("a") }
+
+class Table(val rows: List<Map<String, String?>>) {
+    val column: List<String?> = rows |> map { it.get("a") }
+}
+
+fn column(rows: List<Map<String, String?>>) -> List<String?> = rows |> map { it.get("a") }
+
+// Without a written type the local is a `List<String?>`, which its uses are checked against.
+fn totalLength(rows: List<Map<String, String?>>) -> Int {
+    val values = rows |> map { it.get("a") }
+    var total = 0
+    for (v in values) {
+        if (v != null) {
+            total += v.length()
+        }
+    }
+    return total
+}
+
+fn counted(rows: List<Map<String, String?>>) -> Long = rows |> map { it.get("a") } |> count
+
+fn missing(rows: List<Map<String, String?>>) -> Long = rows |> map { it.get("a") } |> filter { it == null } |> count
+
+fn firstValue(rows: List<Map<String, String?>>) -> String? = rows |> map { it.get("a") } |> first
+
+fn sortedValues(rows: List<Map<String, String?>>, order: Comparator<String?>) -> List<String?> =
+    rows |> map { it.get("a") } |> sorted(order)
+
+fn orDash(rows: List<Map<String, String?>>) -> List<String> = rows |> map { it.get("a") } |> map { it ?: "-" }
+
+fn lengths(rows: List<Map<String, String?>>) -> List<Int> = rows |> map { it.get("a") } |> map { it?.length() ?: 0 }
+
+fn main() {
+    println(COLUMN)
+    println(Table(ROWS).column)
+    println(column(ROWS))
+    println(totalLength(ROWS))
+    println(counted(ROWS))
+    println(missing(ROWS))
+    println(firstValue(ROWS))
+    println(sortedValues(ROWS, Comparator.nullsFirst(Comparator.naturalOrder())))
+    println(orDash(ROWS))
+    println(lengths(ROWS))
+}

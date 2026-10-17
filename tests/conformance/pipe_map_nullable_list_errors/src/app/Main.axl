@@ -1,0 +1,32 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+val ROWS: List<Map<String, String?>> = List.of(Map.of("a", "x"))
+
+// A field takes the nulls only where its written type has `?`.
+val COLUMN: List<String> = ROWS |> map { it.get("a") }
+
+fn distinctValues(rows: List<Map<String, String?>>) -> List<String> = rows |> map { it.get("a") } |> distinct
+
+fn stored(rows: List<Map<String, String?>>) -> Int {
+    val values = rows |> map { it.get("a") }
+    val strings: List<String> = values
+    return strings.size()
+}
+
+fn firstLength(rows: List<Map<String, String?>>) -> Int {
+    val values = rows |> map { it.get("a") }
+    return values.get(0).length()
+}
+
+fn mappedAgain(rows: List<Map<String, String?>>) -> List<Int> = rows |> map { it.get("a") } |> map { it.length() }
+
+fn sortedValues(rows: List<Map<String, String?>>) -> List<String?> = rows |> map { it.get("a") } |> sorted
+
+fn passed(rows: List<Map<String, String?>>) -> Int = count(rows |> map { it.get("a") })
+
+fn count(values: List<String>) -> Int = values.size()
+
+fn lengths(values: List<String?>) -> List<Int?> = values |> map { it.length() }
