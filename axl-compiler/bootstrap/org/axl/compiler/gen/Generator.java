@@ -1093,7 +1093,7 @@ import org.axl.compiler.check.Whens;
         }
         final var testedName = tested.name().substring(tested.name().lastIndexOf('.') + 1);
         final var implementations = Nulls.stream(Exhaustiveness.declsOf(file, options.siblings()))
-                .filter(d -> isTypeDecl(d) && (supertypesOf(d).stream().anyMatch(t -> t.name().equals(subject.name()))))
+                .filter(d -> isTypeDecl(d) && (supertypesOf(d).stream().anyMatch(t -> sameType(t.name(), subject.name()))))
                 .map(Nulls.asGiven(d -> d.name())).toList();
         if (implementations.size() != 2 || !implementations.contains(testedName)) {
             return null;
@@ -2559,14 +2559,14 @@ import org.axl.compiler.check.Whens;
     }
     private @Nullable Decl declaredType(String name) {
         for (final var decl : file.decls()) {
-            if (decl.name().equals(name) && isTypeDecl(decl)) {
+            if (names(name, decl, file) && isTypeDecl(decl)) {
                 return decl;
             }
         }
         @Nullable Decl found = null;
         for (final var sibling : options.siblings()) {
             for (final var decl : sibling.decls()) {
-                if (decl.name().equals(name) && isTypeDecl(decl) && samePackage(sibling)) {
+                if (names(name, decl, sibling) && isTypeDecl(decl) && samePackage(sibling)) {
                     if (found != null) {
                         return null;
                     }
@@ -2580,6 +2580,21 @@ import org.axl.compiler.check.Whens;
         final var own = file.packageName();
         final var theirs = other.packageName();
         return (own == null ? Boolean.valueOf(theirs == null) : own.equals(theirs));
+    }
+    private boolean names(String name, Decl decl, SourceFile owner) {
+        if (name.equals(decl.name())) {
+            return true;
+        }
+        final var packageName = owner.packageName();
+        final var prefix = (packageName == null ? "" : packageName + ".");
+        return name.equals(prefix + decl.name()) || name.equals(prefix + owner.className() + "." + decl.name());
+    }
+    private boolean sameType(String written, String subject) {
+        if (written.equals(subject)) {
+            return true;
+        }
+        final var decl = declaredType(written);
+        return decl != null && decl.equals(declaredType(subject));
     }
     private String bareName(String name) {
         final var known = smart.get(name);
@@ -2681,7 +2696,7 @@ import org.axl.compiler.check.Whens;
     private @Nullable List<String> argumentsOf(TypeRef tested, TypeRef subject) {
         final var decl = declaredType(tested.name());
         if (decl != null) {
-            final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size()).iterator());
+            final var parent = Nulls.first(supertypesOf(decl).stream().filter(t -> sameType(t.name(), subject.name()) && t.args().size() == subject.args().size()).iterator());
             return (parent == null ? null : passedOn(typeParamsOf(decl).stream().map(Nulls.nonNull(p -> p.name())).toList(), Nulls.stream(parent.args()).map(Nulls.nonNull(a -> a.name())).toList(), subject));
         }
         final var library = Libraries.classNamed(file, options.classes(), tested.name());

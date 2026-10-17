@@ -195,10 +195,44 @@ import org.axl.compiler.ast.TypeRef;
                         candidates.add(decl$2);
                     }
                 }
-                return (candidates.size() == 1 ? candidates.getFirst().returnType() : null);
+                final var type = (candidates.size() == 1 ? candidates.getFirst().returnType() : null);
+                return (type == null ? null : asWrittenHere(type, sibling));
             }
         }
         return null;
+    }
+    private TypeRef asWrittenHere(TypeRef type, SourceFile owner) {
+        if (owner.path().equals(file.path())) {
+            return type;
+        }
+        final var name = type.name();
+        final var qualified = (name.contains(".") ? null : qualifiedIn(name, owner));
+        final var imported = qualified != null && (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals(qualified)));
+        final var written = (qualified == null || imported ? name : qualified);
+        return new TypeRef(type.pos(), written, Nulls.stream(type.args()).map(Nulls.nonNull(a -> asWrittenHere(a, owner))).toList(), type.nullable());
+    }
+    private @Nullable String qualifiedIn(String name, SourceFile owner) {
+        final var imported = Nulls.first(Nulls.stream(owner.imports()).filter(i -> i.kind() == Import.Kind.TYPE && i.simpleName().equals(name)).iterator());
+        if (imported != null) {
+            return imported.name();
+        }
+        final var nested = !name.equals(owner.className()) && (Nulls.stream(owner.decls()).anyMatch(d -> isType(d) && d.name().equals(name)));
+        if (!nested) {
+            return null;
+        }
+        final var packageName = owner.packageName();
+        return ((packageName == null ? "" : packageName + ".")) + owner.className() + "." + name;
+    }
+    private SourceFile declaringFile(Decl decl) {
+        if (file.decls().contains(decl)) {
+            return file;
+        }
+        for (final var sibling : siblings) {
+            if (samePackage(sibling) && sibling.decls().contains(decl)) {
+                return sibling;
+            }
+        }
+        return file;
     }
     private boolean samePackage(SourceFile other) {
         final var own = file.packageName();
@@ -238,7 +272,7 @@ import org.axl.compiler.ast.TypeRef;
         final var value = (decl instanceof Decl.Interface decl$1 && c.args().isEmpty() ? Nulls.first(Nulls.stream(decl$1.members()).filter(m -> m.name().equals(c.name())).iterator()) : null);
         final var valueType = Nulls.map(value, $n1 -> $n1.type());
         if (valueType != null) {
-            return Implementations.substitute(valueType, params, receiver.args());
+            return Implementations.substitute(asWrittenHere(valueType, declaringFile(decl)), params, receiver.args());
         }
         final List<Decl.Function> methods = switch (decl) {
             case Decl.DataClass decl$2 -> decl$2.methods();
@@ -251,7 +285,7 @@ import org.axl.compiler.ast.TypeRef;
             return null;
         }
         final var type = named.getFirst().returnType();
-        return (type == null ? null : Implementations.substitute(type, params, receiver.args()));
+        return (type == null ? null : Implementations.substitute(asWrittenHere(type, declaringFile(decl)), params, receiver.args()));
     }
     private @Nullable TypeRef fieldOf(TypeRef receiver, String name) {
         final var decl = typeNamed(receiver.name());
@@ -264,7 +298,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var field = Nulls.first(fieldsOf(decl).stream().filter(f -> f.name().equals(name)).iterator());
         final var type = Nulls.map(field, $n1 -> $n1.type());
-        return (type == null ? null : Implementations.substitute(type, params, receiver.args()));
+        return (type == null ? null : Implementations.substitute(asWrittenHere(type, declaringFile(decl)), params, receiver.args()));
     }
     private @Nullable Decl typeNamed(String name) {
         final var simple = simpleName(name);
@@ -514,6 +548,9 @@ import org.axl.compiler.ast.TypeRef;
             "Path", "Paths", "UUID", "BigDecimal", "BigInteger", "URI");
     private static String simpleName(String name) {
         return name.substring(name.lastIndexOf('.') + 1);
+    }
+    private static boolean isType(Decl d) {
+        return d instanceof Decl.DataClass d$1 || d instanceof Decl.ClassDecl d$2 || d instanceof Decl.Interface d$3 || d instanceof Decl.EnumDecl d$4;
     }
     private static final List<String> comparisons = List.of("==", "!=", "<", "<=", ">", ">=", "&&", "||");
     public static void inferAll(SourceFile file, Map<String, TypeRef> known) {

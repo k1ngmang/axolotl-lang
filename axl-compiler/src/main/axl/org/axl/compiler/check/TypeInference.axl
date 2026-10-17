@@ -169,10 +169,54 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
                         candidates.add(decl)
                     }
                 }
-                return if (candidates.size() == 1) candidates.getFirst().returnType() else null
+                val type = if (candidates.size() == 1) candidates.getFirst().returnType() else null
+                return if (type == null) null else asWrittenHere(type, sibling)
             }
         }
         return null
+    }
+
+    /**
+     * A type written in another file of the build, with the names that file imports or declares inside its own
+     * class written out where this file does not import them, so that the Java of this file can name it:
+     * `java.util.List<String>` for `List<String>`.
+     */
+    private fn asWrittenHere(type: TypeRef, owner: SourceFile) -> TypeRef {
+        if (owner.path().equals(file.path())) {
+            return type
+        }
+        val name = type.name()
+        val qualified = if (name.contains(".")) null else qualifiedIn(name, owner)
+        val imported = qualified != null && (file.imports() |> anyMatch { i -> i.kind() == Import.Kind.TYPE && i.name().equals(qualified) })
+        val written = if (qualified == null || imported) name else qualified
+        return TypeRef(type.pos(), written, type.args() |> map { a -> asWrittenHere(a, owner) }, type.nullable())
+    }
+
+    /** The qualified name of a type that a file names by its simple name: one it imports or declares inside its own class. */
+    private fn qualifiedIn(name: String, owner: SourceFile) -> String? {
+        val imported = owner.imports() |> filter { i -> i.kind() == Import.Kind.TYPE && i.simpleName().equals(name) } |> first
+        if (imported != null) {
+            return imported.name()
+        }
+        val nested = !name.equals(owner.className()) && (owner.decls() |> anyMatch { d -> isType(d) && d.name().equals(name) })
+        if (!nested) {
+            return null
+        }
+        val packageName = owner.packageName()
+        return (if (packageName == null) "" else packageName + ".") + owner.className() + "." + name
+    }
+
+    /** The file of the build that declares a type that `typeNamed` found. */
+    private fn declaringFile(decl: Decl) -> SourceFile {
+        if (file.decls().contains(decl)) {
+            return file
+        }
+        for (sibling in siblings) {
+            if (samePackage(sibling) && sibling.decls().contains(decl)) {
+                return sibling
+            }
+        }
+        return file
     }
 
     private fn samePackage(other: SourceFile) -> Boolean {
@@ -223,7 +267,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         val value = if (decl is Decl.Interface && c.args().isEmpty()) decl.members() |> filter { m -> m.name().equals(c.name()) } |> first else null
         val valueType = value?.type()
         if (valueType != null) {
-            return Implementations.substitute(valueType, params, receiver.args())
+            return Implementations.substitute(asWrittenHere(valueType, declaringFile(decl)), params, receiver.args())
         }
         val methods: List<Decl.Function> = when (decl) {
             is Decl.DataClass -> decl.methods()
@@ -237,7 +281,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
             return null
         }
         val type = named.getFirst().returnType()
-        return if (type == null) null else Implementations.substitute(type, params, receiver.args())
+        return if (type == null) null else Implementations.substitute(asWrittenHere(type, declaringFile(decl)), params, receiver.args())
     }
 
     /** The field a data class or class of the build gives under this name, with the receiver's type arguments. */
@@ -252,7 +296,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         }
         val field = fieldsOf(decl) |> filter { f -> f.name().equals(name) } |> first
         val type = field?.type()
-        return if (type == null) null else Implementations.substitute(type, params, receiver.args())
+        return if (type == null) null else Implementations.substitute(asWrittenHere(type, declaringFile(decl)), params, receiver.args())
     }
 
     private fn typeNamed(name: String) -> Decl? {
@@ -510,6 +554,8 @@ private val VALUE_TYPES: Set<String> = Set.of("Instant", "Duration", "LocalDate"
     "Path", "Paths", "UUID", "BigDecimal", "BigInteger", "URI")
 
 private fn simpleName(name: String) -> String = name.substring(name.lastIndexOf('.') + 1)
+
+private fn isType(d: Decl) -> Boolean = d is Decl.DataClass || d is Decl.ClassDecl || d is Decl.Interface || d is Decl.EnumDecl
 
 private val comparisons: List<String> = List.of("==", "!=", "<", "<=", ">", ">=", "&&", "||")
 

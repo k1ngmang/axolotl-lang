@@ -1195,7 +1195,7 @@ class Generator(
         }
         val testedName = tested.name().substring(tested.name().lastIndexOf('.') + 1)
         val implementations = Exhaustiveness.declsOf(file, options.siblings())
-            |> filter { d -> isTypeDecl(d) && (supertypesOf(d) |> anyMatch { t -> t.name().equals(subject.name()) }) }
+            |> filter { d -> isTypeDecl(d) && (supertypesOf(d) |> anyMatch { t -> sameType(t.name(), subject.name()) }) }
             |> map { d -> d.name() }
         if (implementations.size() != 2 || !implementations.contains(testedName)) {
             return null
@@ -2936,14 +2936,14 @@ class Generator(
      */
     private fn declaredType(name: String) -> Decl? {
         for (decl in file.decls()) {
-            if (decl.name().equals(name) && isTypeDecl(decl)) {
+            if (names(name, decl, file) && isTypeDecl(decl)) {
                 return decl
             }
         }
         var found: Decl? = null
         for (sibling in options.siblings()) {
             for (decl in sibling.decls()) {
-                if (decl.name().equals(name) && isTypeDecl(decl) && samePackage(sibling)) {
+                if (names(name, decl, sibling) && isTypeDecl(decl) && samePackage(sibling)) {
                     if (found != null) {
                         return null
                     }
@@ -2958,6 +2958,28 @@ class Generator(
         val own = file.packageName()
         val theirs = other.packageName()
         return if (own == null) theirs == null else own.equals(theirs)
+    }
+
+    /**
+     * Whether the name is that of a type the file declares: its simple name, or the qualified one that a type
+     * inferred from another file of the build has where this file does not import it, `app.Model.Option`.
+     */
+    private fn names(name: String, decl: Decl, owner: SourceFile) -> Boolean {
+        if (name.equals(decl.name())) {
+            return true
+        }
+        val packageName = owner.packageName()
+        val prefix = if (packageName == null) "" else packageName + "."
+        return name.equals(prefix + decl.name()) || name.equals(prefix + owner.className() + "." + decl.name())
+    }
+
+    /** Whether a supertype as written names the type of the subject, which may be written out. */
+    private fn sameType(written: String, subject: String) -> Boolean {
+        if (written.equals(subject)) {
+            return true
+        }
+        val decl = declaredType(written)
+        return decl != null && decl.equals(declaredType(subject))
     }
 
     /** What a name is in Java where it is used whole: its own name, or what an outer binding made of it. */
@@ -3089,7 +3111,7 @@ class Generator(
     private fn argumentsOf(tested: TypeRef, subject: TypeRef) -> List<String>? {
         val decl = declaredType(tested.name())
         if (decl != null) {
-            val parent = supertypesOf(decl) |> filter { t -> t.name().equals(subject.name()) && t.args().size() == subject.args().size() } |> first
+            val parent = supertypesOf(decl) |> filter { t -> sameType(t.name(), subject.name()) && t.args().size() == subject.args().size() } |> first
             return if (parent == null) null else passedOn(typeParamsOf(decl) |> map { p -> p.name() }, parent.args() |> map { a -> a.name() }, subject)
         }
         val library = Libraries.classNamed(file, options.classes(), tested.name())

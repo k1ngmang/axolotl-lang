@@ -1,0 +1,28 @@
+package app
+
+import app.Model.Missing
+import app.Model.Some
+
+// Main imports none of the types that Row.axl and Names.axl write: the properties take them written out.
+class Holder(val row: Row) {
+    val tags = row.tags()
+    val counts = row.counts()
+    val first = row.firstTags(1)
+    val names = Names.all()
+    val tag = Names.tag()
+    val found = Names.find(1)
+
+    fn describe() -> String = String.valueOf(tags.size()) + " " + counts.get("k") + " " + first + " " + names + " " + tag.label()
+
+    fn foundName() -> String = when (found) {
+        is Some -> found.value()
+        is Missing -> found.reason()
+    }
+}
+
+fn main() {
+    val holder = Holder(Row(java.util.List.of("a", "b"), java.util.Map.of("k", java.util.List.of(1, 2))))
+    println(holder.describe())
+    println(holder.foundName())
+    println(Names.find(5) is Some)
+}

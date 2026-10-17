@@ -1,0 +1,14 @@
+package app
+
+import java.util.List
+import app.Model.Missing
+import app.Model.Option
+import app.Model.Some
+
+data class Tag(val label: String)
+
+fn all() -> List<String> = List.of("ada", "bob")
+
+fn tag() -> Tag = Tag("t")
+
+fn find(i: Int) -> Option<String> = if (i < all().size()) Some<>(all().get(i)) else Missing<>("none")

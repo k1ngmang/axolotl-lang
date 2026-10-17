@@ -1,0 +1,7 @@
+package app
+
+sealed interface Option<T>
+
+data class Some<T>(val value: T) : Option<T>
+
+data class Missing<T>(val reason: String) : Option<T>

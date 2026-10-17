@@ -1,0 +1,8 @@
+package app
+
+import java.util.List
+import java.util.Map
+
+data class Row(val tags: List<String>, val counts: Map<String, List<Int>>) {
+    fn firstTags(n: Int) -> List<String> = tags.subList(0, n)
+}
