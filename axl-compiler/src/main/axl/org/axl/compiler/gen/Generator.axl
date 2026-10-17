@@ -2680,10 +2680,12 @@ class Generator(
         val line = stmt.pos().line()
         val declared = stmt.type()
         val typeCode = if (declared == null) "var" else javaType(declared)
+        // Java 21 has no unnamed resources, so `use (hold(lock))` gets a name the block cannot see.
+        val name = stmt.name() ?: "$r" + nextException()
         withCopies(line, stmt.resource(), { ->
-            em.line(line, "try (" + typeCode + " " + stmt.name() + " = " + lifted(line, stmt.resource()).code() + ") {")
+            em.line(line, "try (" + typeCode + " " + name + " = " + lifted(line, stmt.resource()).code() + ") {")
         })
-        localTypes.put(stmt.name(), declared ?: typeOf(stmt.resource()))
+        localTypes.put(name, declared ?: typeOf(stmt.resource()))
         emitBlock(stmt.body())
         val handler = stmt.handler()
         if (handler == null) {

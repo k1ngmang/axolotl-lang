@@ -407,7 +407,7 @@ final class Habits {
         boolean oneLine = close > 0 && first < close && tokens.get(first).getLine() == tokens.get(last).getLine();
         String cleanup = oneLine ? source(tokens, first, last) : "...";
         return "Axolotl has no `try`-`finally`; for cleanup, write a class whose `close()` does it, `class Cleanup(...) : "
-                + "AutoCloseable { fn close() { " + cleanup + " } }`, and run the block in `use (val c = Cleanup(...)) { ... }`, "
+                + "AutoCloseable { fn close() { " + cleanup + " } }`, and run the block in `use (Cleanup(...)) { ... }`, "
                 + "which calls `close()` also when the block throws";
     }
 

@@ -105,7 +105,7 @@ final class Messages {
     private static final Pattern UNREPORTED = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared to be thrown$");
     // Only the `close()` of the resource of a `use` throws; javac names the resource variable after the plain message.
     private static final Pattern UNREPORTED_CLOSE = Pattern.compile("^unreported exception ([\\w.$]+); must be caught or declared "
-            + "to be thrown; exception thrown from implicit call to close\\(\\) on resource variable '(\\w+)'$");
+            + "to be thrown; exception thrown from implicit call to close\\(\\) on resource variable '([\\w$]+)'$");
     private static final Pattern CLASS_DECLARATION = Pattern.compile("\\bclass (\\w+)");
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
     private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
@@ -188,7 +188,7 @@ final class Messages {
     static final String DECLARED_IN = "`; it is declared in ";
     // What the resource of a `use` throws, which a `use` is told once.
     static final String RESOURCE_THROWS = "opening or closing this resource can throw `";
-    static final String CLOSE_THROWS = "`close()` of `";
+    static final String CLOSE_THROWS = "`close()` of ";
     // `Level.LOW` with `Level` unknown: javac reads `Level` as a package and points after the dot.
     private static final Pattern UNKNOWN_PACKAGE = Pattern.compile("^unknown package `(\\w+)`");
     private static final Pattern OPEN_TYPE_PARAMETER = Pattern.compile("\\b(\\w+) extends @Nullable Object\\b");
@@ -1442,8 +1442,10 @@ final class Messages {
         }
         Matcher unreportedClose = UNREPORTED_CLOSE.matcher(message);
         if (unreportedClose.find()) {
-            return CLOSE_THROWS + resourceType(unreportedClose.group(2), text) + "` can throw `"
-                    + axlType(unreportedClose.group(1)) + "`; add `else e -> ...` to the `use`";
+            String resource = resourceType(unreportedClose.group(2), text);
+            // `use (open(path))` names no resource; the generated name starts with `$`.
+            String of = resource.startsWith("$") ? "the resource" : "`" + resource + "`";
+            return CLOSE_THROWS + of + " can throw `" + axlType(unreportedClose.group(1)) + "`; add `else e -> ...` to the `use`";
         }
         Matcher unreported = UNREPORTED.matcher(message);
         Matcher typedHandler = TYPED_HANDLER.matcher(axlText);

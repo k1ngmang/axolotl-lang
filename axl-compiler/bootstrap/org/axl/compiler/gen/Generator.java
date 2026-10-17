@@ -2365,9 +2365,10 @@ import org.axl.compiler.check.Whens;
         final var line = stmt.pos().line();
         final var declared = stmt.type();
         final var typeCode = (declared == null ? "var" : javaType(declared));
+        final var name = Nulls.or(stmt.name(), () -> "$r" + nextException());
         withCopies(line, stmt.resource(), () ->
-                em.line(line, "try (" + typeCode + " " + stmt.name() + " = " + lifted(line, stmt.resource()).code() + ") {"));
-        localTypes.put(stmt.name(), Nulls.or(declared, () -> typeOf(stmt.resource())));
+                em.line(line, "try (" + typeCode + " " + name + " = " + lifted(line, stmt.resource()).code() + ") {"));
+        localTypes.put(name, Nulls.or(declared, () -> typeOf(stmt.resource())));
         emitBlock(stmt.body());
         final var handler = stmt.handler();
         if (handler == null) {

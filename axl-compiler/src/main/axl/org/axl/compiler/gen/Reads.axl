@@ -199,7 +199,10 @@ class Reads {
             }
             is Stmt.Use -> {
                 expr(s.resource())
-                locals.put(s.name(), s.type() ?: localType(s.resource()))
+                val name = s.name()
+                if (name != null) {
+                    locals.put(name, s.type() ?: localType(s.resource()))
+                }
                 statement(s.body())
                 val handler = s.handler()
                 if (handler != null) {

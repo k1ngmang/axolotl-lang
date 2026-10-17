@@ -377,7 +377,8 @@ private fn buildVal(ctx: ValStatementContext) -> Stmt.Local {
 private fn buildUse(ctx: UseStatementContext) -> Stmt.Use {
     val param = ctx.handlerParam()
     val handler: Expr? = if (ctx.expression().size() > 1) buildExpr(ctx.expression(1)) else null
-    return Stmt.Use(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()), typeOrNull(ctx.type()),
+    val name = ctx.identifier()
+    return Stmt.Use(pos(ctx.start), if (name == null) null else pos(name.start), if (name == null) null else nameOf(name), typeOrNull(ctx.type()),
         buildExpr(ctx.expression(0)), buildBlock(ctx.block()), handlerName(param), handlerNamePos(param), handlerType(param), handler)
 }
 

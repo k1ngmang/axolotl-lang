@@ -1,0 +1,47 @@
+package app
+
+import java.io.BufferedReader
+import java.io.StringReader
+import java.util.concurrent.locks.Lock
+import java.util.concurrent.locks.ReentrantLock
+
+class Locked(private val lock: Lock) : AutoCloseable {
+    fn close() {
+        lock.unlock()
+        println("unlocked")
+    }
+}
+
+fn hold(lock: Lock) -> Locked {
+    lock.lock()
+    return Locked(lock)
+}
+
+// The block uses the lock only through `use`, so the resource needs no name.
+class Printer {
+    private val lock = ReentrantLock()
+    private val out = StringBuilder()
+
+    fn print(value: String) {
+        use (hold(lock)) {
+            out.append(value)
+        }
+    }
+
+    fn text() -> String = out.toString()
+}
+
+fn use(x: Int) -> Int = x + 1
+
+fn main() {
+    val p = Printer()
+    p.print("a")
+    println(p.text())
+    println(use(1))
+    use (hold(ReentrantLock())) {
+        throw IllegalStateException("boom")
+    } else e -> println("caught " + e.getMessage())
+    use (BufferedReader(StringReader("x"))) {
+        println("reading")
+    } else e: java.io.IOException -> println(e)
+}

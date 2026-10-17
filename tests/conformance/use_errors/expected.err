@@ -1,3 +1,5 @@
 AXL100 app/Main.axl:6:24: error: opening or closing this resource can throw `IOException`; handle it after the block: `use (val r = ...) { ... } else e -> ...`
 AXL100 app/Main.axl:9:14: error: `use` needs a value with a `close()` method, an `AutoCloseable` such as a reader, a stream or a connection
 AXL100 app/Main.axl:13:23: error: opening or closing this resource can throw `FileNotFoundException`; handle it after the block: `use (val r = ...) { ... } else e -> ...`
+AXL100 app/Main.axl:16:10: error: opening or closing this resource can throw `IOException`; handle it after the block: `use (val r = ...) { ... } else e -> ...`
+AXL100 app/Main.axl:19:5: error: `use` needs a value with a `close()` method, an `AutoCloseable` such as a reader, a stream or a connection

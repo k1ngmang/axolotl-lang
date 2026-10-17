@@ -979,7 +979,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         expr(stmt.resource())
         declaredType = null
         scope = Scope(scope, false)
-        declare(stmt.namePos(), stmt.name(), Kind.LOCAL, stmt.type())
+        val name = stmt.name()
+        val namePos = stmt.namePos()
+        if (name != null && namePos != null) {
+            declare(namePos, name, Kind.LOCAL, stmt.type())
+        }
         statements(stmt.body().statements())
         pop()
         val handler = stmt.handler()

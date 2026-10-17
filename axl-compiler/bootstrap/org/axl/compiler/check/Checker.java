@@ -920,7 +920,11 @@ import org.axl.compiler.ast.TypeRef;
         expr(stmt.resource());
         declaredType = null;
         scope = new Scope(scope, false);
-        declare(stmt.namePos(), stmt.name(), Kind.LOCAL, stmt.type());
+        final var name = stmt.name();
+        final var namePos = stmt.namePos();
+        if (name != null && namePos != null) {
+            declare(namePos, name, Kind.LOCAL, stmt.type());
+        }
         statements(stmt.body().statements());
         pop();
         final var handler = stmt.handler();

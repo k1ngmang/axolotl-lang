@@ -267,7 +267,8 @@ final class SemanticTokensProvider {
     }
 
     /**
-     * `data` before `class`, `in` in `for (x in xs)`, `use` before `(val` and `constructor(` starting a member of a
+     * `data` before `class`, `in` in `for (x in xs)`, `use` before `(val` or parentheses a block follows, and
+     * `constructor(` starting a member of a
      * class or after the annotations or `private` of a class's own constructor; all are ordinary names elsewhere.
      */
     private static boolean isContextualKeyword(List<? extends Token> tokens, int index, Token next, Token previous) {
@@ -282,7 +283,8 @@ final class SemanticTokensProvider {
         }
         if (text.equals("use")) {
             int open = nextIndex(tokens, index);
-            return type(tokens, open) == AxolotlLexer.LPAREN && type(tokens, nextIndex(tokens, open)) == AxolotlLexer.VAL;
+            return type(tokens, open) == AxolotlLexer.LPAREN && (type(tokens, nextIndex(tokens, open)) == AxolotlLexer.VAL
+                    || type(tokens, nextIndex(tokens, closingParen(tokens, open))) == AxolotlLexer.LBRACE);
         }
         if (text.equals("in")) {
             return isLoopIn(tokens, index);
@@ -294,6 +296,18 @@ final class SemanticTokensProvider {
     }
 
     private static final Set<String> COUNT_WORDS = Set.of("until", "downTo", "step");
+
+    /** The index of the `)` that closes the `(` at open, or of the last token when none does. */
+    private static int closingParen(List<? extends Token> tokens, int open) {
+        int depth = 0;
+        for (int i = open; i >= 0 && i < tokens.size(); i = nextIndex(tokens, i)) {
+            depth += type(tokens, i) == AxolotlLexer.LPAREN ? 1 : type(tokens, i) == AxolotlLexer.RPAREN ? -1 : 0;
+            if (depth == 0) {
+                return i;
+            }
+        }
+        return tokens.size() - 1;
+    }
 
     /** The `in` of `for (x in ...)`. */
     private static boolean isLoopIn(List<? extends Token> tokens, int index) {

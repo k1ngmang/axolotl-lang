@@ -604,7 +604,8 @@ class InitOrder(val file: SourceFile) {
             }
             is Stmt.Use -> {
                 names(stmt.resource(), hidden, out)
-                statement(stmt.body(), with(hidden, Set.of(stmt.name())), out)
+                val name = stmt.name()
+                statement(stmt.body(), if (name == null) hidden else with(hidden, Set.of(name)), out)
                 val handler = stmt.handler()
                 val errorName = stmt.errorName()
                 if (handler != null) {

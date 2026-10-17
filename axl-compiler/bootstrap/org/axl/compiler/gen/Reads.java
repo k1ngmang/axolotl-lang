@@ -206,7 +206,10 @@ import org.axl.compiler.check.TypeInference;
             }
             case Stmt.Use s$7 -> {
                 expr(s$7.resource());
-                locals.put(s$7.name(), Nulls.or(s$7.type(), () -> localType(s$7.resource())));
+                final var name = s$7.name();
+                if (name != null) {
+                    locals.put(name, Nulls.or(s$7.type(), () -> localType(s$7.resource())));
+                }
                 statement(s$7.body());
                 final var handler = s$7.handler();
                 if (handler != null) {

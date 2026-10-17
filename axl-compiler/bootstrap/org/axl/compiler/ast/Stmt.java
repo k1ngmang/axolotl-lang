@@ -34,8 +34,8 @@ import java.util.List;
     }
     public record Use(
             Pos pos,
-            Pos namePos,
-            String name,
+            @Nullable Pos namePos,
+            @Nullable String name,
             @Nullable TypeRef type,
             Expr resource,
             Block body,
@@ -45,8 +45,6 @@ import java.util.List;
             @Nullable Expr handler) implements Stmt {
         public Use {
             Nulls.param(pos, "pos");
-            Nulls.param(namePos, "namePos");
-            Nulls.param(name, "name");
             Nulls.param(resource, "resource");
             Nulls.param(body, "body");
         }

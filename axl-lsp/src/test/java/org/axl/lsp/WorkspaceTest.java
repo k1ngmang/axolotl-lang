@@ -1257,6 +1257,9 @@ class WorkspaceTest {
                         e)
                     val use = attempt Integer.parseInt("1") else e -> fallback(e, n)
                     println(e)
+                    use (java.io.StringReader(fallback(e, n) + "")) {
+                        n += 1
+                    }
                     return use + n
                 }
 
@@ -1265,7 +1268,7 @@ class WorkspaceTest {
         List<String> tokens = semanticTokens(workspace.document(uri));
         assertTrue(tokens.containsAll(List.of("6:12:5:keyword", "8:8:8:keyword", "10:4:3:keyword", "12:11:1:parameter",
                 "12:36:1:parameter", "13:8:1:parameter", "14:8:3:variable", "14:49:1:parameter", "14:63:1:parameter",
-                "15:12:1:variable", "16:11:3:variable")), tokens.toString());
+                "15:12:1:variable", "16:4:3:keyword", "19:11:3:variable")), tokens.toString());
     }
 
     @Test

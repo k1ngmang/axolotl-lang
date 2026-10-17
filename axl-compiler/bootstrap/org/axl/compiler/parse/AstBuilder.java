@@ -396,7 +396,8 @@ import org.axl.compiler.parse.AxolotlParser.WhileStatementContext;
     private static Stmt.Use buildUse(UseStatementContext ctx) {
         final var param = ctx.handlerParam();
         final @Nullable Expr handler = (ctx.expression().size() > 1 ? buildExpr(ctx.expression(1)) : null);
-        return new Stmt.Use(pos(ctx.start), pos(ctx.identifier().start), nameOf(ctx.identifier()), typeOrNull(ctx.type()),
+        final var name = ctx.identifier();
+        return new Stmt.Use(pos(ctx.start), (name == null ? null : pos(name.start)), (name == null ? null : nameOf(name)), typeOrNull(ctx.type()),
                 buildExpr(ctx.expression(0)), buildBlock(ctx.block()), handlerName(param), handlerNamePos(param), handlerType(param), handler);
     }
     private static @Nullable String handlerName(@Nullable HandlerParamContext ctx) {

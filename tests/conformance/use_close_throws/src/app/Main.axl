@@ -18,4 +18,10 @@ fn main() {
     use (val r = reader()) {
         println(attempt r.readLine() else e -> throw IllegalStateException(e))
     }
+    use (reader()) {
+        println("unnamed")
+    }
+    use (BufferedReader(StringReader("line"))) {
+        println("unnamed")
+    }
 }

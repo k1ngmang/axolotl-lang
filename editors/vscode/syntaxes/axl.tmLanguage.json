@@ -136,6 +136,7 @@
         { "name": "keyword.control.axl", "match": "\\b(if|else|while|for|when|is|return|throw|try|attempt|break|continue)\\b" },
         { "name": "keyword.control.axl", "match": "^\\s*in\\b(?=\\s+[\\p{L}_$(])" },
         { "name": "keyword.control.axl", "match": "\\buse\\b(?=\\s*\\(\\s*val\\b)" },
+        { "name": "keyword.control.axl", "match": "\\buse\\b(?=\\s*\\((?:[^()]|\\((?:[^()]|\\([^()]*\\))*\\))*\\)\\s*\\{)" },
         { "name": "keyword.declaration.function.axl", "match": "(?:^\\s*|(?<=\\bprivate\\s))\\bconstructor\\b(?=\\s*\\()" },
         { "name": "keyword.declaration.function.axl", "match": "\\bfn\\b" },
         { "name": "keyword.declaration.type.axl", "match": "\\b(data(?=\\s+class\\b)|class|enum|interface)\\b" },

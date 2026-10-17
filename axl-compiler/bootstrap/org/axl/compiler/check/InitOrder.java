@@ -566,7 +566,8 @@ import org.axl.compiler.ast.TypeRef;
             }
             case Stmt.Use stmt$8 -> {
                 names(stmt$8.resource(), hidden, out);
-                statement(stmt$8.body(), with(hidden, Set.of(stmt$8.name())), out);
+                final var name = stmt$8.name();
+                statement(stmt$8.body(), (name == null ? hidden : with(hidden, Set.of(name))), out);
                 final var handler = stmt$8.handler();
                 final var errorName = stmt$8.errorName();
                 if (handler != null) {

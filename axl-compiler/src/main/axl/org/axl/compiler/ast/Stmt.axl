@@ -23,12 +23,13 @@ data class Return(val pos: Pos, val value: Expr?) : Stmt
 /**
  * `use (val reader = open()) { ... } else e -> handler`: the resource is closed after the block, and the
  * handler, a call or a `throw`, runs when opening, the block or closing throws. handler is null without `else`;
- * errorType is the class `else e: IOException ->` catches, null for any `Exception`.
+ * errorType is the class `else e: IOException ->` catches, null for any `Exception`. name and namePos are null for
+ * `use (hold(lock)) { ... }`, whose block does not need the resource.
  */
 data class Use(
     val pos: Pos,
-    val namePos: Pos,
-    val name: String,
+    val namePos: Pos?,
+    val name: String?,
     val type: TypeRef?,
     val resource: Expr,
     val body: Block,

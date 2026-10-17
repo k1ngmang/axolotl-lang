@@ -346,12 +346,17 @@ public class AxlParserTest extends BasePlatformTestCase {
                     use (val t = tracker()) {
                         println(t)
                     }
+                    use (hold(lock(n))) {
+                        n += 1
+                    } else e -> println(e)
+                    use(n)
                     return n
                 }
                 """);
         assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
         PsiElement[] uses = PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.USE);
-        assertEquals(2, uses.length);
+        assertEquals(3, uses.length);
+        assertEquals(List.of("e"), PsiTreeUtil.getChildrenOfTypeAsList(uses[2], AxlVariable.class).stream().map(AxlVariable::getName).toList());
         assertEquals(2, PsiTreeUtil.collectElements(file, e -> e.getNode().getElementType() == AxlElementTypes.JUMP).length);
         List<AxlVariable> declared = PsiTreeUtil.getChildrenOfTypeAsList(uses[0], AxlVariable.class);
         assertEquals(List.of("reader", "e"), declared.stream().map(AxlVariable::getName).toList());
@@ -359,7 +364,7 @@ public class AxlParserTest extends BasePlatformTestCase {
                 declared.stream().map(v -> v.getNode().getElementType()).toList());
         assertEquals("java.io.BufferedReader", declared.getFirst().type().getText());
         assertEquals(List.of("t"), PsiTreeUtil.getChildrenOfTypeAsList(uses[1], AxlVariable.class).stream().map(AxlVariable::getName).toList());
-        assertEquals(List.of("use", "use"), Arrays.stream(PsiTreeUtil.collectElements(file,
+        assertEquals(List.of("use", "use", "use"), Arrays.stream(PsiTreeUtil.collectElements(file,
                 e -> e.getNode().getElementType() == AxlTokenTypes.CONTEXTUAL_KEYWORD)).map(PsiElement::getText).toList());
     }
 
@@ -577,6 +582,7 @@ public class AxlParserTest extends BasePlatformTestCase {
     public void testRejectsWhatTheGrammarRejectsInTheNewStatementsAndMembers() {
         assertErrors("fn f() {\n    use (reader = open()) {\n    }\n}\n");
         assertErrors("fn f() {\n    use (val reader = open())\n}\n");
+        assertErrors("fn f() {\n    use (hold(lock) {\n    }\n}\n");
         assertErrors("fn f() {\n    use (val reader = open()) {\n    } else\n}\n");
         assertErrors("enum E(x: Int) { A(1) }\n");
         assertErrors("enum E(val x: Int) { A(1 }\n");

@@ -49,6 +49,8 @@ class GrammarTest {
         assertEquals("keyword.control.axl", scope("keywords", "use (val reader = open()) {", 0));
         assertEquals("keyword.control.axl", scope("keywords", "use(val reader = open()) {", 0));
         assertNull(scope("keywords", "use(reader)", 0));
+        assertEquals("keyword.control.axl", scope("keywords", "use (hold(lock)) {", 0));
+        assertNull(scope("keywords", "use(hold(lock))", 0));
         assertNull(scope("keywords", "val use = 1", 4));
         assertNull(scope("keywords", "use + 1", 0));
     }

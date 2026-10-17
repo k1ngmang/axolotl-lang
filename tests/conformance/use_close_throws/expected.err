@@ -1,3 +1,5 @@
 AXL100 app/Main.axl:12:14: error: `close()` of `BufferedReader` can throw `IOException`; add `else e -> ...` to the `use`
 AXL100 app/Main.axl:15:14: error: `close()` of `Writer` can throw `IOException`; add `else e -> ...` to the `use`
 AXL100 app/Main.axl:18:14: error: `close()` of `r` can throw `IOException`; add `else e -> ...` to the `use`
+AXL100 app/Main.axl:21:5: error: `close()` of the resource can throw `IOException`; add `else e -> ...` to the `use`
+AXL100 app/Main.axl:24:5: error: `close()` of `BufferedReader` can throw `IOException`; add `else e -> ...` to the `use`

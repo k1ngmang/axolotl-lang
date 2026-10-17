@@ -632,22 +632,44 @@ public final class AxlParser implements PsiParser {
         return true;
     }
 
-    /** `use` is a word only before `(val`; a call `use(x)` or a value `use` stays a name. */
+    /**
+     * `use` is a word only before `(val`, or before parentheses that a block follows, `use (hold(lock)) { ... }`; a call
+     * `use(x)` or a value `use` stays a name.
+     */
     private boolean atUseStatement() {
-        return at(IDENTIFIER) && "use".equals(b.getTokenText()) && b.lookAhead(1) == AxlTokenTypes.LPAREN
-                && b.lookAhead(2) == AxlTokenTypes.of(VAL);
+        if (!at(IDENTIFIER) || !"use".equals(b.getTokenText()) || b.lookAhead(1) != AxlTokenTypes.LPAREN) {
+            return false;
+        }
+        if (b.lookAhead(2) == AxlTokenTypes.of(VAL)) {
+            return true;
+        }
+        PsiBuilder.Marker probe = b.mark();
+        b.advanceLexer();
+        int depth = 0;
+        do {
+            depth += at(LPAREN) ? 1 : at(RPAREN) ? -1 : 0;
+            b.advanceLexer();
+        } while (depth > 0 && !b.eof());
+        boolean block = at(LBRACE);
+        probe.rollbackTo();
+        return block;
     }
 
     /**
      * `use (val reader = open()) { ... } else e -> handler`: the resource is a local of the block, the
-     * error name a parameter of the handler, which is an expression as the handler of an `attempt`.
+     * error name a parameter of the handler, which is an expression as the handler of an `attempt`. Without
+     * `val`, the block does not name the resource.
      */
     private void useStatement() {
         PsiBuilder.Marker m = b.mark();
         b.remapCurrentToken(AxlTokenTypes.CONTEXTUAL_KEYWORD);
         b.advanceLexer();
         b.advanceLexer();
-        variable();
+        if (at(VAL)) {
+            variable();
+        } else {
+            expression();
+        }
         expect(RPAREN, "`)` expected");
         block(LBRACE);
         if (consume(ELSE)) {

@@ -13,4 +13,10 @@ fn main() {
     use (val reader = java.io.FileReader("x")) {
         println(reader)
     }
+    use (Scanner(java.nio.file.Path.of("x"))) {
+        println("unnamed")
+    }
+    use (5) {
+        println("unnamed")
+    }
 }

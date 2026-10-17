@@ -356,6 +356,9 @@ class FormatterTest {
                     use (val r = Files.newBufferedReader(ps.get(0))) {
                         println(r.readLine())
                     } else e:IOException -> println(e)
+                    use(hold( lock )){
+                    println(1)
+                    }
                 }
                 """, """
                 package app
@@ -374,6 +377,9 @@ class FormatterTest {
                     use (val r = Files.newBufferedReader(ps.get(0))) {
                         println(r.readLine())
                     } else e: IOException -> println(e)
+                    use (hold(lock)) {
+                        println(1)
+                    }
                 }
                 """);
     }

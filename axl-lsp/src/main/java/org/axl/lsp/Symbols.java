@@ -310,7 +310,7 @@ final class Symbols {
                 }
                 case Stmt.Use use -> {
                     expr(use.resource(), pos, fn, out);
-                    if (before(use.body().pos(), pos) && before(pos, use.body().end())) {
+                    if (use.name() != null && before(use.body().pos(), pos) && before(pos, use.body().end())) {
                         out.add(new Symbol(use.name(), Kind.LOCAL, use.namePos(), use.type(), fn, null));
                     }
                     block(use.body(), pos, fn, out);
