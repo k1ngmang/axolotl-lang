@@ -170,6 +170,9 @@ final class PlatformValues {
                  "java.lang.Short", "java.lang.Byte", "java.lang.Float" -> !name.startsWith("get");
             // `List.of`, `Map.copyOf`, `Map.entry` and the like.
             case "java.util.List", "java.util.Set", "java.util.Map", "java.net.URI", "java.net.URL" -> isStatic;
+            // `wrap` and `allocate`, which reach the elements of a `CharArray` or `ByteArray`.
+            case "java.nio.ByteBuffer", "java.nio.CharBuffer", "java.nio.ShortBuffer", "java.nio.IntBuffer", "java.nio.LongBuffer",
+                 "java.nio.FloatBuffer", "java.nio.DoubleBuffer" -> isStatic;
             // Comparators and functions are made and combined, never null; what they compute is their own business.
             case "java.util.Comparator", "java.util.Map.Entry" -> isStatic || method.isDefault();
             case "java.lang.Class" -> CLASS_GETTERS.contains(name);

@@ -1,0 +1,26 @@
+package app
+
+import java.nio.ByteBuffer
+import java.nio.CharBuffer
+import java.nio.DoubleBuffer
+import java.nio.IntBuffer
+import java.nio.LongBuffer
+
+// Strict mode trusts the `wrap` and `allocate` factories of the buffers, which reach the elements of arrays.
+fn third(row: CharArray) -> Character = CharBuffer.wrap(row).get(2)
+
+fn mark(table: ByteArray, slot: Int) {
+    ByteBuffer.wrap(table).put(slot, Integer.valueOf(1).byteValue())
+}
+
+fn main() {
+    val row = CharArray(3)
+    CharBuffer.wrap(row).put(2, '#')
+    println(third(row))
+    val table = ByteArray(2)
+    mark(table, 1)
+    println(ByteBuffer.wrap(table).get(1))
+    println(ByteBuffer.allocate(4).capacity() + ByteBuffer.allocateDirect(2).capacity() + CharBuffer.allocate(1).capacity())
+    println(IntBuffer.allocate(3).capacity() + LongBuffer.allocate(2).capacity() + DoubleBuffer.allocate(1).capacity())
+    println(CharBuffer.wrap("text").length())
+}
