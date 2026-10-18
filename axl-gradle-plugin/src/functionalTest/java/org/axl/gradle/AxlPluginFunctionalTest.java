@@ -326,6 +326,22 @@ class AxlPluginFunctionalTest {
     }
 
     @Test
+    void compilingAgainInTheSameCompilerDaemonReportsTheSameErrors() throws IOException {
+        // The daemon keeps Error Prone and NullAway loaded from the first compilation (see SharedPlugins).
+        Path main = project.resolve("app/src/main/axl/app/Main.axl");
+        Files.writeString(main, Files.readString(main).replace("println(title(\" Hello Axolotl \"))",
+                "val missing: String? = null\n    println(missing.length())"));
+        List<String> first = errors(gradle(":app:compileJava").buildAndFail());
+        List<String> again = errors(gradle(":app:compileJava", "--rerun-tasks").buildAndFail());
+        assertTrue(first.stream().anyMatch(e -> e.contains("value `missing` may be null")), first.toString());
+        assertEquals(first, again);
+    }
+
+    private static List<String> errors(BuildResult result) {
+        return result.getOutput().lines().filter(line -> line.contains(": error: ")).toList();
+    }
+
+    @Test
     void reportsJavacErrorsWithAxlPathWhenThePathHasAnEqualsSign() throws IOException {
         Path moved = project.resolve("eq=1");
         List<Path> sampleFiles;

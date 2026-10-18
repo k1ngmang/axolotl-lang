@@ -142,6 +142,7 @@ public class AxlPlugin implements Plugin<Project> {
             diagnostics.getGeneratedDir().set(generate.flatMap(GenerateAxlTask::getOutputDir));
             diagnostics.getSourceDirs().from(sources.getSourceDirectories());
             diagnostics.getStrictNull().set(axl.getStrictNull());
+            diagnostics.getFork().set(project.provider(() -> compile.getOptions().isFork()));
             compile.getOptions().getCompilerArgumentProviders().add(diagnostics);
 
             compile.getInputs().property("axlSmap", axl.getSmap());
