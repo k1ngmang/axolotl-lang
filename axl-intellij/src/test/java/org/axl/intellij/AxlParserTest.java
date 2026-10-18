@@ -547,6 +547,28 @@ public class AxlParserTest extends BasePlatformTestCase {
         assertEquals(List.of(), ((AxlFile) file).typeDeclarations().get(1).methods());
     }
 
+    public void testReadsTheMethodsWithABodyOfAnInterface() {
+        PsiFile file = myFixture.configureByText("Named.axl", """
+                package app
+
+                interface Named {
+                    val name: String
+                    fn greeting() -> String = "hello, " + name
+                    fn shout() -> String {
+                        return loud(greeting())
+                    }
+                    private fn loud(text: String) -> String = text.toUpperCase()
+                    fn size() -> Int
+                }
+                """);
+        assertNull(PsiTreeUtil.findChildOfType(file, PsiErrorElement.class));
+        AxlTypeDeclaration named = ((org.axl.intellij.psi.AxlFile) file).typeDeclarations().getFirst();
+        assertEquals(List.of("greeting", "shout", "loud", "size"), named.methods().stream().map(AxlFunction::getName).toList());
+        assertEquals(List.of(false, false, false, true), named.methods().stream().map(AxlFunction::isAbstract).toList());
+        assertTrue(named.methods().get(2).isPrivate());
+        assertNotNull(named.methods().get(1).body());
+    }
+
     public void testReadsTheInterfacesAndMethodsOfAnEnum() {
         PsiFile file = myFixture.configureByText("Formats.axl", """
                 package app
@@ -596,7 +618,7 @@ public class AxlParserTest extends BasePlatformTestCase {
     public void testRejectsWhatTheGrammarRejectsInNewConstructs() {
         assertErrors("data class P(x: Int)\n");
         assertErrors("data class P(val x: Int\n");
-        assertErrors("interface I { fn f() {} }\n");
+        assertErrors("interface I { var x: Int }\n");
         assertErrors("class C(x: Int)\n");
         assertErrors("class C {\n    data\n}\n");
         assertErrors("enum E { A B }\n");

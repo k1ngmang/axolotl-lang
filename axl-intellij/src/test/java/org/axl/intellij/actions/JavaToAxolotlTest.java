@@ -299,14 +299,33 @@ public class JavaToAxolotlTest extends LightJavaCodeInsightFixtureTestCase {
     }
 
     public void testRefusesInterfacesWithMethodsThatHaveNoAxolotlForm() {
-        assertRefused("Default.java", "package util;\npublic interface Default {\n    default int one() { return 1; }\n}\n");
         assertRefused("Static.java", "package util;\npublic interface Static {\n    static int one() { return 1; }\n}\n");
-        assertRefused("Private.java", "package util;\npublic interface Private {\n    int f();\n    private int one() { return 1; }\n}\n");
         assertRefused("Checked.java", "package util;\npublic interface Checked {\n    void close() throws java.io.IOException;\n}\n");
         assertRefused("Constant.java", "package util;\npublic interface Constant {\n    int LIMIT = 3;\n    int f();\n}\n");
         assertRefused("Nested.java", "package util;\npublic interface Nested {\n    class Inner {}\n}\n");
         assertTrue(JavaToAxolotl.isConvertible(configure("Fine.java",
                 "package util;\npublic interface Fine {\n    int f(int a);\n    void g();\n    String name();\n}\n")));
+    }
+
+    public void testConvertsTheDefaultAndPrivateMethodsOfAnInterface() {
+        String axl = convert("Handler.java", """
+                package util;
+
+                public interface Handler {
+                    String name();
+
+                    default String greeting() {
+                        return "hello, " + name() + mark();
+                    }
+
+                    private String mark() {
+                        return "!";
+                    }
+                }
+                """);
+        assertTrue(axl, axl.contains("interface Handler {\n    val name: String\n"));
+        assertTrue(axl, axl.contains("    fn greeting() -> String {\n        return \"hello, \" + name() + mark()\n    }\n"));
+        assertTrue(axl, axl.contains("    private fn mark() -> String {\n        return \"!\"\n    }\n"));
     }
 
     public void testConvertsATopLevelRecordAndEnum() {

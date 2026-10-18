@@ -353,6 +353,37 @@ public class AxlTypesTest extends LightJavaCodeInsightFixtureTestCase {
         assertEquals(2, store.findMethodsByName("put", false)[0].getParameterList().getParametersCount());
     }
 
+    public void testJavaSeesTheMethodsWithABodyOfAnInterfaceAsDefaultMethods() {
+        myFixture.addFileToProject("app/Handler.axl", """
+                package app
+
+                interface Handler {
+                    val name: String
+                    fn value(text: String) -> String = name + ": " + text
+                    fn end()
+                }
+                """);
+        PsiClass handler = findClass("app.Handler");
+        PsiMethod value = handler.findMethodsByName("value", false)[0];
+        assertTrue(value.hasModifierProperty(PsiModifier.DEFAULT));
+        assertFalse(value.hasModifierProperty(PsiModifier.ABSTRACT));
+        assertTrue(handler.findMethodsByName("end", false)[0].hasModifierProperty(PsiModifier.ABSTRACT));
+        myFixture.configureByText("UseHandler.java", """
+                package app;
+
+                class UseHandler implements Handler {
+                    public String name() { return "j"; }
+                    public void end() {}
+
+                    String f() {
+                        return value("x");
+                    }
+                }
+                """);
+        assertEquals(List.of(), myFixture.doHighlighting().stream()
+                .filter(h -> h.getSeverity() == HighlightSeverity.ERROR).map(h -> h.getDescription()).toList());
+    }
+
     public void testReadsTheDeclarationsOfTheOtherFilesOfTheModule() {
         myFixture.addFileToProject("app/Types.axl", """
                 package app

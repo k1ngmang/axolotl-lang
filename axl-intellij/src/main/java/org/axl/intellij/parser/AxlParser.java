@@ -360,28 +360,34 @@ public final class AxlParser implements PsiParser {
         m.done(AxlElementTypes.INTERFACE);
     }
 
-    /** `val name: Type` or `fn name(params) -> Type` without a body, each maybe after annotations. */
+    /** `val name: Type` or `fn name(params) -> Type` with or without a body, each maybe after annotations. */
     private void interfaceMember() {
         PsiBuilder.Marker m = b.mark();
         annotations();
         if (at(VAL)) {
             fieldRest(m, false);
-        } else if (at(FN)) {
-            abstractFunction(m);
+        } else if (at(FN) || at(PRIVATE) && b.lookAhead(1) == AxlTokenTypes.of(FN)) {
+            interfaceFunction(m);
         } else {
             m.drop();
             skip("`val` or `fn` expected");
         }
     }
 
-    /** A method an interface requires: the signature of a function and an optional `;`. */
-    private void abstractFunction(PsiBuilder.Marker m) {
+    /** A method an interface requires, the signature of a function and an optional `;`, or a default method with a body. */
+    private void interfaceFunction(PsiBuilder.Marker m) {
+        consume(PRIVATE);
         b.advanceLexer();
         expect(IDENTIFIER, "function name expected");
         typeParameters();
         parameters();
         if (consume(ARROW)) {
             type();
+        }
+        if (consume(ASSIGN)) {
+            expression();
+        } else if (at(LBRACE)) {
+            block();
         }
         consume(SEMI);
         m.done(AxlElementTypes.FUNCTION);

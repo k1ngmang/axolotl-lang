@@ -76,7 +76,7 @@ import org.jetbrains.annotations.Nullable;
 public final class AxlLightClasses {
 
     private static final List<String> MODIFIERS = List.of(PsiModifier.PUBLIC, PsiModifier.PROTECTED, PsiModifier.PRIVATE,
-            PsiModifier.STATIC, PsiModifier.ABSTRACT, PsiModifier.FINAL, PsiModifier.SEALED, PsiModifier.NON_SEALED);
+            PsiModifier.STATIC, PsiModifier.ABSTRACT, PsiModifier.DEFAULT, PsiModifier.FINAL, PsiModifier.SEALED, PsiModifier.NON_SEALED);
 
     private static final Key<GeneratedUnit> LAST_UNIT = Key.create("axl.lastGeneratedUnit");
 

@@ -383,7 +383,10 @@ final class JavaToAxolotl {
         out.append(" { ").append(String.join(", ", constants)).append(" }\n");
     }
 
-    /** An interface whose methods take nothing and give a value, which its implementations provide. */
+    /**
+     * An interface whose methods take nothing and give a value, which its implementations provide, and whose other
+     * methods are signatures or have a body: default and private methods.
+     */
     private void interfaceDeclaration(PsiClass type) {
         boolean sealed = type.hasModifierProperty(PsiModifier.SEALED);
         for (PsiClassType permitted : type.getPermitsListTypes()) {
@@ -396,9 +399,13 @@ final class JavaToAxolotl {
                 .append(supertypes(type.getExtendsList() == null ? PsiClassType.EMPTY_ARRAY : type.getExtendsList().getReferencedTypes()))
                 .append(" {\n");
         for (PsiElement member : PsiTreeUtil.getChildrenOfAnyType(type, PsiMethod.class, PsiField.class, PsiClass.class)) {
-            if (!(member instanceof PsiMethod method) || method.getBody() != null) {
-                throw new Unsupported("interfaces have only values and abstract methods in Axolotl: "
-                        + "no default, static or private methods, constants or nested types");
+            if (!(member instanceof PsiMethod method) || method.hasModifierProperty(PsiModifier.STATIC)) {
+                throw new Unsupported("interfaces have only values and methods in Axolotl: "
+                        + "no static methods, constants or nested types");
+            }
+            if (method.getBody() != null) {
+                function(method, 1);
+                continue;
             }
             if (Arrays.stream(method.getThrowsList().getReferencedTypes()).anyMatch(t -> !ExceptionUtil.isUncheckedException(t))) {
                 throw new Unsupported("functions cannot throw checked exceptions; return a Result instead");

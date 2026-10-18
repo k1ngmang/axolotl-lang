@@ -147,18 +147,15 @@ public class AxlPluginTest extends LightJavaCodeInsightFixtureTestCase {
         assertTrue(myFixture.getEditor().getDocument().getText().contains("sealed"));
     }
 
-    public void testCompletesOnlyValAndFnInAnInterface() {
-        myFixture.configureByText("Shape.axl", "package app\n\nsealed interface Shape {\n    v<caret>\n}\n");
-        myFixture.completeBasic();
-        assertTrue(myFixture.getEditor().getDocument().getText(), myFixture.getEditor().getDocument().getText().contains("    val"));
+    public void testCompletesOnlyValFnAndPrivateInAnInterface() {
         myFixture.configureByText("Shape.axl", "package app\n\nsealed interface Shape {\n    f<caret>\n}\n");
         myFixture.completeBasic();
         assertTrue(myFixture.getEditor().getDocument().getText(), myFixture.getEditor().getDocument().getText().contains("    fn"));
         myFixture.configureByText("Shape.axl", "package app\n\nsealed interface Shape {\n    <caret>\n}\n");
         myFixture.completeBasic();
         java.util.List<String> keywords = myFixture.getLookupElementStrings();
-        assertTrue(String.valueOf(keywords), keywords.containsAll(java.util.List.of("val", "fn"))
-                && keywords.stream().noneMatch(java.util.List.of("class", "return", "var", "private")::contains));
+        assertTrue(String.valueOf(keywords), keywords.containsAll(java.util.List.of("val", "fn", "private"))
+                && keywords.stream().noneMatch(java.util.List.of("class", "return", "var")::contains));
     }
 
     public void testOffersToRunOnlyAPublicMain() {

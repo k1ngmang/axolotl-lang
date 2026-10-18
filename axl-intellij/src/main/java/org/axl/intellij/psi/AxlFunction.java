@@ -32,9 +32,10 @@ public final class AxlFunction extends AxlNamedElement {
         return findChildByClass(AxlType.class);
     }
 
-    /** A method an interface requires, which has no body. */
+    /** A method an interface requires, which has no body: neither a block nor `= value`. */
     public boolean isAbstract() {
-        return getParent() instanceof AxlTypeDeclaration declaration && declaration.isInterface();
+        return getParent() instanceof AxlTypeDeclaration declaration && declaration.isInterface()
+                && findChildByType(AxlElementTypes.BLOCK) == null && getNode().findChildByType(AxlTokenTypes.of(AxolotlLexer.ASSIGN)) == null;
     }
 
     public @Nullable PsiElement body() {
