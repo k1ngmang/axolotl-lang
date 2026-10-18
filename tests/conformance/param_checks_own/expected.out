@@ -1,0 +1,9 @@
+s! w I
+name is null
+value is null
+parameter label of Obj.add must not be null
+parameter name of Obj.set must not be null
+text is null
+string is null
+parameter note of the Str constructor must not be null
+text is null

@@ -1,0 +1,8 @@
+package app
+
+import fn java.util.Objects.requireNonNull
+
+fn shout(text: String) -> String {
+    requireNonNull(text, "text is null")
+    return text.toUpperCase()
+}

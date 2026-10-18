@@ -1,0 +1,28 @@
+package app
+
+import java.util.Objects
+
+// A body that begins with `Objects.requireNonNull(p, ...)` checks `p` itself, with its own message; the other
+// parameters keep the generated check, and so does one checked later in the body.
+class Obj {
+    fn add(name: String, value: String, label: String) -> Obj {
+        Objects.requireNonNull(name, "name is null")
+        Objects.requireNonNull(value, { -> "value is null" })
+        return this
+    }
+
+    fn set(name: String, index: Int) -> Obj {
+        println(index)
+        Objects.requireNonNull(name, "name is null")
+        return this
+    }
+}
+
+fn wrapped(text: String) -> String = Objects.requireNonNull(text, "text is null")
+
+// The first properties of a class check its parameters for the constructor.
+class Str(private val text: String, val note: String) {
+    private val string: String = Objects.requireNonNull(text, "string is null")
+
+    fn get() -> String = string + note
+}

@@ -29,7 +29,6 @@ import java.util.function.Supplier;
     public static final class Handler {
         private final Map<String, String> converters;
         public Handler(Map<String, String> converterMap) {
-            Nulls.param(converterMap, "converterMap");
             this.converters = Objects.requireNonNull(converterMap, "converterMap");
         }
         public @Nullable String get(String k) {

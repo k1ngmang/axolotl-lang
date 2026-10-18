@@ -547,14 +547,15 @@ class Generator(
             String.join(", ", params) + ") {")
         em.indent()
         val unchecked = LinkedHashSet<String>()
+        val superArgs = classDecl.superArgs()
+        val own = if (superArgs == null || superArgs.isEmpty()) ownPropertyChecks(classDecl) else Set.of()
         if (!classDecl.privateConstructor() && !inPrivateType) {
             for (p in classDecl.parameters()) {
-                if (isChecked(propertyTypeOf(p), false, nullableVariables)) {
+                if (isChecked(propertyTypeOf(p), false, nullableVariables) && !own.contains(p.name())) {
                     unchecked.add(p.name())
                 }
             }
         }
-        val superArgs = classDecl.superArgs()
         if (superArgs != null && !superArgs.isEmpty()) {
             val args = superArgs |> map { a -> delegatedArgument(a, unchecked) }
             em.line(line, "super(" + String.join(", ", args) + ");")
@@ -848,7 +849,9 @@ class Generator(
         em.indent()
         if (!f.isPrivate() && (isStatic || !inPrivateType)) {
             val variables = nullableVariablesOf(f.typeParams(), nullableVariables)
-            val checked = f.params() |> filter { p -> isChecked(memberType(p), boxed.contains(p.name()), variables) } |> map { p -> p.name() }
+            val own = ownChecks(f)
+            val checked = f.params() |> filter { p -> isChecked(memberType(p), boxed.contains(p.name()), variables) && !own.contains(p.name()) } |>
+                map { p -> p.name() }
             emitParamChecks(f.pos().line(), checked)
         }
         val exprBody = f.exprBody()
@@ -906,6 +909,67 @@ class Generator(
             }
         }
         return result
+    }
+
+    /**
+     * The parameters a function checks itself with `Objects.requireNonNull(p, ...)` before anything else, so that its
+     * own message is the one a null from Java gets.
+     */
+    private fn ownChecks(f: Decl.Function) -> Set<String> {
+        val leading = ArrayList<Expr>()
+        val exprBody = f.exprBody()
+        val body = f.body()
+        if (exprBody != null) {
+            leading.add(exprBody)
+        } else if (body != null) {
+            for (st in body.statements()) {
+                if (st !is Stmt.ExprStmt) {
+                    break
+                }
+                leading.add(st.expr())
+            }
+        }
+        val result = HashSet<String>()
+        for (e in leading) {
+            val checked = checkedParameter(e)
+            if (checked == null || (f.params() |> noneMatch { p -> p.name().equals(checked) })) {
+                break
+            }
+            result.add(checked)
+        }
+        return result
+    }
+
+    /**
+     * The class parameters the first properties of a class check with `Objects.requireNonNull(p, ...)`: the
+     * constructor sets them first, before anything reads the parameters.
+     */
+    private fn ownPropertyChecks(classDecl: Decl.ClassDecl) -> Set<String> {
+        val result = HashSet<String>()
+        for (property in classDecl.properties()) {
+            val init = property.init()
+            val checked = if (init == null) null else checkedParameter(init)
+            if (checked == null || (classDecl.parameters() |> noneMatch { p -> p.name().equals(checked) })) {
+                break
+            }
+            result.add(checked)
+        }
+        return result
+    }
+
+    /** `p` of `Objects.requireNonNull(p)` or `Objects.requireNonNull(p, message)`, with the class imported or the function. */
+    private fn checkedParameter(e: Expr) -> String? {
+        if (e !is Expr.Call || !e.name().equals("requireNonNull") || e.args().isEmpty() || e.args().size() > 2) {
+            return null
+        }
+        val target = e.target()
+        val owner = if (target == null) null else Expr.pathName(target)
+        val viaClass = owner != null && (owner.equals("java.util.Objects") ||
+            (owner.equals("Objects") && (file.imports() |> anyMatch { i -> i.kind() == Import.Kind.TYPE && i.name().equals("java.util.Objects") })))
+        val viaFunction = target == null &&
+            (file.imports() |> anyMatch { i -> i.kind() == Import.Kind.FN && i.name().equals("java.util.Objects.requireNonNull") })
+        val first = e.args().getFirst()
+        return if ((viaClass || viaFunction) && first is Expr.Name) first.name() else null
     }
 
     /** One check per parameter at the start of the body, on the line of the declaration. */
