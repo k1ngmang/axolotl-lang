@@ -751,7 +751,8 @@ import org.axl.compiler.check.Whens;
                 javaType(declaredReturn)));
         final var modifier = (isStatic ? " static " : " ");
         final var written = Nulls.stream(f.annotations()).anyMatch(a -> a.name().equals("Override"));
-        final var override = (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size()) ? "@Override " : "");
+        final var overrides = overridden.contains(f.name() + "/" + f.params().size()) || overridesObject(f);
+        final var override = (!isStatic && !written && overrides ? "@Override " : "");
         em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
                 " " +
                 f.name() +
@@ -3977,6 +3978,14 @@ import org.axl.compiler.check.Whens;
         }
         final var names = types.stream().map(Nulls.asGiven(t -> javaType(t))).toList();
         return keyword + String.join(", ", names);
+    }
+    private static boolean overridesObject(Decl.Function f) {
+        if (f.params().isEmpty()) {
+            return f.name().equals("toString") || f.name().equals("hashCode");
+        }
+        final var type = f.params().getFirst().type();
+        return f.name().equals("equals") && f.params().size() == 1 && type != null &&
+                (type.name().equals("Object") || type.name().equals("java.lang.Object"));
     }
     private static boolean isMain(Decl.Function f) {
         return f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate();

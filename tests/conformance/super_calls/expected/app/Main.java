@@ -39,7 +39,7 @@ import java.util.Map;
             Nulls.param(eldest, "eldest");
             return size() > limit || super.removeEldestEntry(eldest);
         }
-        public String toString() {
+        @Override public String toString() {
             return "recent " + super.toString();
         }
     }

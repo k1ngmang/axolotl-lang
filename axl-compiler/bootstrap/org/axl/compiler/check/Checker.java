@@ -108,14 +108,17 @@ import org.axl.compiler.ast.TypeRef;
                     function(decl$2);
                 }
                 case Decl.ClassDecl decl$3 -> {
+                    checkObjectMethodNames(decl$3.methods());
                     classDecl(decl$3);
                 }
                 case Decl.EnumDecl decl$4 -> {
                     enumConstants(decl$4);
+                    checkObjectMethodNames(decl$4.methods());
                     enumMethods(decl$4);
                 }
                 case Decl.DataClass decl$5 -> {
                     members(decl$5.fields(), "field");
+                    checkObjectMethodNames(decl$5.methods());
                     dataClassMethods(decl$5);
                 }
                 case Decl.Interface decl$6 -> {
@@ -156,6 +159,17 @@ import org.axl.compiler.ast.TypeRef;
         if (f.name().equals("main") && f.params().isEmpty() && !f.isPrivate() && result != null) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), f.namePos().line(), f.namePos().column(), ErrorCode.SYNTAX,
                     "a `main` with a result type does not start the program; remove `-> " + result.name() + "`"));
+        }
+    }
+    private void checkObjectMethodNames(List<Decl.Function> methods) {
+        for (final var m : methods) {
+            final var meant = objectMethodLike(m);
+            if (meant != null && (methods.stream().noneMatch(other -> other.name().equals(meant) && other.params().size() == m.params().size()))) {
+                diagnostics.add(AxlDiagnostic.warning(file.path(), m.namePos().line(), m.namePos().column(), ErrorCode.SYNTAX,
+                        "`" + m.name() + "` takes the parameters of `" + meant + "` of `Object` but overrides nothing; did you mean `" +
+                        meant +
+                        "`?"));
+            }
         }
     }
     private void checkFileName() {
@@ -2078,6 +2092,25 @@ import org.axl.compiler.ast.TypeRef;
     }
     private static boolean isTypeDecl(Decl decl) {
         return decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.Interface decl$2 || decl instanceof Decl.ClassDecl decl$3 || decl instanceof Decl.EnumDecl decl$4;
+    }
+    private static @Nullable String objectMethodLike(Decl.Function m) {
+        final var type = (m.params().size() == 1 ? m.params().getFirst().type() : null);
+        final var takesObject = type != null && (type.name().equals("Object") || type.name().equals("java.lang.Object"));
+        final List<String> candidates = (m.params().isEmpty() ? List.of("toString", "hashCode") : (takesObject ? List.of("equals") : List.of()));
+        return Nulls.first(candidates.stream().filter(c -> !c.equals(m.name()) && (c.equalsIgnoreCase(m.name()) || oneEditApart(c, m.name()))).iterator());
+    }
+    private static boolean oneEditApart(String a, String b) {
+        if (Math.abs(a.length() - b.length()) > 1) {
+            return false;
+        }
+        var i = 0;
+        while (i < a.length() && i < b.length() && Nulls.same(a.charAt(i), b.charAt(i))) {
+            i += 1;
+        }
+        return rest(a, i + 1).equals(rest(b, i + 1)) || rest(a, i + 1).equals(rest(b, i)) || rest(a, i).equals(rest(b, i + 1));
+    }
+    private static String rest(String s, int from) {
+        return (from >= s.length() ? "" : s.substring(from));
     }
     private static boolean isMain(Decl.Function f) {
         return f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate();

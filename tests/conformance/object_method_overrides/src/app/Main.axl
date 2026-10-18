@@ -1,0 +1,38 @@
+package app
+
+// `toString`, `hashCode` and `equals(Object?)` override the methods of `Object` and get `@Override`; an `equals` of
+// another type is an overload and gets none.
+class Loc(val offset: Int) {
+    fn toString() -> String = "at " + offset
+
+    fn hashCode() -> Int = offset
+
+    fn equals(other: Object?) -> Boolean = other is Loc && equals(other)
+
+    fn equals(other: Loc) -> Boolean = other.offset == offset
+}
+
+class Worker(val id: Int) : Thread() {
+    fn toString() -> String = "worker " + id
+
+    fn hashCode() -> Int = id
+
+    @Override
+    fn equals(other: Object?) -> Boolean = other is Worker && other.id == id
+}
+
+data class Point(val x: Int, val y: Int) {
+    fn toString() -> String = "(" + x + ", " + y + ")"
+}
+
+enum Color {
+    RED, GREEN
+
+    fn toString() -> String = name().toLowerCase()
+}
+
+fn main() {
+    println(Loc(1).toString() + " " + Loc(1).equals(Loc(1)) + " " + Loc(2).hashCode())
+    println(Worker(3).toString() + " " + Worker(3).equals(Worker(3)) + " " + Worker(4).hashCode())
+    println(Point(1, 2).toString() + " " + Color.RED)
+}

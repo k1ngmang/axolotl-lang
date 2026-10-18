@@ -41,7 +41,7 @@ import java.util.Map;
         }
     }
     public static final class Plain extends Object {
-        public String toString() {
+        @Override public String toString() {
             return "plain";
         }
     }

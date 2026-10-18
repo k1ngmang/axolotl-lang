@@ -829,7 +829,8 @@ class Generator(
             else javaType(declaredReturn)
         val modifier = if (isStatic) " static " else " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
-        val override = if (!isStatic && !written && overridden.contains(f.name() + "/" + f.params().size())) "@Override " else ""
+        val overrides = overridden.contains(f.name() + "/" + f.params().size()) || overridesObject(f)
+        val override = if (!isStatic && !written && overrides) "@Override " else ""
         em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
             " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
@@ -4434,6 +4435,16 @@ private fn typeList(keyword: String, types: List<TypeRef>) -> String {
     }
     val names = types |> map { t -> javaType(t) }
     return keyword + String.join(", ", names)
+}
+
+/** `toString()`, `hashCode()` and `equals(Object?)`, which every class has from `Object`. */
+private fn overridesObject(f: Decl.Function) -> Boolean {
+    if (f.params().isEmpty()) {
+        return f.name().equals("toString") || f.name().equals("hashCode")
+    }
+    val type = f.params().getFirst().type()
+    return f.name().equals("equals") && f.params().size() == 1 && type != null &&
+        (type.name().equals("Object") || type.name().equals("java.lang.Object"))
 }
 
 private fn isMain(f: Decl.Function) -> Boolean =

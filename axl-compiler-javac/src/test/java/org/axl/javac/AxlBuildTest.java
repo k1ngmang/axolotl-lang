@@ -343,6 +343,36 @@ class AxlBuildTest {
     }
 
     @Test
+    void warnsAboutAMethodNamedLikeOneOfObject(@TempDir Path tmp) throws Exception {
+        List<String> warnings = warnings(tmp, """
+                package app
+
+                class Loc(val offset: Int) {
+                    fn equal(obj: Object?) -> Boolean = obj is Loc && obj.offset == offset
+
+                    fn hashcode() -> Int = offset
+
+                    fn tostring(prefix: String) -> String = prefix + offset
+                }
+
+                data class Point(val x: Int) {
+                    fn toSting() -> String = "x" + x
+                }
+
+                class Both(val n: Int) {
+                    fn equals(other: Object?) -> Boolean = other is Both && equal(other)
+
+                    fn equal(other: Both) -> Boolean = other.n == n
+
+                    fn hashCode() -> Int = n
+                }
+                """);
+        assertEquals(List.of("4:8 `equal` takes the parameters of `equals` of `Object` but overrides nothing; did you mean `equals`?",
+                "6:8 `hashcode` takes the parameters of `hashCode` of `Object` but overrides nothing; did you mean `hashCode`?",
+                "12:8 `toSting` takes the parameters of `toString` of `Object` but overrides nothing; did you mean `toString`?"), warnings);
+    }
+
+    @Test
     void dropsAWarningAtTheSamePlaceAsAnError(@TempDir Path tmp) throws Exception {
         List<String> warnings = warnings(tmp, """
                 package app

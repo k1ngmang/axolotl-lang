@@ -179,13 +179,18 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                     checkMainSignature(decl)
                     function(decl)
                 }
-                is Decl.ClassDecl -> classDecl(decl)
+                is Decl.ClassDecl -> {
+                    checkObjectMethodNames(decl.methods())
+                    classDecl(decl)
+                }
                 is Decl.EnumDecl -> {
                     enumConstants(decl)
+                    checkObjectMethodNames(decl.methods())
                     enumMethods(decl)
                 }
                 is Decl.DataClass -> {
                     members(decl.fields(), "field")
+                    checkObjectMethodNames(decl.methods())
                     dataClassMethods(decl)
                 }
                 is Decl.Interface -> {
@@ -230,6 +235,21 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         if (f.name().equals("main") && f.params().isEmpty() && !f.isPrivate() && result != null) {
             diagnostics.add(AxlDiagnostic.warning(file.path(), f.namePos().line(), f.namePos().column(), ErrorCode.SYNTAX,
                 "a `main` with a result type does not start the program; remove `-> " + result.name() + "`"))
+        }
+    }
+
+    /**
+     * `fn equal(obj: Object?)` compiles as a method of its own, and the class keeps the `equals` of `Object`; a class
+     * that has both may mean them both.
+     */
+    private fn checkObjectMethodNames(methods: List<Decl.Function>) {
+        for (m in methods) {
+            val meant = objectMethodLike(m)
+            if (meant != null && (methods |> noneMatch { other -> other.name().equals(meant) && other.params().size() == m.params().size() })) {
+                diagnostics.add(AxlDiagnostic.warning(file.path(), m.namePos().line(), m.namePos().column(), ErrorCode.SYNTAX,
+                    "`" + m.name() + "` takes the parameters of `" + meant + "` of `Object` but overrides nothing; did you mean `" +
+                        meant + "`?"))
+            }
         }
     }
 
@@ -2139,6 +2159,28 @@ private fn isResultCall(e: Expr) -> Boolean {
 
 private fn isTypeDecl(decl: Decl) -> Boolean =
     decl is Decl.DataClass || decl is Decl.Interface || decl is Decl.ClassDecl || decl is Decl.EnumDecl
+
+/** The method of `Object` with the same parameters whose name is one letter or the case away from the method's, or null. */
+private fn objectMethodLike(m: Decl.Function) -> String? {
+    val type = if (m.params().size() == 1) m.params().getFirst().type() else null
+    val takesObject = type != null && (type.name().equals("Object") || type.name().equals("java.lang.Object"))
+    val candidates: List<String> = if (m.params().isEmpty()) List.of("toString", "hashCode") else if (takesObject) List.of("equals") else List.of()
+    return candidates |> filter { c -> !c.equals(m.name()) && (c.equalsIgnoreCase(m.name()) || oneEditApart(c, m.name())) } |> first
+}
+
+/** Whether one letter changed, added or removed turns one name into the other. */
+private fn oneEditApart(a: String, b: String) -> Boolean {
+    if (Math.abs(a.length() - b.length()) > 1) {
+        return false
+    }
+    var i = 0
+    while (i < a.length() && i < b.length() && a.charAt(i) == b.charAt(i)) {
+        i += 1
+    }
+    return rest(a, i + 1).equals(rest(b, i + 1)) || rest(a, i + 1).equals(rest(b, i)) || rest(a, i).equals(rest(b, i + 1))
+}
+
+private fn rest(s: String, from: Int) -> String = if (from >= s.length()) "" else s.substring(from)
 
 private fn isMain(f: Decl.Function) -> Boolean =
     f.name().equals("main") && f.params().isEmpty() && f.returnType() == null && !f.isPrivate()
