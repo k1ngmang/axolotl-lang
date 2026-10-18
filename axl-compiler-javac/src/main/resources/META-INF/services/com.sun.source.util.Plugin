@@ -1,1 +1,2 @@
-org.axl.javac.DiagnosticsPlugin
+org.axl.javac.SharedPlugins$Diagnostics
+org.axl.javac.SharedPlugins$ErrorProne

@@ -16,7 +16,7 @@ dependencies {
 // The diagnostics plugin uses javac internals, which cannot be exported together with --release.
 tasks.compileJava {
     options.release = null as Int?
-    options.compilerArgs.addAll(listOf("api", "util").map { "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" })
+    options.compilerArgs.addAll(listOf("api", "processing", "util").map { "--add-exports=jdk.compiler/com.sun.tools.javac.$it=ALL-UNNAMED" })
 }
 
 val conformanceDir = rootProject.layout.projectDirectory.dir("tests/conformance")
