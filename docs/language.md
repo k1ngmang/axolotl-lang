@@ -265,7 +265,9 @@ class ParseTest {
 property, a parameter or a field goes into the generated Java as it is, so JUnit, Jackson, JPA and
 Spring see what they expect. The arguments are constants, as in Java: literals, names such as
 `Color.RED`, `String.class` (`Int.class` is `Integer.class`), `name = value`, and `{ a, b }` for an
-array. `@Override` is allowed and otherwise added where a method overrides one of `Object`. Nullness
+array. `@Override` is allowed and otherwise added where a method overrides one of `Object`; a method one letter
+or the case away from `equals`, `hashCode` or `toString` with their parameters, such as `fn equal(obj: Object?)`,
+overrides nothing and gets a warning. Nullness
 is not an annotation but part of the type, so `@Nullable` and `@NonNull` are rejected in favor of `T?`.
 
 ## Enumerations
@@ -463,6 +465,10 @@ java.lang.NullPointerException: parameter lines of the Chunk constructor must no
 Parameters that may be null are not checked: `T?`, a type variable without a bound or with a nullable bound, and
 `Int`, `Long`, `Boolean` and `Double`, which are Java primitives. Private functions, constructors and classes, enum
 constructors and lambdas are not checked, since only Axolotl code calls them and the compiler checks those calls.
+A body that begins with `Objects.requireNonNull(p, "p is null")` (also `requireNonNull` imported with `import fn`)
+checks `p` itself, with the library's own message, and gets no generated check for `p`; for a class, the first
+properties check its parameters the same way for the constructor:
+`class Str(private val text: String) { private val string: String = Objects.requireNonNull(text, "string is null") }`.
 `--no-param-checks`, or `paramChecks = false` in the Gradle and Maven plugins, leaves the checks out.
 
 ## Errors as values

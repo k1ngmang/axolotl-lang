@@ -371,3 +371,9 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
 - javac errors in generic or annotated expression-bodied functions and on values narrowed with `is` point at the name that is wrong instead of an earlier occurrence or the start of the statement. A value narrowed by `is List` passed where a `String` is expected gets a type mismatch instead of the message about type arguments.
 - A private class parameter no longer keeps its field because another class reads a member of the same name.
 - A `use` resource whose opening and `close()` both throw gets one error instead of two, and `==` on two boxed characters says "characters", not "numbers".
+- A private class, data class, enum or interface in the file of an interface compiles; javac rejected it with "illegal combination of modifiers".
+- A type of a file may be used in the header of the file's class or interface, such as `class Bag : Iterable<Member>` with `Member` declared in the same file; javac said "cannot find symbol".
+- `@Override` is added to `toString`, `hashCode` and `equals` as documented, and a method one letter or the case away from one of them with their parameters, such as `fn equal(obj: Object?)`, gets a warning.
+- Strict null mode trusts the `wrap` and `allocate` factories of the java.nio buffers, the documented way to reach the elements of a `ByteArray` or `CharArray`.
+- A function of the file named like a method of its class no longer gets a self-contradicting AXL016 after its AXL010.
+- A body that begins with `Objects.requireNonNull(p, ...)` checks the parameter `p` itself, with its own message, instead of the generated check; the first properties of a class do the same for its constructor.
