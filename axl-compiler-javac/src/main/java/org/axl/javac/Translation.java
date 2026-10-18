@@ -29,16 +29,16 @@ public final class Translation {
     /** An .axl file: its path relative to its source root, how diagnostics name it, and its text. */
     public record Input(String sourcePath, String displayPath, String text) {}
 
-    private static SourceFile parse(Input input) {
-        return SourceParser.parse(input.displayPath(), Translator.className(input.sourcePath()), input.text()).file();
+    private static SourceParser.Result parse(Input input) {
+        return Translator.parse(input.sourcePath(), input.displayPath(), input.text());
     }
 
     /** The other files of the build that parsed, so that the translator reads their declarations. */
-    private static Options withSiblings(Options options, List<SourceFile> parsed, int own) {
+    private static Options withSiblings(Options options, List<SourceParser.Result> parsed, int own) {
         List<SourceFile> siblings = new ArrayList<>();
         for (int i = 0; i < parsed.size(); i++) {
-            if (i != own && parsed.get(i) != null) {
-                siblings.add(parsed.get(i));
+            if (i != own && parsed.get(i).file() != null) {
+                siblings.add(parsed.get(i).file());
             }
         }
         return options.withSiblings(siblings);
@@ -118,7 +118,8 @@ public final class Translation {
                                                      List<Path> classpath, List<Path> javaRoots, Path outputDir,
                                                      boolean strictNull) throws IOException {
         List<Translator.Result> results = new ArrayList<>();
-        List<SourceFile> parsed = new ArrayList<>();
+        // Every file is parsed once, for its own translations and as a sibling of the others.
+        List<SourceParser.Result> parsed = new ArrayList<>();
         for (Input input : inputs) {
             parsed.add(parse(input));
         }
@@ -128,7 +129,7 @@ public final class Translation {
         for (int i = 0; i < inputs.size(); i++) {
             Input input = inputs.get(i);
             Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(),
-                    withSiblings(options, parsed, i).asDraft());
+                    parsed.get(i), withSiblings(options, parsed, i).asDraft());
             if (result.unit() != null) {
                 result.unit().writeTo(outputDir);
             }
@@ -152,7 +153,7 @@ public final class Translation {
                 }
                 Input input = inputs.get(i);
                 Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(),
-                        withSiblings(typed, parsed, i).asDraft());
+                        parsed.get(i), withSiblings(typed, parsed, i).asDraft());
                 if (!result.unit().javaSource().equals(previous.unit().javaSource())) {
                     result.unit().writeTo(outputDir);
                     changed = true;
@@ -171,12 +172,12 @@ public final class Translation {
             if (draft.draft()) {
                 Input input = inputs.get(i);
                 Translator.Result result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(),
-                        withSiblings(typed, parsed, i));
+                        parsed.get(i), withSiblings(typed, parsed, i));
                 if (result.unit() == null && fromDrafts(result, stillDrafts)) {
                     // Values of files that read each other stay typed `Object`. javac's errors about
                     // `Object` would not say that; asking for the types does.
                     result = Translator.translate(input.sourcePath(), input.displayPath(), input.text(),
-                            withSiblings(options, parsed, i));
+                            parsed.get(i), withSiblings(options, parsed, i));
                 }
                 results.set(i, result);
                 // The draft must not be compiled as if the translation had succeeded.

@@ -50,14 +50,29 @@ public final class Translator {
     }
 
     public static Result translate(String sourcePath, String displayPath, String text, Options options) {
-        return LargeStack.call(() -> translateHere(sourcePath, displayPath, text, options),
+        return translate(sourcePath, displayPath, text, null, options);
+    }
+
+    /**
+     * @param parsed the file as {@link #parse} gives it, for a build that translates a file several times or
+     *               also reads it as another file's sibling; null parses it here
+     */
+    public static Result translate(String sourcePath, String displayPath, String text, SourceParser.Result parsed,
+                                   Options options) {
+        return LargeStack.call(() -> translateHere(sourcePath, displayPath, text,
+                        parsed != null ? parsed : parse(sourcePath, displayPath, text), options),
                 () -> new Result(null, List.of(AxlDiagnostic.error(displayPath, 1, 1, ErrorCode.SYNTAX,
                         "the code is nested too deeply to translate; split it into smaller expressions"))));
     }
 
-    private static Result translateHere(String sourcePath, String displayPath, String text, Options options) {
+    /** The parse that {@link #translate} starts with. */
+    public static SourceParser.Result parse(String sourcePath, String displayPath, String text) {
+        return SourceParser.parse(displayPath, className(sourcePath), text);
+    }
+
+    private static Result translateHere(String sourcePath, String displayPath, String text, SourceParser.Result parsed,
+                                        Options options) {
         List<AxlDiagnostic> diagnostics = new ArrayList<>();
-        SourceParser.Result parsed = SourceParser.parse(displayPath, className(sourcePath), text);
         diagnostics.addAll(parsed.diagnostics());
         if (parsed.file() == null) {
             return new Result(null, diagnostics);
