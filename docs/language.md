@@ -38,8 +38,10 @@ takes precedence over them.
 
 ## Types
 
-`Int`, `Long`, `Boolean`, `Double` are Java's primitives; inside generics and when nullable they are
-the wrapper classes. Every other name is a Java type: `String`, `List<Int>`, `java.util.Map<String, Int>`.
+`Int`, `Long`, `Boolean`, `Float`, `Double` are Java's primitives; inside generics and when nullable they are
+the wrapper classes. A number written `1.5f` is a `Float`; an `Int` or `Long` fits a `Float` and a `Float` fits a
+`Double` as they are, the other way needs `Double.valueOf(d).floatValue()`, `Float.valueOf(f).intValue()` or
+`Math.round(f)`. Java's class `java.lang.Float` is written `Float?`. Every other name is a Java type: `String`, `List<Int>`, `java.util.Map<String, Int>`.
 `T?` allows `null`; `T` does not. Nullness is checked by NullAway in JSpecify mode. `Class<*>` and
 `List<*>` are Java's `Class<?>` and `List<?>`: a type argument that is not known.
 A character in single quotes, `'a'`, is a Java `Character` where a type is written; where the type is inferred it is
@@ -162,6 +164,26 @@ interface Notes {
 }
 ```
 
+A method may also have a body, which is what a class gets when it does not write the method (a Java `default`
+method). The body reads the interface's values by name and calls its other methods; a `private fn` with a body is a
+helper that only the interface sees:
+
+```axl
+interface Named {
+    val name: String
+    fn greeting() -> String = "hello, " + name + suffix()
+    fn suffix() -> String = ""
+}
+
+data class Person(val name: String) : Named
+```
+
+A class, data class or enum that implements the interface inherits such a method or writes its own by the rules below,
+and `super.suffix()` in its method calls the body of the interface, when only one of its interfaces has one. Methods
+of `Object` such as `toString` cannot have a body in an interface, since every class already has them, and values of
+an interface cannot be assigned. Java code sees default methods and may implement the interface with an anonymous
+class, as it does with JDK interfaces.
+
 Each `class` that implements it writes the methods (`fn add(text: String) -> Int { ... }`), with the
 same parameter types and a result type that fits: `String` where `String?` is required, never the
 other way. A data class implements such methods in a body after its fields, as it does
@@ -169,7 +191,7 @@ other way. A data class implements such methods in a body after its fields, as i
 Long.compare(cents, o.cents()) }`. A method without parameters may also be given by a field of the same name and a
 fitting type, as a record's accessor: `data class Insert(val lines: List<String>) : Delta` gives `fn lines() ->
 List<String>`. A class's property is a field and gives no method; declare it in the interface as `val lines:
-List<String>` instead. A field of type `Int`, `Long`, `Boolean` or `Double` that gives a method whose result is a type
+List<String>` instead. A field of type `Int`, `Long`, `Boolean`, `Float` or `Double` that gives a method whose result is a type
 variable, `data class Entry(val key: Int) : Keyed<Int>` for `fn key() -> K`, is an `Integer` (or `Long`, ...) in the Java
 record, since Java cannot give the record a second `key()`; Axolotl code reads it as an `Int`. The body holds methods only; behavior over data classes otherwise
 stays in functions at the top level, with `when` over the sealed interface.
@@ -463,7 +485,7 @@ java.lang.NullPointerException: parameter lines of the Chunk constructor must no
 ```
 
 Parameters that may be null are not checked: `T?`, a type variable without a bound or with a nullable bound, and
-`Int`, `Long`, `Boolean` and `Double`, which are Java primitives. Private functions, constructors and classes, enum
+`Int`, `Long`, `Boolean`, `Float` and `Double`, which are Java primitives. Private functions, constructors and classes, enum
 constructors and lambdas are not checked, since only Axolotl code calls them and the compiler checks those calls.
 A body that begins with `Objects.requireNonNull(p, "p is null")` (also `requireNonNull` imported with `import fn`)
 checks `p` itself, with the library's own message, and gets no generated check for `p`; for a class, the first

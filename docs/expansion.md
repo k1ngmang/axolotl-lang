@@ -12,7 +12,7 @@ always gives byte-for-byte the same output.
 | `import a.b.C` | `import a.b.C;` |
 | `import fn a.B.f`, `import val a.B.v` | `import static a.B.f;`, `import static a.B.v;` |
 | `fn main()` | `public static void main(String[] args)` |
-| `Int`, `Long`, `Boolean`, `Double` | `int`, `long`, `boolean`, `double`; `Integer`, ... inside generics |
+| `Int`, `Long`, `Boolean`, `Float`, `Double` | `int`, `long`, `boolean`, `float`, `double`; `Integer`, ... inside generics |
 | `Int?` | `@Nullable Integer` |
 | `T?` | `@Nullable T` (for a qualified name: `java.util.@Nullable List`) |
 | `val x = e` / `var x = e` | `final var x = e;` / `var x = e;` |
