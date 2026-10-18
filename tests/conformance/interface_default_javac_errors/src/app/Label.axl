@@ -1,0 +1,7 @@
+package app
+
+// A value of the interface is a call of its method in Java, which a null check does not narrow.
+interface Labeled {
+    val label: String?
+    fn size() -> Int = if (label != null) label.length() else 0
+}

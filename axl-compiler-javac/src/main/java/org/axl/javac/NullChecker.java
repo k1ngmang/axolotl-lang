@@ -96,8 +96,8 @@ final class NullChecker implements TaskListener {
     private static final String FROM_JAVA = "a type argument of the value comes from Java code without nullness "
             + "annotations and may hold null, but ";
     private static final String DROP_NULLS = "drop the nulls first: `|> filter { it != null }`";
-    private static final String CHANGING_FIX = "a null check does not narrow a `var` property or the result of a call, "
-            + "which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`";
+    private static final String CHANGING_FIX = "a null check does not narrow a `var` property, a value of an interface or "
+            + "the result of a call, which may change in between; copy it to a local `val` first, or use `?.`, `?:` or `!!`";
     private static final String REASSIGNED_FIX = "a null check does not narrow a property of a local that is assigned "
             + "again; copy the property to a local `val` first, or use `?.`, `?:` or `!!`";
     private static final String UNCHECKED_FIX = "copy it to a local `val` to check it for null, or use `?.`, `?:` or `!!`";
@@ -2462,8 +2462,9 @@ final class NullChecker implements TaskListener {
             }
             if (e instanceof MethodInvocationTree || e instanceof MemberSelectTree) {
                 Element element = element(e);
-                String name = element != null && element.getKind() == ElementKind.FIELD
-                        ? "the value of `" + name(e) + "`" : "the result of `" + name(e) + "`";
+                String name = element != null && element.getKind() == ElementKind.FIELD ? "the value of `" + name(e) + "`"
+                        : interfaceValue(e, element) ? "the value `" + element.getSimpleName() + "` of the interface"
+                        : "the result of `" + name(e) + "`";
                 return switch (origin) {
                     case PLATFORM -> name + " comes from Java code without nullness annotations and may be null";
                     case HIDDEN -> name + " may be null: its type is a type argument written with `?`";
@@ -2473,6 +2474,14 @@ final class NullChecker implements TaskListener {
                 };
             }
             return "the value may be null";
+        }
+
+        /** `label` read by a method of the interface that declares it: Java's `label()`, which each implementation gives. */
+        private static boolean interfaceValue(ExpressionTree e, Element element) {
+            return e instanceof MethodInvocationTree call && call.getArguments().isEmpty()
+                    && call.getMethodSelect() instanceof IdentifierTree && element != null
+                    && element.getModifiers().contains(javax.lang.model.element.Modifier.ABSTRACT)
+                    && element.getEnclosingElement().getKind() == ElementKind.INTERFACE;
         }
 
         /**
