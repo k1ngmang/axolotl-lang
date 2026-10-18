@@ -279,7 +279,7 @@ import org.axl.compiler.check.Whens;
         final var line = fileType.pos().line();
         final var marked = "@NullMarked " + annotations(fileType.annotations());
         final var typeParams = headerTypeParams(typeParamsOf(fileType));
-        final var supertypes = supertypesOf(fileType).stream().map(Nulls.nonNull(t -> headerType(t))).toList();
+        final var supertypes = supertypesOf(fileType).stream().map(Nulls.asGiven(t -> headerType(t))).toList();
         if (fileType instanceof Decl.DataClass fileType$1) {
             em.line(line, marked + "public record " + fileType$1.name() + typeParamList(typeParams) + "(" +
                     parameters(fileType$1.fields(), line, boxedFieldsOf(fileType$1)) +
@@ -488,14 +488,15 @@ import org.axl.compiler.check.Whens;
                 ") {");
         em.indent();
         final var unchecked = new LinkedHashSet<String>();
+        final var superArgs = classDecl.superArgs();
+        final Set<String> own = (superArgs == null || superArgs.isEmpty() ? ownPropertyChecks(classDecl) : Set.of());
         if (!classDecl.privateConstructor() && !inPrivateType) {
             for (final var p : classDecl.parameters()) {
-                if (isChecked(propertyTypeOf(p), false, nullableVariables)) {
+                if (isChecked(propertyTypeOf(p), false, nullableVariables) && !own.contains(p.name())) {
                     unchecked.add(p.name());
                 }
             }
         }
-        final var superArgs = classDecl.superArgs();
         if (superArgs != null && !superArgs.isEmpty()) {
             final var args = Nulls.stream(superArgs).map(Nulls.asGiven(a -> delegatedArgument(a, unchecked))).toList();
             em.line(line, "super(" + String.join(", ", args) + ");");
@@ -774,7 +775,9 @@ import org.axl.compiler.check.Whens;
         em.indent();
         if (!f.isPrivate() && (isStatic || !inPrivateType)) {
             final var variables = nullableVariablesOf(f.typeParams(), nullableVariables);
-            final var checked = Nulls.stream(f.params()).filter(p -> isChecked(memberType(p), boxed.contains(p.name()), variables)).map(Nulls.asGiven(p -> p.name())).toList();
+            final var own = ownChecks(f);
+            final var checked = Nulls.stream(f.params()).filter(p -> isChecked(memberType(p), boxed.contains(p.name()), variables) && !own.contains(p.name()))
+                    .map(Nulls.asGiven(p -> p.name())).toList();
             emitParamChecks(f.pos().line(), checked);
         }
         final var exprBody = f.exprBody();
@@ -820,6 +823,55 @@ import org.axl.compiler.check.Whens;
             }
         }
         return result;
+    }
+    private Set<String> ownChecks(Decl.Function f) {
+        final var leading = new ArrayList<Expr>();
+        final var exprBody = f.exprBody();
+        final var body = f.body();
+        if (exprBody != null) {
+            leading.add(exprBody);
+        } else if (body != null) {
+            for (final var st : body.statements()) {
+                if (!(st instanceof Stmt.ExprStmt st$1)) {
+                    break;
+                }
+                leading.add(st$1.expr());
+            }
+        }
+        final var result = new HashSet<String>();
+        for (final var e : leading) {
+            final var checked = checkedParameter(e);
+            if (checked == null || (Nulls.stream(f.params()).noneMatch(p -> p.name().equals(checked)))) {
+                break;
+            }
+            result.add(checked);
+        }
+        return result;
+    }
+    private Set<String> ownPropertyChecks(Decl.ClassDecl classDecl) {
+        final var result = new HashSet<String>();
+        for (final var property : classDecl.properties()) {
+            final var init = property.init();
+            final var checked = (init == null ? null : checkedParameter(init));
+            if (checked == null || (Nulls.stream(classDecl.parameters()).noneMatch(p -> p.name().equals(checked)))) {
+                break;
+            }
+            result.add(checked);
+        }
+        return result;
+    }
+    private @Nullable String checkedParameter(Expr e) {
+        if (!(e instanceof Expr.Call e$1) || !e$1.name().equals("requireNonNull") || e$1.args().isEmpty() || e$1.args().size() > 2) {
+            return null;
+        }
+        final var target = e$1.target();
+        final var owner = (target == null ? null : Expr.pathName(target));
+        final var viaClass = owner != null && (owner.equals("java.util.Objects") ||
+                (owner.equals("Objects") && (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals("java.util.Objects")))));
+        final var viaFunction = target == null &&
+                (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.FN && i.name().equals("java.util.Objects.requireNonNull")));
+        final var first = e$1.args().getFirst();
+        return ((viaClass || viaFunction) && first instanceof Expr.Name first$2 ? first$2.name() : null);
     }
     private void emitParamChecks(int line, List<String> names) {
         for (final var name : names) {
