@@ -1,0 +1,8 @@
+package app
+
+// A Java method that takes or gives `java.lang.Float` is implemented with `Float?`.
+class Boxed : Boxes() {
+    fn boxedFloat() -> Float = 1f
+    fn takeFloat(f: Float) {
+    }
+}

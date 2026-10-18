@@ -14,13 +14,15 @@ import org.jspecify.annotations.Nullable;
     // with a nullable `b` would pass as non-null; a null-marked interface makes it check.
     @FunctionalInterface public interface Fallback<T extends @Nullable Object> { T get(); }
     public static <T extends @Nullable Object> T or(@Nullable T a, Fallback<T> b) { return a != null ? a : b.get(); }
-    // `a ?: 0` with a Long or Double `a`: a lambda returning the int 0 would not fit their wrapper.
+    // `a ?: 0` with a Long, Float or Double `a`: a lambda returning the int 0 would not fit their wrapper.
     public static int or(@Nullable Integer a, int b) { return a != null ? a : b; }
     public static long or(@Nullable Long a, long b) { return a != null ? a : b; }
+    public static float or(@Nullable Float a, float b) { return a != null ? a : b; }
     public static double or(@Nullable Double a, double b) { return a != null ? a : b; }
     // `n ?: 0` with a primitive `n`: without these, boxing it would fit both the overloads above and below.
     public static int or(int a, int b) { return a; }
     public static long or(long a, long b) { return a; }
+    public static float or(float a, float b) { return a; }
     public static double or(double a, double b) { return a; }
     // `a ?: 0` with a Number or Object `a`, which none of the above takes.
     public static <T extends @Nullable Object> T or(@Nullable T a, T b) { return a != null ? a : b; }
@@ -64,6 +66,8 @@ import org.jspecify.annotations.Nullable;
     // `c ? a : b` with an Integer `a` and a Long `b` unboxes both; converting `a` first keeps a null.
     @Contract("!null -> !null")
     public static @Nullable Long toLong(@Nullable Number a) { return a == null ? null : a.longValue(); }
+    @Contract("!null -> !null")
+    public static @Nullable Float toFloat(@Nullable Number a) { return a == null ? null : a.floatValue(); }
     @Contract("!null -> !null")
     public static @Nullable Double toDouble(@Nullable Number a) { return a == null ? null : a.doubleValue(); }
     // `Character(code)`: Java's `(char) code` keeps the low 16 bits of any number, so a code out of range, such as the -1

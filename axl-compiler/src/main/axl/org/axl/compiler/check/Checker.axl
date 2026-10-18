@@ -66,9 +66,9 @@ private val OBJECT_METHOD_NAMES: Set<String> = Set.of("toString", "hashCode", "g
 private val ENUM_METHODS: Set<String> = Set.of("name/0", "ordinal/0", "compareTo/1", "getDeclaringClass/0", "equals/1",
     "hashCode/0", "clone/0", "finalize/0", "describeConstable/0", "values/0", "valueOf/1")
 
-// The Java class of a nullable `Int`, `Long`, `Double` or `Boolean`, told apart from the primitive the plain one is.
-private val BOXES: Map<String, String> = Map.of("Int", "Integer", "Long", "java.lang.Long", "Double", "java.lang.Double",
-    "Boolean", "java.lang.Boolean")
+// The Java class of a nullable `Int`, `Long`, `Float`, `Double` or `Boolean`, told apart from the primitive the plain one is.
+private val BOXES: Map<String, String> = Map.of("Int", "Integer", "Long", "java.lang.Long", "Float", "java.lang.Float",
+    "Double", "java.lang.Double", "Boolean", "java.lang.Boolean")
 
 // Java's names for primitive types, which Axolotl writes as classes.
 private val JAVA_PRIMITIVES: Map<String, String> = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
@@ -92,9 +92,9 @@ private val GENERATED_CODE_RECEIVERS: Set<String> = Set.of("System", "Nulls", "R
 // Names that would hide the `java` and `axl` packages the generated code qualifies names with.
 private val PACKAGE_ROOTS: Set<String> = Set.of("java", "axl")
 
-private val BASIC_TYPES: Set<String> = Set.of("Int", "Long", "Double", "Boolean", "String", "Char")
+private val BASIC_TYPES: Set<String> = Set.of("Int", "Long", "Float", "Double", "Boolean", "String", "Char")
 
-private val NUMBER_TYPES: Set<String> = Set.of("Int", "Long", "Double")
+private val NUMBER_TYPES: Set<String> = Set.of("Int", "Long", "Float", "Double")
 
 enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
 

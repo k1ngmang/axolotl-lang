@@ -10,5 +10,6 @@ fn greet() -> void {
 
 fn main() {
     val c: char = 'a'
+    val f: float = 1f
     println(positive(1))
 }

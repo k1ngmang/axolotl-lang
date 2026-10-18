@@ -101,9 +101,9 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
         }
         val hex = text.startsWith("0x") || text.startsWith("0X")
         if (!hex && (text.contains(".") || text.contains("e") || text.contains("E") || last == 'd')) {
-            return if (last == 'f') null else simple("Double", l.pos())
+            return simple(if (last == 'f') "Float" else "Double", l.pos())
         }
-        return if (last == 'f' && !hex) null else simple("Int", l.pos())
+        return simple(if (last == 'f' && !hex) "Float" else "Int", l.pos())
     }
 
     private fn binary(b: Expr.Binary) -> TypeRef? {
@@ -405,7 +405,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
                 return simple("Double", pos)
             }
             if (name.equals("round") && arity == 1) {
-                return simple("Long", pos)
+                return simple(if ("Float".equals(of(c.args().getFirst())?.name())) "Int" else "Long", pos)
             }
             if (!(name.equals("max") || name.equals("min") || name.equals("abs")) || arity == 0) {
                 return null
@@ -420,7 +420,7 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
             }
             return widest
         }
-        if (owner.equals("Integer") || owner.equals("Long") || owner.equals("Double") || owner.equals("Boolean")) {
+        if (owner.equals("Integer") || owner.equals("Long") || owner.equals("Float") || owner.equals("Double") || owner.equals("Boolean")) {
             val own = if (owner.equals("Integer")) "Int" else owner
             if (name.startsWith("parse") || name.equals("valueOf") || name.equals("sum") || name.equals("max") || name.equals("min")) {
                 return simple(own, pos)
@@ -534,10 +534,10 @@ class TypeInference(val file: SourceFile, val known: Map<String, TypeRef>, val s
     }
 }
 
-private val numbers: List<String> = List.of("Int", "Long", "Double")
+private val numbers: List<String> = List.of("Int", "Long", "Float", "Double")
 
-private val PRIMITIVE_RESULTS: Map<String, String> = Map.of("int", "Int", "long", "Long", "double", "Double", "boolean", "Boolean",
-    "char", "Character")
+private val PRIMITIVE_RESULTS: Map<String, String> = Map.of("int", "Int", "long", "Long", "float", "Float", "double", "Double",
+    "boolean", "Boolean", "char", "Character")
 
 private val STRING_STRINGS: Set<String> = Set.of("toUpperCase", "toLowerCase", "trim", "strip", "stripLeading", "stripTrailing",
     "substring", "replace", "replaceAll", "replaceFirst", "repeat", "concat", "formatted", "intern", "indent")

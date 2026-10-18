@@ -237,7 +237,7 @@ final class Symbols {
                 score += 1;
             } else if (argument.equals(parameter.name())) {
                 score += 2;
-            } else if (argument.equals("Int") && List.of("Long", "Double").contains(parameter.name())) {
+            } else if (argument.equals("Int") && List.of("Long", "Float", "Double").contains(parameter.name())) {
                 score += 1;
             }
         }

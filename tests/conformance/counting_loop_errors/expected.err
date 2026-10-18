@@ -1,3 +1,4 @@
+AXL001 app/Floats.axl:4:23: error: a counting `for` counts with `Int` or `Long` values; this is a `Float`
 AXL001 app/Main.axl:6:18: error: a counting `for` counts with `Int` or `Long` values; this is a `Double`
 AXL001 app/Main.axl:9:15: error: a counting `for` counts with `Int` or `Long` values; this is a `Char`
 AXL001 app/Main.axl:9:20: error: a counting `for` counts with `Int` or `Long` values; this is a `Char`

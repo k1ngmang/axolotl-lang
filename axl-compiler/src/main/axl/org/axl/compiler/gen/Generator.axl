@@ -47,9 +47,9 @@ import org.axl.compiler.check.TypeInference
 import org.axl.compiler.check.Whens
 
 private val PRIMITIVE_NAMES: Map<String, String> = Map.of("Int", "int", "Long", "long", "Boolean", "boolean",
-    "Double", "double")
+    "Double", "double", "Float", "float")
 private val BOXED_NAMES: Map<String, String> = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
-    "Double", "Double")
+    "Double", "Double", "Float", "Float")
 // The buffers that Java's input and output read into and write from.
 /** The class nested in an interface that holds the private types of its file. */
 val PRIVATE_TYPES: String = "Private$"
@@ -65,10 +65,9 @@ private val MAPPING_STAGES: Set<String> = Set.of("map", "mapResult", "flatMap")
 private val NUMBERS: Set<String> = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character")
 
 // `s ?: 0` with `s: Short?`: the number is converted, so that both sides have the type on the left.
-private val NARROW_NUMBERS: Map<String, String> = Map.of("Short", "short", "Byte", "byte", "Character", "char",
-    "Float", "float")
+private val NARROW_NUMBERS: Map<String, String> = Map.of("Short", "short", "Byte", "byte", "Character", "char")
 
-private val WIDENING: List<String> = List.of("Int", "Long", "Double")
+private val WIDENING: List<String> = List.of("Int", "Long", "Float", "Double")
 
 private val TARGET_TYPED_FACTORIES: Set<String> = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
     "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity")
@@ -1479,7 +1478,7 @@ class Generator(
 
     /**
      * Java switches on numbers that fit an int, strings, enums and types only: a `when` over a Long,
-     * Double or Boolean switches on the number of the branch that matches.
+     * Double, Float or Boolean switches on the number of the branch that matches.
      */
     private fn switchesByIndex(w: Expr.When, subjectType: TypeRef?) -> Boolean {
         if (subjectType != null && Set.of("Long", "Double", "Float", "Boolean").contains(subjectType.name())) {
@@ -2735,12 +2734,12 @@ class Generator(
         return !mayBeNull(inner)
     }
 
-    /** Long or Double when a branch has that type, which an Integer of another branch would be widened to. */
+    /** Long, Float or Double when a branch has that type, which an Integer of another branch would be widened to. */
     private fn widestTypedNumber(branches: List<Expr>) -> String? {
         var widest: String? = null
         for (b in branches) {
             val name = typeOf(b)?.name()
-            if ("Double".equals(name) || ("Long".equals(name) && widest == null)) {
+            if (name != null && WIDENING.indexOf(name) > (if (widest == null) 0 else WIDENING.indexOf(widest))) {
                 widest = name
             }
         }
@@ -4825,12 +4824,7 @@ private fn closingParen(code: String) -> Int {
     return -1
 }
 
-private fn converted(number: String, target: String) -> String {
-    if (target.equals("float") && number.matches("-?[\\d.]+")) {
-        return number + "F"
-    }
-    return "(" + target + ") " + number
-}
+private fn converted(number: String, target: String) -> String = "(" + target + ") " + number
 
 private fn nameOf(type: TypeRef?) -> String = if (type == null) "" else type.name()
 
@@ -4852,10 +4846,10 @@ private fn parenthesized(code: String, source: Expr) -> String {
  * javac turns unicode escapes into their characters before it reads anything else, so an escaped
  * quote would end the string there. In a string or character literal it becomes an ordinary escape.
  */
-/** An Int literal stored as a `Long` or `Double`, which Java widens only to the primitive, as `5L` or `5.0`. */
+/** An Int literal stored as a `Long`, `Float` or `Double`, which Java widens only to the primitive, as `5L` or `5.0`. */
 private fn widened(e: Expr, target: TypeRef?) -> Expr {
     val name = if (target == null) "" else target.name()
-    if (!name.equals("Long") && !name.equals("Double")) {
+    if (!name.equals("Long") && !name.equals("Float") && !name.equals("Double")) {
         return e
     }
     if (e is Expr.Unary && e.op().equals("-")) {
@@ -4864,7 +4858,7 @@ private fn widened(e: Expr, target: TypeRef?) -> Expr {
     if (e !is Expr.Literal || !e.text().matches("[0-9][0-9_]*")) {
         return e
     }
-    return Expr.Literal(e.pos(), e.text() + (if (name.equals("Long")) "L" else ".0"))
+    return Expr.Literal(e.pos(), e.text() + (if (name.equals("Long")) "L" else if (name.equals("Float")) "f" else ".0"))
 }
 
 private fn literal(text: String) -> String {

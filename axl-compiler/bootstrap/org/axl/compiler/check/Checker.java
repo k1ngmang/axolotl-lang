@@ -2004,8 +2004,8 @@ import org.axl.compiler.ast.TypeRef;
             "notify", "notifyAll", "wait");
     private static final Set<String> ENUM_METHODS = Set.of("name/0", "ordinal/0", "compareTo/1", "getDeclaringClass/0", "equals/1",
             "hashCode/0", "clone/0", "finalize/0", "describeConstable/0", "values/0", "valueOf/1");
-    private static final Map<String, String> BOXES = Map.of("Int", "Integer", "Long", "java.lang.Long", "Double", "java.lang.Double",
-            "Boolean", "java.lang.Boolean");
+    private static final Map<String, String> BOXES = Map.of("Int", "Integer", "Long", "java.lang.Long", "Float", "java.lang.Float",
+            "Double", "java.lang.Double", "Boolean", "java.lang.Boolean");
     private static final Map<String, String> JAVA_PRIMITIVES = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
             "double", "Double", "char", "Character", "byte", "Byte", "short", "Short", "float", "Float");
     private static final Set<String> NULLNESS_ANNOTATIONS = Set.of("Nullable", "NonNull", "NotNull", "Nonnull", "NullMarked", "NullUnmarked");
@@ -2016,8 +2016,8 @@ import org.axl.compiler.ast.TypeRef;
             "Override", "Record", "Enum", "Class", "Thread", "NullMarked", "Nullable", "ByteArray", "CharArray");
     private static final Set<String> GENERATED_CODE_RECEIVERS = Set.of("System", "Nulls", "Result");
     private static final Set<String> PACKAGE_ROOTS = Set.of("java", "axl");
-    private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Double", "Boolean", "String", "Char");
-    private static final Set<String> NUMBER_TYPES = Set.of("Int", "Long", "Double");
+    private static final Set<String> BASIC_TYPES = Set.of("Int", "Long", "Float", "Double", "Boolean", "String", "Char");
+    private static final Set<String> NUMBER_TYPES = Set.of("Int", "Long", "Float", "Double");
     public enum Kind { LOCAL, MUTABLE_LOCAL, LOOP_VARIABLE, PARAM, TOP_LEVEL, IMPORTED, FIELD, MUTABLE_FIELD }
     public record Symbol(Kind kind, Pos pos, @Nullable TypeRef type) {
         public Symbol {

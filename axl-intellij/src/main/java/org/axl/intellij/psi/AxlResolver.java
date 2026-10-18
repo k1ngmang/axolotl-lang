@@ -38,9 +38,11 @@ import org.jetbrains.annotations.Nullable;
 public final class AxlResolver {
 
     private static final Map<String, String> BUILTIN_TYPES = Map.of(
-            "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Double", "java.lang.Double");
+            "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Float", "java.lang.Float",
+            "Double", "java.lang.Double");
     private static final Map<String, PsiPrimitiveType> PRIMITIVES = Map.of("Int", PsiTypes.intType(),
-            "Long", PsiTypes.longType(), "Boolean", PsiTypes.booleanType(), "Double", PsiTypes.doubleType());
+            "Long", PsiTypes.longType(), "Boolean", PsiTypes.booleanType(), "Float", PsiTypes.floatType(),
+            "Double", PsiTypes.doubleType());
 
     private AxlResolver() {}
 

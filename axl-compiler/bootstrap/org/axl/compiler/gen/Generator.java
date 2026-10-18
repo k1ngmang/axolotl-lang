@@ -2411,7 +2411,7 @@ import org.axl.compiler.check.Whens;
         @Nullable String widest = null;
         for (final var b : branches) {
             final var name = Nulls.map(typeOf(b), $n1 -> $n1.name());
-            if ("Double".equals(name) || ("Long".equals(name) && widest == null)) {
+            if (name != null && WIDENING.indexOf(name) > ((widest == null ? Integer.valueOf(0) : WIDENING.indexOf(widest)))) {
                 widest = name;
             }
         }
@@ -3741,17 +3741,16 @@ import org.axl.compiler.check.Whens;
         return c.pos().line();
     }
     private static final Map<String, String> PRIMITIVE_NAMES = Map.of("Int", "int", "Long", "long", "Boolean", "boolean",
-            "Double", "double");
+            "Double", "double", "Float", "float");
     private static final Map<String, String> BOXED_NAMES = Map.of("Int", "Integer", "Long", "Long", "Boolean", "Boolean",
-            "Double", "Double");
+            "Double", "Double", "Float", "Float");
     public static final String PRIVATE_TYPES = "Private$";
     private static final Map<String, String> ARRAY_NAMES = Map.of("ByteArray", "byte", "CharArray", "char");
     private static final Set<String> ORDER_STAGES = Set.of("distinct", "limit", "skip");
     private static final Set<String> MAPPING_STAGES = Set.of("map", "mapResult", "flatMap");
     private static final Set<String> NUMBERS = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character");
-    private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte", "Character", "char",
-            "Float", "float");
-    private static final List<String> WIDENING = List.of("Int", "Long", "Double");
+    private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte", "Character", "char");
+    private static final List<String> WIDENING = List.of("Int", "Long", "Float", "Double");
     private static final Set<String> TARGET_TYPED_FACTORIES = Set.of("of", "copyOf", "ofEntries", "entry", "empty",
             "emptyList", "emptySet", "emptyMap", "naturalOrder", "reverseOrder", "nullsFirst", "nullsLast", "identity");
     private static final Set<String> INTERRUPT_CATCHERS = Set.of("Exception", "Throwable", "java.lang.Exception", "java.lang.Throwable");
@@ -4336,9 +4335,6 @@ import org.axl.compiler.check.Whens;
         return -1;
     }
     private static String converted(String number, String target) {
-        if (target.equals("float") && number.matches("-?[\\d.]+")) {
-            return number + "F";
-        }
         return "(" + target + ") " + number;
     }
     private static String nameOf(@Nullable TypeRef type) {
@@ -4358,7 +4354,7 @@ import org.axl.compiler.check.Whens;
     }
     private static Expr widened(Expr e, @Nullable TypeRef target) {
         final var name = (target == null ? "" : target.name());
-        if (!name.equals("Long") && !name.equals("Double")) {
+        if (!name.equals("Long") && !name.equals("Float") && !name.equals("Double")) {
             return e;
         }
         if (e instanceof Expr.Unary e$1 && e$1.op().equals("-")) {
@@ -4367,7 +4363,7 @@ import org.axl.compiler.check.Whens;
         if (!(e instanceof Expr.Literal e$2) || !e$2.text().matches("[0-9][0-9_]*")) {
             return e;
         }
-        return new Expr.Literal(e$2.pos(), e$2.text() + ((name.equals("Long") ? "L" : ".0")));
+        return new Expr.Literal(e$2.pos(), e$2.text() + ((name.equals("Long") ? "L" : (name.equals("Float") ? "f" : ".0"))));
     }
     private static String literal(String text) {
         if (!text.contains("\\u") || !(text.startsWith("\"") || text.startsWith("'"))) {

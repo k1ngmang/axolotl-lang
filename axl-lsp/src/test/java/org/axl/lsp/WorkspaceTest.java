@@ -1479,7 +1479,7 @@ class WorkspaceTest {
     private static void assertTypes(List<CompletionItem> items, String where) {
         List<String> labels = labels(items);
         assertEquals(List.of("Shape", "Circle", "Square"), labels.subList(0, Math.min(3, labels.size())), where);
-        assertTrue(labels.containsAll(List.of("Int", "Long", "Double", "Boolean", "Result", "String", "Object")), where + ": " + labels);
+        assertTrue(labels.containsAll(List.of("Int", "Long", "Float", "Double", "Boolean", "Result", "String", "Object")), where + ": " + labels);
         assertTrue(items.stream().allMatch(i -> i.getKind() == CompletionItemKind.Class), where + ": " + labels);
     }
 

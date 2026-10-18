@@ -1,0 +1,9 @@
+AXL100 app/Boxed.axl:4:7: error: `Boxed` must give `fn takeFloat(...)`, which `Boxes` requires; Java's class `Float` is written `Float?`, since `Float` is Java's `float`
+AXL100 app/Boxed.axl:5:8: error: `fn boxedFloat()` of `Boxed` returns `Float`, but `Boxes` requires `Float`; Java's class `Float` is written `Float?`, since `Float` is Java's `float`
+AXL100 app/Main.axl:4:20: error: `Double` does not always fit in `Float`; convert it explicitly with `Double.valueOf(x).floatValue()`; a number written as `1.5f` is a `Float`
+AXL100 app/Main.axl:6:18: error: `Float` does not always fit in `Int`; convert it explicitly: `Float.valueOf(x).intValue()` drops the fraction, `Math.round(x)` rounds
+AXL100 app/Main.axl:7:19: error: `Float` does not always fit in `Long`; convert it explicitly: `Float.valueOf(x).longValue()` drops the fraction
+AXL100 app/Main.axl:9:20: error: `Double` does not always fit in `Float`; convert it explicitly with `Double.valueOf(x).floatValue()`; a number written as `1.5f` is a `Float`
+AXL100 app/Main.axl:11:15: error: `Int` is a primitive value and has no members; it fits a `Float` as it is: `val f: Float = n`
+AXL100 app/Main.axl:12:15: error: `Double` is a primitive value and has no members; for a `Float`, write `Double.valueOf(d).floatValue()`
+AXL100 app/Main.axl:13:15: error: `Float` is a primitive value and has no members; for its text, write `String.valueOf(g)`

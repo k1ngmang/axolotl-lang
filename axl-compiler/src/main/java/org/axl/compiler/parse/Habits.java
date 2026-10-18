@@ -487,8 +487,10 @@ final class Habits {
             case "Long", "long" -> "Axolotl has no casts; an `Int` fits a `Long` as it is, as in `val l: Long = n`, and a `Double` "
                     + "becomes one with `Double.valueOf(x).longValue()`, which drops the fraction as a cast does, or `Math.round(x)`, "
                     + "which rounds";
-            case "Double", "double", "Float", "float" -> "Axolotl has no casts; an `Int` becomes a `Double` in arithmetic with a "
+            case "Double", "double" -> "Axolotl has no casts; an `Int` becomes a `Double` in arithmetic with a "
                     + "`Double`, as in `1.0 * n`, or with `Double.valueOf(n)`";
+            case "Float", "float" -> "Axolotl has no casts; an `Int` fits a `Float` as it is, as in `val f: Float = n`, and a "
+                    + "`Double` becomes one with `Double.valueOf(x).floatValue()`";
             case "Character", "char" -> "Axolotl has no casts; the code of a character, an `Int`, becomes a `Character` with "
                     + "`Character(n)`, and a `Character` is its code where an `Int` is expected, as in `val code: Int = c`";
             default -> null;
@@ -978,7 +980,7 @@ final class Habits {
         return switch (javaName) {
             case "int" -> "Int";
             case "char" -> "Character";
-            case "long", "double", "boolean" -> Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
+            case "long", "float", "double", "boolean" -> Character.toUpperCase(javaName.charAt(0)) + javaName.substring(1);
             default -> javaName;
         };
     }

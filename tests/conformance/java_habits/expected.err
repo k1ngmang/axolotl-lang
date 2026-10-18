@@ -17,6 +17,7 @@ AXL001 app/ColonFor.axl:6:5: error: Axolotl's `for` uses `in`: `for (x in xs) { 
 AXL001 app/CountingFor.axl:4:5: error: Axolotl's `for` goes over a collection, `for (x in xs) { ... }`, or counts: `for (i in 0 until n) { ... }`
 AXL001 app/DoWhile.axl:5:5: error: Axolotl has no `do`-`while`; write a `while` loop
 AXL001 app/EmptyArrow.axl:6:13: error: `->` needs a value or a block after it
+AXL001 app/FloatCast.axl:4:13: error: Axolotl has no casts; an `Int` fits a `Float` as it is, as in `val f: Float = n`, and a `Double` becomes one with `Double.valueOf(x).floatValue()`
 AXL001 app/Fun.axl:3:1: error: unknown word `fun`; did you mean `fn`?
 AXL001 app/GenericCast.axl:7:5: error: Axolotl has no casts; test the type with `is`: `if (x is Function) { ... }`
 AXL001 app/Implements.axl:5:26: error: a class names its interfaces after `:`: `class C(...) : I, J`

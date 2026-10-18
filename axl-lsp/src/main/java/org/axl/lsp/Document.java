@@ -349,7 +349,7 @@ final class Document {
             case AxolotlLexer.IDENTIFIER -> nameType.apply(token);
             case AxolotlLexer.STRING_LITERAL -> "String";
             case AxolotlLexer.INT_LITERAL -> token.getText().toLowerCase(Locale.ROOT).endsWith("l") ? "Long" : "Int";
-            case AxolotlLexer.FLOAT_LITERAL -> "Double";
+            case AxolotlLexer.FLOAT_LITERAL -> token.getText().endsWith("f") ? "Float" : "Double";
             case AxolotlLexer.TRUE, AxolotlLexer.FALSE -> "Boolean";
             default -> null;
         };

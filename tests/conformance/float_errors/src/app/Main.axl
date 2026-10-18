@@ -1,0 +1,14 @@
+package app
+
+fn main() {
+    val f: Float = 1.5
+    val g = 2.5f
+    val i: Int = g
+    val l: Long = g
+    val d = 2.0
+    val h: Float = d
+    val n = 3
+    println(n.toFloat())
+    println(d.toFloat())
+    println(g.toString())
+}

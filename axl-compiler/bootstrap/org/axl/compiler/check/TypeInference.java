@@ -134,9 +134,9 @@ import org.axl.compiler.ast.TypeRef;
         }
         final var hex = text.startsWith("0x") || text.startsWith("0X");
         if (!hex && (text.contains(".") || text.contains("e") || text.contains("E") || last == 'd')) {
-            return (last == 'f' ? null : simple("Double", l.pos()));
+            return simple((last == 'f' ? "Float" : "Double"), l.pos());
         }
-        return (last == 'f' && !hex ? null : simple("Int", l.pos()));
+        return simple((last == 'f' && !hex ? "Float" : "Int"), l.pos());
     }
     private @Nullable TypeRef binary(Expr.Binary b) {
         if (comparisons.contains(b.op())) {
@@ -402,7 +402,8 @@ import org.axl.compiler.ast.TypeRef;
                 return simple("Double", pos);
             }
             if (name.equals("round") && arity == 1) {
-                return simple("Long", pos);
+                final var $t1 = Nulls.map(of(c.args().getFirst()), $n1 -> $n1.name());
+                return simple(("Float".equals($t1) ? "Int" : "Long"), pos);
             }
             if (!(name.equals("max") || name.equals("min") || name.equals("abs")) || arity == 0) {
                 return null;
@@ -417,7 +418,7 @@ import org.axl.compiler.ast.TypeRef;
             }
             return widest;
         }
-        if (owner.equals("Integer") || owner.equals("Long") || owner.equals("Double") || owner.equals("Boolean")) {
+        if (owner.equals("Integer") || owner.equals("Long") || owner.equals("Float") || owner.equals("Double") || owner.equals("Boolean")) {
             final var own = (owner.equals("Integer") ? "Int" : owner);
             if (name.startsWith("parse") || name.equals("valueOf") || name.equals("sum") || name.equals("max") || name.equals("min")) {
                 return simple(own, pos);
@@ -531,9 +532,9 @@ import org.axl.compiler.ast.TypeRef;
         }
         return null;
     }
-    private static final List<String> numbers = List.of("Int", "Long", "Double");
-    private static final Map<String, String> PRIMITIVE_RESULTS = Map.of("int", "Int", "long", "Long", "double", "Double", "boolean", "Boolean",
-            "char", "Character");
+    private static final List<String> numbers = List.of("Int", "Long", "Float", "Double");
+    private static final Map<String, String> PRIMITIVE_RESULTS = Map.of("int", "Int", "long", "Long", "float", "Float", "double", "Double",
+            "boolean", "Boolean", "char", "Character");
     private static final Set<String> STRING_STRINGS = Set.of("toUpperCase", "toLowerCase", "trim", "strip", "stripLeading", "stripTrailing",
             "substring", "replace", "replaceAll", "replaceFirst", "repeat", "concat", "formatted", "intern", "indent");
     private static final Set<String> STRING_INTS = Set.of("length", "indexOf", "lastIndexOf", "compareTo", "compareToIgnoreCase", "codePointAt");

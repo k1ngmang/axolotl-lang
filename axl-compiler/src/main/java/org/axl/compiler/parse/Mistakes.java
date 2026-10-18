@@ -24,7 +24,7 @@ final class Mistakes {
             AxolotlLexer.SLASH, AxolotlLexer.PERCENT, AxolotlLexer.EQ, AxolotlLexer.NEQ, AxolotlLexer.LE, AxolotlLexer.GE,
             AxolotlLexer.LT, AxolotlLexer.GT, AxolotlLexer.ANDAND, AxolotlLexer.OROR);
 
-    private static final Set<String> PRIMITIVES = Set.of("int", "long", "double", "boolean", "char");
+    private static final Set<String> PRIMITIVES = Set.of("int", "long", "float", "double", "boolean", "char");
 
     // Kotlin's functions that create mutable collections, and the class Axolotl creates instead.
     private static final Map<String, String> COLLECTION_FUNCTIONS = Map.of("mutableListOf", "ArrayList",

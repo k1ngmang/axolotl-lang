@@ -1,0 +1,19 @@
+float 3.14, double 3.14, string null, 0.0
+3.0 0.5
+4.5
+1.75
+1.5 4.0 2.0
+float 1.5, double 1.5, float 2.0
+true
+false
+0.0 2.5
+null
+1.0
+false
+[1.0, 2.5]
+Point[x=1.0, y=2.5]
+9.0
+2.5
+one and a half none more
+2.75 1 2
+3.4028235E38

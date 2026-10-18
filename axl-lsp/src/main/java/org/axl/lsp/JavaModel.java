@@ -72,10 +72,11 @@ import org.eclipse.lsp4j.Range;
 final class JavaModel {
 
     private static final Map<String, String> PRIMITIVES = Map.of(
-            "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Double", "java.lang.Double");
+            "Int", "java.lang.Integer", "Long", "java.lang.Long", "Boolean", "java.lang.Boolean", "Float", "java.lang.Float",
+            "Double", "java.lang.Double");
 
     private static final Map<String, String> AXL_NAMES = Map.of("int", "Int", "Integer", "Int", "long", "Long",
-            "boolean", "Boolean", "double", "Double");
+            "boolean", "Boolean", "float", "Float", "double", "Double");
 
     private static final class Source extends SimpleJavaFileObject {
         private final String text;

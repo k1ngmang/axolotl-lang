@@ -86,7 +86,7 @@ final class Messages {
     private static final Pattern ERROR_PRONE_LINK = Pattern.compile("\\.?;? ?\\(see https://errorprone\\.info/\\S+\\)");
     private static final Pattern NOT_DEREFERENCED = Pattern.compile("^(\\w+) cannot be dereferenced$");
     // Kotlin's `n.toLong()` and the methods of Java's boxed numbers, `n.longValue()`.
-    private static final Pattern CONVERSION = Pattern.compile("\\.(?:to(Double|Int|Long)|(double|int|long)Value)\\(\\)");
+    private static final Pattern CONVERSION = Pattern.compile("\\.(?:to(Double|Float|Int|Long)|(double|float|int|long)Value)\\(\\)");
     private static final Pattern WHOLE_NUMBER = Pattern.compile("\\d[\\d_]*(?![\\w.])");
     private static final Pattern PATTERN_VARIABLE = Pattern.compile("[A-Za-z]\\w*\\$\\d+(?![\\w.(])");
     private static final Pattern NUMBERS_FACTORY = Pattern.compile(
@@ -113,8 +113,8 @@ final class Messages {
     private static final Pattern IDENTIFIER = Pattern.compile("^[A-Za-z_$][\\w$]*$");
     private static final Pattern QUALIFIED_TYPE = Pattern.compile("\\b(?:java\\.lang|axl\\.lang)\\.([A-Z]\\w*)");
     private static final Pattern NULLABLE_TYPE = Pattern.compile("@(?:org\\.jspecify\\.annotations\\.)?Nullable ([\\w.]+(?:<[^<>]*(?:<[^<>]*>[^<>]*)*>)?)");
-    // Axolotl names only these; `float`, `short` and `byte` keep Java's names, since `Float` would mean the boxed class.
-    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|double|char|Integer)\\b");
+    // Axolotl names only these; `short` and `byte` keep Java's names, since `Short` would mean the boxed class.
+    private static final Pattern PRIMITIVE = Pattern.compile("\\b(int|long|boolean|float|double|char|Integer)\\b");
     // The arrays Axolotl creates with `ByteArray(n)` and `CharArray(n)`.
     private static final Pattern BUFFER = Pattern.compile("\\b(byte|char)\\[]");
     private static final Pattern GENERATED = Pattern.compile(
@@ -126,7 +126,7 @@ final class Messages {
     private static final String CALL_CHAIN = "(?:[\\w$]+(?:\\([^()]*\\))?\\.)*[\\w$]+\\([^()]*\\)";
     // `first$1` of a type test or record pattern, which stands for what the author tested.
     private static final Pattern GENERATED_BINDING = Pattern.compile("\\w+\\$\\d+");
-    private static final Pattern PRIMITIVE_ARGUMENT = Pattern.compile("[<,]\\s*(int|long|double|boolean|char)\\s*[,>]");
+    private static final Pattern PRIMITIVE_ARGUMENT = Pattern.compile("[<,]\\s*(int|long|float|double|boolean|char)\\s*[,>]");
     private static final Pattern SELF_REFERENCE = Pattern.compile(
             "^cannot infer type for local variable (\\w+); \\(cannot use 'var' on self-referencing variable\\)$");
     private static final Pattern UNINITIALIZED = Pattern.compile("^variable (\\w+) might not have been initialized$");
@@ -140,11 +140,12 @@ final class Messages {
     // javac qualifies the class of a file, `app.Worker`, and names a nested one plainly.
     private static final Pattern MISSING_METHOD = Pattern.compile(
             "^([\\w.$]+) is not abstract and does not override abstract method (\\w+)\\((.*)\\) in ([\\w.$]+)$");
-    private static final Pattern RESULT_CLASH = Pattern.compile("^(\\w+)\\((.*)\\) in (\\w+) cannot (?:implement|override) "
+    private static final Pattern RESULT_CLASH = Pattern.compile("^(\\w+)\\((.*)\\) in ([\\w.$]+) cannot (?:implement|override) "
             + "\\1\\(.*\\) in ([\\w.$]+); return type (\\S+) is not compatible with (\\S+)$");
     // The declaration of a method of a class, as generated: `public int next() {`.
     private static final Pattern CLASS_METHOD = Pattern.compile("^\\s+public (?:static )?(?:final )?([\\w.]+(?:<.*>)?(?:\\[\\])?) (\\w+)\\((.*)\\) \\{$");
     private static final Pattern IMPLEMENTS = Pattern.compile("\\bimplements (.+?) \\{$");
+    private static final Pattern BOXED_NUMBER = Pattern.compile("(?:^|,)\\s*java\\.lang\\.(Long|Float|Double|Boolean)\\s*(?=,|$)");
     private static final String GENERIC_INTERFACE = "a Java generic interface takes and gives `Integer`, the class behind `Int`";
     private static final Pattern METHOD_DECLARATION = Pattern.compile(
             "^\\s*(?:public |private )?(?:static )?(?!new )[\\w<>?,. @\\[\\]]+ (\\w+)\\([^()]*\\) \\{$");
@@ -463,6 +464,12 @@ final class Messages {
                 case "long of double" -> "; for a `Long`, write `Double.valueOf(" + value + ").longValue()`, which drops the fraction, "
                         + "or `Math.round(" + value + ")`, which rounds";
                 case "long of int" -> "; an `Int` fits a `Long` as it is: `val l: Long = " + value + "`";
+                case "float of int", "float of long" -> "; it fits a `Float` as it is: `val f: Float = " + value + "`";
+                case "float of double" -> "; for a `Float`, write `Double.valueOf(" + value + ").floatValue()`";
+                case "double of float" -> "; a `Float` fits a `Double` as it is: `val d: Double = " + value + "`";
+                case "int of float" -> "; for an `Int`, write `Float.valueOf(" + value + ").intValue()`, which drops the fraction, "
+                        + "or `Math.round(" + value + ")`, which rounds";
+                case "long of float" -> "; for a `Long`, write `Float.valueOf(" + value + ").longValue()`, which drops the fraction";
                 default -> "";
             };
         }
@@ -1315,7 +1322,7 @@ final class Messages {
         if (noSuitable.find(0) && noSuitable.group(1).equals("bound") && message.contains("axl.lang.Nulls.")
                 && splitTopLevel(noSuitable.group(2)).size() == 1) {
             String type = noSuitable.group(2);
-            return COUNT_BOUND + (type.equals("float") ? "Float" : axlType(type)) + "`";
+            return COUNT_BOUND + axlType(type) + "`";
         }
         if (noSuitable.find(0)) {
             Set<String> hidden = new HashSet<>();
@@ -1812,11 +1819,12 @@ final class Messages {
         }
         Matcher resultClash = RESULT_CLASH.matcher(message);
         if (resultClash.find()) {
-            String boxed = genericInterfaceMethod(javaLines, resultClash.group(3), resultClash.group(1),
+            String className = simpleNames(resultClash.group(3));
+            String boxed = genericInterfaceMethod(javaLines, className, resultClash.group(1),
                     splitTopLevel(resultClash.group(2)), resultClash.group(4), true);
-            return boxed != null ? boxed : "`fn " + resultClash.group(1) + "()` of `" + resultClash.group(3) + "` returns `"
+            return boxed != null ? boxed : "`fn " + resultClash.group(1) + "()` of `" + className + "` returns `"
                     + axlType(resultClash.group(5)) + "`, but `" + simpleNames(axlType(resultClash.group(4))) + "` requires `"
-                    + simpleNames(resultClash.group(6)) + "`";
+                    + simpleNames(resultClash.group(6)) + "`" + boxHint(resultClash.group(6));
         }
         Matcher missingMethod = MISSING_METHOD.matcher(message);
         if (missingMethod.find()) {
@@ -1829,7 +1837,7 @@ final class Messages {
             }
             String parameters = missingMethod.group(3).isEmpty() ? "" : "...";
             String required = "`" + type + "` must give `fn " + method + "(" + parameters + ")`, which `"
-                    + simpleNames(axlType(missingMethod.group(4))) + "` requires";
+                    + simpleNames(axlType(missingMethod.group(4))) + "` requires" + boxHint(missingMethod.group(3));
             String property = parameters.isEmpty() ? propertyType(javaLines, type, method) : null;
             return property == null ? required : required + "; a property gives a value only to an interface of the same "
                     + "package, so add `fn " + method + "() -> " + property + " = " + method + "`";
@@ -1848,6 +1856,17 @@ final class Messages {
                     + "keep one in a property and give both an interface";
         }
         return null;
+    }
+
+    /** A Java method that takes or gives `java.lang.Float`, which Axolotl writes `Float?`: a plain `Float` is Java's `float`. */
+    private static String boxHint(String javaTypes) {
+        Matcher boxed = BOXED_NUMBER.matcher(javaTypes);
+        if (!boxed.find()) {
+            return "";
+        }
+        String name = boxed.group(1);
+        return "; Java's class `" + name + "` is written `" + name + "?`, since `" + name + "` is Java's `"
+                + name.toLowerCase(Locale.ROOT) + "`";
     }
 
     /**
@@ -2575,6 +2594,9 @@ final class Messages {
             case "long char" -> " with `Character(Math.toIntExact(x))`";
             case "double long" -> ": `Double.valueOf(x).longValue()` drops the fraction, `Math.round(x)` rounds";
             case "double int" -> ": `Double.valueOf(x).intValue()` drops the fraction, `Math.toIntExact(Math.round(x))` rounds";
+            case "double float" -> " with `Double.valueOf(x).floatValue()`; a number written as `1.5f` is a `Float`";
+            case "float long" -> ": `Float.valueOf(x).longValue()` drops the fraction";
+            case "float int" -> ": `Float.valueOf(x).intValue()` drops the fraction, `Math.round(x)` rounds";
             default -> "";
         };
         return "`" + axlType(from) + "` does not always fit in `" + axlType(to) + "`; convert it explicitly" + conversion;

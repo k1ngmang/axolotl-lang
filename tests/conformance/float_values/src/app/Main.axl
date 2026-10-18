@@ -1,0 +1,72 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+import java.util.function.Function
+
+// `Float` is Java's `float`, as `Double` is `double`: Java callers' `value(3.14f)` picks the first overload.
+fn value(value: Float) -> String = "float " + value
+
+fn value(value: Double) -> String = "double " + value
+
+fn value(text: String?) -> String = "string " + text
+
+fn orZero(value: Float?) -> Float = value ?: 0
+
+fn pick(first: Boolean, value: Float?) -> Float? = if (first) value else 1
+
+data class Point(val x: Float, val y: Float)
+
+// Number's floatValue() returns `float`.
+class Decimal(val text: String) : Number() {
+    fn intValue() -> Int = Integer.parseInt(text)
+    fn longValue() -> Long = Long.parseLong(text)
+    fn floatValue() -> Float = Float.parseFloat(text)
+    fn doubleValue() -> Double = Double.parseDouble(text)
+}
+
+class Parsed(private val text: String) : Base() {
+    fn asFloat() -> Float = Float.parseFloat(text)
+}
+
+class Halver : Function<Float, Float> {
+    fn apply(x: Float) -> Float = x / 2
+}
+
+fn size(f: Float) -> String = when (f) {
+    0f -> "none"
+    1.5f -> "one and a half"
+    else -> "more"
+}
+
+fn main() {
+    println(Caller.overloads())
+    println(Caller.subclasses())
+    val f = 1.5f
+    val g: Float = 2
+    val n = 3
+    val wide = f + 0.25
+    val d: Double = f
+    val l: Float = 4L
+    println(f + n)
+    println(wide)
+    println(d + " " + l + " " + g)
+    println(value(f) + ", " + value(1.5) + ", " + value(2f))
+    println(f == 1.5f)
+    println(f > n)
+    println(orZero(null) + " " + orZero(2.5f))
+    println(pick(true, null))
+    println(pick(false, null))
+    val xs = ArrayList<Float>()
+    xs.add(1.25f)
+    xs.add(f)
+    println(xs.get(0) == xs.get(1))
+    val ys: List<Float> = List.of(1f, 2.5f)
+    println(ys)
+    println(Point(1f, 2.5f))
+    println(Decimal("7").floatValue() + Decimal("2").intValue())
+    println(Halver().apply(5f))
+    println(size(f) + " " + size(0f) + " " + size(7f))
+    println(Double.valueOf(2.75).floatValue() + " " + Float.valueOf(f).intValue() + " " + Math.round(f))
+    println(Float.MAX_VALUE)
+}

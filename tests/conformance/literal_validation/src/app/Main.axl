@@ -6,7 +6,7 @@ fn main() {
     val c = 0x
     val d = 1_000_
     val e = 99999999999
-    val f = 1.5f
+    val f = 1.5F
     val g = "a\u12G4b"
     val h = '\u005c\u005c'
     val i = 9223372036854775808L
@@ -18,6 +18,8 @@ fn main() {
     val r = 0.0e-400
     val k = "a\sb"
     val j = '𝐀'
+    val s = 1e39f
+    val t = 1e-46f
 }
 
 fn minimum() -> Int = - 2147483648

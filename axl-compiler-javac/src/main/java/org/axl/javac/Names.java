@@ -48,7 +48,7 @@ final class Names {
             "class", "new", "this", "null", "true", "false", "void", "else", "case", "default", "switch", "record",
             "interface", "enum", "import", "package", "while", "for", "if");
 
-    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "String", "Character",
+    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Float", "Double", "Boolean", "String", "Character",
             "Object", "Result");
 
     private static final List<String> WORDS = List.of("null", "true", "false", "this", "println");
@@ -116,7 +116,7 @@ final class Names {
     static String typeHint(String symbol) {
         return switch (symbol) {
             case "Int" -> "the constants of `Int` are in `Integer`, such as `Integer.MAX_VALUE`";
-            case "Long", "Double" -> "the constants of `" + symbol + "` are in `java.lang." + symbol
+            case "Long", "Float", "Double" -> "the constants of `" + symbol + "` are in `java.lang." + symbol
                     + "`, such as `java.lang." + symbol + ".MAX_VALUE`";
             default -> JDK_TYPES.containsKey(symbol) ? "add `import " + JDK_TYPES.get(symbol) + "." + symbol + "`" : null;
         };

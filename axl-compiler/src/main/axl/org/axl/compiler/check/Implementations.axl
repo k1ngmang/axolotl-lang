@@ -286,7 +286,7 @@ fn boxedFields(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasse
     return result
 }
 
-private val PRIMITIVES: Set<String> = Set.of("Int", "Long", "Boolean", "Double")
+private val PRIMITIVES: Set<String> = Set.of("Int", "Long", "Boolean", "Float", "Double")
 
 /**
  * Whether Java gives the box of the result of the method of a type of the build: one that implements a method

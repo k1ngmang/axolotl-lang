@@ -408,6 +408,15 @@ public final class SourceParser {
         return d[a.length()][b.length()];
     }
 
+    private static String floatProblem(String text) {
+        float value = Float.parseFloat(text.replace("_", ""));
+        if (Float.isInfinite(value)) {
+            return "`" + text + "` is too large for a `Float`; write `" + text.substring(0, text.length() - 1) + "` for a `Double`";
+        }
+        boolean nonZeroDigits = !text.replace("_", "").matches("[0.]*([eE].*)?f");
+        return value == 0 && nonZeroDigits ? "`" + text + "` is too small for a `Float` and would be 0" : null;
+    }
+
     private static String doubleProblem(String text) {
         double value = Double.parseDouble(text.replace("_", "").replaceAll("[dD]$", ""));
         if (Double.isInfinite(value)) {
@@ -460,8 +469,11 @@ public final class SourceParser {
         if (misplacedUnderscore) {
             return "`" + text + "`: an underscore in a number must stand between two digits";
         }
-        if (!hex && text.matches(".*[0-9][fF]")) {
-            return "Axolotl has no `Float` type; write `" + text.substring(0, text.length() - 1) + "` for a `Double`";
+        if (!hex && text.matches(".*[0-9]F")) {
+            return "write `" + text.substring(0, text.length() - 1) + "f` for a `Float`";
+        }
+        if (!hex && text.endsWith("f")) {
+            return floatProblem(text);
         }
         if (t.getType() != AxolotlLexer.INT_LITERAL) {
             return doubleProblem(text);

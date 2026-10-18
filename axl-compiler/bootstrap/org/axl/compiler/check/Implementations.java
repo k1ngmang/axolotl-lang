@@ -335,7 +335,7 @@ import org.axl.compiler.ast.TypeRef;
         }
         return result;
     }
-    private static final Set<String> PRIMITIVES = Set.of("Int", "Long", "Boolean", "Double");
+    private static final Set<String> PRIMITIVES = Set.of("Int", "Long", "Boolean", "Float", "Double");
     public static boolean boxedResult(SourceFile file, List<SourceFile> siblings, JavaClasses classes, TypeRef type, String method, int arity) {
         Nulls.param(file, "file");
         Nulls.param(siblings, "siblings");

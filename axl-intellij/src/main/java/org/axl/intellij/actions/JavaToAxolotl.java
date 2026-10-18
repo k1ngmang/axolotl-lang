@@ -107,9 +107,9 @@ final class JavaToAxolotl {
     }
 
     private static final Map<String, String> PRIMITIVES = Map.of("int", "Int", "long", "Long", "boolean", "Boolean",
-            "double", "Double", "void", "");
+            "float", "Float", "double", "Double", "void", "");
     private static final Map<String, String> BOXED = Map.of("java.lang.Integer", "Int?", "java.lang.Long", "Long?",
-            "java.lang.Boolean", "Boolean?", "java.lang.Double", "Double?");
+            "java.lang.Boolean", "Boolean?", "java.lang.Float", "Float?", "java.lang.Double", "Double?");
     private static final Set<String> KEYWORDS = Set.of("package", "import", "fn", "val", "var", "private", "return",
             "if", "else", "while", "for", "is", "when", "class", "interface", "sealed", "try", "attempt", "true", "false",
             "null");
@@ -1129,7 +1129,8 @@ final class JavaToAxolotl {
             return value + (value instanceof Long ? "L" : "");
         }
         if (floating) {
-            return text.replaceFirst("^\\.", "0.").replaceFirst("\\.(?![0-9])", ".0");
+            String number = text.replaceFirst("^\\.", "0.").replaceFirst("\\.(?![0-9])", ".0");
+            return value instanceof Float ? number.replaceFirst("F$", "f") : number;
         }
         return text;
     }

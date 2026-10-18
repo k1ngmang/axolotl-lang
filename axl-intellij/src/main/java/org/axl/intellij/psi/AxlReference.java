@@ -29,7 +29,7 @@ import org.jetbrains.annotations.NotNull;
 /** Resolves names with the same rules as the translator, plus Java classes for qualified access. */
 public final class AxlReference extends PsiPolyVariantReferenceBase<AxlReferenceExpression> {
 
-    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Double", "Boolean", "Result", "ByteArray",
+    private static final List<String> BUILTIN_TYPES = List.of("Int", "Long", "Float", "Double", "Boolean", "Result", "ByteArray",
             "CharArray");
 
     AxlReference(AxlReferenceExpression element, TextRange range) {

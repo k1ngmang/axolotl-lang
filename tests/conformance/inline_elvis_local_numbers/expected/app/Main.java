@@ -34,7 +34,7 @@ import org.jspecify.annotations.*;
         final int y = Nulls.or(s, () -> (short) 0);
         System.out.println(y);
         final @Nullable Float f = null;
-        System.out.println(Nulls.or(f, () -> 0F));
+        System.out.println(Nulls.or(f, 0));
         final @Nullable Long l = null;
         System.out.println(Nulls.or(l, () -> 1.5));
     }
