@@ -38,6 +38,11 @@ Gradle 8.5 or newer and Java 21 are required; the configuration cache is support
 - A source set reads the declarations of the `.axl` sources of the source sets and projects it compiles
   against, as `test` does of `main`: a test can take apart a data class of the main sources or implement
   their interfaces, and is translated again when they change.
+- Lets the forked compiler keep Error Prone, NullAway and AxlDiagnostics loaded between compilations
+  (javac option `-XDaxl.sharedPlugins`). Gradle's compiler daemon would otherwise load and warm them up
+  again for every compile task. They are kept while the jars of the processor path keep their sizes and
+  times, at most four paths at a time. This changes neither the classes nor the messages and is not a
+  task input. Not on Windows, where a jar kept open could not be replaced.
 - Adds the generated directory to the Java sources, so `compileJava` compiles `.axl` and
   `.java` code together and both see each other. The classpath and the Java sources are inputs
   of the task only for the types of top-level values that call into them.

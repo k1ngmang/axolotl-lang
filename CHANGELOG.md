@@ -377,3 +377,5 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
 - Strict null mode trusts the `wrap` and `allocate` factories of the java.nio buffers, the documented way to reach the elements of a `ByteArray` or `CharArray`.
 - A function of the file named like a method of its class no longer gets a self-contradicting AXL016 after its AXL010.
 - A body that begins with `Objects.requireNonNull(p, ...)` checks the parameter `p` itself, with its own message, instead of the generated check; the first properties of a class do the same for its constructor.
+- Gradle: the compiler daemon keeps Error Prone, NullAway and the Axolotl javac plugin loaded between compilations of the same processor path instead of loading them again each time. A rebuild of the Commons CSV port takes half the CPU time and its `compileJava` drops from about 4.7 s to 2.3 s. The first compilation in a new daemon is unchanged, and so are classes and messages. Not on Windows.
+- The translation parses each `.axl` file once per build instead of once for its siblings and again for each of its translations.
