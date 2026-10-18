@@ -52,6 +52,9 @@ class SharedPluginsTest {
             }
             """;
 
+    // Windows keeps nothing: a kept loader holds its jars open, and Windows cannot replace an open file.
+    private static final boolean KEEPS = File.separatorChar != '\\';
+
     @TempDir
     Path tmp;
 
@@ -65,19 +68,27 @@ class SharedPluginsTest {
         List<URL> path = processorPath();
         List<String> alone = compile(path, false);
         List<String> first = compile(path, true);
-        ClassLoader kept = onlyLoader();
+        ClassLoader kept = KEEPS ? onlyLoader() : null;
         List<String> second = compile(path, true);
 
         assertTrue(first.stream().anyMatch(e -> e.contains("[NullAway]")), first.toString());
         assertEquals(alone, first);
         assertEquals(first, second);
-        assertSame(kept, onlyLoader());
+        if (KEEPS) {
+            assertSame(kept, onlyLoader());
+        } else {
+            assertNull(System.getProperties().get(SharedPlugins.PROPERTY));
+        }
     }
 
     @Test
     void loadsThePluginsAgainForAChangedJar() throws IOException {
         List<URL> path = processorPath();
         compile(path, true);
+        if (!KEEPS) {
+            assertNull(System.getProperties().get(SharedPlugins.PROPERTY));
+            return;
+        }
         ClassLoader kept = onlyLoader();
         Path jar = Path.of(path.getFirst().getPath());
         Files.setLastModifiedTime(jar, FileTime.fromMillis(Files.getLastModifiedTime(jar).toMillis() - 10_000));
