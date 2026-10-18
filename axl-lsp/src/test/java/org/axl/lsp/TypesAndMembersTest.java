@@ -656,6 +656,37 @@ class TypesAndMembersTest {
     }
 
     @Test
+    void readsGoesToAndCompletesTheMethodsWithABodyOfAnInterface() throws Exception {
+        String text = """
+                package app
+
+                interface Named {
+                    val name: String
+                    fn greeting() -> String = "hello, " + name + suffix()
+                    fn suffix() -> String {
+                        val mark = "!"
+                        return mark
+                    }
+                }
+
+                data class Person(val name: String) : Named
+
+                fn show(p: Person) -> String = p.greeting()
+                """;
+        String uri = open("Named.axl", text);
+        assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());
+        int[] greeting = at(text, "fn |greeting()");
+        assertEquals(List.of("Named.axl:" + greeting[0] + ":" + greeting[1]), definitionsAt(uri, text, "p.|greeting()"));
+        int[] name = at(text, "val |name: String\n");
+        assertEquals(List.of("Named.axl:" + name[0] + ":" + name[1]), definitionsAt(uri, text, "\"hello, \" + |name"));
+        assertContains(hoverAt(uri, text, "return |mark"), "val mark: String");
+        assertContains(hoverAt(uri, text, "+ |suffix()"), "fn suffix() -> String");
+        String edited = text.replace("p.greeting()", "p.gr");
+        String editedUri = open("Named.axl", edited);
+        assertTrue(membersAt(editedUri, edited, "p.gr|").contains("greeting"), membersAt(editedUri, edited, "p.gr|").toString());
+    }
+
+    @Test
     void hoversEnumFieldsSuperclassArgumentsDataClassMethodsAndTheLocalsOfUse() throws Exception {
         String uri = open("Extended.axl", EXTENDED);
         assertEquals(List.of(), published.get(uri).stream().map(Diagnostic::getMessage).toList());

@@ -4,6 +4,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.function.Supplier;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import org.antlr.v4.runtime.Token;
 import org.axl.compiler.ast.Decl;
 import org.axl.compiler.ast.Expr;
@@ -54,7 +55,19 @@ final class Declarations {
         }
         JavaModel java = workspace.javaModel(document.module);
         TypeElement owner = JavaModel.elementOf(Receivers.typeOf(java, document.ast, Document.start(name), steps).type());
-        return owner == null ? null : memberOf(document.module, owner.getQualifiedName().toString(), name.getText(), argumentTypes);
+        return owner == null ? null : inheritedMember(document.module, owner, name.getText(), argumentTypes);
+    }
+
+    /** A member of the type or, for a method with a body that it inherits, of an interface it implements. */
+    private Found inheritedMember(Module module, TypeElement owner, String name, Supplier<List<String>> argumentTypes) {
+        Found found = memberOf(module, owner.getQualifiedName().toString(), name, argumentTypes);
+        for (TypeMirror parent : owner.getInterfaces()) {
+            TypeElement iface = JavaModel.elementOf(parent);
+            if (found == null && iface != null) {
+                found = inheritedMember(module, iface, name, argumentTypes);
+            }
+        }
+        return found;
     }
 
     /** A member of a class of an .axl file: of its type declaration, or a function or value of the file for the file's class. */

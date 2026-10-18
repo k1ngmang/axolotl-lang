@@ -1504,10 +1504,10 @@ class WorkspaceTest {
     }
 
     @Test
-    void completesOnlyValInAnInterface() throws Exception {
+    void completesTheMembersAnInterfaceTakes() throws Exception {
         String uri = open("Shape.axl", "package app\n\nsealed interface Shape {\n    \n}\n");
         List<String> labels = new Completions(workspace).complete(uri, 3, 4).stream().map(CompletionItem::getLabel).toList();
-        assertTrue(labels.contains("val") && !labels.contains("var") && !labels.contains("fn"), labels.toString());
+        assertTrue(labels.containsAll(List.of("val", "fn", "private")) && !labels.contains("var"), labels.toString());
     }
 
     @Test

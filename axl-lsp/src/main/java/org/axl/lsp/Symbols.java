@@ -58,6 +58,9 @@ final class Symbols {
         } else if (enclosing instanceof Decl.EnumDecl enumeration) {
             bodyScope(enumeration.fields(), enumeration.methods(), result);
             enclosing = enclosingMethod(enumeration.methods(), pos);
+        } else if (enclosing instanceof Decl.Interface iface) {
+            bodyScope(iface.members(), iface.methods(), result);
+            enclosing = enclosingMethod(iface.methods(), pos);
         }
         if (enclosing instanceof Decl.Function fn) {
             for (Expr.Param p : fn.params()) {
@@ -65,7 +68,7 @@ final class Symbols {
             }
             if (fn.body() != null) {
                 statements(fn.body().statements(), pos, fn, result);
-            } else {
+            } else if (fn.exprBody() != null) {
                 expr(fn.exprBody(), pos, fn, result);
             }
         } else if (enclosing instanceof Decl.Value value) {
@@ -131,7 +134,7 @@ final class Symbols {
         return new Symbol(p.name(), p.mutable() ? Kind.VARIABLE : Kind.LOCAL, p.namePos(), p.type(), null, null);
     }
 
-    /** The methods of a data class or an enum see its fields and each other by name, as those of a class do. */
+    /** The methods of a data class, an enum or an interface see its fields or values and each other by name, as those of a class do. */
     private static void bodyScope(List<Expr.Param> fields, List<Decl.Function> methods, List<Symbol> out) {
         for (Expr.Param field : fields) {
             out.add(new Symbol(field.name(), Kind.LOCAL, field.pos(), field.type(), null, null));
