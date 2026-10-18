@@ -85,4 +85,4 @@ through its compiled classes or its installed jar, which only a build updates.
 ## VS Code
 
 `./gradlew :axl-lsp:vsix` (needs Node.js) copies the server into the extension and packages
-`editors/vscode/axolotl-0.2.0.vsix`. Install it with `code --install-extension axolotl-0.2.0.vsix`.
+`editors/vscode/axolotl-0.3.0.vsix`. Install it with `code --install-extension axolotl-0.3.0.vsix`.

@@ -6,8 +6,8 @@ minutes. You need JDK 21.
 ## 1. Install Axolotl
 
 Axolotl is not published to a public repository yet; it goes into your local Maven repository
-(`~/.m2/repository`) instead. The [installers](install.md#installers), which come with the next
-release (0.2.0), will do that for you. Until then, build it once from source, which needs Git too:
+(`~/.m2/repository`) instead. The [installers](install.md#installers) do that for you. Without them, build it once from source, which
+needs Git too:
 
 ```
 git clone https://github.com/succubus-uwu/axolotl.git
@@ -45,7 +45,7 @@ rootProject.name = "hello-axl"
 ```kotlin
 plugins {
     application
-    id("org.axl.lang") version "0.2.0"
+    id("org.axl.lang") version "0.3.0"
 }
 
 application {

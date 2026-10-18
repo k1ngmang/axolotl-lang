@@ -19,7 +19,7 @@ dependencyResolutionManagement {
 // build.gradle.kts
 plugins {
     java
-    id("org.axl.lang") version "0.2.0"
+    id("org.axl.lang") version "0.3.0"
 }
 ```
 
