@@ -176,7 +176,7 @@ class InitOrder(val file: SourceFile) {
     private fn callNames(call: Expr.Call, hidden: Set<String>, out: Set<String>) {
         val target = call.target()
         if (target == null) {
-            if (!hidden.contains(call.name())) {
+            if (!hidden.contains(call.name()) && !isAmbiguous(call)) {
                 function(call.name(), out)
             }
         } else if (isThisClass(target) || isThis(target)) {
@@ -416,6 +416,18 @@ class InitOrder(val file: SourceFile) {
                 }
             }
         }
+    }
+
+    /**
+     * A call in the class of the file of a name that both a method and a function of the file take as many arguments:
+     * AXL010 rejects the pair, and which one the call means is not known.
+     */
+    private fn isAmbiguous(call: Expr.Call) -> Boolean {
+        val c = owner
+        val arity = call.args().size()
+        return c != null && c.name().equals(file.className()) &&
+            (c.methods() |> anyMatch { m -> m.name().equals(call.name()) && m.params().size() == arity }) &&
+            (file.decls() |> anyMatch { d -> d is Decl.Function && d.name().equals(call.name()) && d.params().size() == arity })
     }
 
     /** What calling `this::m`, `Main::m` or `box::m` runs, where the box has a class of this file. */

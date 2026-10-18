@@ -1,0 +1,1 @@
+AXL010 app/Obj.axl:6:12: error: `Obj`, the type of this file, has a method `indexOf` with as many parameters, so a function of the file cannot have its name; rename one

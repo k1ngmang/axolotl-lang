@@ -1,0 +1,12 @@
+package app
+
+import java.util.List
+
+// Only AXL010: the property's call may mean either `indexOf`, so its order is not checked through the method.
+private fn indexOf(names: List<String>) -> Int = names.size()
+
+class Obj(private val names: List<String>) {
+    private val table = indexOf(names)
+
+    fn indexOf(name: String) -> Int = table + names.indexOf(name)
+}

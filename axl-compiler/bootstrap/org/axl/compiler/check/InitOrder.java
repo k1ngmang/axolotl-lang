@@ -183,7 +183,7 @@ import org.axl.compiler.ast.TypeRef;
     private void callNames(Expr.Call call, Set<String> hidden, Set<String> out) {
         final var target = call.target();
         if (target == null) {
-            if (!hidden.contains(call.name())) {
+            if (!hidden.contains(call.name()) && !isAmbiguous(call)) {
                 function(call.name(), out);
             }
         } else if (isThisClass(target) || isThis(target)) {
@@ -394,6 +394,13 @@ import org.axl.compiler.ast.TypeRef;
                 }
             }
         }
+    }
+    private boolean isAmbiguous(Expr.Call call) {
+        final var c = owner;
+        final var arity = call.args().size();
+        return c != null && c.name().equals(file.className()) &&
+                (Nulls.stream(c.methods()).anyMatch(m -> m.name().equals(call.name()) && m.params().size() == arity)) &&
+                (Nulls.stream(file.decls()).anyMatch(d -> d instanceof Decl.Function d$1 && d$1.name().equals(call.name()) && d$1.params().size() == arity));
     }
     private void calledRef(Expr.MethodRef ref, Set<String> hidden, Set<String> out) {
         if (isThisClass(ref.target()) || isThis(ref.target())) {
