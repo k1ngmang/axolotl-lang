@@ -1,0 +1,7 @@
+package app
+
+interface Store {
+    fn get(key: String) -> String? = null
+}
+
+fn get(key: String) -> String? = null

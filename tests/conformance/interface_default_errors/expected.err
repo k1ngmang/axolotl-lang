@@ -1,0 +1,8 @@
+AXL001 app/Main.axl:8:16: error: `secret` is private, so no class can write it; give it a body, `private fn secret(...) = ...`, or remove `private`
+AXL011 app/Main.axl:9:8: error: every Java object has a method `toString` with as many parameters, which a method of an interface cannot give; write it in each class, or give the method another name
+AXL008 app/Main.axl:11:9: error: cannot assign to `name`, a value of the interface, which each class that implements it gives
+AXL001 app/Main.axl:24:28: error: `super.hello(...)` could mean the method of `Left` or of `Right`; call a function that both share instead, or write the body here
+AXL017 app/Main.axl:29:8: error: `describe` returns `Int` here, but the interface `Shape` requires `fn describe() -> String`
+AXL017 app/Main.axl:30:15: error: the parameter `factor` is `Int` here, but the interface `Shape` requires `fn scaled(factor: Double) -> Double`
+AXL017 app/Main.axl:35:16: error: `describe` overrides a method of the interface `Shape`, so it cannot be private
+AXL010 app/Store.axl:7:4: error: `Store`, the type of this file, has a method `get` with as many parameters, so a function of the file cannot have its name; rename one

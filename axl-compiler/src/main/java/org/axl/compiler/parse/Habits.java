@@ -690,8 +690,8 @@ final class Habits {
                 int method = abstractMethod(tokens, classToken < 0 ? i : classToken);
                 String example = method < 0 ? "fn describe() -> String" : source(tokens, method, lineEnd(tokens, method));
                 yield "Axolotl has no `abstract` classes, since a class cannot be extended; write an interface with the values and "
-                        + "methods each class gives, `interface " + name + " { " + example + " }`, and a method with a body as a "
-                        + "function that takes the interface";
+                        + "methods each class gives, `interface " + name + " { " + example + " }`; a method of the interface with a "
+                        + "body is shared by the classes that implement it";
             }
             case "static" -> "Axolotl has no `static`; remove it: functions and values at the top of a file "
                     + "need no object";

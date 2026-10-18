@@ -52,7 +52,16 @@ import org.axl.compiler.ast.TypeRef;
     private static void implementer(SourceFile file, List<SourceFile> siblings, Decl decl, Map<String, Given> given,
             List<TypeRef> supertypes, List<Mismatch> problems) {
         final var seen = new HashSet<String>();
-        for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
+        final var all = interfaces(file, siblings, supertypes, new HashSet<String>());
+        final var defaults = new HashSet<String>();
+        for (final var i : all) {
+            for (final var method : i.iface().methods()) {
+                if (hasBody(method) && !method.isPrivate()) {
+                    defaults.add(method.name() + "/" + method.params().size());
+                }
+            }
+        }
+        for (final var implemented : all) {
             final var iface = implemented.iface();
             for (final var member : iface.members()) {
                 final var required = substitute(Nulls.sure(member.type()), iface.typeParams(), implemented.args());
@@ -70,9 +79,10 @@ import org.axl.compiler.ast.TypeRef;
                 }
             }
             for (final var method : iface.methods()) {
-                if (!seen.add(method.name() + "/" + method.params().size())) {
+                final var key = method.name() + "/" + method.params().size();
+                if (method.isPrivate() || !seen.add(key)) {
                 } else {
-                    implementation(decl, methodsOf(decl), method, implemented, problems);
+                    implementation(decl, methodsOf(decl), method, implemented, defaults.contains(key), problems);
                 }
             }
         }
@@ -153,7 +163,7 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private static void implementation(Decl c, List<Decl.Function> methods, Decl.Function method, Implemented implemented,
-            List<Mismatch> problems) {
+            boolean inherited, List<Mismatch> problems) {
         final var iface = implemented.iface();
         final var own = Nulls.first(methods.stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).iterator());
         final var declaredReturn = method.returnType();
@@ -168,6 +178,9 @@ import org.axl.compiler.ast.TypeRef;
                         signature(method) +
                         "`"));
             }
+            return;
+        }
+        if (own == null && inherited) {
             return;
         }
         if (own == null) {
@@ -186,7 +199,8 @@ import org.axl.compiler.ast.TypeRef;
             return;
         }
         if (own.isPrivate()) {
-            problems.add(new Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
+            final var does = (hasBody(method) ? "overrides" : "implements");
+            problems.add(new Mismatch(own.namePos(), "`" + own.name() + "` " + does + " a method of the interface `" + iface.name() +
                     "`, so it cannot be private"));
         }
         final var givenReturn = own.returnType();
@@ -300,8 +314,10 @@ import org.axl.compiler.ast.TypeRef;
                 result.add(new RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type())));
             }
             for (final var method : iface.methods()) {
-                final var params = Nulls.stream(method.params()).map(Nulls.asGiven(p -> isTypeVariable(names, p.type()))).toList();
-                result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())));
+                if (!method.isPrivate()) {
+                    final var params = Nulls.stream(method.params()).map(Nulls.asGiven(p -> isTypeVariable(names, p.type()))).toList();
+                    result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())));
+                }
             }
         }
         for (final var type : supertypes) {
@@ -379,6 +395,27 @@ import org.axl.compiler.ast.TypeRef;
     private static boolean isImplementer(Decl decl) {
         return decl instanceof Decl.DataClass decl$1 || decl instanceof Decl.ClassDecl decl$2 || decl instanceof Decl.Interface decl$3;
     }
+    public static boolean hasBody(Decl.Function f) {
+        Nulls.param(f, "f");
+        return f.exprBody() != null || f.body() != null;
+    }
+    public static List<TypeRef> defaultsThrough(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes, String name, int arity) {
+        Nulls.param(file, "file");
+        Nulls.param(siblings, "siblings");
+        Nulls.param(supertypes, "supertypes");
+        Nulls.param(name, "name");
+        final var result = new ArrayList<TypeRef>();
+        for (final var type : supertypes) {
+            final var reached = interfaces(file, siblings, List.of(type), new HashSet<String>());
+            final var found = reached.stream().anyMatch(i -> Nulls.stream(i.iface().methods()).anyMatch(m -> hasBody(m) && !m.isPrivate() &&
+                    m.name().equals(name) &&
+                    m.params().size() == arity));
+            if (found) {
+                result.add(type);
+            }
+        }
+        return result;
+    }
     public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         Nulls.param(file, "file");
         Nulls.param(siblings, "siblings");
@@ -390,7 +427,9 @@ import org.axl.compiler.ast.TypeRef;
                 keys.add(member.name() + "/0");
             }
             for (final var method : iface.methods()) {
-                keys.add(method.name() + "/" + method.params().size());
+                if (!method.isPrivate()) {
+                    keys.add(method.name() + "/" + method.params().size());
+                }
             }
         }
         return keys;

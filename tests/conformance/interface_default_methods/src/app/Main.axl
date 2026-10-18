@@ -1,0 +1,79 @@
+package app
+
+import java.util.ArrayList
+import java.util.List
+
+class Collector : Handler<List<String>> {
+    val items: ArrayList<String> = ArrayList<String>()
+
+    fn value(text: String) {
+        items.add(text)
+    }
+}
+
+interface Named {
+    val name: String
+    val tags: List<String>
+
+    fn greeting() -> String = "hello, " + name + describe()
+
+    fn describe() -> String = if (tags.isEmpty()) "" else " " + tags
+
+    fn shout() -> String = loud(this.greeting())
+
+    private fn loud(text: String) -> String = text.toUpperCase()
+}
+
+data class Person(val name: String, val tags: List<String>) : Named
+
+class Robot(val name: String) : Named {
+    val tags: List<String> = List.of("metal")
+
+    fn describe() -> String = " beep" + super.describe()
+}
+
+interface Coded {
+    val code: Int
+    fn label() -> String
+}
+
+// A method with a body gives what the interface it extends requires.
+interface Labeled : Coded {
+    fn label() -> String = "#" + code
+}
+
+enum Planet(val code: Int) : Labeled {
+    EARTH(3), MARS(4)
+}
+
+sealed interface Shape {
+    fn area() -> Double
+    fn big() -> Boolean = area() > 10.0
+}
+
+data class Square(val side: Double) : Shape {
+    fn area() -> Double = side * side
+}
+
+data class Dot(val x: Int) : Shape {
+    fn area() -> Double = 0.0
+}
+
+fn kind(shape: Shape) -> String = when (shape) {
+    is Square -> "square " + shape.big()
+    is Dot -> "dot " + shape.big()
+}
+
+fn main() {
+    val collector = Collector()
+    Handler.parse(List.of("a", "b"), collector)
+    collector.endArray(collector.startArray())
+    println(collector.items)
+    Handler.parse(List.of("c"), JavaUse.silent())
+    println(Person("ann", List.of()).greeting())
+    println(Person("bob", List.of("x")).shout())
+    println(Robot("r2").greeting())
+    println(Planet.EARTH.label() + " " + Planet.MARS.label())
+    println(kind(Square(4.0)) + ", " + kind(Dot(1)))
+    println(JavaUse.run())
+}

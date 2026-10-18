@@ -70,6 +70,8 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr, Integer> startLines;
     public Decl.@Nullable ClassDecl currentClass;
     public List<Decl.Function> currentMethods;
+    public boolean inInterface;
+    public List<String> interfaceValues;
     public Set<String> boxedFields;
     public Map<String, TypeRef> memberTypes;
     public Set<String> constructorOnly;
@@ -126,6 +128,8 @@ import org.axl.compiler.check.Whens;
         this.startLines = new IdentityHashMap<Expr, Integer>();
         this.currentClass = null;
         this.currentMethods = List.of();
+        this.inInterface = false;
+        this.interfaceValues = List.of();
         this.boxedFields = Set.of();
         this.memberTypes = Map.of();
         this.constructorOnly = Set.of();
@@ -663,13 +667,54 @@ import org.axl.compiler.check.Whens;
         for (final var method : iface.methods()) {
             final var returnType = method.returnType();
             final var resultType = (returnType == null ? "void" : javaType(returnType));
-            em.line(method.pos().line(), annotations(method.annotations()) + typeParams(method.typeParams()) + resultType + " " +
-                    method.name() +
-                    "(" +
-                    parameters(method.params(), method.pos().line()) +
-                    ");");
+            if (!Implementations.hasBody(method)) {
+                em.line(method.pos().line(), annotations(method.annotations()) + typeParams(method.typeParams()) + resultType + " " +
+                        method.name() +
+                        "(" +
+                        parameters(method.params(), method.pos().line()) +
+                        ");");
+            }
         }
+        emitDefaultMethods(iface);
         em.dedent();
+    }
+    private void emitDefaultMethods(Decl.Interface iface) {
+        final var methods = Nulls.stream(iface.methods()).filter(m -> Implementations.hasBody(m)).toList();
+        if (methods.isEmpty()) {
+            return;
+        }
+        final var outerOverridden = overridden;
+        final var outerRequired = requiredMethods;
+        final var outerMethods = currentMethods;
+        final var outerPrivate = inPrivateType;
+        final var outerVariables = nullableVariables;
+        final var outerMembers = memberTypes;
+        overridden = Implementations.required(file, options.siblings(), iface.supertypes());
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), iface.supertypes());
+        currentMethods = iface.methods();
+        final var values = new ArrayList<Expr.Param>(iface.members());
+        for (final var inherited : Implementations.requiredValues(file, options.siblings(), iface.supertypes())) {
+            if (values.stream().noneMatch(m -> m.name().equals(inherited.name()))) {
+                values.add(inherited);
+            }
+        }
+        memberTypes = withThis(fieldTypes(values), iface.name(), iface.typeParams());
+        interfaceValues = values.stream().map(Nulls.nonNull(m -> m.name())).toList();
+        inInterface = true;
+        inPrivateType = iface.isPrivate();
+        nullableVariables = nullableVariablesOf(iface.typeParams(), Set.of());
+        for (final var method : methods) {
+            resetCounters();
+            emitFunction(method, false);
+        }
+        interfaceValues = List.of();
+        inInterface = false;
+        currentMethods = outerMethods;
+        memberTypes = outerMembers;
+        overridden = outerOverridden;
+        requiredMethods = outerRequired;
+        inPrivateType = outerPrivate;
+        nullableVariables = outerVariables;
     }
     private String interfaceModifier(Decl.Interface iface) {
         if (iface.isSealed()) {
@@ -750,11 +795,11 @@ import org.axl.compiler.check.Whens;
         final var resultType = (declaredReturn == null ? "void" :
                 (required != null && required.boxedResult() ? boxedType(declaredReturn) :
                 javaType(declaredReturn)));
-        final var modifier = (isStatic ? " static " : " ");
+        final var modifier = (isStatic ? visibility(f) + " static " : (inInterface && !f.isPrivate() ? "default " : visibility(f) + " "));
         final var written = Nulls.stream(f.annotations()).anyMatch(a -> a.name().equals("Override"));
         final var overrides = overridden.contains(f.name() + "/" + f.params().size()) || overridesObject(f);
         final var override = (!isStatic && !written && overrides ? "@Override " : "");
-        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
+        em.line(f.pos().line(), override + annotations(f.annotations()) + modifier + typeParams(f.typeParams()) + resultType +
                 " " +
                 f.name() +
                 "(" +
@@ -2038,7 +2083,11 @@ import org.axl.compiler.check.Whens;
         if (c != null && lambdaDepth > 0 && inPropertyInit && analysis.fieldNames().contains(n)) {
             return c.name() + ".this." + n.name();
         }
-        return n.name();
+        if (analysis.fieldNames().contains(n) && interfaceValues.contains(n.name())) {
+            return n.name() + "()";
+        }
+        final var owner = analysis.superOwners().get(n);
+        return (owner == null ? n.name() : owner + ".super");
     }
     private String callExpr(Expr.Call c, boolean inLambda) {
         final var target = c.target();

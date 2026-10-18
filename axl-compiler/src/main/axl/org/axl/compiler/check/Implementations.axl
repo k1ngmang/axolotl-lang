@@ -45,7 +45,17 @@ fn check(file: SourceFile, siblings: List<SourceFile>) -> List<Mismatch> {
 private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl, given: Map<String, Given>,
                        supertypes: List<TypeRef>, problems: List<Mismatch>) {
     val seen = HashSet<String>()
-    for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
+    val all = interfaces(file, siblings, supertypes, HashSet<String>())
+    // A default method gives what another interface requires, as in Java.
+    val defaults = HashSet<String>()
+    for (i in all) {
+        for (method in i.iface().methods()) {
+            if (hasBody(method) && !method.isPrivate()) {
+                defaults.add(method.name() + "/" + method.params().size())
+            }
+        }
+    }
+    for (implemented in all) {
         val iface = implemented.iface()
         for (member in iface.members()) {
             // The parser requires the type of a member, so it is never missing here.
@@ -62,10 +72,11 @@ private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl,
             }
         }
         for (method in iface.methods()) {
-            if (!seen.add(method.name() + "/" + method.params().size())) {
-                // Reported where the interface declares it twice.
+            val key = method.name() + "/" + method.params().size()
+            if (method.isPrivate() || !seen.add(key)) {
+                // Reported where the interface declares it twice; a private method belongs to the interface alone.
             } else {
-                implementation(decl, methodsOf(decl), method, implemented, problems)
+                implementation(decl, methodsOf(decl), method, implemented, defaults.contains(key), problems)
             }
         }
     }
@@ -130,9 +141,12 @@ private fn methodsOf(decl: Decl) -> List<Decl.Function> = when (decl) {
     else -> List.of()
 }
 
-/** A class or data class gives a method with the name, as many parameters, and types that fit the interface's. */
+/**
+ * A class or data class gives a method with the name, as many parameters, and types that fit the interface's; it
+ * inherits one that has a default, or overrides it by the same rules.
+ */
 private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Function, implemented: Implemented,
-                          problems: List<Mismatch>) {
+                          inherited: Boolean, problems: List<Mismatch>) {
     val iface = implemented.iface()
     val own = methods |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
     val declaredReturn = method.returnType()
@@ -147,6 +161,9 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
         }
         return
     }
+    if (own == null && inherited) {
+        return
+    }
     if (own == null) {
         val where = if (c is Decl.DataClass) "add it in a body after the fields: `data class " + c.name() + "(...) : " + iface.name() + " { fn ... }`"
             else if (property != null && required != null) "its property `" + property.name() + "` is a field, which gives no method; " +
@@ -157,7 +174,8 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
         return
     }
     if (own.isPrivate()) {
-        problems.add(Mismatch(own.namePos(), "`" + own.name() + "` implements a method of the interface `" + iface.name() +
+        val does = if (hasBody(method)) "overrides" else "implements"
+        problems.add(Mismatch(own.namePos(), "`" + own.name() + "` " + does + " a method of the interface `" + iface.name() +
             "`, so it cannot be private"))
     }
     val givenReturn = own.returnType()
@@ -247,8 +265,10 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaCl
             result.add(RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type())))
         }
         for (method in iface.methods()) {
-            val params = method.params() |> map { p -> isTypeVariable(names, p.type()) }
-            result.add(RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())))
+            if (!method.isPrivate()) {
+                val params = method.params() |> map { p -> isTypeVariable(names, p.type()) }
+                result.add(RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())))
+            }
         }
     }
     for (type in supertypes) {
@@ -330,6 +350,26 @@ private fn typeNamed(file: SourceFile, siblings: List<SourceFile>, name: String)
 
 private fn isImplementer(decl: Decl) -> Boolean = decl is Decl.DataClass || decl is Decl.ClassDecl || decl is Decl.Interface
 
+/** A method of an interface with a body is a default method; one without is required of each implementation. */
+fn hasBody(f: Decl.Function) -> Boolean = f.exprBody() != null || f.body() != null
+
+/**
+ * The supertypes, among those written, through which a type inherits a default method of the build with the name and
+ * as many parameters: `super.add(x)` calls it as Java's `Notes.super.add(x)`.
+ */
+fn defaultsThrough(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>, name: String, arity: Int) -> List<TypeRef> {
+    val result = ArrayList<TypeRef>()
+    for (type in supertypes) {
+        val reached = interfaces(file, siblings, List.of(type), HashSet<String>())
+        val found = reached |> anyMatch { i -> i.iface().methods() |> anyMatch { m -> hasBody(m) && !m.isPrivate() &&
+            m.name().equals(name) && m.params().size() == arity } }
+        if (found) {
+            result.add(type)
+        }
+    }
+    return result
+}
+
 /** What the interfaces require, as `name/arity`: a value is a method without parameters. */
 fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<String> {
     val keys = ArrayList<String>()
@@ -339,7 +379,9 @@ fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeR
             keys.add(member.name() + "/0")
         }
         for (method in iface.methods()) {
-            keys.add(method.name() + "/" + method.params().size())
+            if (!method.isPrivate()) {
+                keys.add(method.name() + "/" + method.params().size())
+            }
         }
     }
     return keys

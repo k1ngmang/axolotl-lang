@@ -1,0 +1,36 @@
+package app
+
+interface Shape {
+    val name: String
+    fn area() -> Double
+    fn describe() -> String = name + " " + area()
+    fn scaled(factor: Double) -> Double = area() * factor
+    private fn secret() -> Int
+    fn toString() -> String = name
+    fn rename() {
+        name = "other"
+    }
+}
+
+interface Left {
+    fn hello() -> String = "left"
+}
+
+interface Right {
+    fn hello() -> String = "right"
+}
+
+class Both : Left, Right {
+    fn hello() -> String = super.hello()
+}
+
+class Square(val name: String, val side: Double) : Shape {
+    fn area() -> Double = side * side
+    fn describe() -> Int = 1
+    fn scaled(factor: Int) -> Double = 0.0
+}
+
+class Circle(val name: String) : Shape {
+    fn area() -> Double = 1.0
+    private fn describe() -> String = "circle"
+}

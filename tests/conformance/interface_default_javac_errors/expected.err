@@ -1,0 +1,2 @@
+AXL100 app/Main.axl:6:41: error: `Shape` has no field `side`
+AXL100 app/Main.axl:7:28: error: `Shape` has no method `timesTwo(Double)`

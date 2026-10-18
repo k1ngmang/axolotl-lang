@@ -109,7 +109,6 @@ final class Mistakes {
             case AxolotlLexer.DOT -> previous.getType() == AxolotlLexer.IDENTIFIER && type(before(tokens, previous)) == AxolotlLexer.FN
                     ? "Axolotl has no extension functions; take the value as the first parameter: `fn "
                     + text(SourceParser.nextToken(tokens, at)) + "(s: " + previous.getText() + ")`" : null;
-            case AxolotlLexer.LBRACE -> inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
             case AxolotlLexer.ELSE -> previous.getType() != AxolotlLexer.RBRACE && !lineHas(tokens, previous.getLine(), AxolotlLexer.IF)
                     && type(SourceParser.nextToken(tokens, at)) != AxolotlLexer.ARROW
                     ? "`else` needs an `if` before it: `if (c) { ... } else { ... }`" : null;
@@ -200,13 +199,10 @@ final class Mistakes {
         return word != null && word.getType() == AxolotlLexer.ELSE && type(before(tokens, word)) == AxolotlLexer.RBRACE;
     }
 
-    private static final String INTERFACE_METHOD_BODY = "a method of an interface has no body; it ends after `)` or its "
-            + "result type, and each class that implements the interface writes the body";
-
     private static String identifier(CommonTokenStream tokens, Token at, Token previous) {
         Token next = SourceParser.nextToken(tokens, at);
         if (next.getType() == AxolotlLexer.LPAREN && inInterface(tokens, at)) {
-            return "a method of an interface is written `fn " + at.getText() + "(name: Type) -> Type`, without a body";
+            return "a method of an interface is written `fn " + at.getText() + "(name: Type) -> Type`";
         }
         if (next.getType() == AxolotlLexer.COLON && inInterface(tokens, at)) {
             return "an interface lists values: `val " + at.getText() + ": " + text(SourceParser.nextToken(tokens, next)) + "`";
@@ -608,7 +604,7 @@ final class Mistakes {
                 return "an enum constant takes its values in parentheses, for fields declared after the name: "
                         + "`enum Color(val code: Int) { RED(1), GREEN(2) }`";
             }
-            return inInterface(tokens, at) && startsFunction(tokens, at) ? INTERFACE_METHOD_BODY : null;
+            return null;
         }
         Token beforeParen = before(tokens, paren);
         if (type(beforeParen) == AxolotlLexer.IF || type(beforeParen) == AxolotlLexer.WHILE) {

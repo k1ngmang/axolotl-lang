@@ -133,6 +133,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     val stableNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
     val staticNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
     val fieldNames: Set<Expr.Name> = Collections.newSetFromMap(IdentityHashMap<Expr.Name, Boolean>())
+    // The `super` of `super.add(x)` that calls a default method, with the supertype it reaches it through.
+    val superOwners: IdentityHashMap<Expr.Name, String> = IdentityHashMap<Expr.Name, String>()
     val typeNames: HashSet<String> = HashSet<String>()
     // How each `when` is used; one that is not here gives a value.
     val whenResults: IdentityHashMap<Expr.When, Boolean> = IdentityHashMap<Expr.When, Boolean>()
@@ -162,6 +164,12 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     /** Inside the lambda of a pipe stage that gives a value, where a lone `attempt` is the value. */
     var valueStage: Boolean = false
     var currentClass: Decl.ClassDecl? = null
+    /** The supertypes of the type whose methods are being checked, whose default methods `super` reaches. */
+    var currentSupertypes: List<TypeRef> = List.of()
+    /** Inside the methods of a data class, an enum or an interface. */
+    var inBodyMethods: Boolean = false
+    /** The values of the interface whose methods are being checked. */
+    var interfaceValues: List<String> = List.of()
     /** The methods of the class or data class whose body is being checked. */
     var currentMethods: List<Decl.Function> = List.of()
     // The written type of the `val` whose initializer is being checked, for `mapResult`.
@@ -369,8 +377,11 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     private fn interfaceFileMembers(iface: Decl.Interface) {
         for (decl in file.decls()) {
             if (decl is Decl.Function && hasSignatureLike(iface, decl)) {
-                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + iface.name() + "`, the type of this file, requires a method `" +
-                    decl.name() + "` with as many parameters, so a function of the file cannot have its name; rename one")
+                val given = iface.methods() |> anyMatch { m -> m.name().equals(decl.name()) && m.params().size() == decl.params().size() &&
+                    Implementations.hasBody(m) }
+                error(decl.namePos(), ErrorCode.DUPLICATE_NAME, "`" + iface.name() + "`, the type of this file, " +
+                    (if (given) "has" else "requires") + " a method `" + decl.name() +
+                    "` with as many parameters, so a function of the file cannot have its name; rename one")
             }
         }
     }
@@ -492,11 +503,13 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         // A class implementing a Java interface such as Supplier<Int> must write `Integer` where Java has the box.
         integerAllowed = c.supertypes() |> anyMatch { t -> !declaresType(t.name()) }
         enclosingTypeParams = c.typeParams() |> map { p -> p.name() }
+        currentSupertypes = c.supertypes()
         for (m in c.methods()) {
             checkReserved(m.namePos(), m.name())
             typeParams(m)
             function(m)
         }
+        currentSupertypes = List.of()
         enclosingTypeParams = List.of()
         integerAllowed = false
         pop()
@@ -651,7 +664,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                     "` of `" + data.name() + "`; give the method another name")
             }
         }
-        bodyMethods(data.fields(), data.typeParams(), data.supertypes(), data.methods())
+        bodyMethods(data.fields(), data.typeParams(), data.supertypes(), data.methods(), data.methods())
     }
 
     /** The methods of an enum see its fields by name, as a data class's do; Java's `Enum` keeps its own methods. */
@@ -662,11 +675,12 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
                     "cannot be replaced; give the method another name")
             }
         }
-        bodyMethods(e.fields(), List.of(), e.supertypes(), e.methods())
+        bodyMethods(e.fields(), List.of(), e.supertypes(), e.methods(), e.methods())
     }
 
+    /** methods are those with a body, which read the fields by name; all are the methods a bare call may mean. */
     private fn bodyMethods(fields: List<Expr.Param>, typeParams: List<Decl.TypeParam>, supertypes: List<TypeRef>,
-                           methods: List<Decl.Function>) {
+                           methods: List<Decl.Function>, all: List<Decl.Function>) {
         if (methods.isEmpty()) {
             return
         }
@@ -677,7 +691,9 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         val outerMethods = currentMethods
         val outerOpen = openTypeParams
         openTypeParams = openTypeParams(typeParams)
-        currentMethods = methods
+        currentMethods = all
+        currentSupertypes = supertypes
+        inBodyMethods = true
         integerAllowed = supertypes |> anyMatch { t -> !declaresType(t.name()) }
         enclosingTypeParams = typeParams |> map { p -> p.name() }
         for (m in methods) {
@@ -687,6 +703,8 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         }
         enclosingTypeParams = List.of()
         integerAllowed = false
+        currentSupertypes = List.of()
+        inBodyMethods = false
         currentMethods = outerMethods
         openTypeParams = outerOpen
         pop()
@@ -771,6 +789,10 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         }
     }
 
+    /**
+     * The methods of an interface: signatures, which each implementation writes, and methods with a body, Java's default
+     * methods, which read the values of the interface by name and call its other methods.
+     */
     private fn interfaceMethods(iface: Decl.Interface) {
         val values = iface.members() |> map { m -> m.name() }
         val seen = HashSet<String>()
@@ -784,17 +806,39 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
             } else if (!seen.add(m.name() + "/" + m.params().size())) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "the method `" + m.name() + "` of `" + iface.name() +
                     "` is declared twice with as many parameters")
+            } else if (Implementations.hasBody(m) && OBJECT_METHODS.contains(m.name() + "/" + m.params().size())) {
+                error(m.namePos(), ErrorCode.RESERVED_NAME, "every Java object has a method `" + m.name() + "` with as many " +
+                    "parameters, which a method of an interface cannot give; write it in each class, or give the method another name")
+            } else if (m.isPrivate() && !Implementations.hasBody(m)) {
+                error(m.namePos(), ErrorCode.SYNTAX, "`" + m.name() + "` is private, so no class can write it; give it a body, " +
+                    "`private fn " + m.name() + "(...) = ...`, or remove `private`")
             } else {
                 checkReserved(m.namePos(), m.name())
             }
-            writtenType(m.returnType(), true)
-            scope = Scope(scope, false)
-            for (p in m.params()) {
-                declare(p.pos(), p.name(), Kind.PARAM, p.type())
-                annotations(p.annotations())
+            if (!Implementations.hasBody(m)) {
+                writtenType(m.returnType(), true)
+                scope = Scope(scope, false)
+                for (p in m.params()) {
+                    declare(p.pos(), p.name(), Kind.PARAM, p.type())
+                    annotations(p.annotations())
+                }
+                pop()
             }
-            pop()
         }
+        if (iface.methods() |> anyMatch { m -> Implementations.hasBody(m) }) {
+            // The values of the interfaces it extends are its values too.
+            val all = ArrayList<Expr.Param>(iface.members())
+            for (inherited in Implementations.requiredValues(file, siblings, iface.supertypes())) {
+                if (all |> noneMatch { m -> m.name().equals(inherited.name()) }) {
+                    all.add(inherited)
+                }
+            }
+            interfaceValues = all |> map { m -> m.name() }
+            bodyMethods(all, iface.typeParams(), iface.supertypes(), iface.methods() |> filter { m -> Implementations.hasBody(m) },
+                iface.methods())
+            interfaceValues = List.of()
+        }
+        enclosingTypeParams = List.of()
     }
 
     private fn enumConstants(e: Decl.EnumDecl) {
@@ -1286,6 +1330,9 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
         if (kind == Kind.TOP_LEVEL) {
             return topLevelProblem(name)
         }
+        if (kind == Kind.FIELD && interfaceValues.contains(name)) {
+            return "cannot assign to `" + name + "`, a value of the interface, which each class that implements it gives"
+        }
         if (kind == Kind.FIELD) {
             return "cannot assign to the `val` property `" + name + "`; declare it with `var`"
         }
@@ -1420,7 +1467,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
     private fn name(e: Expr.Name) {
         if (e.name().equals("super")) {
             error(e.pos(), ErrorCode.SYNTAX, "`super` stands only before a call of a method of the Java class the class " +
-                "extends, as in `super.read()`")
+                "extends or of an interface it implements, as in `super.read()`")
             return
         }
         val symbol = scope.lookup(e.name())
@@ -1445,7 +1492,7 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
             warnNeverNull(target, "write `.` instead of `?.`")
         }
         if (target is Expr.Name && target.name().equals("super")) {
-            superCall(target)
+            superCall(target, e)
         } else if (target != null) {
             expr(target)
         } else if (e.name().equals("super")) {
@@ -1468,16 +1515,28 @@ class Checker(val file: SourceFile, val siblings: List<SourceFile>, val classes:
 
     /**
      * `super.read()` runs the method of the Java class that the class extends, as a method that overrides it needs; javac
-     * reports a method that class does not have. Axolotl classes, data classes and enums extend none.
+     * reports a method that class does not have. Axolotl classes, data classes and enums extend none. `super.add(x)` runs
+     * the method with a body of the one interface of the build it implements that has one, as Java's `Notes.super.add(x)`.
      */
-    private fn superCall(target: Expr.Name) {
+    private fn superCall(target: Expr.Name, call: Expr.Call) {
         // Generated as it is written, as a Java class name would be.
         staticNames.add(target)
         val c = currentClass
-        if (c == null || c.superArgs() == null) {
-            val here = if (c == null) "only a class that extends one has it" else "`" + c.name() + "` extends none"
+        val extended = c != null && c.superArgs() != null
+        val owners = Implementations.defaultsThrough(file, siblings, currentSupertypes, call.name(), call.args().size())
+        if (owners.size() > 1) {
+            val names = owners |> map { t -> t.name() }
+            error(target.pos(), ErrorCode.SYNTAX, "`super." + call.name() + "(...)` could mean the method of `" +
+                String.join("` or of `", names) + "`; call a function that both share instead, or write the body here")
+        } else if (owners.size() == 1 && !(extended && inheritsMethod(c!!.supertypes().getFirst(), call.name()))) {
+            superOwners.put(target, owners.getFirst().name())
+        } else if (!extended) {
+            val none = "no interface it implements has a method `" + call.name() + "` with a body"
+            val here = if (c != null) "`" + c.name() + "` extends no Java class, and " + none
+                else if (inBodyMethods) none else "only the methods of a type have it"
             error(target.pos(), ErrorCode.SYNTAX, "`super` calls a method of the Java class a class extends, such as " +
-                "`super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; " + here)
+                "`super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`, or a method with a body of an " +
+                "interface it implements; " + here)
         }
     }
 
@@ -2111,7 +2170,7 @@ fn check(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses, dia
     checker.run()
     diagnostics.addAll(checker.diagnostics)
     return Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
-        checker.fieldNames, checker.mapResultTypes)
+        checker.fieldNames, checker.mapResultTypes, checker.superOwners)
 }
 
 private fn isNullConstant(c: Expr.Cond) -> Boolean {

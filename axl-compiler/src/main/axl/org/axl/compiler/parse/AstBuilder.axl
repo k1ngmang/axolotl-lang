@@ -288,10 +288,15 @@ private fn buildTypeParams(ctx: TypeParamsContext?) -> List<Decl.TypeParam> {
     return ctx.typeParam() |> map { p -> Decl.TypeParam(pos(p.start), nameOf(p.identifier()), typeOrNull(p.type())) }
 }
 
-/** A method of an interface: a function without a body. */
-private fn buildSignature(ctx: InterfaceMethodContext) -> Decl.Function =
-    Function(pos(ctx.start), pos(ctx.identifier().start), false, nameOf(ctx.identifier()), buildParams(ctx.param()),
-        typeOrNull(ctx.type()), null, null, buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()))
+/** A method of an interface: a function without a body, which each implementation writes, or a default method with one. */
+private fn buildSignature(ctx: InterfaceMethodContext) -> Decl.Function {
+    val body = ctx.functionBody()
+    val bodyExpr = body?.expression()
+    val bodyBlock = body?.block()
+    return Function(pos(ctx.start), pos(ctx.identifier().start), ctx.PRIVATE() != null, nameOf(ctx.identifier()),
+        buildParams(ctx.param()), typeOrNull(ctx.type()), if (bodyExpr == null) null else buildExpr(bodyExpr),
+        if (bodyBlock == null) null else buildBlock(bodyBlock), buildAnnotations(ctx.annotation()), buildTypeParams(ctx.typeParams()))
+}
 
 private fn buildParams(contexts: List<ParamContext>) -> List<Expr.Param> {
     val params = ArrayList<Expr.Param>()

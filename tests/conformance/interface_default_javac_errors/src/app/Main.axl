@@ -1,0 +1,13 @@
+package app
+
+interface Shape {
+    val label: String?
+    fn area() -> Double
+    fn describe() -> String = "side " + side
+    fn twice() -> Double = timesTwo(area())
+}
+
+class Square(val side: Double) : Shape {
+    val label: String? = null
+    fn area() -> Double = side * side
+}

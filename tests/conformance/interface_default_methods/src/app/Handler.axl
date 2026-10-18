@@ -1,0 +1,22 @@
+package app
+
+import java.util.List
+
+// As minimal-json's JsonHandler: callbacks that do nothing unless a class overrides them.
+interface Handler<A> {
+    fn startArray() -> A? = null
+
+    fn endArray(array: A?) {
+    }
+
+    fn value(text: String) {
+        println("ignored " + text)
+    }
+}
+
+fn parse(texts: List<String>, handler: Handler<*>) {
+    handler.startArray()
+    for (text in texts) {
+        handler.value(text)
+    }
+}

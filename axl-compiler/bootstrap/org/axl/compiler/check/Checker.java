@@ -34,6 +34,7 @@ import org.axl.compiler.ast.TypeRef;
     public final Set<Expr.Name> stableNames;
     public final Set<Expr.Name> staticNames;
     public final Set<Expr.Name> fieldNames;
+    public final IdentityHashMap<Expr.Name, String> superOwners;
     public final HashSet<String> typeNames;
     public final IdentityHashMap<Expr.When, Boolean> whenResults;
     public int valueWhenDepth;
@@ -54,6 +55,9 @@ import org.axl.compiler.ast.TypeRef;
     public boolean integerAllowed;
     public boolean valueStage;
     public Decl.@Nullable ClassDecl currentClass;
+    public List<TypeRef> currentSupertypes;
+    public boolean inBodyMethods;
+    public List<String> interfaceValues;
     public List<Decl.Function> currentMethods;
     public @Nullable TypeRef declaredType;
     public Checker(SourceFile file, List<SourceFile> siblings, JavaClasses classes) {
@@ -70,6 +74,7 @@ import org.axl.compiler.ast.TypeRef;
         this.stableNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
         this.staticNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
         this.fieldNames = Collections.newSetFromMap(new IdentityHashMap<Expr.Name, Boolean>());
+        this.superOwners = new IdentityHashMap<Expr.Name, String>();
         this.typeNames = new HashSet<String>();
         this.whenResults = new IdentityHashMap<Expr.When, Boolean>();
         this.valueWhenDepth = -1;
@@ -90,6 +95,9 @@ import org.axl.compiler.ast.TypeRef;
         this.integerAllowed = false;
         this.valueStage = false;
         this.currentClass = null;
+        this.currentSupertypes = List.of();
+        this.inBodyMethods = false;
+        this.interfaceValues = List.of();
         this.currentMethods = List.of();
         this.declaredType = null;
     }
@@ -286,7 +294,11 @@ import org.axl.compiler.ast.TypeRef;
     private void interfaceFileMembers(Decl.Interface iface) {
         for (final var decl : file.decls()) {
             if (decl instanceof Decl.Function decl$1 && hasSignatureLike(iface, decl$1)) {
-                error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + iface.name() + "`, the type of this file, requires a method `" +
+                final var given = Nulls.stream(iface.methods()).anyMatch(m -> m.name().equals(decl$1.name()) && m.params().size() == decl$1.params().size() &&
+                        Implementations.hasBody(m));
+                error(decl$1.namePos(), ErrorCode.DUPLICATE_NAME, "`" + iface.name() + "`, the type of this file, " +
+                        ((given ? "has" : "requires")) +
+                        " a method `" +
                         decl$1.name() +
                         "` with as many parameters, so a function of the file cannot have its name; rename one");
             }
@@ -425,11 +437,13 @@ import org.axl.compiler.ast.TypeRef;
         }
         integerAllowed = Nulls.stream(c.supertypes()).anyMatch(t -> !declaresType(t.name()));
         enclosingTypeParams = Nulls.stream(c.typeParams()).map(Nulls.nonNull(p -> p.name())).toList();
+        currentSupertypes = c.supertypes();
         for (final var m : c.methods()) {
             checkReserved(m.namePos(), m.name());
             typeParams(m);
             function(m);
         }
+        currentSupertypes = List.of();
         enclosingTypeParams = List.of();
         integerAllowed = false;
         pop();
@@ -574,7 +588,7 @@ import org.axl.compiler.ast.TypeRef;
                         "`; give the method another name");
             }
         }
-        bodyMethods(data.fields(), data.typeParams(), data.supertypes(), data.methods());
+        bodyMethods(data.fields(), data.typeParams(), data.supertypes(), data.methods(), data.methods());
     }
     private void enumMethods(Decl.EnumDecl e) {
         for (final var m : e.methods()) {
@@ -583,10 +597,10 @@ import org.axl.compiler.ast.TypeRef;
                         "cannot be replaced; give the method another name");
             }
         }
-        bodyMethods(e.fields(), List.of(), e.supertypes(), e.methods());
+        bodyMethods(e.fields(), List.of(), e.supertypes(), e.methods(), e.methods());
     }
     private void bodyMethods(List<Expr.Param> fields, List<Decl.TypeParam> typeParams, List<TypeRef> supertypes,
-            List<Decl.Function> methods) {
+            List<Decl.Function> methods, List<Decl.Function> all) {
         if (methods.isEmpty()) {
             return;
         }
@@ -597,7 +611,9 @@ import org.axl.compiler.ast.TypeRef;
         final var outerMethods = currentMethods;
         final var outerOpen = openTypeParams;
         openTypeParams = openTypeParams(typeParams);
-        currentMethods = methods;
+        currentMethods = all;
+        currentSupertypes = supertypes;
+        inBodyMethods = true;
         integerAllowed = supertypes.stream().anyMatch(t -> !declaresType(t.name()));
         enclosingTypeParams = typeParams.stream().map(Nulls.nonNull(p -> p.name())).toList();
         for (final var m : methods) {
@@ -607,6 +623,8 @@ import org.axl.compiler.ast.TypeRef;
         }
         enclosingTypeParams = List.of();
         integerAllowed = false;
+        currentSupertypes = List.of();
+        inBodyMethods = false;
         currentMethods = outerMethods;
         openTypeParams = outerOpen;
         pop();
@@ -706,17 +724,40 @@ import org.axl.compiler.ast.TypeRef;
             } else if (!seen.add(m.name() + "/" + m.params().size())) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "the method `" + m.name() + "` of `" + iface.name() +
                         "` is declared twice with as many parameters");
+            } else if (Implementations.hasBody(m) && OBJECT_METHODS.contains(m.name() + "/" + m.params().size())) {
+                error(m.namePos(), ErrorCode.RESERVED_NAME, "every Java object has a method `" + m.name() + "` with as many " +
+                        "parameters, which a method of an interface cannot give; write it in each class, or give the method another name");
+            } else if (m.isPrivate() && !Implementations.hasBody(m)) {
+                error(m.namePos(), ErrorCode.SYNTAX, "`" + m.name() + "` is private, so no class can write it; give it a body, " +
+                        "`private fn " +
+                        m.name() +
+                        "(...) = ...`, or remove `private`");
             } else {
                 checkReserved(m.namePos(), m.name());
             }
-            writtenType(m.returnType(), true);
-            scope = new Scope(scope, false);
-            for (final var p : m.params()) {
-                declare(p.pos(), p.name(), Kind.PARAM, p.type());
-                annotations(p.annotations());
+            if (!Implementations.hasBody(m)) {
+                writtenType(m.returnType(), true);
+                scope = new Scope(scope, false);
+                for (final var p : m.params()) {
+                    declare(p.pos(), p.name(), Kind.PARAM, p.type());
+                    annotations(p.annotations());
+                }
+                pop();
             }
-            pop();
         }
+        if (Nulls.stream(iface.methods()).anyMatch(m -> Implementations.hasBody(m))) {
+            final var all = new ArrayList<Expr.Param>(iface.members());
+            for (final var inherited : Implementations.requiredValues(file, siblings, iface.supertypes())) {
+                if (all.stream().noneMatch(m -> m.name().equals(inherited.name()))) {
+                    all.add(inherited);
+                }
+            }
+            interfaceValues = all.stream().map(Nulls.nonNull(m -> m.name())).toList();
+            bodyMethods(all, iface.typeParams(), iface.supertypes(), Nulls.stream(iface.methods()).filter(m -> Implementations.hasBody(m)).toList(),
+                    iface.methods());
+            interfaceValues = List.of();
+        }
+        enclosingTypeParams = List.of();
     }
     private void enumConstants(Decl.EnumDecl e) {
         members(e.fields(), "field");
@@ -1205,6 +1246,9 @@ import org.axl.compiler.ast.TypeRef;
         if (kind == Kind.TOP_LEVEL) {
             return topLevelProblem(name);
         }
+        if (kind == Kind.FIELD && interfaceValues.contains(name)) {
+            return "cannot assign to `" + name + "`, a value of the interface, which each class that implements it gives";
+        }
         if (kind == Kind.FIELD) {
             return "cannot assign to the `val` property `" + name + "`; declare it with `var`";
         }
@@ -1355,7 +1399,7 @@ import org.axl.compiler.ast.TypeRef;
     private void name(Expr.Name e) {
         if (e.name().equals("super")) {
             error(e.pos(), ErrorCode.SYNTAX, "`super` stands only before a call of a method of the Java class the class " +
-                    "extends, as in `super.read()`");
+                    "extends or of an interface it implements, as in `super.read()`");
             return;
         }
         final var symbol = scope.lookup(e.name());
@@ -1379,7 +1423,7 @@ import org.axl.compiler.ast.TypeRef;
             warnNeverNull(target, "write `.` instead of `?.`");
         }
         if (target instanceof Expr.Name target$1 && target$1.name().equals("super")) {
-            superCall(target$1);
+            superCall(target$1, e);
         } else if (target != null) {
             expr(target);
         } else if (e.name().equals("super")) {
@@ -1402,13 +1446,25 @@ import org.axl.compiler.ast.TypeRef;
             safeTailDepth = safeTailDepth - 1;
         }
     }
-    private void superCall(Expr.Name target) {
+    private void superCall(Expr.Name target, Expr.Call call) {
         staticNames.add(target);
         final var c = currentClass;
-        if (c == null || c.superArgs() == null) {
-            final var here = (c == null ? "only a class that extends one has it" : "`" + c.name() + "` extends none");
+        final var extended = c != null && c.superArgs() != null;
+        final var owners = Implementations.defaultsThrough(file, siblings, currentSupertypes, call.name(), call.args().size());
+        if (owners.size() > 1) {
+            final var names = owners.stream().map(Nulls.asGiven(t -> t.name())).toList();
+            error(target.pos(), ErrorCode.SYNTAX, "`super." + call.name() + "(...)` could mean the method of `" +
+                    String.join("` or of `", names) +
+                    "`; call a function that both share instead, or write the body here");
+        } else if (owners.size() == 1 && !(extended && inheritsMethod(java.util.Objects.requireNonNull(c).supertypes().getFirst(), call.name()))) {
+            superOwners.put(target, owners.getFirst().name());
+        } else if (!extended) {
+            final var none = "no interface it implements has a method `" + call.name() + "` with a body";
+            final var here = (c != null ? "`" + c.name() + "` extends no Java class, and " + none :
+                    (inBodyMethods ? none : "only the methods of a type have it"));
             error(target.pos(), ErrorCode.SYNTAX, "`super` calls a method of the Java class a class extends, such as " +
-                    "`super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`; " +
+                    "`super.read()` in `class Lines(val input: Reader) : BufferedReader(input)`, or a method with a body of an " +
+                    "interface it implements; " +
                     here);
         }
     }
@@ -2056,7 +2112,7 @@ import org.axl.compiler.ast.TypeRef;
         checker.run();
         diagnostics.addAll(checker.diagnostics);
         return new Analysis(checker.mutableRefs, checker.implicitIt, checker.stableNames, checker.staticNames,
-                checker.fieldNames, checker.mapResultTypes);
+                checker.fieldNames, checker.mapResultTypes, checker.superOwners);
     }
     private static boolean isNullConstant(Expr.Cond c) {
         final var constant = c.constant();

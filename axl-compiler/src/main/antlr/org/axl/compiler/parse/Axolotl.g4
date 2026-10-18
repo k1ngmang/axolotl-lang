@@ -208,8 +208,9 @@ classMember
 interfaceDecl
     : annotation* PRIVATE? SEALED? INTERFACE identifier typeParams? (COLON type (COMMA type)*)? (LBRACE (field | interfaceMethod)* RBRACE)?
     ;
+// A method without a body is required of each implementation; one with a body is Java's default method.
 interfaceMethod
-    : annotation* FN identifier typeParams? LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? SEMI?
+    : annotation* PRIVATE? FN identifier typeParams? LPAREN (param (COMMA param)*)? RPAREN (ARROW type)? (functionBody | SEMI?)
     ;
 
 functionDecl

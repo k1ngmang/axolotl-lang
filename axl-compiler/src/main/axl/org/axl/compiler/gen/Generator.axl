@@ -132,6 +132,10 @@ class Generator(
     var currentClass: Decl.ClassDecl? = null
     /** The methods of the class or data class being emitted, which a call by a bare name may mean. */
     var currentMethods: List<Decl.Function> = List.of()
+    /** Whether the methods being emitted are those of an interface, Java's default methods unless private. */
+    var inInterface: Boolean = false
+    /** The values of that interface, which its methods read as Java's `name()`. */
+    var interfaceValues: List<String> = List.of()
     /** The fields of the data class being emitted that Java boxes, see Implementations.boxedFields. */
     var boxedFields: Set<String> = Set.of()
     /** The types of the parameters, properties or fields of that class or data class, and of `this`, which its methods read. */
@@ -732,10 +736,53 @@ class Generator(
         for (method in iface.methods()) {
             val returnType = method.returnType()
             val resultType = if (returnType == null) "void" else javaType(returnType)
-            em.line(method.pos().line(), annotations(method.annotations()) + typeParams(method.typeParams()) + resultType + " " +
-                method.name() + "(" + parameters(method.params(), method.pos().line()) + ");")
+            if (!Implementations.hasBody(method)) {
+                em.line(method.pos().line(), annotations(method.annotations()) + typeParams(method.typeParams()) + resultType + " " +
+                    method.name() + "(" + parameters(method.params(), method.pos().line()) + ");")
+            }
         }
+        emitDefaultMethods(iface)
         em.dedent()
+    }
+
+    /** The methods with a body, Java's default methods, which read the values of the interface as the methods they are. */
+    private fn emitDefaultMethods(iface: Decl.Interface) {
+        val methods = iface.methods() |> filter { m -> Implementations.hasBody(m) }
+        if (methods.isEmpty()) {
+            return
+        }
+        val outerOverridden = overridden
+        val outerRequired = requiredMethods
+        val outerMethods = currentMethods
+        val outerPrivate = inPrivateType
+        val outerVariables = nullableVariables
+        val outerMembers = memberTypes
+        overridden = Implementations.required(file, options.siblings(), iface.supertypes())
+        requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), iface.supertypes())
+        currentMethods = iface.methods()
+        val values = ArrayList<Expr.Param>(iface.members())
+        for (inherited in Implementations.requiredValues(file, options.siblings(), iface.supertypes())) {
+            if (values |> noneMatch { m -> m.name().equals(inherited.name()) }) {
+                values.add(inherited)
+            }
+        }
+        memberTypes = withThis(fieldTypes(values), iface.name(), iface.typeParams())
+        interfaceValues = values |> map { m -> m.name() }
+        inInterface = true
+        inPrivateType = iface.isPrivate()
+        nullableVariables = nullableVariablesOf(iface.typeParams(), Set.of())
+        for (method in methods) {
+            resetCounters()
+            emitFunction(method, false)
+        }
+        interfaceValues = List.of()
+        inInterface = false
+        currentMethods = outerMethods
+        memberTypes = outerMembers
+        overridden = outerOverridden
+        requiredMethods = outerRequired
+        inPrivateType = outerPrivate
+        nullableVariables = outerVariables
     }
 
     /** Java wants an interface under a sealed one to be sealed or open itself. */
@@ -827,11 +874,12 @@ class Generator(
         val resultType = if (declaredReturn == null) "void"
             else if (required != null && required.boxedResult()) boxedType(declaredReturn)
             else javaType(declaredReturn)
-        val modifier = if (isStatic) " static " else " "
+        // The methods of an interface are public in Java; those with a body and not private are default methods.
+        val modifier = if (isStatic) visibility(f) + " static " else if (inInterface && !f.isPrivate()) "default " else visibility(f) + " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
         val overrides = overridden.contains(f.name() + "/" + f.params().size()) || overridesObject(f)
         val override = if (!isStatic && !written && overrides) "@Override " else ""
-        em.line(f.pos().line(), override + annotations(f.annotations()) + visibility(f) + modifier + typeParams(f.typeParams()) + resultType +
+        em.line(f.pos().line(), override + annotations(f.annotations()) + modifier + typeParams(f.typeParams()) + resultType +
             " " + f.name() + "(" + params + ") {")
         returnType = if (declaredReturn == null) null else nullableType(declaredReturn)
         resultTypeRef = declaredReturn
@@ -2270,7 +2318,11 @@ class Generator(
         if (c != null && lambdaDepth > 0 && inPropertyInit && analysis.fieldNames().contains(n)) {
             return c.name() + ".this." + n.name()
         }
-        return n.name()
+        if (analysis.fieldNames().contains(n) && interfaceValues.contains(n.name())) {
+            return n.name() + "()"
+        }
+        val owner = analysis.superOwners().get(n)
+        return if (owner == null) n.name() else owner + ".super"
     }
 
     private fn callExpr(c: Expr.Call, inLambda: Boolean) -> String {
