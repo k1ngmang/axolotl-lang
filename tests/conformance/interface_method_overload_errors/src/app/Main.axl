@@ -1,0 +1,28 @@
+package app
+
+interface Expr {
+    fn interpret(n: Int) -> Boolean
+}
+
+// No method of the name takes an `Int`: the first one is taken as the implementation, with the wrong type.
+class Words : Expr {
+    fn interpret(text: String) -> Boolean = text.isEmpty()
+
+    fn interpret(flag: Boolean) -> Boolean = flag
+}
+
+interface Named {
+    fn interpret(name: String) -> Boolean
+}
+
+// The method of the name implements the other interface, so the one Expr requires is missing.
+class Only : Expr, Named {
+    fn interpret(name: String) -> Boolean = name.isEmpty()
+}
+
+// A wrong type where an overload implements the method is an overload; a wrong return type is still reported.
+class Mixed : Expr {
+    fn interpret(n: Int) -> String = "" + n
+
+    fn interpret(n: Long) -> Boolean = n > 0
+}

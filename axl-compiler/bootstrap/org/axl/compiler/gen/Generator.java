@@ -32,6 +32,7 @@ import org.axl.compiler.ast.Expr.Unary;
 import org.axl.compiler.ast.Import;
 import org.axl.compiler.ast.Pos;
 import org.axl.compiler.ast.SourceFile;
+import org.axl.compiler.check.Implementations.Overridable;
 import org.axl.compiler.check.Implementations.RequiredMethod;
 import org.axl.compiler.ast.Stmt;
 import org.axl.compiler.ast.Stmt.Block;
@@ -64,7 +65,7 @@ import org.axl.compiler.check.Whens;
     public final IdentityHashMap<Expr, String> arrayArguments;
     public final Set<Expr> genericArrayArguments;
     public final Set<Stmt> lastContinues;
-    public List<String> overridden;
+    public Overridable overridden;
     public List<RequiredMethod> requiredMethods;
     public @Nullable TypeRef subjectTypeOf;
     public final IdentityHashMap<Expr, Integer> startLines;
@@ -122,7 +123,7 @@ import org.axl.compiler.check.Whens;
         this.arrayArguments = new IdentityHashMap<Expr, String>();
         this.genericArrayArguments = Collections.newSetFromMap(new IdentityHashMap<Expr, Boolean>());
         this.lastContinues = Collections.newSetFromMap(new IdentityHashMap<Stmt, Boolean>());
-        this.overridden = List.of();
+        this.overridden = new Overridable(Set.of(), List.of());
         this.requiredMethods = List.of();
         this.subjectTypeOf = null;
         this.startLines = new IdentityHashMap<Expr, Integer>();
@@ -441,7 +442,7 @@ import org.axl.compiler.check.Whens;
         }
         final var outerOverridden = overridden;
         final var outerRequired = requiredMethods;
-        overridden = Implementations.required(file, options.siblings(), classDecl.supertypes());
+        overridden = Implementations.overridable(file, options.siblings(), classDecl.supertypes());
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), classDecl.supertypes());
         for (final var method : classDecl.methods()) {
             resetCounters();
@@ -626,7 +627,7 @@ import org.axl.compiler.check.Whens;
         final var outerVariables = nullableVariables;
         final var outerBoxed = boxedFields;
         final var outerMembers = memberTypes;
-        overridden = Implementations.required(file, options.siblings(), supertypes);
+        overridden = Implementations.overridable(file, options.siblings(), supertypes);
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), supertypes);
         boxedFields = boxed;
         currentMethods = methods;
@@ -689,7 +690,7 @@ import org.axl.compiler.check.Whens;
         final var outerPrivate = inPrivateType;
         final var outerVariables = nullableVariables;
         final var outerMembers = memberTypes;
-        overridden = Implementations.required(file, options.siblings(), iface.supertypes());
+        overridden = Implementations.overridable(file, options.siblings(), iface.supertypes());
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), iface.supertypes());
         currentMethods = iface.methods();
         final var values = new ArrayList<Expr.Param>(iface.members());
@@ -786,9 +787,7 @@ import org.axl.compiler.check.Whens;
         em.line(0, "}");
     }
     private void emitFunction(Decl.Function f, boolean isStatic) {
-        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> r.name().equals(f.name()) &&
-                r.boxedParams().size() == f.params().size())
-                .iterator()));
+        final var required = (isStatic ? null : Nulls.first(requiredMethods.stream().filter(r -> Implementations.isRequired(r, f)).iterator()));
         final var boxed = boxedParameters(f, required);
         final var params = (isStatic && isMain(f) ? "String[] args" : parameters(f.params(), f.pos().line(), boxed));
         final var declaredReturn = f.returnType();
@@ -797,7 +796,7 @@ import org.axl.compiler.check.Whens;
                 javaType(declaredReturn)));
         final var modifier = (isStatic ? visibility(f) + " static " : (inInterface && !f.isPrivate() ? "default " : visibility(f) + " "));
         final var written = Nulls.stream(f.annotations()).anyMatch(a -> a.name().equals("Override"));
-        final var overrides = overridden.contains(f.name() + "/" + f.params().size()) || overridesObject(f);
+        final var overrides = Implementations.overrides(f, overridden) || overridesObject(f);
         final var override = (!isStatic && !written && overrides ? "@Override " : "");
         em.line(f.pos().line(), override + annotations(f.annotations()) + modifier + typeParams(f.typeParams()) + resultType +
                 " " +

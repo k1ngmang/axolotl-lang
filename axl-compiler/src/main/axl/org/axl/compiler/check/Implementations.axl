@@ -28,6 +28,9 @@ data class Given(val pos: Pos, val type: TypeRef?)
 /** An interface a type implements, with the types it writes for the interface's type parameters. */
 data class Implemented(val iface: Decl.Interface, val args: List<TypeRef>)
 
+/** A method of an interface the type implements, or of the type itself when from is null. */
+data class Inherited(val method: Decl.Function, val from: Implemented?)
+
 fn check(file: SourceFile, siblings: List<SourceFile>) -> List<Mismatch> {
     val problems = ArrayList<Mismatch>()
     for (decl in file.decls()) {
@@ -46,12 +49,11 @@ private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl,
                        supertypes: List<TypeRef>, problems: List<Mismatch>) {
     val seen = HashSet<String>()
     val all = interfaces(file, siblings, supertypes, HashSet<String>())
-    // A default method gives what another interface requires, as in Java.
-    val defaults = HashSet<String>()
+    val inherited = ArrayList<Inherited>()
     for (i in all) {
         for (method in i.iface().methods()) {
-            if (hasBody(method) && !method.isPrivate()) {
-                defaults.add(method.name() + "/" + method.params().size())
+            if (!method.isPrivate()) {
+                inherited.add(Inherited(method, i))
             }
         }
     }
@@ -61,7 +63,7 @@ private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl,
             // The parser requires the type of a member, so it is never missing here.
             val required = substitute(member.type()!!, iface.typeParams(), implemented.args())
             val field = given.get(member.name())
-            if (!seen.add(member.name() + "/0")) {
+            if (!seen.add(member.name() + "/")) {
                 // Reported where the interface declares it twice.
             } else if (field == null) {
                 problems.add(Mismatch(decl.namePos(), "`" + decl.name() + "` does not give `val " + member.name() + ": " +
@@ -72,11 +74,14 @@ private fn implementer(file: SourceFile, siblings: List<SourceFile>, decl: Decl,
             }
         }
         for (method in iface.methods()) {
-            val key = method.name() + "/" + method.params().size()
+            val key = method.name() + "/" + String.join(",", parameterTypes(Inherited(method, implemented)))
             if (method.isPrivate() || !seen.add(key)) {
                 // Reported where the interface declares it twice; a private method belongs to the interface alone.
             } else {
-                implementation(decl, methodsOf(decl), method, implemented, defaults.contains(key), problems)
+                // A default method gives what another interface requires, as in Java.
+                val hasDefault = inherited |> anyMatch { d -> hasBody(d.method()) && d.method().name().equals(method.name()) &&
+                    sameParameters(d, Inherited(method, implemented)) }
+                implementation(decl, methodsOf(decl), method, implemented, inherited, hasDefault, problems)
             }
         }
     }
@@ -143,12 +148,17 @@ private fn methodsOf(decl: Decl) -> List<Decl.Function> = when (decl) {
 
 /**
  * A class or data class gives a method with the name, as many parameters, and types that fit the interface's; it
- * inherits one that has a default, or overrides it by the same rules.
+ * inherits one that has a default, or overrides it by the same rules. A method of the name whose parameter types
+ * Java tells apart is an overload when another method implements the interface's, or implements another method of
+ * the interfaces; otherwise it is taken as the implementation, with the wrong types.
  */
 private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Function, implemented: Implemented,
-                          inherited: Boolean, problems: List<Mismatch>) {
+                          interfaceMethods: List<Inherited>, hasDefault: Boolean, problems: List<Mismatch>) {
     val iface = implemented.iface()
-    val own = methods |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() } |> first
+    val named = methods |> filter { m -> m.name().equals(method.name()) && m.params().size() == method.params().size() }
+    val matching = named |> filter { m -> sameParameters(Inherited(m, null), Inherited(method, implemented)) } |> first
+    val own = if (matching != null) matching else named |> filter { m -> interfaceMethods |> noneMatch { i ->
+        i.method().name().equals(m.name()) && sameParameters(Inherited(m, null), i) } } |> first
     val declaredReturn = method.returnType()
     val required: TypeRef? = if (declaredReturn == null) null else substitute(declaredReturn, iface.typeParams(), implemented.args())
     val property = if (own == null && method.params().isEmpty()) propertyNamed(c, method.name()) else null
@@ -161,7 +171,7 @@ private fn implementation(c: Decl, methods: List<Decl.Function>, method: Decl.Fu
         }
         return
     }
-    if (own == null && inherited) {
+    if (own == null && hasDefault) {
         return
     }
     if (own == null) {
@@ -252,8 +262,18 @@ fn substitute(type: TypeRef, params: List<Decl.TypeParam>, args: List<TypeRef>) 
     return TypeRef(type.pos(), type.name(), substituted, type.nullable())
 }
 
-/** A method an interface requires, with where it has a type variable, which Java boxes an `Int` for. */
-data class RequiredMethod(val name: String, val boxedParams: List<Boolean>, val boxedResult: Boolean)
+/**
+ * A method an interface requires, with where it has a type variable, which Java boxes an `Int` for; method is null for
+ * one of a Java interface.
+ */
+data class RequiredMethod(val name: String, val boxedParams: List<Boolean>, val boxedResult: Boolean, val method: Inherited?)
+
+/** Whether the method of a class is the one required: the name, as many parameters, and the same types where known. */
+fn isRequired(r: RequiredMethod, f: Decl.Function) -> Boolean {
+    val method = r.method()
+    return r.name().equals(f.name()) && r.boxedParams().size() == f.params().size() &&
+        (method == null || sameParameters(Inherited(f, null), method))
+}
 
 /** The methods the interfaces among the supertypes require: those of the build and those of Java classes that can be read. */
 fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaClasses, supertypes: List<TypeRef>) -> List<RequiredMethod> {
@@ -262,12 +282,12 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaCl
         val iface = implemented.iface()
         val names = iface.typeParams() |> map { p -> p.name() }
         for (member in iface.members()) {
-            result.add(RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type())))
+            result.add(RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type()), null))
         }
         for (method in iface.methods()) {
             if (!method.isPrivate()) {
                 val params = method.params() |> map { p -> isTypeVariable(names, p.type()) }
-                result.add(RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())))
+                result.add(RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType()), Inherited(method, implemented)))
             }
         }
     }
@@ -277,7 +297,7 @@ fn requiredMethods(file: SourceFile, siblings: List<SourceFile>, classes: JavaCl
             val library = Libraries.classNamed(file, classes, type.name())
             if (library != null) {
                 for (shape in classes.methods(library.name())) {
-                    result.add(RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable()))
+                    result.add(RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable(), null))
                 }
             }
         }
@@ -370,21 +390,93 @@ fn defaultsThrough(file: SourceFile, siblings: List<SourceFile>, supertypes: Lis
     return result
 }
 
-/** What the interfaces require, as `name/arity`: a value is a method without parameters. */
-fn required(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> List<String> {
-    val keys = ArrayList<String>()
+/** What the interfaces require or give: the values, which are methods without parameters, and the methods. */
+data class Overridable(val values: Set<String>, val methods: List<Inherited>)
+
+fn overridable(file: SourceFile, siblings: List<SourceFile>, supertypes: List<TypeRef>) -> Overridable {
+    val values = HashSet<String>()
+    val methods = ArrayList<Inherited>()
     for (implemented in interfaces(file, siblings, supertypes, HashSet<String>())) {
         val iface = implemented.iface()
         for (member in iface.members()) {
-            keys.add(member.name() + "/0")
+            values.add(member.name())
         }
         for (method in iface.methods()) {
             if (!method.isPrivate()) {
-                keys.add(method.name() + "/" + method.params().size())
+                methods.add(Inherited(method, implemented))
             }
         }
     }
-    return keys
+    return Overridable(values, methods)
+}
+
+/** Whether the method implements or overrides one of the interfaces, so that Java gets `@Override`. */
+fn overrides(f: Decl.Function, overridable: Overridable) -> Boolean =
+    (f.params().isEmpty() && overridable.values().contains(f.name())) ||
+        (overridable.methods() |> anyMatch { m -> m.method().name().equals(f.name()) && sameParameters(Inherited(f, null), m) })
+
+/**
+ * Whether two methods take parameters Java does not tell apart: the same types once `?` and type arguments are left
+ * out, with `Int?` as `Integer`, a type parameter of the method as its bound, and a type variable of an interface as the
+ * type argument the implementing type writes, which Java boxes, so that `Int` there is `Integer` on both sides.
+ */
+fn sameParameters(a: Inherited, b: Inherited) -> Boolean {
+    if (a.method().params().size() != b.method().params().size()) {
+        return false
+    }
+    val aVariables = typeVariables(a)
+    val bVariables = typeVariables(b)
+    var i = 0
+    while (i < a.method().params().size()) {
+        val boxed = aVariables.get(i) || bVariables.get(i)
+        if (!erasedParameter(a, i, boxed).equals(erasedParameter(b, i, boxed))) {
+            return false
+        }
+        i += 1
+    }
+    return true
+}
+
+/** The parameter types as Java tells methods apart, see sameParameters, with a type variable of the interface boxed. */
+fn parameterTypes(m: Inherited) -> List<String> {
+    val variables = typeVariables(m)
+    val result = ArrayList<String>()
+    var i = 0
+    while (i < m.method().params().size()) {
+        result.add(erasedParameter(m, i, variables.get(i)))
+        i += 1
+    }
+    return result
+}
+
+/** For each parameter, whether its type is a type variable of the interface. */
+private fn typeVariables(m: Inherited) -> List<Boolean> {
+    val from = m.from()
+    val names: List<String> = if (from == null) List.of() else from.iface().typeParams() |> map { p -> p.name() }
+    return m.method().params() |> map { p -> isTypeVariable(names, p.type()) }
+}
+
+private fn erasedParameter(m: Inherited, index: Int, boxed: Boolean) -> String {
+    val type = m.method().params().get(index).type()
+    if (type == null) {
+        return "?"
+    }
+    val from = m.from()
+    val seen = if (from == null) type else substitute(type, from.iface().typeParams(), from.args())
+    return erasedName(seen, m.method().typeParams(), boxed)
+}
+
+/** `Int` is `int` and `Int?` `Integer`, a type parameter its bound or `Object`, a class its simple name. */
+fn erasedName(type: TypeRef, typeParams: List<Decl.TypeParam>, boxed: Boolean) -> String {
+    for (p in typeParams) {
+        if (p.name().equals(type.name()) && type.args().isEmpty()) {
+            val bound = p.bound()
+            return if (bound == null) "Object" else erasedName(bound, List.of(), false)
+        }
+    }
+    val simple = type.name().substring(type.name().lastIndexOf(".") + 1)
+    val name = if (simple.equals("Integer")) "Int" else simple
+    return if (PRIMITIVES.contains(name) && (boxed || type.nullable() || !simple.equals(name))) "java.lang." + name else name
 }
 
 /**

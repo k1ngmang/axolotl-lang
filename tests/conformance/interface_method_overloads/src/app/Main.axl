@@ -1,0 +1,62 @@
+package app
+
+import java.util.List
+
+// A class may overload a method an interface requires with other parameter types: only the method whose types
+// match implements it, in whichever order they come.
+interface Expr {
+    fn interpret(n: Int) -> Boolean
+}
+
+class Positive : Expr {
+    fn interpret(text: String) -> Boolean = interpret(Integer.parseInt(text))
+
+    fn interpret(n: Int) -> Boolean = n > 0
+}
+
+class Negative : Expr {
+    fn interpret(n: Int) -> Boolean = n < 0
+
+    fn interpret(text: String) -> Boolean = interpret(Integer.parseInt(text))
+}
+
+data class Above(val limit: Int) : Expr {
+    fn interpret(n: Int) -> Boolean = n > limit
+
+    fn interpret(text: String) -> Boolean = interpret(Integer.parseInt(text))
+}
+
+// Java boxes the `Int` of a type variable in the method that implements it, and not in its overload.
+interface Store<T> {
+    fn put(value: T) -> String
+}
+
+class Ints : Store<Int> {
+    fn put(value: Long) -> String = "long " + value
+
+    fn put(value: Int) -> String = "int " + value
+}
+
+// Each overload implements a method of another interface.
+interface Named {
+    fn interpret(name: String) -> Boolean
+}
+
+class Both : Expr, Named {
+    fn interpret(name: String) -> Boolean = name.isEmpty()
+
+    fn interpret(n: Int) -> Boolean = n == 0
+}
+
+fn main() {
+    val exprs: List<Expr> = List.of(Positive(), Negative(), Above(3))
+    for (e in exprs) {
+        println("" + e.interpret(5) + " " + e.interpret(-5))
+    }
+    println("" + Positive().interpret("7") + " " + Negative().interpret("7") + " " + Above(3).interpret("2"))
+    val store: Store<Int> = Ints()
+    println(store.put(1) + ", " + Ints().put(2L))
+    val named: Named = Both()
+    val expr: Expr = Both()
+    println("" + named.interpret("") + " " + expr.interpret(1))
+}

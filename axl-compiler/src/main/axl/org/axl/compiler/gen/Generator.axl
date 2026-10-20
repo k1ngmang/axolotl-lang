@@ -31,6 +31,7 @@ import org.axl.compiler.ast.Expr.Unary
 import org.axl.compiler.ast.Import
 import org.axl.compiler.ast.Pos
 import org.axl.compiler.ast.SourceFile
+import org.axl.compiler.check.Implementations.Overridable
 import org.axl.compiler.check.Implementations.RequiredMethod
 import org.axl.compiler.ast.Stmt
 import org.axl.compiler.ast.Stmt.Block
@@ -117,8 +118,8 @@ class Generator(
     // `attempt f() else e -> continue` at the end of a loop's body, whose `continue` Java would call redundant.
     val lastContinues: Set<Stmt> = Collections.newSetFromMap(IdentityHashMap<Stmt, Boolean>())
 
-    // Names of the values the interfaces of the class being emitted require, which its methods may give.
-    var overridden: List<String> = List.of()
+    // What the interfaces of the class being emitted require or give, which its methods implement or override.
+    var overridden: Overridable = Overridable(Set.of(), List.of())
     /** The methods of the interfaces of the build the current class implements, for the types Java boxes. */
     var requiredMethods: List<RequiredMethod> = List.of()
 
@@ -492,7 +493,7 @@ class Generator(
         }
         val outerOverridden = overridden
         val outerRequired = requiredMethods
-        overridden = Implementations.required(file, options.siblings(), classDecl.supertypes())
+        overridden = Implementations.overridable(file, options.siblings(), classDecl.supertypes())
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), classDecl.supertypes())
         for (method in classDecl.methods()) {
             resetCounters()
@@ -695,7 +696,7 @@ class Generator(
         val outerVariables = nullableVariables
         val outerBoxed = boxedFields
         val outerMembers = memberTypes
-        overridden = Implementations.required(file, options.siblings(), supertypes)
+        overridden = Implementations.overridable(file, options.siblings(), supertypes)
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), supertypes)
         boxedFields = boxed
         currentMethods = methods
@@ -757,7 +758,7 @@ class Generator(
         val outerPrivate = inPrivateType
         val outerVariables = nullableVariables
         val outerMembers = memberTypes
-        overridden = Implementations.required(file, options.siblings(), iface.supertypes())
+        overridden = Implementations.overridable(file, options.siblings(), iface.supertypes())
         requiredMethods = Implementations.requiredMethods(file, options.siblings(), options.classes(), iface.supertypes())
         currentMethods = iface.methods()
         val values = ArrayList<Expr.Param>(iface.members())
@@ -866,8 +867,7 @@ class Generator(
     }
 
     private fn emitFunction(f: Decl.Function, isStatic: Boolean) {
-        val required = if (isStatic) null else requiredMethods |> filter { r -> r.name().equals(f.name()) &&
-            r.boxedParams().size() == f.params().size() } |> first
+        val required = if (isStatic) null else requiredMethods |> filter { r -> Implementations.isRequired(r, f) } |> first
         val boxed = boxedParameters(f, required)
         val params = if (isStatic && isMain(f)) "String[] args" else parameters(f.params(), f.pos().line(), boxed)
         val declaredReturn = f.returnType()
@@ -877,7 +877,7 @@ class Generator(
         // The methods of an interface are public in Java; those with a body and not private are default methods.
         val modifier = if (isStatic) visibility(f) + " static " else if (inInterface && !f.isPrivate()) "default " else visibility(f) + " "
         val written = f.annotations() |> anyMatch { a -> a.name().equals("Override") }
-        val overrides = overridden.contains(f.name() + "/" + f.params().size()) || overridesObject(f)
+        val overrides = Implementations.overrides(f, overridden) || overridesObject(f)
         val override = if (!isStatic && !written && overrides) "@Override " else ""
         em.line(f.pos().line(), override + annotations(f.annotations()) + modifier + typeParams(f.typeParams()) + resultType +
             " " + f.name() + "(" + params + ") {")

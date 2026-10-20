@@ -1,0 +1,3 @@
+AXL017 app/Main.axl:9:18: error: the parameter `text` is `String` here, but the interface `Expr` requires `fn interpret(n: Int) -> Boolean`
+AXL017 app/Main.axl:19:7: error: `Only` does not give `fn interpret(n: Int) -> Boolean`, which the interface `Expr` requires; add the method
+AXL017 app/Main.axl:25:8: error: `interpret` returns `String` here, but the interface `Expr` requires `fn interpret(n: Int) -> Boolean`

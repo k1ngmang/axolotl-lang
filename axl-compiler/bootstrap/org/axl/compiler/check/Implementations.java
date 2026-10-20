@@ -34,6 +34,11 @@ import org.axl.compiler.ast.TypeRef;
             Nulls.param(args, "args");
         }
     }
+    public record Inherited(Decl.Function method, @Nullable Implemented from) {
+        public Inherited {
+            Nulls.param(method, "method");
+        }
+    }
     public static List<Mismatch> check(SourceFile file, List<SourceFile> siblings) {
         Nulls.param(file, "file");
         Nulls.param(siblings, "siblings");
@@ -53,11 +58,11 @@ import org.axl.compiler.ast.TypeRef;
             List<TypeRef> supertypes, List<Mismatch> problems) {
         final var seen = new HashSet<String>();
         final var all = interfaces(file, siblings, supertypes, new HashSet<String>());
-        final var defaults = new HashSet<String>();
+        final var inherited = new ArrayList<Inherited>();
         for (final var i : all) {
             for (final var method : i.iface().methods()) {
-                if (hasBody(method) && !method.isPrivate()) {
-                    defaults.add(method.name() + "/" + method.params().size());
+                if (!method.isPrivate()) {
+                    inherited.add(new Inherited(method, i));
                 }
             }
         }
@@ -66,7 +71,7 @@ import org.axl.compiler.ast.TypeRef;
             for (final var member : iface.members()) {
                 final var required = substitute(Nulls.sure(member.type()), iface.typeParams(), implemented.args());
                 final var field = given.get(member.name());
-                if (!seen.add(member.name() + "/0")) {
+                if (!seen.add(member.name() + "/")) {
                 } else if (field == null) {
                     problems.add(new Mismatch(decl.namePos(), "`" + decl.name() + "` does not give `val " + member.name() + ": " +
                             text(required) +
@@ -79,10 +84,12 @@ import org.axl.compiler.ast.TypeRef;
                 }
             }
             for (final var method : iface.methods()) {
-                final var key = method.name() + "/" + method.params().size();
+                final var key = method.name() + "/" + String.join(",", parameterTypes(new Inherited(method, implemented)));
                 if (method.isPrivate() || !seen.add(key)) {
                 } else {
-                    implementation(decl, methodsOf(decl), method, implemented, defaults.contains(key), problems);
+                    final var hasDefault = inherited.stream().anyMatch(d -> hasBody(d.method()) && d.method().name().equals(method.name()) &&
+                            sameParameters(d, new Inherited(method, implemented)));
+                    implementation(decl, methodsOf(decl), method, implemented, inherited, hasDefault, problems);
                 }
             }
         }
@@ -163,9 +170,13 @@ import org.axl.compiler.ast.TypeRef;
         }
     }
     private static void implementation(Decl c, List<Decl.Function> methods, Decl.Function method, Implemented implemented,
-            boolean inherited, List<Mismatch> problems) {
+            List<Inherited> interfaceMethods, boolean hasDefault, List<Mismatch> problems) {
         final var iface = implemented.iface();
-        final var own = Nulls.first(methods.stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).iterator());
+        final var named = methods.stream().filter(m -> m.name().equals(method.name()) && m.params().size() == method.params().size()).toList();
+        final var matching = Nulls.first(named.stream().filter(m -> sameParameters(new Inherited(m, null), new Inherited(method, implemented))).iterator());
+        final var own = (matching != null ? matching : Nulls.first(named.stream().filter(m -> interfaceMethods.stream().noneMatch(i ->
+                i.method().name().equals(m.name()) && sameParameters(new Inherited(m, null), i)))
+                .iterator()));
         final var declaredReturn = method.returnType();
         final @Nullable TypeRef required = (declaredReturn == null ? null : substitute(declaredReturn, iface.typeParams(), implemented.args()));
         final var property = (own == null && method.params().isEmpty() ? propertyNamed(c, method.name()) : null);
@@ -180,7 +191,7 @@ import org.axl.compiler.ast.TypeRef;
             }
             return;
         }
-        if (own == null && inherited) {
+        if (own == null && hasDefault) {
             return;
         }
         if (own == null) {
@@ -295,11 +306,18 @@ import org.axl.compiler.ast.TypeRef;
         final var substituted = Nulls.stream(type.args()).map(Nulls.asGiven(a -> substitute(a, params, args))).toList();
         return new TypeRef(type.pos(), type.name(), substituted, type.nullable());
     }
-    public record RequiredMethod(String name, List<Boolean> boxedParams, boolean boxedResult) {
+    public record RequiredMethod(String name, List<Boolean> boxedParams, boolean boxedResult, @Nullable Inherited method) {
         public RequiredMethod {
             Nulls.param(name, "name");
             Nulls.param(boxedParams, "boxedParams");
         }
+    }
+    public static boolean isRequired(RequiredMethod r, Decl.Function f) {
+        Nulls.param(r, "r");
+        Nulls.param(f, "f");
+        final var method = r.method();
+        return r.name().equals(f.name()) && r.boxedParams().size() == f.params().size() &&
+                (method == null || sameParameters(new Inherited(f, null), method));
     }
     public static List<RequiredMethod> requiredMethods(SourceFile file, List<SourceFile> siblings, JavaClasses classes, List<TypeRef> supertypes) {
         Nulls.param(file, "file");
@@ -311,12 +329,12 @@ import org.axl.compiler.ast.TypeRef;
             final var iface = implemented.iface();
             final var names = Nulls.stream(iface.typeParams()).map(Nulls.asGiven(p -> p.name())).toList();
             for (final var member : iface.members()) {
-                result.add(new RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type())));
+                result.add(new RequiredMethod(member.name(), List.of(), isTypeVariable(names, member.type()), null));
             }
             for (final var method : iface.methods()) {
                 if (!method.isPrivate()) {
                     final var params = Nulls.stream(method.params()).map(Nulls.asGiven(p -> isTypeVariable(names, p.type()))).toList();
-                    result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType())));
+                    result.add(new RequiredMethod(method.name(), params, isTypeVariable(names, method.returnType()), new Inherited(method, implemented)));
                 }
             }
         }
@@ -325,7 +343,7 @@ import org.axl.compiler.ast.TypeRef;
                 final var library = Libraries.classNamed(file, classes, type.name());
                 if (library != null) {
                     for (final var shape : classes.methods(library.name())) {
-                        result.add(new RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable()));
+                        result.add(new RequiredMethod(shape.name(), shape.typeVariables(), shape.typeVariable(), null));
                     }
                 }
             }
@@ -416,23 +434,92 @@ import org.axl.compiler.ast.TypeRef;
         }
         return result;
     }
-    public static List<String> required(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
+    public record Overridable(Set<String> values, List<Inherited> methods) {
+        public Overridable {
+            Nulls.param(values, "values");
+            Nulls.param(methods, "methods");
+        }
+    }
+    public static Overridable overridable(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes) {
         Nulls.param(file, "file");
         Nulls.param(siblings, "siblings");
         Nulls.param(supertypes, "supertypes");
-        final var keys = new ArrayList<String>();
+        final var values = new HashSet<String>();
+        final var methods = new ArrayList<Inherited>();
         for (final var implemented : interfaces(file, siblings, supertypes, new HashSet<String>())) {
             final var iface = implemented.iface();
             for (final var member : iface.members()) {
-                keys.add(member.name() + "/0");
+                values.add(member.name());
             }
             for (final var method : iface.methods()) {
                 if (!method.isPrivate()) {
-                    keys.add(method.name() + "/" + method.params().size());
+                    methods.add(new Inherited(method, implemented));
                 }
             }
         }
-        return keys;
+        return new Overridable(values, methods);
+    }
+    public static boolean overrides(Decl.Function f, Overridable overridable) {
+        Nulls.param(f, "f");
+        Nulls.param(overridable, "overridable");
+        return (f.params().isEmpty() && overridable.values().contains(f.name())) ||
+                (overridable.methods().stream().anyMatch(m -> m.method().name().equals(f.name()) && sameParameters(new Inherited(f, null), m)));
+    }
+    public static boolean sameParameters(Inherited a, Inherited b) {
+        Nulls.param(a, "a");
+        Nulls.param(b, "b");
+        if (a.method().params().size() != b.method().params().size()) {
+            return false;
+        }
+        final var aVariables = typeVariables(a);
+        final var bVariables = typeVariables(b);
+        var i = 0;
+        while (i < a.method().params().size()) {
+            final var boxed = aVariables.get(i) || bVariables.get(i);
+            if (!erasedParameter(a, i, boxed).equals(erasedParameter(b, i, boxed))) {
+                return false;
+            }
+            i += 1;
+        }
+        return true;
+    }
+    public static List<String> parameterTypes(Inherited m) {
+        Nulls.param(m, "m");
+        final var variables = typeVariables(m);
+        final var result = new ArrayList<String>();
+        var i = 0;
+        while (i < m.method().params().size()) {
+            result.add(erasedParameter(m, i, variables.get(i)));
+            i += 1;
+        }
+        return result;
+    }
+    private static List<Boolean> typeVariables(Inherited m) {
+        final var from = m.from();
+        final List<String> names = (from == null ? List.of() : Nulls.stream(from.iface().typeParams()).map(Nulls.nonNull(p -> p.name())).toList());
+        return Nulls.stream(m.method().params()).map(Nulls.nonNull(p -> isTypeVariable(names, p.type()))).toList();
+    }
+    private static String erasedParameter(Inherited m, int index, boolean boxed) {
+        final var type = m.method().params().get(index).type();
+        if (type == null) {
+            return "?";
+        }
+        final var from = m.from();
+        final var seen = (from == null ? type : substitute(type, from.iface().typeParams(), from.args()));
+        return erasedName(seen, m.method().typeParams(), boxed);
+    }
+    public static String erasedName(TypeRef type, List<Decl.TypeParam> typeParams, boolean boxed) {
+        Nulls.param(type, "type");
+        Nulls.param(typeParams, "typeParams");
+        for (final var p : typeParams) {
+            if (p.name().equals(type.name()) && type.args().isEmpty()) {
+                final var bound = p.bound();
+                return (bound == null ? "Object" : erasedName(bound, List.of(), false));
+            }
+        }
+        final var simple = type.name().substring(type.name().lastIndexOf(".") + 1);
+        final var name = (simple.equals("Integer") ? "Int" : simple);
+        return (PRIMITIVES.contains(name) && (boxed || type.nullable() || !simple.equals(name)) ? "java.lang." + name : name);
     }
     private static List<Implemented> interfaces(SourceFile file, List<SourceFile> siblings, List<TypeRef> supertypes, Set<String> seen) {
         final var result = new ArrayList<Implemented>();
