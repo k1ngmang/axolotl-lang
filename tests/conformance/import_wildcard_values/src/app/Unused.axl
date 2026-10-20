@@ -1,0 +1,5 @@
+package app
+
+import val app.CharType.*
+
+val LIMIT: Int = 3

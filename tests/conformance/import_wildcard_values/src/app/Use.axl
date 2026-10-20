@@ -1,0 +1,6 @@
+package app
+
+import java.util.List
+import val app.CharType.*
+
+fn kinds() -> List<CharType> = List.of(DIGIT, LETTER, DOT)

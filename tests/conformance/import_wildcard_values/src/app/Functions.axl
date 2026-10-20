@@ -1,0 +1,7 @@
+package app
+
+import fn app.CharType.*
+
+fn main() {
+    println(describe(CharType.DOT))
+}

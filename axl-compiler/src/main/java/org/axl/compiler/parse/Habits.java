@@ -3,6 +3,7 @@ package org.axl.compiler.parse;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 import org.antlr.v4.runtime.Token;
 
 /**
@@ -29,6 +30,8 @@ final class Habits {
     private static final String BIT_OPERATORS = "Axolotl has no bit operators such as `&`, `|`, `^`, `~`, `<<` and `>>`; "
             + "for flags, use a `Set` or `java.util.BitSet`, and for other bit arithmetic write a small Java class in "
             + "the project and call it";
+
+    private static final Pattern CONSTANT = Pattern.compile("[A-Z][A-Z0-9_]*");
 
     static final String RANGES = "Axolotl has no ranges (`until`, `..`) outside the header of a `for`; count with "
             + "`for (i in 0 until n) { ... }`, or use `java.util.stream.IntStream.range(from, to)`";
@@ -796,11 +799,36 @@ final class Habits {
         int line = tokens.get(i).getLine();
         for (int j = i + 1; j < tokens.size() && tokens.get(j).getLine() == line; j++) {
             if (type(tokens, j) == AxolotlLexer.STAR && type(tokens, j - 1) == AxolotlLexer.DOT) {
+                int kind = SourceParser.nextCode(tokens, i);
+                String owner = source(tokens, SourceParser.nextCode(tokens, kind), j - 2);
+                String simpleOwner = owner.substring(owner.lastIndexOf('.') + 1);
+                if (text(tokens, kind).equals("val")) {
+                    String value = usedConstant(tokens, j);
+                    return "Axolotl imports one value at a time; write `import val " + owner + "." + value
+                            + "` for each value, or qualify them as `" + simpleOwner + "." + value + "`";
+                }
+                if (text(tokens, kind).equals("fn")) {
+                    return "Axolotl imports one function at a time; write `import fn " + owner + ".name` for each "
+                            + "function, or qualify them as `" + simpleOwner + ".name`";
+                }
                 return "Axolotl imports one type at a time; write an import for each type you use: `import "
-                        + source(tokens, SourceParser.nextCode(tokens, i), j - 1) + "Name`";
+                        + source(tokens, kind, j - 1) + "Name`";
             }
         }
         return null;
+    }
+
+    /** The first unqualified constant after the token, `DIGIT`, which the wildcard import was meant to give, or `NAME`. */
+    private static String usedConstant(List<Token> tokens, int i) {
+        for (int j = SourceParser.nextCode(tokens, i); type(tokens, j) != Token.EOF; j = SourceParser.nextCode(tokens, j)) {
+            int previous = SourceParser.previousCode(tokens, j);
+            if (type(tokens, j) == AxolotlLexer.IDENTIFIER && CONSTANT.matcher(text(tokens, j)).matches()
+                    && type(tokens, previous) != AxolotlLexer.DOT && !text(tokens, previous).equals("val")
+                    && !text(tokens, previous).equals("var")) {
+                return text(tokens, j);
+            }
+        }
+        return "NAME";
     }
 
     /** `c ? a : b`; a `?` that makes a type nullable is written right after the type. */

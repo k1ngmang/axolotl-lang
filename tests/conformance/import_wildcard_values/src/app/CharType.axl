@@ -1,0 +1,5 @@
+package app
+
+enum CharType { DIGIT, LETTER, DOT }
+
+fn describe(t: CharType) -> String = t.name().toLowerCase()

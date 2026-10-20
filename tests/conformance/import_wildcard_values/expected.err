@@ -1,0 +1,3 @@
+AXL001 app/Functions.axl:3:1: error: Axolotl imports one function at a time; write `import fn app.CharType.name` for each function, or qualify them as `CharType.name`
+AXL001 app/Unused.axl:3:1: error: Axolotl imports one value at a time; write `import val app.CharType.NAME` for each value, or qualify them as `CharType.NAME`
+AXL001 app/Use.axl:4:1: error: Axolotl imports one value at a time; write `import val app.CharType.DIGIT` for each value, or qualify them as `CharType.DIGIT`
