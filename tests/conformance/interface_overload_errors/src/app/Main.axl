@@ -1,0 +1,24 @@
+package app
+
+import java.util.List
+
+// Java tells overloads apart by the types once `?` and type arguments are left out, and `Int` from `Int?`.
+interface Store<T> {
+    fn save(values: List<Int>)
+
+    fn save(values: List<String>)
+
+    fn find(id: Int) -> String?
+
+    fn find(id: Int?) -> String?
+
+    fn put(value: T)
+
+    fn put(value: Object) {
+        println(value)
+    }
+
+    fn name(text: String) -> String
+
+    fn name(text: String?) -> String = "none"
+}

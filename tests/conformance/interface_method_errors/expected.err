@@ -1,5 +1,5 @@
 AXL010 app/Main.axl:7:8: error: `name` is already a value of `Shape`, and a value is read as `name()`; remove one
-AXL010 app/Main.axl:8:8: error: the method `area` of `Shape` is declared twice with as many parameters
+AXL010 app/Main.axl:8:8: error: the method `area` of `Shape` is declared twice with the same parameter types, as Java sees them once `?` and type arguments are left out
 AXL017 app/Main.axl:11:12: error: `Square` does not give `fn area() -> Double`, which the interface `Shape` requires; add it in a body after the fields: `data class Square(...) : Shape { fn ... }`
 AXL017 app/Main.axl:11:12: error: `Square` does not give `fn scaled(factor: Double) -> Shape`, which the interface `Shape` requires; add it in a body after the fields: `data class Square(...) : Shape { fn ... }`
 AXL017 app/Main.axl:14:16: error: `area` implements a method of the interface `Shape`, so it cannot be private

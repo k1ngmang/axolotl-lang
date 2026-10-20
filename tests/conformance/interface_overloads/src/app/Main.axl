@@ -1,0 +1,30 @@
+package app
+
+import java.util.List
+
+// An interface may overload a method with as many parameters when Java tells the types apart, with or without a body.
+interface Expr {
+    fn interpret(n: Int) -> Boolean
+
+    fn interpret(text: String) -> Boolean = interpret(Integer.parseInt(text))
+}
+
+class Positive : Expr {
+    fn interpret(n: Int) -> Boolean = n > 0
+}
+
+interface Sink<T> {
+    fn add(value: T) -> String
+
+    fn add(values: List<T>) -> String = String.join(",", values |> map { v -> add(v) })
+}
+
+class Printer : Sink<String> {
+    fn add(value: String) -> String = "<" + value + ">"
+}
+
+fn main() {
+    val e: Expr = Positive()
+    println("" + e.interpret(3) + " " + e.interpret("-3"))
+    println(Printer().add(List.of("a", "b")))
+}

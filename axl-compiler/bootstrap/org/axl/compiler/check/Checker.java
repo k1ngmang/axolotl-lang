@@ -564,6 +564,16 @@ import org.axl.compiler.ast.TypeRef;
         final var boxed = BOXES.get(simple);
         return (boxed != null && type.nullable() ? boxed : simple);
     }
+    private String interfaceErasure(Decl.Function m, Decl.Interface iface) {
+        final var typeParams = new ArrayList<Decl.TypeParam>(m.typeParams());
+        typeParams.addAll(iface.typeParams());
+        final var erased = new ArrayList<String>();
+        for (final var p : m.params()) {
+            final var type = p.type();
+            erased.add((type == null ? "?" : Implementations.erasedName(type, typeParams, false)));
+        }
+        return String.join(",", erased);
+    }
     private Set<String> openTypeParams(List<Decl.TypeParam> params) {
         final var result = new HashSet<String>(openTypeParams);
         for (final var p : params) {
@@ -721,9 +731,9 @@ import org.axl.compiler.ast.TypeRef;
                         "`, and a value is read as `" +
                         m.name() +
                         "()`; remove one");
-            } else if (!seen.add(m.name() + "/" + m.params().size())) {
+            } else if (!seen.add(m.name() + "/" + interfaceErasure(m, iface))) {
                 error(m.namePos(), ErrorCode.DUPLICATE_NAME, "the method `" + m.name() + "` of `" + iface.name() +
-                        "` is declared twice with as many parameters");
+                        "` is declared twice with the same parameter types, as Java sees them once `?` and type arguments are left out");
             } else if (Implementations.hasBody(m) && OBJECT_METHODS.contains(m.name() + "/" + m.params().size())) {
                 error(m.namePos(), ErrorCode.RESERVED_NAME, "every Java object has a method `" + m.name() + "` with as many " +
                         "parameters, which a method of an interface cannot give; write it in each class, or give the method another name");
