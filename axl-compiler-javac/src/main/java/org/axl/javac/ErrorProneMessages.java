@@ -50,6 +50,7 @@ final class ErrorProneMessages {
     private static final Pattern MISSING_CASES = Pattern.compile("^\\[MissingCasesInEnumSwitch] .*handle the remaining cases: (.+)$");
     private static final Pattern CREATED = Pattern.compile("\\b(\\w+) = new ");
     private static final Pattern DECLARED = Pattern.compile("\\bvar (\\w+) = ");
+    private static final Pattern ASSIGNED = Pattern.compile("^\\s*(\\w+) = (.+);\\s*$");
     private static final Pattern SELF_ASSIGNED = Pattern.compile("^\\s*(\\w+) = \\1;");
     private static final Pattern NOT_NULL_ARGUMENT = Pattern.compile("requireNonNull\\((\"[^\"]*\"|[\\w.]+)\\)");
     private static final Pattern CREATED_EXCEPTION = Pattern.compile("\\bnew (?:[a-z]\\w*\\.)*(\\w+)\\(");
@@ -196,10 +197,15 @@ final class ErrorProneMessages {
     /** A stream of `Files.lines` or `Files.list` holds the file open; `use` closes it, as try-with-resources does. */
     private static String streamLeak(String text) {
         Matcher declared = DECLARED.matcher(text);
+        // `val files = attempt Files.list(dir) else e -> throw ...` sets the local inside a `try`: `files = Files.list(dir);`.
+        Matcher assigned = ASSIGNED.matcher(text);
+        boolean inTry = assigned.find();
         Messages.Attempt attempt = Messages.Attempt.in(text);
-        String call = attempt != null && !attempt.value().contains("new ") && !attempt.value().contains("->") ? attempt.value() : "...";
+        String value = attempt != null ? attempt.value() : inTry ? assigned.group(2) : null;
+        String call = value != null && !value.contains("new ") && !value.contains("->") ? value : "...";
+        String name = declared.find() ? declared.group(1) : inTry ? assigned.group(1) : "lines";
         return "this stream keeps its file or directory open until it is closed; open it with `use (val "
-                + (declared.find() ? declared.group(1) : "lines") + " = " + call + ") { ... } else e -> throw IllegalStateException(e)`";
+                + name + " = " + call + ") { ... } else e -> throw IllegalStateException(e)`";
     }
 
     private static String identityOrToString(String message, String text) {

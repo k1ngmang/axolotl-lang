@@ -214,6 +214,14 @@ import org.axl.compiler.check.Analysis;
         captures.visit(body, true);
         return new ArrayList<String>(captures.names);
     }
+    public static List<String> inTryCatch(Expr.Attempt a, Analysis analysis) {
+        Nulls.param(a, "a");
+        Nulls.param(analysis, "analysis");
+        final var captures = new Captures(analysis);
+        captures.visit(a.body(), false);
+        captures.visit(a.handler(), false);
+        return new ArrayList<String>(captures.names);
+    }
     public static List<String> inStatementChain(Chains.Chain chain, Analysis analysis) {
         Nulls.param(chain, "chain");
         Nulls.param(analysis, "analysis");

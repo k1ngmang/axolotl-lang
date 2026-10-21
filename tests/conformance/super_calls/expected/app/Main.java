@@ -17,7 +17,13 @@ import java.util.Map;
             this.lines = 0L;
         }
         public int read() {
-            final int c = Result.orThrow(() -> super.read(), e -> new IllegalStateException(e), IOException.class);
+            final int c;
+            try {
+                Result.mayThrow(IOException.class);
+                c = super.read();
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
             if (c == '\n') {
                 lines += 1;
             }

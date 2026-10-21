@@ -191,6 +191,14 @@ fn inAttemptCall(body: Expr, analysis: Analysis) -> List<String> {
     return ArrayList<String>(captures.names)
 }
 
+/** An `attempt` that becomes a Java `try`: its body and handler are no lambdas, so only nested ones count. */
+fn inTryCatch(a: Expr.Attempt, analysis: Analysis) -> List<String> {
+    val captures = Captures(analysis)
+    captures.visit(a.body(), false)
+    captures.visit(a.handler(), false)
+    return ArrayList<String>(captures.names)
+}
+
 /** A safe chain used as a statement expands to `if` checks, so only nested lambdas count. */
 fn inStatementChain(chain: Chains.Chain, analysis: Analysis) -> List<String> {
     val captures = Captures(analysis)

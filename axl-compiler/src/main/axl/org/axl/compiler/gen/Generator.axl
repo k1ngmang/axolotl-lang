@@ -1214,16 +1214,24 @@ class Generator(
         }
         val localType = declared ?: branchType ?: typeOf(init)
         val stored = if (declared == null) null else nullableType(declared)
-        withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
-            storedType = declared
-            storedValue = whole
-            storedInLocal = declared == null
-            val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
-            storedType = null
-            storedValue = null
-            storedInLocal = false
-            em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
-        })
+        val tried = if (whole is Expr.Attempt && throwsInHandler(whole)) declared ?: knownType(whole.body()) else null
+        if (tried != null && whole is Expr.Attempt) {
+            withCopiesOf(line, Captures.inTryCatch(whole, analysis), { ->
+                em.line(line, modifiers + javaType(tried) + " " + local.name() + ";")
+                tryValue(line, local.name() + " = ", whole, declared, stored)
+            })
+        } else {
+            withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), { ->
+                storedType = declared
+                storedValue = whole
+                storedInLocal = declared == null
+                val code = if (init is Expr.Try) unwrapTry(line, init) else valueCode(line, init, stored)
+                storedType = null
+                storedValue = null
+                storedInLocal = false
+                em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";")
+            })
+        }
         localTypes.put(local.name(), localType)
         if (declared == null && isCollectionValue(whole)) {
             collectionLocals.add(local.name())
@@ -1281,6 +1289,10 @@ class Generator(
         val whole = withoutParens(value)
         if (whole is Expr.When) {
             emitWhen(line, whole, "", WhenForm.RESULT)
+            return
+        }
+        if (throwsInHandler(whole) && whole is Expr.Attempt) {
+            withCopiesOf(line, Captures.inTryCatch(whole, analysis), { -> tryValue(line, "return ", whole, resultTypeRef, returnType) })
             return
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), { ->
@@ -2997,6 +3009,57 @@ class Generator(
             return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler.value(), true) + caught + ")"
         }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + caught + ")"
+    }
+
+    private fn throwsInHandler(e: Expr) -> Boolean = e is Expr.Attempt && withoutParens(e.handler()) is Expr.Throw
+
+    /**
+     * `return attempt X else e -> throw Y` and `val v = attempt X else e -> throw Y` as a Java `try`, without the two
+     * lambdas of Result.orThrow on each run: the value goes to its place inside the `try`, the `catch` throws what the
+     * handler gives, and other exceptions pass through.
+     */
+    private fn tryValue(line: Int, target: String, a: Expr.Attempt, declared: TypeRef?, stored: String?) {
+        val errorName = a.errorName()
+        val error = if (errorName != null) errorName else "$ex" + nextException()
+        val handler = withoutParens(a.handler())
+        val thrown = if (handler is Expr.Throw) handler.value() else handler
+        em.line(line, "try {")
+        em.indent()
+        declareCaught(line, a.errorType())
+        storedType = declared
+        storedValue = withoutParens(a.body())
+        val code = valueCode(line, widened(a.body(), declared), stored)
+        storedType = null
+        storedValue = null
+        em.line(line, target + code + ";")
+        em.dedent()
+        em.line(line, "} catch (" + caughtType(a.errorType()) + " " + error + ") {")
+        em.indent()
+        keepInterrupt(line, error, a.errorType())
+        em.line(startLine(handler), "throw " + exprIn(thrown, false) + ";")
+        em.dedent()
+        em.line(line, "}")
+    }
+
+    /**
+     * The type of a value when the code tells it whole, so that a local can be declared with it before it is set: a
+     * primitive, or a class of the build or of Java with all its type arguments. A value that may be null is left to
+     * `var`, which NullAway reads as Java gives it.
+     */
+    private fn knownType(e: Expr) -> TypeRef? {
+        val type = typeOf(e)
+        if (type == null || type.nullable()) {
+            return null
+        }
+        if (PRIMITIVE_NAMES.containsKey(type.name()) || !type.args().isEmpty()) {
+            return type
+        }
+        val decl = declaredType(type.name())
+        if (decl != null) {
+            return if (typeParamsOf(decl).isEmpty()) type else null
+        }
+        val library = Libraries.classNamed(file, options.classes(), type.name())
+        return if (library != null && library.shape().typeParameters().isEmpty()) type else null
     }
 
     /** `use (val r = open()) { ... } else e -> h` is a try with the resource, and a catch of Exception when there is an else. */

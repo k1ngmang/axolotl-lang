@@ -21,7 +21,12 @@ import java.util.List;
             this.reader = reader;
         }
         private @Nullable String readLine() {
-            return Result.orThrow(() -> reader.readLine(), e -> new UncheckedIOException(e), IOException.class);
+            try {
+                Result.mayThrow(IOException.class);
+                return reader.readLine();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
         public @Nullable String first() {
             return readLine();

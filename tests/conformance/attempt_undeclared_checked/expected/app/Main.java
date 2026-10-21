@@ -21,7 +21,12 @@ import java.util.List;
             if (fail) {
                 throw Sneaky.sneaky(new IOException("boom"));
             }
-            return Result.orThrow(() -> input.read(), e -> Sneaky.sneaky(e), IOException.class);
+            try {
+                Result.mayThrow(IOException.class);
+                return input.read();
+            } catch (IOException e) {
+                throw Sneaky.sneaky(e);
+            }
         }
         public void close() {
             System.out.println("closed");

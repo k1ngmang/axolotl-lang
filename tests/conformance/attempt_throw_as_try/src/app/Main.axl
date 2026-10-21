@@ -1,0 +1,56 @@
+package app
+
+import java.io.IOException
+import java.io.StringReader
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.function.Supplier
+
+// `attempt X else e -> throw Y` whose value goes to a `val`, a `return` or nowhere is a Java `try`: the value of X,
+// Y thrown for the exceptions the handler takes, and any other exception passed on as it is.
+fn digit(text: String) -> Int = attempt Integer.parseInt(text) else e: NumberFormatException -> throw IllegalArgumentException("not a digit: " + text, e)
+
+fn first(text: String) -> Int {
+    val reader = StringReader(text)
+    val c = attempt reader.read() else e: IOException -> throw IllegalStateException(e)
+    return c
+}
+
+fn half(n: Int) -> Int {
+    var result = attempt check(n) else e -> throw IllegalStateException("odd " + n)
+    result = result / 2
+    return result
+}
+
+fn check(n: Int) -> Int {
+    if (n < 0) {
+        throw UnsupportedOperationException("negative")
+    }
+    if (n % 2 != 0) {
+        throw IllegalArgumentException("odd")
+    }
+    return n
+}
+
+fn passed(n: Int) -> Int = attempt check(n) else e: IllegalArgumentException -> throw IllegalStateException("caught " + n)
+
+// The handler takes any exception, so an InterruptedException sets the interrupt flag again.
+fn interrupted() -> Int {
+    Thread.currentThread().interrupt()
+    val taken: Int = attempt LinkedBlockingQueue<Integer>().take() else e -> throw IllegalStateException(e)
+    return taken
+}
+
+fn main() {
+    println(digit("7") + first("a") + half(8))
+    report({ -> digit("x") })
+    report({ -> half(3) })
+    report({ -> passed(3) })
+    report({ -> passed(-1) })
+    report({ -> interrupted() })
+    println(Thread.interrupted())
+}
+
+fn report(action: Supplier<Object>) {
+    val result = attempt action.get() else e -> e.getClass().getSimpleName() + ": " + e.getMessage()
+    println(result)
+}

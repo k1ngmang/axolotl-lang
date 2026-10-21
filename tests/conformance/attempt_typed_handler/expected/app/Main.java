@@ -12,7 +12,12 @@ import java.util.List;
     private Main() {}
     public static String read(Path p) {
         Nulls.param(p, "p");
-        return Result.orThrow(() -> Files.readString(p), e -> new UncheckedIOException(e), IOException.class);
+        try {
+            Result.mayThrow(IOException.class);
+            return Files.readString(p);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
     public static Result<Long, String> size(Path p) {
         Nulls.param(p, "p");

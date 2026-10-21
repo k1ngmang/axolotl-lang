@@ -8,7 +8,12 @@ import java.nio.file.Path;
     private Main() {}
     public static long size(String path) {
         Nulls.param(path, "path");
-        return Result.orThrow(() -> Files.size(Path.of(path)), e -> new IllegalStateException("no " + path, e));
+        try {
+            return Files.size(Path.of(path));
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException("no " + path, e);
+        }
     }
     public static long safeSize(String path) {
         Nulls.param(path, "path");
@@ -23,9 +28,21 @@ import java.nio.file.Path;
         }
     }
     public static void main(String[] args) {
-        final int n = Result.orThrow(() -> Integer.parseInt("7"), e -> new RuntimeException(e));
+        final int n;
+        try {
+            n = Integer.parseInt("7");
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
         System.out.println(n + 1);
-        final int parsed = Result.orThrow(() -> Integer.parseInt("8"), $ex1 -> new IllegalStateException("unparsable"));
+        final int parsed;
+        try {
+            parsed = Integer.parseInt("8");
+        } catch (Exception $ex1) {
+            if ($ex1 instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException("unparsable");
+        }
         System.out.println(parsed * 2);
         System.out.println(safeSize("/nowhere"));
     }

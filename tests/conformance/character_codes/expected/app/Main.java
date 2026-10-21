@@ -11,7 +11,13 @@ import java.io.StringReader;
         Nulls.param(reader, "reader");
         final var sb = new StringBuilder();
         while (true) {
-            final int c = Result.orThrow(() -> reader.read(), e -> new IllegalStateException(e), IOException.class);
+            final int c;
+            try {
+                Result.mayThrow(IOException.class);
+                c = reader.read();
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
             if (c == -1 || c == ',') {
                 break;
             }

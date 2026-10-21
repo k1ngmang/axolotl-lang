@@ -95,7 +95,13 @@ import java.io.StringReader;
         Nulls.param(quote, "quote");
         var count = 0;
         while (true) {
-            final int c = Result.orThrow(() -> reader.read(), e -> new IllegalStateException(e), IOException.class);
+            final int c;
+            try {
+                Result.mayThrow(IOException.class);
+                c = reader.read();
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
             if (c == -1) {
                 break;
             }
@@ -107,7 +113,13 @@ import java.io.StringReader;
     }
     public static String firstKind(Reader reader) {
         Nulls.param(reader, "reader");
-        final int ch = Result.orThrow(() -> reader.read(), e -> new IllegalStateException(e), IOException.class);
+        final int ch;
+        try {
+            Result.mayThrow(IOException.class);
+            ch = reader.read();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
         switch (ch) {
             case 'x' -> {
                 return "x";

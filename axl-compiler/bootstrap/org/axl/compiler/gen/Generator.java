@@ -1100,23 +1100,31 @@ import org.axl.compiler.check.Whens;
         }
         final var localType = Nulls.or(declared, () -> Nulls.or(branchType, () -> typeOf(init)));
         final var stored = (declared == null ? null : nullableType(declared));
-        withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
-            storedType = declared;
-            storedValue = whole;
-            storedInLocal = declared == null;
-            final var code = (init instanceof Expr.Try init$4 ? unwrapTry(line, init$4) : valueCode(line, init, stored));
-            storedType = null;
-            storedValue = null;
-            storedInLocal = false;
-            em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
-        });
+        final var tried = (whole instanceof Expr.Attempt whole$4 && throwsInHandler(whole$4) ? Nulls.box(Nulls.or(declared, () -> knownType(whole$4.body()))) : null);
+        if (tried != null && whole instanceof Expr.Attempt whole$5) {
+            withCopiesOf(line, Captures.inTryCatch(whole$5, analysis), () -> {
+                em.line(line, modifiers + javaType(tried) + " " + local.name() + ";");
+                tryValue(line, local.name() + " = ", whole$5, declared, stored);
+            });
+        } else {
+            withCopiesOf(line, Captures.capturedIn(init, analysis, inlinesElvis(init)), () -> {
+                storedType = declared;
+                storedValue = whole;
+                storedInLocal = declared == null;
+                final var code = (init instanceof Expr.Try init$6 ? unwrapTry(line, init$6) : valueCode(line, init, stored));
+                storedType = null;
+                storedValue = null;
+                storedInLocal = false;
+                em.line(line, modifiers + typeCode + " " + local.name() + " = " + code + ";");
+            });
+        }
         localTypes.put(local.name(), localType);
         if (declared == null && isCollectionValue(whole)) {
             collectionLocals.add(local.name());
         } else {
             collectionLocals.remove(local.name());
         }
-        final var unwrapped = whole instanceof Expr.Try whole$5 || whole instanceof Expr.Elvis whole$6 || isBoxedResult(whole);
+        final var unwrapped = whole instanceof Expr.Try whole$7 || whole instanceof Expr.Elvis whole$8 || isBoxedResult(whole);
         if (declared == null && unwrapped) {
             boxedLocals.add(local.name());
         } else {
@@ -1162,6 +1170,10 @@ import org.axl.compiler.check.Whens;
         final var whole = withoutParens(value);
         if (whole instanceof Expr.When whole$1) {
             emitWhen(line, whole$1, "", WhenForm.RESULT);
+            return;
+        }
+        if (throwsInHandler(whole) && whole instanceof Expr.Attempt whole$2) {
+            withCopiesOf(line, Captures.inTryCatch(whole$2, analysis), () -> tryValue(line, "return ", whole$2, resultTypeRef, returnType));
             return;
         }
         withCopiesOf(line, Captures.capturedIn(value, analysis, inlinesElvis(value)), () -> {
@@ -2625,6 +2637,46 @@ import org.axl.compiler.check.Whens;
             return "Result.orThrow(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(handler$1.value(), true) + caught + ")";
         }
         return "Result.attempt(() -> " + exprIn(a.body(), true) + ", " + error + " -> " + exprIn(a.handler(), true) + caught + ")";
+    }
+    private boolean throwsInHandler(Expr e) {
+        return e instanceof Expr.Attempt e$1 && withoutParens(e$1.handler()) instanceof Expr.Throw;
+    }
+    private void tryValue(int line, String target, Expr.Attempt a, @Nullable TypeRef declared, @Nullable String stored) {
+        final var errorName = a.errorName();
+        final var error = (errorName != null ? errorName : "$ex" + nextException());
+        final var handler = withoutParens(a.handler());
+        final var thrown = (handler instanceof Expr.Throw handler$1 ? handler$1.value() : handler);
+        em.line(line, "try {");
+        em.indent();
+        declareCaught(line, a.errorType());
+        storedType = declared;
+        storedValue = withoutParens(a.body());
+        final var code = valueCode(line, widened(a.body(), declared), stored);
+        storedType = null;
+        storedValue = null;
+        em.line(line, target + code + ";");
+        em.dedent();
+        em.line(line, "} catch (" + caughtType(a.errorType()) + " " + error + ") {");
+        em.indent();
+        keepInterrupt(line, error, a.errorType());
+        em.line(startLine(handler), "throw " + exprIn(thrown, false) + ";");
+        em.dedent();
+        em.line(line, "}");
+    }
+    private @Nullable TypeRef knownType(Expr e) {
+        final var type = typeOf(e);
+        if (type == null || type.nullable()) {
+            return null;
+        }
+        if (PRIMITIVE_NAMES.containsKey(type.name()) || !type.args().isEmpty()) {
+            return type;
+        }
+        final var decl = declaredType(type.name());
+        if (decl != null) {
+            return (typeParamsOf(decl).isEmpty() ? type : null);
+        }
+        final var library = Libraries.classNamed(file, options.classes(), type.name());
+        return (library != null && library.shape().typeParameters().isEmpty() ? type : null);
     }
     private void useStatement(Stmt.Use stmt) {
         final var line = stmt.pos().line();

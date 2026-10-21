@@ -15,7 +15,13 @@ import java.nio.charset.StandardCharsets;
         Nulls.param(out, "out");
         Nulls.param(buffer, "buffer");
         var total = 0;
-        int n = Result.orThrow(() -> input.read(buffer), e -> new IllegalStateException(e));
+        int n;
+        try {
+            n = input.read(buffer);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
         while (n > 0) {
             final var $c1 = n;
             try {
@@ -34,7 +40,13 @@ import java.nio.charset.StandardCharsets;
         final var reader = new StringReader(text);
         final var chars = new char[4];
         final var out = new StringBuilder();
-        int n = Result.orThrow(() -> reader.read(chars), e -> new IllegalStateException(e));
+        int n;
+        try {
+            n = reader.read(chars);
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
         while (n > 0) {
             out.append(chars, 0, n);
             n = Result.orThrow(() -> reader.read(chars), e -> new IllegalStateException(e));
