@@ -1,0 +1,50 @@
+package app
+
+import fn app.Checks.notBlank
+
+// A body that begins by passing a parameter to a validator, a function that takes `T?` and gives `T`, leaves the
+// check to it, so that a null from Java meets the library's own exception.
+fn nonNull<T : Object>(value: T?, name: String) -> T = value ?: throw IllegalArgumentException(name + " must not be null")
+
+fn text(value: String?, name: String) -> String = value ?: throw IllegalArgumentException(name + " is missing")
+
+fn parse(version: String) -> Int = nonNull(version, "version").length()
+
+fn both(first: String, second: String) -> String {
+    nonNull(first, "first")
+    text(second, "second")
+    return first + second
+}
+
+fn local(value: String) -> String {
+    val checked = nonNull(value, "value")
+    return checked.trim()
+}
+
+fn sibling(value: String) -> String = Checks.notEmpty(value, "value")
+
+fn imported(value: String) -> String = notBlank(value)
+
+fn fromJava(value: String) -> String = Validate.notNull(value, "value %s", "!")
+
+fn fromJavaText(value: String) -> String = Validate.nonEmpty(value)
+
+// Only the first statements count, and only calls that give the type they take.
+fn printed(value: String) -> String {
+    println(value)
+    return nonNull(value, "value")
+}
+
+fn logged(value: String) -> Int = log(value) + value.length()
+
+fn measured(value: String) -> Int = Validate.length(value)
+
+fn log(value: String?) -> Int = if (value == null) 0 else 1
+
+// The first properties of a class check its parameters for the constructor.
+class Range(private val lowText: String, private val highText: String) {
+    private val low: String = nonNull(lowText, "low")
+    private val high: Int = text(highText, "high").length()
+
+    fn describe() -> String = low + high
+}

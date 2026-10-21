@@ -16,6 +16,16 @@ class ReflectedClassesTest {
 
     record None<T>(boolean present) implements Option<T> {}
 
+    public static final class Checks {
+        public static String text(String value) {
+            return value;
+        }
+
+        public static int length(String value) {
+            return value.length();
+        }
+    }
+
     private final JavaClasses classes = ReflectedClasses.JDK;
 
     @Test
@@ -63,5 +73,14 @@ class ReflectedClassesTest {
         assertTrue(builders.contains(new JavaClasses.Signature(List.of("java.util.List"), false)));
         assertTrue(builders.contains(new JavaClasses.Signature(List.of("java.lang.String[]"), true)));
         assertEquals(List.of(), classes.signatures("java.util.NoSuchClass", "of"));
+    }
+
+    @Test
+    void tellsWhichStaticMethodsGiveTheTypeOfTheirFirstParameter() {
+        assertEquals("", classes.validated("java.util.Objects", "requireNonNull", 2));
+        assertEquals("java.lang.String", classes.validated("org.axl.compiler.ReflectedClassesTest.Checks", "text", 1));
+        assertNull(classes.validated("org.axl.compiler.ReflectedClassesTest.Checks", "length", 1));
+        assertNull(classes.validated("java.util.Objects", "toString", 1));
+        assertNull(classes.validated("java.util.Objects", "requireNonNull", 3));
     }
 }

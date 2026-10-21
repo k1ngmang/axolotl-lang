@@ -1,0 +1,15 @@
+h
+3 ab c defg h21 k1
+IllegalArgumentException: version must not be null
+IllegalArgumentException: first must not be null
+IllegalArgumentException: second is missing
+IllegalArgumentException: value must not be null
+IllegalArgumentException: value is empty
+IllegalArgumentException: blank
+IllegalArgumentException: value !
+IllegalArgumentException: empty text
+NullPointerException: parameter value of Lib.printed must not be null
+NullPointerException: parameter value of Lib.logged must not be null
+NullPointerException: parameter value of Lib.measured must not be null
+IllegalArgumentException: low must not be null
+IllegalArgumentException: high is missing

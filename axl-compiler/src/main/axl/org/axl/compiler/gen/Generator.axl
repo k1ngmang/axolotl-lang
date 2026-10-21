@@ -896,7 +896,7 @@ class Generator(
         em.indent()
         if (!f.isPrivate() && (isStatic || !inPrivateType)) {
             val variables = nullableVariablesOf(f.typeParams(), nullableVariables)
-            val own = ownChecks(f)
+            val own = ownChecks(f, if (isStatic) List.of() else currentMethods)
             val checked = f.params() |> filter { p -> isChecked(memberType(p), boxed.contains(p.name()), variables) && !own.contains(p.name()) } |>
                 map { p -> p.name() }
             emitParamChecks(f.pos().line(), checked)
@@ -959,10 +959,14 @@ class Generator(
     }
 
     /**
-     * The parameters a function checks itself with `Objects.requireNonNull(p, ...)` before anything else, so that its
-     * own message is the one a null from Java gets.
+     * The parameters a function checks itself before anything else, so that its own check is the one a null from Java
+     * meets: with `Objects.requireNonNull(p, ...)` or another validator of `p`, see validates.
      */
-    private fn ownChecks(f: Decl.Function) -> Set<String> {
+    private fn ownChecks(f: Decl.Function, methods: List<Decl.Function>) -> Set<String> {
+        val params = HashMap<String, TypeRef?>()
+        for (p in f.params()) {
+            params.put(p.name(), p.type())
+        }
         val leading = ArrayList<Expr>()
         val exprBody = f.exprBody()
         val body = f.body()
@@ -970,44 +974,82 @@ class Generator(
             leading.add(exprBody)
         } else if (body != null) {
             for (st in body.statements()) {
-                if (st !is Stmt.ExprStmt) {
+                val value: Expr? = when (st) {
+                    is Stmt.ExprStmt -> st.expr()
+                    is Stmt.Local -> st.init()
+                    is Stmt.Return -> st.value()
+                    else -> null
+                }
+                if (value == null) {
                     break
                 }
-                leading.add(st.expr())
+                leading.add(value)
             }
         }
-        val result = HashSet<String>()
-        for (e in leading) {
-            val checked = checkedParameter(e)
-            if (checked == null || (f.params() |> noneMatch { p -> p.name().equals(checked) })) {
-                break
-            }
-            result.add(checked)
-        }
-        return result
+        return checkedFirst(leading, params, methods)
     }
 
     /**
-     * The class parameters the first properties of a class check with `Objects.requireNonNull(p, ...)`: the
+     * The class parameters the first properties of a class check, as the first statements of a function do: the
      * constructor sets them first, before anything reads the parameters.
      */
     private fn ownPropertyChecks(classDecl: Decl.ClassDecl) -> Set<String> {
-        val result = HashSet<String>()
+        val params = HashMap<String, TypeRef?>()
+        for (p in classDecl.parameters()) {
+            params.put(p.name(), propertyTypeOf(p))
+        }
+        val leading = ArrayList<Expr>()
         for (property in classDecl.properties()) {
             val init = property.init()
-            val checked = if (init == null) null else checkedParameter(init)
-            if (checked == null || (classDecl.parameters() |> noneMatch { p -> p.name().equals(checked) })) {
+            if (init == null) {
+                break
+            }
+            leading.add(init)
+        }
+        return checkedFirst(leading, params, classDecl.methods())
+    }
+
+    /** The parameters the leading expressions check, one each, for as long as each expression is only the check. */
+    private fn checkedFirst(leading: List<Expr>, params: Map<String, TypeRef?>, methods: List<Decl.Function>) -> Set<String> {
+        val result = HashSet<String>()
+        for (e in leading) {
+            val call = firstCall(e)
+            val checked = if (call == null) null else checkedParameter(call, params, methods)
+            if (call == null || checked == null) {
                 break
             }
             result.add(checked)
+            if (!call.equals(withoutParens(e))) {
+                break
+            }
         }
         return result
     }
 
-    /** `p` of `Objects.requireNonNull(p)` or `Objects.requireNonNull(p, message)`, with the class imported or the function. */
-    private fn checkedParameter(e: Expr) -> String? {
-        if (e !is Expr.Call || !e.name().equals("requireNonNull") || e.args().isEmpty() || e.args().size() > 2) {
+    /** The call Java makes first in an expression: `nonNull(v, "v")` of `nonNull(v, "v").length()`. */
+    private fn firstCall(e: Expr) -> Expr.Call? {
+        val inner = withoutParens(e)
+        if (inner is Expr.Call) {
+            val target = inner.target()
+            val before = if (target == null) null else firstCall(target)
+            return if (before != null) before else inner
+        }
+        return if (inner is Expr.Member) firstCall(inner.target()) else null
+    }
+
+    /** `p` of a call that checks the parameter `p`, its first argument. */
+    private fn checkedParameter(call: Expr.Call, params: Map<String, TypeRef?>, methods: List<Decl.Function>) -> String? {
+        val first = if (call.args().isEmpty()) null else withoutParens(call.args().getFirst())
+        if (first !is Expr.Name || !params.containsKey(first.name()) || call.safe()) {
             return null
+        }
+        return if (isRequireNonNull(call) || validates(call, params.get(first.name()), methods)) first.name() else null
+    }
+
+    /** `Objects.requireNonNull(p)` or `Objects.requireNonNull(p, message)`, with the class imported or the function. */
+    private fn isRequireNonNull(e: Expr.Call) -> Boolean {
+        if (!e.name().equals("requireNonNull") || e.args().size() > 2) {
+            return false
         }
         val target = e.target()
         val owner = if (target == null) null else Expr.pathName(target)
@@ -1015,8 +1057,95 @@ class Generator(
             (owner.equals("Objects") && (file.imports() |> anyMatch { i -> i.kind() == Import.Kind.TYPE && i.name().equals("java.util.Objects") })))
         val viaFunction = target == null &&
             (file.imports() |> anyMatch { i -> i.kind() == Import.Kind.FN && i.name().equals("java.util.Objects.requireNonNull") })
-        val first = e.args().getFirst()
-        return if ((viaClass || viaFunction) && first is Expr.Name) first.name() else null
+        return viaClass || viaFunction
+    }
+
+    /**
+     * Whether a call validates its first argument, of the type given: the parameter there takes null, `T?` or a Java
+     * parameter that says nothing of null, and the result is that type without `?`, the type of the argument, as
+     * `fn nonNull<T : Object>(value: T?, name: String) -> T`. A function that only reads the value, as `println(p)` or
+     * `log(p)`, gives nothing or another type.
+     */
+    private fn validates(call: Expr.Call, type: TypeRef?, methods: List<Decl.Function>) -> Boolean {
+        val target = call.target()
+        val owner = if (target == null) null else Expr.pathName(target)
+        if (type == null || (target != null && owner == null)) {
+            return false
+        }
+        val arity = call.args().size()
+        val functions = functionsCalled(owner, call.name(), arity, methods)
+        if (functions != null) {
+            return !functions.isEmpty() && (functions |> allMatch { f -> isValidator(f, type) })
+        }
+        val javaOwner = if (owner != null) owner else importedOwner(call.name())
+        val library = if (javaOwner == null) null else Libraries.classNamed(file, options.classes(), javaOwner)
+        val validated = if (library == null) null else options.classes().validated(library.name(), call.name(), arity)
+        return validated != null && (validated.isEmpty() || validated.equals(type.name()) || validated.endsWith("." + type.name()))
+    }
+
+    /**
+     * The functions of the build a call may reach, by the owner written before it: the methods of the class, the
+     * functions of the file, of another file of the build or one imported from there; null for a Java class.
+     */
+    private fn functionsCalled(owner: String?, name: String, arity: Int, methods: List<Decl.Function>) -> List<Decl.Function>? {
+        if (owner == null) {
+            val own = methods |> filter { m -> m.name().equals(name) && m.params().size() == arity }
+            if (!own.isEmpty()) {
+                return own
+            }
+            val functions = functionsOf(file, name, arity)
+            val imported = importedOwner(name)
+            if (!functions.isEmpty() || imported == null) {
+                return functions
+            }
+            val sibling = options.siblings() |> filter { s -> qualifiedClassName(s).equals(imported) } |> first
+            return if (sibling == null) null else functionsOf(sibling, name, arity)
+        }
+        if (owner.equals(file.className())) {
+            return functionsOf(file, name, arity)
+        }
+        val importedType = file.imports() |> filter { i -> i.kind() == Import.Kind.TYPE && i.simpleName().equals(owner) } |> first
+        for (sibling in options.siblings()) {
+            val named = if (importedType != null) importedType.name().equals(qualifiedClassName(sibling))
+                else (sibling.className().equals(owner) && samePackage(sibling)) || qualifiedClassName(sibling).equals(owner)
+            if (named) {
+                return functionsOf(sibling, name, arity)
+            }
+        }
+        return null
+    }
+
+    /** `pkg.Checks` of `import fn pkg.Checks.nonNull`, or null when no function of that name is imported. */
+    private fn importedOwner(name: String) -> String? {
+        val imported = file.imports() |> filter { i -> i.kind() == Import.Kind.FN && i.simpleName().equals(name) } |> first
+        return if (imported == null) null else imported.name().substring(0, imported.name().lastIndexOf("."))
+    }
+
+    private fn functionsOf(source: SourceFile, name: String, arity: Int) -> List<Decl.Function> {
+        val own = source.className().equals(file.className()) && samePackage(source)
+        val result = ArrayList<Decl.Function>()
+        for (decl in source.decls()) {
+            if (decl is Decl.Function && decl.name().equals(name) && decl.params().size() == arity && (own || !decl.isPrivate())) {
+                result.add(decl)
+            }
+        }
+        return result
+    }
+
+    private fn qualifiedClassName(source: SourceFile) -> String {
+        val pkg = source.packageName()
+        return if (pkg == null) source.className() else pkg + "." + source.className()
+    }
+
+    /** `T?` in, `T` out: a type variable of the function, or the class of the value passed. */
+    private fn isValidator(f: Decl.Function, type: TypeRef) -> Boolean {
+        val taken = if (f.params().isEmpty()) null else f.params().getFirst().type()
+        val given = f.returnType()
+        if (taken == null || given == null || !taken.nullable() || given.nullable() ||
+            !javaType(TypeRef(taken.pos(), taken.name(), taken.args(), false)).equals(javaType(given))) {
+            return false
+        }
+        return (f.typeParams() |> anyMatch { p -> p.name().equals(given.name()) }) || given.name().equals(type.name())
     }
 
     /** One check per parameter at the start of the body, on the line of the declaration. */

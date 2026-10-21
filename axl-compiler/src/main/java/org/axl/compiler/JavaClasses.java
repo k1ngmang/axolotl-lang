@@ -78,4 +78,15 @@ public interface JavaClasses {
     default String result(String qualifiedName, String name, int arity) {
         return null;
     }
+
+    /**
+     * What the public static methods of that name that take that many arguments validate: each takes null in its
+     * first parameter, which says nothing of null or that it is nullable, and returns that parameter's type, the
+     * same type variable or class, as {@code <T> T checkNotNull(T reference, Object message)}. The canonical name
+     * of that class, an empty string for a type variable, or null when there is none or one is not such a method.
+     * The translator leaves the null check of a parameter to a body that begins by passing it to one.
+     */
+    default String validated(String qualifiedName, String name, int arity) {
+        return null;
+    }
 }

@@ -1,5 +1,6 @@
 package org.axl.compiler;
 
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Executable;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Method;
@@ -10,12 +11,17 @@ import java.lang.reflect.Type;
 import java.lang.reflect.TypeVariable;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /** Reads the classes a class loader provides, by reflection, without initializing them. */
 public final class ReflectedClasses implements JavaClasses {
 
     /** The classes the translator runs with: those of the JDK. */
     public static final ReflectedClasses JDK = new ReflectedClasses(ReflectedClasses.class.getClassLoader());
+
+    // Annotations that say whether a parameter takes null.
+    private static final Set<String> NON_NULL = Set.of("NonNull", "NotNull", "Nonnull");
+    private static final Set<String> NULLABLE = Set.of("Nullable", "CheckForNull");
 
     private final ClassLoader loader;
 
@@ -150,6 +156,64 @@ public final class ReflectedClasses implements JavaClasses {
         } catch (LinkageError | TypeNotPresentException | java.lang.reflect.MalformedParameterizedTypeException e) {
             return null;
         }
+    }
+
+    @Override
+    public String validated(String qualifiedName, String name, int arity) {
+        Class<?> type = load(qualifiedName);
+        if (type == null) {
+            return null;
+        }
+        try {
+            String result = null;
+            for (Method method : type.getMethods()) {
+                int count = method.getParameterCount();
+                if (!method.getName().equals(name) || !Modifier.isStatic(method.getModifiers())
+                        || count != arity && !(method.isVarArgs() && arity >= count - 1)) {
+                    continue;
+                }
+                String found = count == 0 ? null : validatedType(method);
+                if (found == null || result != null && !result.equals(found)) {
+                    return null;
+                }
+                result = found;
+            }
+            return result;
+        } catch (LinkageError | TypeNotPresentException | java.lang.reflect.MalformedParameterizedTypeException e) {
+            return null;
+        }
+    }
+
+    /** The class a method returns when that is the type of its first parameter, "" for a type variable, or null. */
+    private static String validatedType(Method method) {
+        Type parameter = method.getGenericParameterTypes()[0];
+        Type returned = method.getGenericReturnType();
+        List<Annotation> taking = new ArrayList<>(List.of(method.getParameterAnnotations()[0]));
+        taking.addAll(List.of(method.getAnnotatedParameterTypes()[0].getAnnotations()));
+        List<Annotation> giving = new ArrayList<>(List.of(method.getAnnotations()));
+        giving.addAll(List.of(method.getAnnotatedReturnType().getAnnotations()));
+        // In a null-marked class a parameter without @Nullable does not take null.
+        boolean takesNull = named(taking, NULLABLE) || !named(taking, NON_NULL) && !nullMarked(method.getDeclaringClass());
+        if (!takesNull || named(giving, Set.of("Nullable"))) {
+            return null;
+        }
+        if (parameter instanceof TypeVariable<?> taken && returned instanceof TypeVariable<?> given) {
+            return taken.equals(given) ? "" : null;
+        }
+        return parameter instanceof Class<?> taken && taken.equals(returned) && !taken.isPrimitive() ? taken.getCanonicalName() : null;
+    }
+
+    private static boolean named(List<Annotation> annotations, Set<String> names) {
+        return annotations.stream().anyMatch(a -> names.contains(a.annotationType().getSimpleName()));
+    }
+
+    private static boolean nullMarked(Class<?> type) {
+        for (Class<?> c = type; c != null; c = c.getEnclosingClass()) {
+            if (named(List.of(c.getAnnotations()), Set.of("NullMarked"))) {
+                return true;
+            }
+        }
+        return type.getPackage() != null && named(List.of(type.getPackage().getAnnotations()), Set.of("NullMarked"));
     }
 
     /** A canonical name stands for the binary name `lib.Options$Some` as well as `lib.Options.Some`. */

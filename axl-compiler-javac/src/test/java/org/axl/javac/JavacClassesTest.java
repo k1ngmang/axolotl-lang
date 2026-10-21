@@ -36,6 +36,9 @@ class JavacClassesTest {
             List<JavaClasses.Signature> builders = classes.signatures("java.lang.ProcessBuilder", "<init>");
             assertTrue(builders.contains(new JavaClasses.Signature(List.of("java.util.List"), false)));
             assertTrue(builders.contains(new JavaClasses.Signature(List.of("java.lang.String[]"), true)));
+            assertEquals("", classes.validated("java.util.Objects", "requireNonNull", 2));
+            assertNull(classes.validated("java.util.Objects", "toString", 1));
+            assertNull(classes.validated("java.lang.String", "valueOf", 1));
         }
     }
 

@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -19,6 +20,7 @@ import javax.lang.model.element.Modifier;
 import javax.lang.model.element.RecordComponentElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
@@ -43,6 +45,7 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
     private final Map<String, List<MethodShape>> methods = new HashMap<>();
     private final Map<String, List<Signature>> signatures = new HashMap<>();
     private final Map<String, String> results = new HashMap<>();
+    private final Map<String, String> validated = new HashMap<>();
     private final boolean keepOpen;
     private StandardJavaFileManager files;
     private Elements elements;
@@ -96,6 +99,15 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
             results.put(key, readResult(qualifiedName, name, arity));
         }
         return results.get(key);
+    }
+
+    @Override
+    public synchronized String validated(String qualifiedName, String name, int arity) {
+        String key = qualifiedName + "#" + name + "#" + arity;
+        if (!validated.containsKey(key)) {
+            validated.put(key, readValidated(qualifiedName, name, arity));
+        }
+        return validated.get(key);
     }
 
     @Override
@@ -228,6 +240,70 @@ public final class JavacClasses implements JavaClasses, AutoCloseable {
         } finally {
             release();
         }
+    }
+
+    private String readValidated(String qualifiedName, String name, int arity) {
+        try {
+            TypeElement type = typeNamed(qualifiedName);
+            if (type == null) {
+                return null;
+            }
+            String result = null;
+            for (Element member : elements.getAllMembers(type)) {
+                if (!(member instanceof ExecutableElement method) || member.getKind() != ElementKind.METHOD
+                        || !member.getModifiers().containsAll(Set.of(Modifier.PUBLIC, Modifier.STATIC))
+                        || !member.getSimpleName().contentEquals(name)) {
+                    continue;
+                }
+                int count = method.getParameters().size();
+                if (count != arity && !(method.isVarArgs() && arity >= count - 1)) {
+                    continue;
+                }
+                String found = count == 0 ? null : validatedType(method);
+                if (found == null || result != null && !result.equals(found)) {
+                    return null;
+                }
+                result = found;
+            }
+            return result;
+        } catch (RuntimeException e) {
+            return null;
+        } finally {
+            release();
+        }
+    }
+
+    /** The class a method returns when that is the type of its first parameter, "" for a type variable, or null. */
+    private static String validatedType(ExecutableElement method) {
+        VariableElement first = method.getParameters().get(0);
+        TypeMirror taken = first.asType();
+        TypeMirror returned = method.getReturnType();
+        // In a null-marked scope a parameter without @Nullable does not take null.
+        boolean takesNull = annotated(first, taken, Set.of("Nullable", "CheckForNull"))
+                || !annotated(first, taken, Set.of("NonNull", "NotNull", "Nonnull")) && !nullMarked(method);
+        if (!takesNull || annotated(method, returned, Set.of("Nullable"))) {
+            return null;
+        }
+        if (taken instanceof TypeVariable takenVariable && returned instanceof TypeVariable returnedVariable) {
+            return takenVariable.asElement().equals(returnedVariable.asElement()) ? "" : null;
+        }
+        return taken instanceof DeclaredType takenType && returned instanceof DeclaredType returnedType
+                && takenType.asElement().equals(returnedType.asElement())
+                ? ((TypeElement) takenType.asElement()).getQualifiedName().toString() : null;
+    }
+
+    private static boolean annotated(Element element, TypeMirror type, Set<String> names) {
+        return names.stream().anyMatch(n -> PlatformValues.hasAnnotation(element.getAnnotationMirrors(), n)
+                || PlatformValues.hasAnnotation(type.getAnnotationMirrors(), n));
+    }
+
+    private static boolean nullMarked(Element element) {
+        for (Element e = element; e != null; e = e.getEnclosingElement()) {
+            if (PlatformValues.hasAnnotation(e.getAnnotationMirrors(), "NullMarked")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private TypeElement typeNamed(String qualifiedName) {

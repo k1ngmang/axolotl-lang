@@ -819,7 +819,7 @@ import org.axl.compiler.check.Whens;
         em.indent();
         if (!f.isPrivate() && (isStatic || !inPrivateType)) {
             final var variables = nullableVariablesOf(f.typeParams(), nullableVariables);
-            final var own = ownChecks(f);
+            final var own = ownChecks(f, (isStatic ? List.of() : currentMethods));
             final var checked = Nulls.stream(f.params()).filter(p -> isChecked(memberType(p), boxed.contains(p.name()), variables) && !own.contains(p.name()))
                     .map(Nulls.asGiven(p -> p.name())).toList();
             emitParamChecks(f.pos().line(), checked);
@@ -868,7 +868,11 @@ import org.axl.compiler.check.Whens;
         }
         return result;
     }
-    private Set<String> ownChecks(Decl.Function f) {
+    private Set<String> ownChecks(Decl.Function f, List<Decl.Function> methods) {
+        final var params = new HashMap<String, @Nullable TypeRef>();
+        for (final var p : f.params()) {
+            params.put(p.name(), p.type());
+        }
         final var leading = new ArrayList<Expr>();
         final var exprBody = f.exprBody();
         final var body = f.body();
@@ -876,46 +880,147 @@ import org.axl.compiler.check.Whens;
             leading.add(exprBody);
         } else if (body != null) {
             for (final var st : body.statements()) {
-                if (!(st instanceof Stmt.ExprStmt st$1)) {
+                final @Nullable Expr value = switch (st) {
+                    case Stmt.ExprStmt st$1 -> st$1.expr();
+                    case Stmt.Local st$2 -> st$2.init();
+                    case Stmt.Return st$3 -> st$3.value();
+                    case null, default -> null;
+                };
+                if (value == null) {
                     break;
                 }
-                leading.add(st$1.expr());
+                leading.add(value);
             }
         }
-        final var result = new HashSet<String>();
-        for (final var e : leading) {
-            final var checked = checkedParameter(e);
-            if (checked == null || (Nulls.stream(f.params()).noneMatch(p -> p.name().equals(checked)))) {
-                break;
-            }
-            result.add(checked);
-        }
-        return result;
+        return checkedFirst(leading, params, methods);
     }
     private Set<String> ownPropertyChecks(Decl.ClassDecl classDecl) {
-        final var result = new HashSet<String>();
+        final var params = new HashMap<String, @Nullable TypeRef>();
+        for (final var p : classDecl.parameters()) {
+            params.put(p.name(), propertyTypeOf(p));
+        }
+        final var leading = new ArrayList<Expr>();
         for (final var property : classDecl.properties()) {
             final var init = property.init();
-            final var checked = (init == null ? null : checkedParameter(init));
-            if (checked == null || (Nulls.stream(classDecl.parameters()).noneMatch(p -> p.name().equals(checked)))) {
+            if (init == null) {
+                break;
+            }
+            leading.add(init);
+        }
+        return checkedFirst(leading, params, classDecl.methods());
+    }
+    private Set<String> checkedFirst(List<Expr> leading, Map<String, @Nullable TypeRef> params, List<Decl.Function> methods) {
+        final var result = new HashSet<String>();
+        for (final var e : leading) {
+            final var call = firstCall(e);
+            final var checked = (call == null ? null : checkedParameter(call, params, methods));
+            if (call == null || checked == null) {
                 break;
             }
             result.add(checked);
+            if (!call.equals(withoutParens(e))) {
+                break;
+            }
         }
         return result;
     }
-    private @Nullable String checkedParameter(Expr e) {
-        if (!(e instanceof Expr.Call e$1) || !e$1.name().equals("requireNonNull") || e$1.args().isEmpty() || e$1.args().size() > 2) {
+    private Expr.@Nullable Call firstCall(Expr e) {
+        final var inner = withoutParens(e);
+        if (inner instanceof Expr.Call inner$1) {
+            final var target = inner$1.target();
+            final var before = (target == null ? null : firstCall(target));
+            return (before != null ? before : inner$1);
+        }
+        return (inner instanceof Expr.Member inner$2 ? firstCall(inner$2.target()) : null);
+    }
+    private @Nullable String checkedParameter(Expr.Call call, Map<String, @Nullable TypeRef> params, List<Decl.Function> methods) {
+        final var first = (call.args().isEmpty() ? null : withoutParens(call.args().getFirst()));
+        if (!(first instanceof Expr.Name first$1) || !params.containsKey(first$1.name()) || call.safe()) {
             return null;
         }
-        final var target = e$1.target();
+        return (isRequireNonNull(call) || validates(call, params.get(first$1.name()), methods) ? first$1.name() : null);
+    }
+    private boolean isRequireNonNull(Expr.Call e) {
+        if (!e.name().equals("requireNonNull") || e.args().size() > 2) {
+            return false;
+        }
+        final var target = e.target();
         final var owner = (target == null ? null : Expr.pathName(target));
         final var viaClass = owner != null && (owner.equals("java.util.Objects") ||
                 (owner.equals("Objects") && (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.TYPE && i.name().equals("java.util.Objects")))));
         final var viaFunction = target == null &&
                 (Nulls.stream(file.imports()).anyMatch(i -> i.kind() == Import.Kind.FN && i.name().equals("java.util.Objects.requireNonNull")));
-        final var first = e$1.args().getFirst();
-        return ((viaClass || viaFunction) && first instanceof Expr.Name first$2 ? first$2.name() : null);
+        return viaClass || viaFunction;
+    }
+    private boolean validates(Expr.Call call, @Nullable TypeRef type, List<Decl.Function> methods) {
+        final var target = call.target();
+        final var owner = (target == null ? null : Expr.pathName(target));
+        if (type == null || (target != null && owner == null)) {
+            return false;
+        }
+        final var arity = call.args().size();
+        final var functions = functionsCalled(owner, call.name(), arity, methods);
+        if (functions != null) {
+            return !functions.isEmpty() && (functions.stream().allMatch(f -> isValidator(f, type)));
+        }
+        final var javaOwner = (owner != null ? Nulls.box(owner) : importedOwner(call.name()));
+        final var library = (javaOwner == null ? null : Libraries.classNamed(file, options.classes(), javaOwner));
+        final var validated = (library == null ? null : options.classes().validated(library.name(), call.name(), arity));
+        return validated != null && (validated.isEmpty() || validated.equals(type.name()) || validated.endsWith("." + type.name()));
+    }
+    private @Nullable List<Decl.Function> functionsCalled(@Nullable String owner, String name, int arity, List<Decl.Function> methods) {
+        if (owner == null) {
+            final var own = methods.stream().filter(m -> m.name().equals(name) && m.params().size() == arity).toList();
+            if (!own.isEmpty()) {
+                return own;
+            }
+            final var functions = functionsOf(file, name, arity);
+            final var imported = importedOwner(name);
+            if (!functions.isEmpty() || imported == null) {
+                return functions;
+            }
+            final var sibling = Nulls.first(Nulls.stream(options.siblings()).filter(s -> qualifiedClassName(s).equals(imported)).iterator());
+            return (sibling == null ? null : functionsOf(sibling, name, arity));
+        }
+        if (owner.equals(file.className())) {
+            return functionsOf(file, name, arity);
+        }
+        final var importedType = Nulls.first(Nulls.stream(file.imports()).filter(i -> i.kind() == Import.Kind.TYPE && i.simpleName().equals(owner)).iterator());
+        for (final var sibling : options.siblings()) {
+            final var named = (importedType != null ? importedType.name().equals(qualifiedClassName(sibling)) :
+                    Boolean.valueOf((sibling.className().equals(owner) && samePackage(sibling)) || qualifiedClassName(sibling).equals(owner)));
+            if (named) {
+                return functionsOf(sibling, name, arity);
+            }
+        }
+        return null;
+    }
+    private @Nullable String importedOwner(String name) {
+        final var imported = Nulls.first(Nulls.stream(file.imports()).filter(i -> i.kind() == Import.Kind.FN && i.simpleName().equals(name)).iterator());
+        return (imported == null ? null : imported.name().substring(0, imported.name().lastIndexOf(".")));
+    }
+    private List<Decl.Function> functionsOf(SourceFile source, String name, int arity) {
+        final var own = source.className().equals(file.className()) && samePackage(source);
+        final var result = new ArrayList<Decl.Function>();
+        for (final var decl : source.decls()) {
+            if (decl instanceof Decl.Function decl$1 && decl$1.name().equals(name) && decl$1.params().size() == arity && (own || !decl$1.isPrivate())) {
+                result.add(decl$1);
+            }
+        }
+        return result;
+    }
+    private String qualifiedClassName(SourceFile source) {
+        final var pkg = source.packageName();
+        return (pkg == null ? source.className() : pkg + "." + source.className());
+    }
+    private boolean isValidator(Decl.Function f, TypeRef type) {
+        final var taken = (f.params().isEmpty() ? null : f.params().getFirst().type());
+        final var given = f.returnType();
+        if (taken == null || given == null || !taken.nullable() || given.nullable() ||
+                !javaType(new TypeRef(taken.pos(), taken.name(), taken.args(), false)).equals(javaType(given))) {
+            return false;
+        }
+        return (Nulls.stream(f.typeParams()).anyMatch(p -> p.name().equals(given.name()))) || given.name().equals(type.name());
     }
     private void emitParamChecks(int line, List<String> names) {
         for (final var name : names) {
