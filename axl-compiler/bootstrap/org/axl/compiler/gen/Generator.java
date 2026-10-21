@@ -955,7 +955,7 @@ import org.axl.compiler.check.Whens;
     private boolean validates(Expr.Call call, @Nullable TypeRef type, List<Decl.Function> methods) {
         final var target = call.target();
         final var owner = (target == null ? null : Expr.pathName(target));
-        if (type == null || (target != null && owner == null)) {
+        if (type == null || (target != null && owner == null) || FALLBACKS.contains(call.name())) {
             return false;
         }
         final var arity = call.args().size();
@@ -3952,6 +3952,8 @@ import org.axl.compiler.check.Whens;
     public static final String PRIVATE_TYPES = "Private$";
     private static final Map<String, String> ARRAY_NAMES = Map.of("ByteArray", "byte", "CharArray", "char");
     private static final Set<String> ORDER_STAGES = Set.of("distinct", "limit", "skip");
+    private static final Set<String> FALLBACKS = Set.of("requireNonNullElse", "requireNonNullElseGet", "firstNonNull",
+            "nullToEmpty", "defaultIfNull", "defaultString");
     private static final Set<String> MAPPING_STAGES = Set.of("map", "mapResult", "flatMap");
     private static final Set<String> NUMBERS = Set.of("Int", "Long", "Double", "Float", "Short", "Byte", "Integer", "Character");
     private static final Map<String, String> NARROW_NUMBERS = Map.of("Short", "short", "Byte", "byte", "Character", "char");

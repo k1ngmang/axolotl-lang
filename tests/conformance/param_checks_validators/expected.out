@@ -11,5 +11,6 @@ IllegalArgumentException: empty text
 NullPointerException: parameter value of Lib.printed must not be null
 NullPointerException: parameter value of Lib.logged must not be null
 NullPointerException: parameter value of Lib.measured must not be null
+NullPointerException: parameter value of Lib.defaulted must not be null
 IllegalArgumentException: low must not be null
 IllegalArgumentException: high is missing

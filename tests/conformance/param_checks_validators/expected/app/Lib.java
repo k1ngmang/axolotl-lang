@@ -50,6 +50,10 @@ import static app.Checks.notBlank;
         Nulls.param(value, "value");
         return Validate.length(value);
     }
+    public static String defaulted(String value) {
+        Nulls.param(value, "value");
+        return java.util.Objects.requireNonNullElse(value, "none").trim();
+    }
     public static int log(@Nullable String value) {
         return (value == null ? 0 : 1);
     }

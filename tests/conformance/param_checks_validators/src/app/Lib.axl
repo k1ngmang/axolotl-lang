@@ -39,6 +39,9 @@ fn logged(value: String) -> Int = log(value) + value.length()
 
 fn measured(value: String) -> Int = Validate.length(value)
 
+// A function that gives a default for null instead of throwing is no validator.
+fn defaulted(value: String) -> String = java.util.Objects.requireNonNullElse(value, "none").trim()
+
 fn log(value: String?) -> Int = if (value == null) 0 else 1
 
 // The first properties of a class check its parameters for the constructor.

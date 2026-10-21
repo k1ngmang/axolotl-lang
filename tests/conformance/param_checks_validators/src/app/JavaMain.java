@@ -16,6 +16,7 @@ public final class JavaMain {
         expect(() -> Lib.printed(null));
         expect(() -> Lib.logged(null));
         expect(() -> Lib.measured(null));
+        expect(() -> Lib.defaulted(null));
         expect(() -> new Lib.Range(null, "l"));
         expect(() -> new Lib.Range("k", null));
     }

@@ -60,6 +60,11 @@ private val ARRAY_NAMES: Map<String, String> = Map.of("ByteArray", "byte", "Char
 // Stages that keep the elements as they are without reading them.
 private val ORDER_STAGES: Set<String> = Set.of("distinct", "limit", "skip")
 
+// Functions of the shape of a validator that give a default for null instead of throwing, so that a null from Java
+// would pass them unchecked: Objects, Guava's MoreObjects and Strings, Commons' ObjectUtils and StringUtils.
+private val FALLBACKS: Set<String> = Set.of("requireNonNullElse", "requireNonNullElseGet", "firstNonNull",
+    "nullToEmpty", "defaultIfNull", "defaultString")
+
 // Types whose values Java unboxes in a conditional, as Axolotl or Java names them.
 private val MAPPING_STAGES: Set<String> = Set.of("map", "mapResult", "flatMap")
 
@@ -1069,7 +1074,7 @@ class Generator(
     private fn validates(call: Expr.Call, type: TypeRef?, methods: List<Decl.Function>) -> Boolean {
         val target = call.target()
         val owner = if (target == null) null else Expr.pathName(target)
-        if (type == null || (target != null && owner == null)) {
+        if (type == null || (target != null && owner == null) || FALLBACKS.contains(call.name())) {
             return false
         }
         val arity = call.args().size()
