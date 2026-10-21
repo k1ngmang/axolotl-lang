@@ -381,3 +381,12 @@ Everything after the 0.1.0 release of 2026-10-17, which has the `axl` zip and th
 - The translation parses each `.axl` file once per build instead of once for its siblings and again for each of its translations.
 - `Float` is Java's `float`, as `Double` is `double`: Java callers' `value(3.14f)` picks an Axolotl `fn value(v: Float)` instead of a `Double` overload, and a class can override a `float` method or extend `java.lang.Number`. `1.5f` is a `Float` literal, `Float?` and type arguments are boxed, and the messages for a Java method that takes or gives `java.lang.Float` say to write `Float?`. **Breaking:** code that used `Float` as `java.lang.Float` writes `Float?` where it may be null.
 - An interface may give its methods a body, a Java default method: it reads the interface's values by name and calls its other methods, a class, data class or enum inherits it or writes its own, a `private fn` with a body is a helper of the interface, and `super.m(...)` calls the body of the one implemented interface that has it. The language server and IntelliJ read, find and complete them, and IntelliJ shows them to Java as default methods.
+
+## Unreleased
+
+- A class or data class may overload a method its interface requires with other parameter types, such as `fn interpret(text: String)` next to `fn interpret(n: Int)`. Interface methods are matched by name and parameter types as Java sees them, so only the matching method implements it and gets `@Override`; it used to get AXL017 or javac's "does not override", depending on the order of the methods.
+- An interface may declare overloads with as many parameters when Java tells their types apart, with or without a body.
+- Strict null mode gives the lambdas of `Optional.ifPresent`, `ifPresentOrElse`, `map`, `flatMap`, `filter` and `or` the Optional's element type without `?`.
+- The message for `import val X.*` speaks of values, and for `import fn X.*` of functions.
+- A body that begins by passing a parameter to a validator, a function that takes `T?` and gives `T`, leaves the null check of that parameter to it, as it did for `Objects.requireNonNull`: jsemver's `nonNull(version, "version")`, Guava's `checkNotNull`, Commons' `Validate.notNull`. Functions that give a default for null instead, such as `requireNonNullElse`, keep the generated check. New method `JavaClasses.validated`.
+- `attempt X else e -> throw Y` whose value goes to a `return` or a local is a Java `try` instead of `Result.orThrow` with two lambdas, which halves its time before the JIT compiles it fully.

@@ -191,7 +191,11 @@ other way. A data class implements such methods in a body after its fields, as i
 Long.compare(cents, o.cents()) }`. A method without parameters may also be given by a field of the same name and a
 fitting type, as a record's accessor: `data class Insert(val lines: List<String>) : Delta` gives `fn lines() ->
 List<String>`. A class's property is a field and gives no method; declare it in the interface as `val lines:
-List<String>` instead. A field of type `Int`, `Long`, `Boolean`, `Float` or `Double` that gives a method whose result is a type
+List<String>` instead. A class may also have other methods of the same name with other parameter types, overloads,
+as in Java: only the method whose parameter types match the interface's implements it. An interface may itself
+overload a method with as many parameters when Java tells the types apart, `fn interpret(n: Int)` and
+`fn interpret(text: String) = ...`; two methods whose types are the same once `?` and type arguments are left out
+are an error, as for constructors. A field of type `Int`, `Long`, `Boolean`, `Float` or `Double` that gives a method whose result is a type
 variable, `data class Entry(val key: Int) : Keyed<Int>` for `fn key() -> K`, is an `Integer` (or `Long`, ...) in the Java
 record, since Java cannot give the record a second `key()`; Axolotl code reads it as an `Int`. The body holds methods only; behavior over data classes otherwise
 stays in functions at the top level, with `when` over the sealed interface.
@@ -449,7 +453,8 @@ and the JDK methods whose specification never returns null although nothing in t
 - the collection factories `List.of`, `Set.of`, `Map.of`, `Map.copyOf`, `Map.entry`, the views and
   copies `entrySet`, `keySet`, `values`, `subList`, `iterator`, `toArray`, `headMap`, `descendingSet`
   and the like, `Arrays`, `Collections`, `Optional`, `Objects.requireNonNull`, the combinators of
-  `Comparator`, `Map.Entry` and `java.util.function`, and the results of `Collectors`;
+  `Comparator`, `Map.Entry` and `java.util.function`, and the results of `Collectors`; the functions given to
+  `Optional`'s `ifPresent`, `ifPresentOrElse`, `map`, `flatMap`, `filter` and `or` get its value, which is never null;
 - `UUID`, `Locale`, `Random`, `Scanner`, `StringJoiner`, `Base64`, `Executors`, `CompletableFuture`,
   `Pattern` and `Matcher` (except `group`, which is null for a group that did not match);
 - `Files` (except `probeContentType` and `getAttribute`), `Path` (except `getFileName`, `getParent`
@@ -487,9 +492,15 @@ java.lang.NullPointerException: parameter lines of the Chunk constructor must no
 Parameters that may be null are not checked: `T?`, a type variable without a bound or with a nullable bound, and
 `Int`, `Long`, `Boolean`, `Float` and `Double`, which are Java primitives. Private functions, constructors and classes, enum
 constructors and lambdas are not checked, since only Axolotl code calls them and the compiler checks those calls.
-A body that begins with `Objects.requireNonNull(p, "p is null")` (also `requireNonNull` imported with `import fn`)
-checks `p` itself, with the library's own message, and gets no generated check for `p`; for a class, the first
-properties check its parameters the same way for the constructor:
+A body that begins by passing a parameter to a validator checks it itself, with the library's own exception and
+message, and gets no generated check for it. A validator is a function whose parameter there takes null and whose
+result is that type without `?`: `Objects.requireNonNull(p, "p is null")`, a function of the build such as
+`fn nonNull<T : Object>(value: T?, name: String) -> T`, or a static Java method that returns the type of its first
+parameter and does not declare that parameter non-null, such as Guava's `checkNotNull` or Commons' `Validate.notNull`.
+The call counts in the first statements, also as the first call of an expression body,
+`= nonNull(version, "version").length()`, or of a `val` or `return`; `println(p)`, a function that gives another type
+and one that gives a default for null, such as `requireNonNullElse` or `nullToEmpty`, do not count. For a class, the
+first properties check its parameters the same way for the constructor:
 `class Str(private val text: String) { private val string: String = Objects.requireNonNull(text, "string is null") }`.
 `--no-param-checks`, or `paramChecks = false` in the Gradle and Maven plugins, leaves the checks out.
 
