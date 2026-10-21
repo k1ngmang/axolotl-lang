@@ -1,0 +1,23 @@
+package app
+
+import java.util.List
+import java.util.Optional
+
+// Optional calls the functions of these methods only with its value, which is never null, so in strict mode
+// their lambdas get the element type without `?`.
+fn show(o: Optional<String>) {
+    o.ifPresent({ println(List.of(it)) })
+    o.ifPresentOrElse({ println(List.of(it).size()) }, { -> println("empty") })
+}
+
+fn size(o: Optional<String>) -> Int = o.map({ List.of(it).size() }).orElse(0)
+
+fn longest(o: Optional<String>) -> String =
+    o.filter({ List.of(it).size() == 1 }).flatMap({ Optional.of(List.of(it).getFirst()) }).or({ -> Optional.of("none") }).get()
+
+fn main() {
+    show(Optional.of("a"))
+    show(Optional.empty())
+    println(size(Optional.of("b")))
+    println(longest(Optional.of("c")) + " " + longest(Optional.empty()))
+}

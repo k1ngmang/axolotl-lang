@@ -112,6 +112,9 @@ final class NullChecker implements TaskListener {
     private static final Set<String> NULL_RESULT_ALLOWED = Set.of("java.util.Optional.map");
     private static final Set<String> NULL_VALUE_ALLOWED = Set.of("java.util.Map.computeIfAbsent",
             "java.util.Map.computeIfPresent", "java.util.Map.compute", "java.util.Map.merge");
+    // The methods of Optional that call their function only with the value, which is never null.
+    private static final Set<String> OPTIONAL_COMBINATORS = Set.of("ifPresent", "ifPresentOrElse", "map", "flatMap",
+            "filter", "or");
     // JDK methods that take null for a type argument without `?` and then return what they were given.
     private static final Set<String> NULL_ARGUMENT_ALLOWED = Set.of("java.util.Optional.orElse",
             "java.util.Map.getOrDefault");
@@ -1307,6 +1310,10 @@ final class NullChecker implements TaskListener {
             boolean javaType = type instanceof DeclaredType declared && !PlatformValues.trusted(declared.asElement());
             if (parent.getLeaf() instanceof MethodInvocationTree || parent.getLeaf() instanceof NewClassTree) {
                 Element method = trees.getElement(parent);
+                if (method != null && declaredIn(method, "java.util.Optional")
+                        && OPTIONAL_COMBINATORS.contains(method.getSimpleName().toString())) {
+                    return false;
+                }
                 // An Axolotl function may hand a parameter of a JDK interface type on to Java code.
                 return method != null && (!PlatformValues.trusted(method) || isAxolotlCode(method) && javaType);
             }
