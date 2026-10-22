@@ -17,7 +17,7 @@ The CLI, the libraries, the Gradle and Maven plugins and the editor plugins alwa
 
 Main stays at the version of the last release, so that the version in the build, the POMs, the samples and the
 documentation always names artifacts that exist (`.github/scripts/check-versions.sh` checks that they agree). Every
-change goes into the section `## Unreleased` at the end of [CHANGELOG.md](https://github.com/succubus-uwu/axolotl/blob/main/CHANGELOG.md).
+change goes into the section `## Unreleased` at the end of [CHANGELOG.md](https://github.com/succubus.vwv/axolotl/blob/main/CHANGELOG.md).
 
 ## Making a release
 

@@ -1,7 +1,7 @@
 """The text of the guides: every sentence in English and Russian, with the parts that differ by system."""
 
-RELEASES = "https://github.com/succubus-uwu/axolotl/releases"
-DOCS = "https://github.com/succubus-uwu/axolotl/tree/v{v}/docs"
+RELEASES = "https://github.com/succubus.vwv/axolotl/releases"
+DOCS = "https://github.com/succubus.vwv/axolotl/tree/v{v}/docs"
 
 NAMES = {"windows": "Windows", "macos": "macOS", "linux": "Linux"}
 

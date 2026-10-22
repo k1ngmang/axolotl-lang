@@ -259,7 +259,7 @@ tasks.register<Exec>("nativeInstaller") {
         ) + when (type.get()) {
             // jpackage writes the Maintainer of a deb as "<vendor> <<maintainer>>".
             "deb" -> listOf(
-                "--vendor", "succubus-uwu", "--linux-deb-maintainer", "keshindiy@gmail.com",
+                "--vendor", "succubus.vwv", "--linux-deb-maintainer", "succubus.vwv@gmail.com",
                 "--linux-package-name", "axolotl", "--linux-app-category", "devel",
             )
             else -> listOf("--vendor", "Axolotl")
