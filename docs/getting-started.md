@@ -10,7 +10,7 @@ Axolotl is not published to a public repository yet; it goes into your local Mav
 needs Git too:
 
 ```
-git clone https://github.com/succubus-uwu/axolotl-lang.git
+git clone https://github.com/sora-vuv/axolotl-lang.git
 cd axolotl
 ./gradlew publishToMavenLocal
 ```

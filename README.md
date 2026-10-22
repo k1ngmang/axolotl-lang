@@ -27,7 +27,7 @@ other way round. Errors, stack traces and breakpoints point to `.axl` lines.
 
 ## Installing
 
-Each [release](https://github.com/succubus-uwu/axolotl-lang/releases) has installers: a `setup.exe` for Windows, a
+Each [release](https://github.com/sora-vuv/axolotl-lang/releases) has installers: a `setup.exe` for Windows, a
 `.pkg` for macOS, a `.deb` or a `.tar.gz` for Linux. Each brings its own Java runtime, puts `axl` on the `PATH` and
 sets up the libraries for Maven and Gradle. The release also has the `axl` zip, which needs Java 21, and the VS Code
 and IntelliJ plugins. See [installation](docs/install.md).

@@ -1,7 +1,7 @@
 # Maven plugin `axl-maven-plugin`
 
 Requires Maven 3.9 and Java 21. A complete, working configuration is in
-[`samples/maven-app`](https://github.com/succubus-uwu/axolotl-lang/blob/main/samples/maven-app/pom.xml); a new project can be created with the archetype:
+[`samples/maven-app`](https://github.com/sora-vuv/axolotl-lang/blob/main/samples/maven-app/pom.xml); a new project can be created with the archetype:
 
 ```
 mvn archetype:generate -DarchetypeGroupId=org.axl -DarchetypeArtifactId=axl-archetype-quickstart \
