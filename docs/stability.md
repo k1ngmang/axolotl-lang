@@ -34,7 +34,7 @@ libraries, and they will not change in a way that breaks code that compiles toda
 
 ## How a change reaches you
 
-- Every change is listed in [CHANGELOG.md](https://github.com/succubus.vwv/axolotl/blob/main/CHANGELOG.md) under
+- Every change is listed in [CHANGELOG.md](https://github.com/succubus-uwu/axolotl-lang/blob/main/CHANGELOG.md) under
   its version.
 - A construct that is going away first gives a warning that names its replacement, for at least one minor version,
   and `axl fmt` or the hint shows the rewrite where it can.

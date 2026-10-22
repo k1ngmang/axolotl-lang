@@ -1,7 +1,7 @@
 <idea-plugin>
   <id>org.axl.lang</id>
   <name>Axolotl</name>
-  <vendor url="https://github.com/succubus.vwv/axolotl">Axolotl</vendor>
+  <vendor url="https://github.com/succubus-uwu/axolotl-lang">Axolotl</vendor>
 
   <description><![CDATA[
     Support for <b>Axolotl</b>, a language that translates to readable Java and adds null safety

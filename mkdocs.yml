@@ -1,6 +1,6 @@
 site_name: Axolotl
 site_description: A JVM language that translates to readable Java 21, with null safety and Result.
-repo_url: https://github.com/succubus.vwv/axolotl
+repo_url: https://github.com/succubus-uwu/axolotl-lang
 edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: build/site

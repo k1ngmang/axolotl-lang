@@ -15,7 +15,7 @@ download Error Prone, NullAway and their other dependencies from Maven Central.
 | Other Linux | `axolotl-<version>-linux-x64.tar.gz` | Unpack it and run `install.sh`; it installs into `~/.local` without root, or into the directory `AXL_HOME` names. |
 
 Step-by-step guides to the installation and the `axl` commands, as PDF in English and Russian, are in
-[`docs/guides`](https://github.com/succubus.vwv/axolotl/tree/main/docs/guides) and on the release page.
+[`docs/guides`](https://github.com/succubus-uwu/axolotl-lang/tree/main/docs/guides) and on the release page.
 
 Then check it with `axl --version`. `axl setup` can be run again at any time, for example as another
 user. It follows a `localRepository` in `~/.m2/settings.xml` and a `-Dmaven.repo.local` in
@@ -34,7 +34,7 @@ run `sudo pkgutil --forget org.axl.cli`; after the tarball delete `~/.local/shar
 With JDK 21, build Axolotl once and install it into the local Maven repository:
 
 ```
-git clone https://github.com/succubus.vwv/axolotl.git
+git clone https://github.com/succubus-uwu/axolotl-lang.git
 cd axolotl
 ./gradlew publishToMavenLocal
 ```
